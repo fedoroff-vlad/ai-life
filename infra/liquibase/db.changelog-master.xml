@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <!--
+        Master changelog. Order matters: cross-cutting schemas first (core, memory, audit, bus,
+        media), then domain schemas (calendar, finance, tasks).
+        Feature files are YAML; complex DDL or seed data should be raw SQL referenced from them.
+    -->
+
+    <include file="features/001-core.yml" relativeToChangelogFile="true"/>
+
+    <!-- Future inclusions (added in subsequent PRs):
+    <include file="features/002-memory.yml" relativeToChangelogFile="true"/>
+    <include file="features/003-audit.yml"  relativeToChangelogFile="true"/>
+    <include file="features/004-bus.yml"    relativeToChangelogFile="true"/>
+    <include file="features/005-media.yml"  relativeToChangelogFile="true"/>
+    <include file="features/010-calendar.yml" relativeToChangelogFile="true"/>
+    <include file="features/020-finance.yml"  relativeToChangelogFile="true"/>
+    <include file="features/030-tasks.yml"    relativeToChangelogFile="true"/>
+    -->
+
+</databaseChangeLog>

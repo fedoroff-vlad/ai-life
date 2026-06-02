@@ -1,0 +1,12 @@
+[server]
+hosts = 0.0.0.0:5232
+
+[auth]
+# Stage 0 — open auth for local dev only. Replace with htpasswd + TLS before exposing.
+type = none
+
+[storage]
+filesystem_folder = /data/collections
+
+[logging]
+level = info
