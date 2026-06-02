@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: llm-gateway
+
+server:
+  port: ${LLM_GATEWAY_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+llm:
+  provider: ${LLM_PROVIDER:mock}
+  base-url: ${LLM_BASE_URL:}
+  api-key: ${LLM_API_KEY:}
+  default-model: ${LLM_DEFAULT_MODEL:mock-large}
+  fast-model: ${LLM_FAST_MODEL:}
+  vision-model: ${LLM_VISION_MODEL:}
+  embedding-model: ${LLM_EMBEDDING_MODEL:mock-embed}
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
