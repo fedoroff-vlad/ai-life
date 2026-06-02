@@ -36,6 +36,7 @@
         <module>libs/event-bus</module>
         <module>libs/platform-common</module>
         <module>platform/llm-gateway</module>
+        <module>platform/profile-service</module>
     </modules>
 
     <dependencyManagement>
