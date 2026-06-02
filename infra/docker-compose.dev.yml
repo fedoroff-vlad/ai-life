@@ -1,0 +1,87 @@
+# Local development infrastructure only.
+# Brings up Postgres (with pgvector + pg_trgm), Radicale (CalDAV), MinIO (S3-compatible).
+# Application services (gateway, orchestrator, agents, mcp-*) live in docker-compose.yml,
+# added in later PRs. Until then run apps from your IDE pointed at these ports.
+#
+#   docker compose -f infra/docker-compose.dev.yml up -d
+#   docker compose -f infra/docker-compose.dev.yml down
+#
+# Apache AGE (graph extension) will be added in Stage 4 (memory service) via a custom
+# Postgres image. For now only pgvector + pg_trgm are enabled — sufficient for Stage 0-3.
+
+name: ai-life-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ai-life-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ailife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      POSTGRES_DB: ${POSTGRES_DB:-ailife}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ailife} -d ${POSTGRES_DB:-ailife}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  liquibase:
+    image: liquibase/liquibase:4.30
+    container_name: ai-life-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-ailife}
+      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
+      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+    volumes:
+      - ./liquibase:/liquibase/changelog:ro
+    command: ["update"]
+
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: ai-life-radicale
+    restart: unless-stopped
+    ports:
+      - "${RADICALE_PORT:-5232}:5232"
+    volumes:
+      - radicale-data:/data
+      - ./radicale/config:/etc/radicale/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5232/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: ai-life-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ailife}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ailife-secret}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  radicale-data:
+  minio-data:

@@ -1,0 +1,199 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 001-core-users
+      author: ai-life
+      comment: Households (one per family) and users belonging to them.
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+            stripComments: false
+
+        - createTable:
+            schemaName: core
+            tableName: households
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            schemaName: core
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_users_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: display_name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: locale
+                  type: varchar(16)
+                  defaultValue: ru-RU
+                  constraints:
+                    nullable: false
+              - column:
+                  name: telegram_user_id
+                  type: bigint
+                  constraints:
+                    unique: true
+                    uniqueConstraintName: uq_users_telegram_user_id
+              - column:
+                  name: role
+                  type: varchar(32)
+                  defaultValue: member
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: users
+            indexName: ix_users_household
+            columns:
+              - column:
+                  name: household_id
+
+  - changeSet:
+      id: 002-core-sessions
+      author: ai-life
+      comment: Conversation sessions and per-message rows for short-term memory.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: sessions
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_sessions_user
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: scope
+                  type: varchar(32)
+                  defaultValue: private
+                  constraints:
+                    nullable: false
+              - column:
+                  name: started_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_activity_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: sessions
+            indexName: ix_sessions_user_recent
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: last_activity_at
+                  descending: true
+
+        - createTable:
+            schemaName: core
+            tableName: conversations
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: session_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_conversations_session
+                    referencedTableSchemaName: core
+                    referencedTableName: sessions
+                    referencedColumnNames: id
+              - column:
+                  name: role
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source_agent
+                  type: varchar(64)
+              - column:
+                  name: content_text
+                  type: text
+              - column:
+                  name: attachments
+                  type: jsonb
+                  defaultValueComputed: "'[]'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: conversations
+            indexName: ix_conversations_session_time
+            columns:
+              - column:
+                  name: session_id
+              - column:
+                  name: created_at
