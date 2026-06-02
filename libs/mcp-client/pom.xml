@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>mcp-client</artifactId>
+    <name>ai-life :: libs :: mcp-client</name>
+    <description>Wrapper around Spring AI MCP client (retry, tracing, typed tool calls)</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>contracts</artifactId>
+        </dependency>
+        <!--
+          Spring AI MCP client dependency will be wired in a later PR when we actually
+          invoke MCP tools. Kept out for now so the build does not depend on a specific
+          spring-ai milestone artifact that may rename between versions.
+        -->
+    </dependencies>
+</project>
