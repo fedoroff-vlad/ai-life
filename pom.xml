@@ -17,13 +17,14 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <spring-boot.version>3.4.1</spring-boot.version>
-        <spring-ai.version>1.0.0-M5</spring-ai.version>
+        <spring-ai.version>1.0.8</spring-ai.version>
 
         <postgresql.version>42.7.4</postgresql.version>
         <liquibase.version>4.30.0</liquibase.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <jackson.version>2.18.2</jackson.version>
         <okhttp.version>4.12.0</okhttp.version>
+        <ical4j.version>4.2.5</ical4j.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -40,6 +41,7 @@
         <module>platform/profile-service</module>
         <module>platform/orchestrator</module>
         <module>platform/gateway-telegram</module>
+        <module>mcp/mcp-caldav</module>
     </modules>
 
     <dependencyManagement>
@@ -69,6 +71,11 @@
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>mockwebserver</artifactId>
                 <version>${okhttp.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mnode.ical4j</groupId>
+                <artifactId>ical4j</artifactId>
+                <version>${ical4j.version}</version>
             </dependency>
 
             <!-- internal libs -->

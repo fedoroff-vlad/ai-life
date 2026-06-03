@@ -1,0 +1,20 @@
+# Plan index — READ THIS FIRST, then ONE domain file
+
+This is the map of the system design. **Read only the file for the domain you are touching.**
+Never load more than one domain file per task. Do not re-read a file you already read this session.
+
+| File | Covers | Read when |
+|---|---|---|
+| `architecture.md` | High-level diagram, layers, monorepo structure, DB schemas, LLM strategy, conventions (SKILL.md / AGENT.md), inter-agent comms | Touching cross-cutting structure, adding a new service/agent/MCP, or unsure where something lives |
+| `core.md` | `core` schema (users, household, people, sessions, conversations), profile-service, identity resolution | Working on identity, profiles, people, households |
+| `calendar.md` | calendar domain: `mcp-caldav`, `calendar-agent`, Radicale, ICS import, birthday/gift skills, `calendar.*` schema | Any calendar work |
+| `finance.md` | finance domain: `mcp-finance`, `finance-agent`, Money Pro import, `finance.*` schema, skills | Any finance work |
+| `platform.md` | shared services: orchestrator, gateway-telegram, llm-gateway, memory-service, scheduler, notifier; `memory/audit/bus/media` schemas | Working on a platform/shared service |
+| `roadmap.md` | Stage 0–6 plan, future agents (tasks/health/docs/briefing/...), n8n variant, open-source reuse table, risks | Planning next work, picking what to build, evaluating a reusable component |
+| `STATUS.md` | Current in-flight branch, what's done, next concrete steps. **Mutable** — update as work progresses | Resuming work, checking what's in flight. Update at end of each PR |
+
+## Hard rules (do not violate)
+- One PR = one small vertical slice. >~5 files changed → stop and propose a split first.
+- Do not restate or re-derive the architecture. Assume these files are correct and act.
+- New architectural concept / new layer / new pattern → flag it BEFORE writing code; do not invent silently.
+- Decisions already locked are in `architecture.md` §Decisions — do not relitigate them.
