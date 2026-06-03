@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: gateway-telegram
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${GATEWAY_PORT:8080}
+
+gateway:
+  telegram:
+    bot-username: ${GATEWAY_TELEGRAM_BOT_USERNAME:ai_life_bot}
+    bot-token: ${GATEWAY_TELEGRAM_BOT_TOKEN:}
+    default-household-name: ${GATEWAY_DEFAULT_HOUSEHOLD_NAME:default household}
+  services:
+    profile-base-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+    orchestrator-base-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: orchestrator
+
+server:
+  port: ${ORCHESTRATOR_PORT:8083}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

@@ -23,6 +23,7 @@
         <liquibase.version>4.30.0</liquibase.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <jackson.version>2.18.2</jackson.version>
+        <okhttp.version>4.12.0</okhttp.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -37,6 +38,8 @@
         <module>libs/platform-common</module>
         <module>platform/llm-gateway</module>
         <module>platform/profile-service</module>
+        <module>platform/orchestrator</module>
+        <module>platform/gateway-telegram</module>
     </modules>
 
     <dependencyManagement>
@@ -61,6 +64,11 @@
                 <version>${testcontainers.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>mockwebserver</artifactId>
+                <version>${okhttp.version}</version>
             </dependency>
 
             <!-- internal libs -->
