@@ -1,49 +1,42 @@
 # ai-life — instructions for Claude
 
-Personal AI agents system. Telegram entry → orchestrator → domain agents → narrow MCP servers → Postgres.
-Full system design lives in `C:\Users\vlad\.claude\plans\fluffy-sparking-sunset.md` (the approved plan). Read it before any large change.
+Personal AI agents system. Telegram → orchestrator → domain agents → narrow MCP servers → Postgres.
 
-## Authorization — what to do without asking
-- Push to feature branches `stage-*` / `feat-*` / `fix-*` — OK.
-- Create PRs with `gh pr create` — OK.
-- **Auto-merge own PRs into `main` once CI is green** — OK (user explicitly approved).
-- Create/update GitHub Issues, labels, milestones — OK.
-- Write and modify GitHub Actions workflows (`.github/workflows/*`) — OK.
+## Plan — read SELECTIVELY, never the whole thing
+Design lives in `plans/` split per domain. **Read `plans/INDEX.md` first** (1 page), then the ONE relevant domain file. Never load more than one domain file per task. Do NOT re-read a file you already read this session. Current in-flight work + next steps: `plans/STATUS.md` (update it at the end of each PR).
+Files: `architecture.md` (cross-cutting), `core.md`, `calendar.md`, `finance.md`, `platform.md`, `roadmap.md`, `STATUS.md`.
 
-## What to confirm before doing
-- Direct push to `main` — **never** (always via PR).
-- Force-push, `git reset --hard` on shared branches, deleting branches that aren't yours.
-- Running `docker compose up` / `docker run` locally — ask first (resource cost, port conflicts).
-- Adding paid services / API keys to configs.
-- Changing licence, repo visibility, branch protection rules.
+## Work style — minimise overthinking
+- One PR = one small vertical slice. If a task needs >~5 files changed, STOP and propose splitting before writing code.
+- Don't restate the plan or re-derive the architecture. Assume the plan is correct and act.
+- Skip preamble. No "here's my understanding / what I'll do" essays — make the change, then a ≤3-line summary of what changed and why.
+- Auto-merge flow is approved and routine — don't reason each time about whether you're allowed; just follow the rules below.
+- Genuinely ambiguous? Ask ONE question. Don't explore options.
+- New layer / pattern / architectural concept → flag it BEFORE coding; don't invent silently.
+
+## Test strategy — don't burn cycles
+- While iterating, run ONLY the relevant test class (`mvn -Dtest=ClassName test`), never the full suite.
+- Full suite + Testcontainers runs ONCE before opening the PR — CI is the authority for the full run.
+- Don't paste full container/test logs. On failure, extract only the failing assertion + ~3 relevant lines.
+- Prefer slice/unit tests; reserve Testcontainers for repository/migration tests.
+
+## Authorization — do without asking
+- Push to `stage-*` / `feat-*` / `fix-*`; create PRs (`gh pr create`); **auto-merge own PRs into `main` once CI green** (squash + delete branch); create/update Issues, labels, milestones; write `.github/workflows/*`.
+
+## Confirm before doing
+- Direct push to `main` — **never** (always via PR). Force-push / `git reset --hard` on shared branches / deleting others' branches. `docker compose up` / `docker run` locally. Adding paid services / API keys. Changing licence, repo visibility, branch protection.
 
 ## Branching
-- Branch per PR: `stage-<n>-pr<m>-<slug>` for staged work from the plan; `feat/<slug>` or `fix/<slug>` otherwise.
-- Open PR with a description that references the plan section.
-- After CI green: auto-merge with squash, delete branch.
-- `main` is always green. If CI breaks on `main`, drop everything and fix.
+- `stage-<n>-pr<m>-<slug>` for staged plan work; else `feat/<slug>` / `fix/<slug>`. PR description references the plan section. `main` always green — if CI breaks on main, drop everything and fix.
 
-## Stack
+## Stack (details: `plans/architecture.md`)
 - Java 21 LTS, Maven 3.9+, Spring Boot 3.4.x, Spring AI (MCP client).
 - Postgres 16 + pgvector + Apache AGE + pg_trgm.
-- Liquibase: master XML in `infra/liquibase/`, feature files in YAML, complex DDL in raw SQL.
-- Docker Compose for dev infra. GitHub Actions for CI.
-- Tests: JUnit 5 + Testcontainers (PG auto-starts in tests).
+- Liquibase: master XML `infra/liquibase/db.changelog-master.xml`; per-feature YAML `features/NNN-<domain>.yml`; complex DDL raw SQL in `features/NNN-<domain>/*.sql`.
+- Docker Compose (dev infra). GitHub Actions (CI). Tests: JUnit 5 + Testcontainers (PG auto-starts).
 
-## Code conventions
-- All prompts, system messages, tool descriptions, agent role definitions — **English** (token economy + better model behaviour). User-facing responses are in the user's language (auto-detected).
-- Each skill: separate folder under `skills/<domain>/<skill-name>/` with `SKILL.md` (Anthropic Skills frontmatter + EN system prompt body) and optional `SKILL.ru.md` (translation for humans, not read by the LLM).
-- Each agent: `agents/<name>/AGENT.md` with the same convention. Spring Boot reads `AGENT.md` at startup and registers skills/MCP tools from its frontmatter.
-- DB schemas split by domain (`core`, `memory`, `audit`, `bus`, `media`, `calendar`, `finance`, `tasks`), not by service. One shared Liquibase changelog applies them all.
-- Services share libraries via `libs/*` (contracts, llm-client, mcp-client, event-bus, platform-common).
-- Inter-service: HTTP/SSE for sync, Postgres LISTEN/NOTIFY for async (via `libs/event-bus`).
-- LLM access: only through `libs/llm-client` → `llm-gateway` (env-var-switchable provider).
-- MCP access: only through `libs/mcp-client` (Spring AI MCP under the hood).
-
-## Liquibase format
-- Master file: `infra/liquibase/db.changelog-master.xml` (XML).
-- Per-feature: `infra/liquibase/features/NNN-<domain>.yml` (YAML).
-- Complex DDL or data fixes: `infra/liquibase/features/NNN-<domain>/*.sql` referenced from the YAML.
-
-## When in doubt
-Re-read the plan (`C:\Users\vlad\.claude\plans\fluffy-sparking-sunset.md`) before introducing new architectural concepts. Don't invent new layers or patterns without flagging it first.
+## Conventions (details: `plans/architecture.md`)
+- All prompts / system messages / tool descriptions / agent roles — **English**. User-facing replies in the user's language.
+- Skill: `skills/<domain>/<name>/SKILL.md` (frontmatter + EN body) + optional `SKILL.ru.md`. Agent: `agents/<name>/AGENT.md` (read at startup, registers skills/MCP).
+- DB schemas split by domain (`core, memory, audit, bus, media, calendar, finance, tasks`), not by service. One shared changelog.
+- Shared libs in `libs/*`. Inter-service: HTTP/SSE sync, Postgres LISTEN/NOTIFY async. LLM only via `libs/llm-client` → `llm-gateway`. MCP only via `libs/mcp-client`.

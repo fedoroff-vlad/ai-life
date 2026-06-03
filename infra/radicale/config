@@ -5,6 +5,12 @@ hosts = 0.0.0.0:5232
 # Stage 0 — open auth for local dev only. Replace with htpasswd + TLS before exposing.
 type = none
 
+[rights]
+# `type = none` disables authorization checks so anonymous (auth=none) requests can
+# create / read / write any collection. Mandatory for the no-auth dev config — without
+# this Radicale rejects MKCALENDAR / PUT with 409 Conflict.
+type = none
+
 [storage]
 filesystem_folder = /data/collections
 

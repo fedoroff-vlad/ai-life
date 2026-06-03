@@ -1,0 +1,16 @@
+[server]
+hosts = 0.0.0.0:5232
+
+[auth]
+type = none
+
+[rights]
+# Disables authorization — anonymous can MKCALENDAR/PUT/GET/DELETE anywhere.
+# Tests-only; production reuses infra/radicale/config (same setting but documented).
+type = none
+
+[storage]
+filesystem_folder = /data/collections
+
+[logging]
+level = info

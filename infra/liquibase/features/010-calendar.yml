@@ -1,0 +1,124 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 010-calendar-events-cache
+      author: ai-life
+      comment: |
+        Mirror of calendar events from Radicale. mcp-caldav writes here on every
+        successful upstream operation so PG-side reads (search, "events in next N days")
+        are fast and do not pound Radicale.
+
+        person_id is nullable — populated by calendar-agent when an event is linked to
+        a known core.people row (e.g. a birthday for Маша). source_calendar lets us
+        distinguish "ours" from "external" (Apple/Google ICS imports in PR10).
+      changes:
+        - createTable:
+            schemaName: calendar
+            tableName: events_cache
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_events_cache_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: source_calendar
+                  type: varchar(64)
+                  defaultValue: ours
+                  constraints:
+                    nullable: false
+              - column:
+                  name: calendar_uid
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: etag
+                  type: varchar(255)
+              - column:
+                  name: summary
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: location
+                  type: varchar(255)
+              - column:
+                  name: dtstart
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dtend
+                  type: timestamptz
+              - column:
+                  name: rrule
+                  type: varchar(512)
+              - column:
+                  name: categories
+                  type: text[]
+                  defaultValueComputed: "ARRAY[]::text[]"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: person_id
+                  type: uuid
+              - column:
+                  name: raw_ics
+                  type: text
+              - column:
+                  name: last_synced_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: calendar
+            tableName: events_cache
+            columnNames: household_id, source_calendar, calendar_uid
+            constraintName: uq_events_cache_uid
+
+        - createIndex:
+            schemaName: calendar
+            tableName: events_cache
+            indexName: ix_events_cache_household_dtstart
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: dtstart
+
+        - createIndex:
+            schemaName: calendar
+            tableName: events_cache
+            indexName: ix_events_cache_person
+            columns:
+              - column:
+                  name: person_id
+
+        - sql:
+            sql: |
+              CREATE INDEX ix_events_cache_categories
+                ON calendar.events_cache USING GIN (categories);
+            stripComments: false
