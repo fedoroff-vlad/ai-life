@@ -9,6 +9,11 @@ ailife:
   llm-client:
     base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
 
+orchestrator:
+  agents:
+    - name: calendar
+      base-url: ${CALENDAR_AGENT_URL:http://calendar-agent:8086}
+
 management:
   endpoints:
     web:

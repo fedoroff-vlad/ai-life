@@ -20,7 +20,9 @@ import java.util.UUID;
  * Real dispatch (calling agent's wake handler) is intentionally out of scope here;
  * see {@code AgentWakeController} javadoc.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "orchestrator.agents=")
 class AgentWakeControllerTest {
 
     static MockWebServer llmGateway;

@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.agents.calendar.manifest;
+package dev.fedorov.ailife.contracts.agent;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Result of parsing an {@code AGENT.md} file. Shape mirrors the YAML frontmatter;
- * {@link #body()} is the markdown body (the agent's system prompt). The orchestrator
- * consumes this via {@code GET /manifest} when building its intent-classifier
- * few-shot, so the field names here are part of the wire contract — keep them stable.
+ * Wire shape for {@code GET /agents/<name>/manifest}. Mirrors the YAML frontmatter
+ * of {@code agents/<name>/AGENT.md} plus the markdown body (= the agent's system
+ * prompt). The orchestrator scrapes this on startup to build its intent-classifier
+ * few-shot — keep field names stable.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AgentManifest(
