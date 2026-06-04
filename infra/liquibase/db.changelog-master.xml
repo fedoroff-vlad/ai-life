@@ -12,6 +12,7 @@
     -->
 
     <include file="features/001-core.yml" relativeToChangelogFile="true"/>
+    <include file="features/002-scheduling.yml" relativeToChangelogFile="true"/>
     <include file="features/010-calendar.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):

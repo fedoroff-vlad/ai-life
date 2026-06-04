@@ -25,6 +25,7 @@
         <jackson.version>2.18.2</jackson.version>
         <okhttp.version>4.12.0</okhttp.version>
         <ical4j.version>4.2.5</ical4j.version>
+        <shedlock.version>5.16.0</shedlock.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -42,6 +43,7 @@
         <module>platform/orchestrator</module>
         <module>platform/gateway-telegram</module>
         <module>platform/notifier-service</module>
+        <module>platform/scheduler-service</module>
         <module>mcp/mcp-caldav</module>
     </modules>
 
@@ -77,6 +79,16 @@
                 <groupId>org.mnode.ical4j</groupId>
                 <artifactId>ical4j</artifactId>
                 <version>${ical4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.javacrumbs.shedlock</groupId>
+                <artifactId>shedlock-spring</artifactId>
+                <version>${shedlock.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.javacrumbs.shedlock</groupId>
+                <artifactId>shedlock-provider-jdbc-template</artifactId>
+                <version>${shedlock.version}</version>
             </dependency>
 
             <!-- internal libs -->
