@@ -1,0 +1,115 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 002-scheduling-shedlock
+      author: ai-life
+      comment: |
+        ShedLock JDBC backing table. Used by scheduler-service to make sure only one
+        instance runs the tick at a time. Standard ShedLock 4.x schema.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: shedlock
+            columns:
+              - column:
+                  name: name
+                  type: varchar(64)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: lock_until
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: locked_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: locked_by
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-scheduling-schedules
+      author: ai-life
+      comment: |
+        One row per logical scheduled job. owner_agent receives the wake-up via
+        orchestrator. kind discriminates dispatch handling; payload is opaque JSON the
+        agent interprets. next_run_ts drives the tick.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: schedules
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_schedules_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_agent
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: kind
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cron
+                  type: varchar(128)
+              - column:
+                  name: rrule
+                  type: varchar(512)
+              - column:
+                  name: payload
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: enabled
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_run_ts
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_run_ts
+                  type: timestamptz
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: schedules
+            indexName: ix_schedules_due
+            columns:
+              - column:
+                  name: enabled
+              - column:
+                  name: next_run_ts
