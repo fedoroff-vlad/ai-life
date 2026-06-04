@@ -1,0 +1,80 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 003-people-table
+      author: ai-life
+      comment: |
+        People owned by a household — contacts for birthdays, gifts, greetings.
+        Distinct from core.users (which are bot operators). interests and
+        lead_days_override are JSONB to absorb growth without DDL churn (e.g.,
+        per-occasion overrides like {"gift": 30, "greeting": 1}).
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+            stripComments: false
+
+        - createTable:
+            schemaName: core
+            tableName: people
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_people_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: display_name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: relationship
+                  type: varchar(64)
+              - column:
+                  name: locale
+                  type: varchar(16)
+              - column:
+                  name: interests
+                  type: jsonb
+                  defaultValueComputed: "'[]'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: lead_days_override
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: people
+            indexName: ix_people_household
+            columns:
+              - column:
+                  name: household_id
+
+        - sql:
+            sql: |
+              CREATE INDEX IF NOT EXISTS ix_people_interests_gin
+                ON core.people USING GIN (interests jsonb_path_ops);
+              CREATE INDEX IF NOT EXISTS ix_people_display_name_trgm
+                ON core.people USING GIN (display_name gin_trgm_ops);
+            stripComments: false

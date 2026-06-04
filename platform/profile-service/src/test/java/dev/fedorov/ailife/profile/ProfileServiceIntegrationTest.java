@@ -1,9 +1,15 @@
 package dev.fedorov.ailife.profile;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
+import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.profile.web.dto.CreateHouseholdRequest;
+import dev.fedorov.ailife.profile.web.dto.CreatePersonRequest;
 import dev.fedorov.ailife.profile.web.dto.CreateUserRequest;
+import dev.fedorov.ailife.profile.web.dto.UpdatePersonRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,6 +54,9 @@ class ProfileServiceIntegrationTest {
 
     @Autowired
     RestTemplateBuilder restBuilder;
+
+    @Autowired
+    ObjectMapper json;
 
     @Test
     void householdAndUserLifecycle() {
@@ -105,5 +114,44 @@ class ProfileServiceIntegrationTest {
 
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void peopleCrudRoundTrip() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        HouseholdDto h = http.postForObject(
+                "/v1/households",
+                new CreateHouseholdRequest("people test"),
+                HouseholdDto.class);
+
+        ArrayNode interests = json.createArrayNode().add("books").add("hiking");
+        ObjectNode lead = json.createObjectNode().put("gift", 30).put("greeting", 1);
+        ResponseEntity<PersonDto> created = http.postForEntity(
+                "/v1/people",
+                new CreatePersonRequest(h.id(), "Maria", "sister", "ru-RU",
+                        interests, "favourite cake: napoleon", lead),
+                PersonDto.class);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        PersonDto person = created.getBody();
+        assertThat(person).isNotNull();
+        assertThat(person.id()).isNotNull();
+        assertThat(person.interests().isArray()).isTrue();
+        assertThat(person.leadDaysOverride().get("gift").asInt()).isEqualTo(30);
+
+        PersonDto fetched = http.getForObject("/v1/people/" + person.id(), PersonDto.class);
+        assertThat(fetched.displayName()).isEqualTo("Maria");
+
+        http.patchForObject(
+                "/v1/people/" + person.id(),
+                new UpdatePersonRequest(null, null, null, null, "napoleon + earl grey", null),
+                PersonDto.class);
+        PersonDto afterPatch = http.getForObject("/v1/people/" + person.id(), PersonDto.class);
+        assertThat(afterPatch.notes()).isEqualTo("napoleon + earl grey");
+        assertThat(afterPatch.displayName()).isEqualTo("Maria");
+
+        PersonDto[] list = http.getForObject(
+                "/v1/people/by-household/" + h.id(), PersonDto[].class);
+        assertThat(list).hasSize(1);
+        assertThat(list[0].id()).isEqualTo(person.id());
     }
 }
