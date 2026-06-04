@@ -36,7 +36,7 @@ Files: `architecture.md` (cross-cutting), `core.md`, `calendar.md`, `finance.md`
 - Docker Compose (dev infra). GitHub Actions (CI). Tests: JUnit 5 + Testcontainers (PG auto-starts).
 
 ## Conventions (details: `plans/architecture.md`)
-- All prompts / system messages / tool descriptions / agent roles — **English**. User-facing replies in the user's language.
+- Talk to the repo owner in **Russian** (chat replies, PR descriptions targeted at them, summaries). Code, identifiers, commit messages, prompts, system messages, tool descriptions, agent roles, plan/STATUS files, and anything that ends up in the repo stay in **English**. User-facing app replies follow the end user's language.
 - Skill: `skills/<domain>/<name>/SKILL.md` (frontmatter + EN body) + optional `SKILL.ru.md`. Agent: `agents/<name>/AGENT.md` (read at startup, registers skills/MCP).
 - DB schemas split by domain (`core, memory, audit, bus, media, calendar, finance, tasks`), not by service. One shared changelog.
 - Shared libs in `libs/*`. Inter-service: HTTP/SSE sync, Postgres LISTEN/NOTIFY async. LLM only via `libs/llm-client` → `llm-gateway`. MCP only via `libs/mcp-client`.
