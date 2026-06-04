@@ -7,9 +7,18 @@ public class GatewayProperties {
 
     private Telegram telegram = new Telegram();
     private Services services = new Services();
+    /**
+     * Bearer token required on {@code POST /internal/send} from notifier-service and
+     * any other in-cluster caller. Empty in dev = endpoint refuses every request.
+     */
+    private String internalApiToken = "";
 
     public Telegram getTelegram() { return telegram; }
     public Services getServices() { return services; }
+    public String getInternalApiToken() { return internalApiToken; }
+    public void setInternalApiToken(String internalApiToken) {
+        this.internalApiToken = internalApiToken;
+    }
 
     public static class Telegram {
         private String botUsername = "ai_life_bot";

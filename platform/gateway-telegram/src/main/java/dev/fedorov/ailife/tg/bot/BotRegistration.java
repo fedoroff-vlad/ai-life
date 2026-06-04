@@ -4,11 +4,12 @@ import dev.fedorov.ailife.tg.config.GatewayProperties;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 /**
  * Registers the bot with the long-polling application after Spring is ready. If no
@@ -22,12 +23,15 @@ public class BotRegistration {
 
     private final GatewayProperties props;
     private final MessageProcessor processor;
+    private final ObjectProvider<TelegramClient> clientProvider;
     private final TelegramBotsLongPollingApplication application = new TelegramBotsLongPollingApplication();
 
-    @Autowired
-    public BotRegistration(GatewayProperties props, MessageProcessor processor) {
+    public BotRegistration(GatewayProperties props,
+                           MessageProcessor processor,
+                           ObjectProvider<TelegramClient> clientProvider) {
         this.props = props;
         this.processor = processor;
+        this.clientProvider = clientProvider;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -36,9 +40,14 @@ public class BotRegistration {
             log.warn("GATEWAY_TELEGRAM_BOT_TOKEN is empty — Telegram bot will not start.");
             return;
         }
+        TelegramClient client = clientProvider.getIfAvailable();
+        if (client == null) {
+            log.warn("TelegramClient bean missing despite configured token; skipping bot start.");
+            return;
+        }
         try {
             String token = props.getTelegram().getBotToken();
-            AiLifeBot bot = new AiLifeBot(token, processor);
+            AiLifeBot bot = new AiLifeBot(client, processor);
             application.registerBot(token, bot);
             log.info("Telegram bot @{} registered, long-polling started",
                     props.getTelegram().getBotUsername());
