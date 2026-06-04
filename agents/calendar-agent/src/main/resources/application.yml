@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: calendar-agent
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${CALENDAR_AGENT_PORT:8086}
+
+calendar-agent:
+  manifest-classpath: AGENT.md
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

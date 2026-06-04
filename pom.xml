@@ -45,6 +45,7 @@
         <module>platform/notifier-service</module>
         <module>platform/scheduler-service</module>
         <module>mcp/mcp-caldav</module>
+        <module>agents/calendar-agent</module>
     </modules>
 
     <dependencyManagement>
