@@ -1,15 +1,39 @@
 package dev.fedorov.ailife.agents.calendar;
 
-import dev.fedorov.ailife.agents.calendar.manifest.AgentManifest;
+import dev.fedorov.ailife.contracts.agent.AgentManifest;
+import okhttp3.mockwebserver.MockWebServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ManifestControllerTest {
+
+    static MockWebServer llmGateway;
+
+    @BeforeAll
+    static void startMockLlm() throws Exception {
+        llmGateway = new MockWebServer();
+        llmGateway.start();
+    }
+
+    @AfterAll
+    static void stopMockLlm() throws Exception {
+        llmGateway.shutdown();
+    }
+
+    @DynamicPropertySource
+    static void wire(DynamicPropertyRegistry r) {
+        r.add("ailife.llm-client.base-url",
+                () -> "http://localhost:" + llmGateway.getPort());
+    }
 
     @Autowired WebTestClient http;
     @Autowired AgentManifest loaded;
@@ -28,7 +52,7 @@ class ManifestControllerTest {
 
     @Test
     void getManifestReturnsTheParsedFile() {
-        http.get().uri("/manifest")
+        http.get().uri("/agents/calendar/manifest")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(AgentManifest.class)

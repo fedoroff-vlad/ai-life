@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.orchestrator;
+package dev.fedorov.ailife.agents.calendar;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -8,6 +8,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,14 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * No remote agents registered ({@code orchestrator.agents=}). With only echo
- * available, the classifier short-circuits to echo without calling the LLM —
- * so the mock LLM here serves echo's content call, not classification.
- */
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "orchestrator.agents=")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class IntentControllerTest {
 
     static MockWebServer llmGateway;
@@ -48,51 +42,44 @@ class IntentControllerTest {
     }
 
     @DynamicPropertySource
-    static void wireLlmClient(DynamicPropertyRegistry registry) {
-        registry.add("ailife.llm-client.base-url",
+    static void wire(DynamicPropertyRegistry r) {
+        r.add("ailife.llm-client.base-url",
                 () -> "http://localhost:" + llmGateway.getPort());
     }
 
-    @Autowired
-    private WebTestClient client;
-
-    @Autowired
-    private ObjectMapper json;
+    @Autowired WebTestClient http;
+    @Autowired ObjectMapper json;
 
     @Test
-    void routesToEchoAgentAndReturnsLlmContent() throws Exception {
+    void intentRoutesUserMessageToLlmWithManifestSystemPrompt() throws Exception {
         var fakeLlm = new LlmChatResponse(
-                "mock-large", "hello back", "stop", new LlmUsage(5, 3, 8));
+                "mock-large", "Maria's birthday is on May 5.", "stop",
+                new LlmUsage(20, 10, 30));
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(fakeLlm)));
 
         var msg = new NormalizedMessage(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                MessageScope.PRIVATE,
-                "hello",
-                List.of(),
-                "telegram",
-                "42",
-                Instant.now());
+                UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                "Когда у Маши день рождения?",
+                List.of(), "telegram", "42", Instant.now());
 
-        var response = client.post().uri("/v1/intent")
+        http.post().uri("/agents/calendar/intent")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(msg)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(IntentResponse.class)
-                .returnResult()
-                .getResponseBody();
+                .value(r -> {
+                    assertThat(r.agent()).isEqualTo("calendar");
+                    assertThat(r.text()).contains("May 5");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                });
 
-        assertThat(response).isNotNull();
-        assertThat(response.agent()).isEqualTo("echo");
-        assertThat(response.text()).isEqualTo("hello back");
-        assertThat(response.llmModel()).isEqualTo("mock-large");
-
-        var llmRequest = llmGateway.takeRequest();
-        assertThat(llmRequest.getPath()).isEqualTo("/v1/chat");
-        assertThat(llmRequest.getBody().readUtf8()).contains("\"hello\"");
+        RecordedRequest llmReq = llmGateway.takeRequest();
+        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body).contains("calendar agent");      // AGENT.md body became system prompt
+        assertThat(body).contains("Когда у Маши");        // user text passed through
     }
 }
