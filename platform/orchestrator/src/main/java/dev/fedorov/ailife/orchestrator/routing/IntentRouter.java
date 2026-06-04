@@ -34,4 +34,8 @@ public class IntentRouter {
     Agent pick(NormalizedMessage message) {
         return agents.get("echo");
     }
+
+    public boolean has(String agentName) {
+        return agents.containsKey(agentName);
+    }
 }
