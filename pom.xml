@@ -41,6 +41,7 @@
         <module>platform/profile-service</module>
         <module>platform/orchestrator</module>
         <module>platform/gateway-telegram</module>
+        <module>platform/notifier-service</module>
         <module>mcp/mcp-caldav</module>
     </modules>
 
