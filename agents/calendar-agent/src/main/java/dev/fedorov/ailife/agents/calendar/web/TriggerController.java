@@ -1,5 +1,8 @@
 package dev.fedorov.ailife.agents.calendar.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agents.calendar.http.NotifierClient;
 import dev.fedorov.ailife.agents.calendar.http.ProfileClient;
 import dev.fedorov.ailife.agents.calendar.skill.Skill;
@@ -8,6 +11,7 @@ import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
@@ -21,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Hit by orchestrator when scheduler-service wakes this agent for a {@code kind}
@@ -44,17 +50,20 @@ public class TriggerController {
     private final SkillRegistry skills;
     private final ProfileClient profile;
     private final NotifierClient notifier;
+    private final ObjectMapper json;
 
     public TriggerController(LlmClient llm,
                              AgentManifest manifest,
                              SkillRegistry skills,
                              ProfileClient profile,
-                             NotifierClient notifier) {
+                             NotifierClient notifier,
+                             ObjectMapper json) {
         this.llm = llm;
         this.manifest = manifest;
         this.skills = skills;
         this.profile = profile;
         this.notifier = notifier;
+        this.json = json;
     }
 
     @PostMapping("/{kind}")
@@ -66,28 +75,65 @@ public class TriggerController {
             return Mono.just(ResponseEntity.notFound().build());
         }
 
-        String userPayload = req.payload() == null ? "{}" : req.payload().toString();
+        // Wrap in Optional so a missing person still emits a value through the
+        // chain — switchIfEmpty on a downstream Mono<Void> would mis-fire here
+        // (Mono<Void> always completes empty).
+        return resolvePerson(req.payload())
+                .map(Optional::of)
+                .defaultIfEmpty(Optional.empty())
+                .flatMap(personOpt -> runSkill(kind, skill, req, personOpt.orElse(null)))
+                .then(Mono.just(ResponseEntity.<Void>accepted().build()));
+    }
+
+    /**
+     * If the wake payload carries a {@code personId}, fetch the row from
+     * profile-service so the skill sees real fields. Failures are swallowed —
+     * the skill prompts handle the no-person case explicitly.
+     */
+    private Mono<PersonDto> resolvePerson(JsonNode payload) {
+        if (payload == null) return Mono.empty();
+        JsonNode pid = payload.get("personId");
+        if (pid == null || pid.isNull() || pid.asText().isBlank()) return Mono.empty();
+        UUID personId;
+        try {
+            personId = UUID.fromString(pid.asText());
+        } catch (IllegalArgumentException e) {
+            log.warn("payload.personId not a UUID: {}", pid.asText());
+            return Mono.empty();
+        }
+        return profile.personById(personId)
+                .doOnError(e -> log.warn("person lookup failed for {}: {}", personId, e.toString()))
+                .onErrorResume(e -> Mono.empty());
+    }
+
+    private Mono<Void> runSkill(String kind, Skill skill, AgentWakeRequest req, PersonDto person) {
+        ObjectNode userMsg = json.createObjectNode();
+        userMsg.set("payload", req.payload() == null ? json.createObjectNode() : req.payload());
+        if (person != null) {
+            userMsg.set("person", json.valueToTree(person));
+        }
+
         var chat = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(manifest.body()),
                 LlmMessage.system(skill.body()),
-                LlmMessage.user(userPayload)));
+                LlmMessage.user(userMsg.toString())));
 
-        return llm.chat(chat)
-                .flatMap(resp -> {
-                    String text = resp.content();
-                    log.info("trigger kind={} skill={} produced {} chars",
-                            kind, skill.name(), text == null ? 0 : text.length());
-                    if (text == null || text.isBlank() || req.householdId() == null) {
-                        return Mono.empty();
-                    }
-                    return profile.usersByHousehold(req.householdId())
-                            .flatMap(u -> notifier.notify(u.id(), text)
-                                    .doOnError(e -> log.warn(
-                                            "notify failed for user={} kind={}: {}",
-                                            u.id(), kind, e.toString()))
-                                    .onErrorResume(e -> Mono.empty()))
-                            .then();
-                })
-                .then(Mono.just(ResponseEntity.<Void>accepted().build()));
+        return llm.chat(chat).flatMap(resp -> {
+            String text = resp.content();
+            log.info("trigger kind={} skill={} person={} produced {} chars",
+                    kind, skill.name(),
+                    person == null ? "<none>" : person.id(),
+                    text == null ? 0 : text.length());
+            if (text == null || text.isBlank() || req.householdId() == null) {
+                return Mono.empty();
+            }
+            return profile.usersByHousehold(req.householdId())
+                    .flatMap(u -> notifier.notify(u.id(), text)
+                            .doOnError(e -> log.warn(
+                                    "notify failed for user={} kind={}: {}",
+                                    u.id(), kind, e.toString()))
+                            .onErrorResume(e -> Mono.empty()))
+                    .then();
+        });
     }
 }

@@ -1,8 +1,10 @@
 package dev.fedorov.ailife.agents.calendar.http;
 
+import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -36,5 +38,19 @@ public class ProfileClient {
     /** Convenience for tests / single-shot callers. */
     public Mono<List<UserDto>> usersByHouseholdList(UUID householdId) {
         return usersByHousehold(householdId).collectList();
+    }
+
+    /**
+     * Returns the person row or {@link Mono#empty()} if profile-service responds
+     * 404. Other errors propagate so the caller can decide whether to swallow
+     * them — the trigger flow swallows them and falls back to running the skill
+     * with no person data.
+     */
+    public Mono<PersonDto> personById(UUID personId) {
+        return http.get()
+                .uri("/v1/people/{id}", personId)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
+                .bodyToMono(PersonDto.class);
     }
 }
