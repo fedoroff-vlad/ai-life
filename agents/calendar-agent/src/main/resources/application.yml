@@ -9,6 +9,8 @@ server:
 
 calendar-agent:
   manifest-classpath: AGENT.md
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
 
 ailife:
   llm-client:

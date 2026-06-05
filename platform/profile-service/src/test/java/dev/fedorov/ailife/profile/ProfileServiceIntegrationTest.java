@@ -95,6 +95,26 @@ class ProfileServiceIntegrationTest {
     }
 
     @Test
+    void usersByHouseholdListsMembersOrderedByName() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        HouseholdDto h = http.postForObject(
+                "/v1/households",
+                new CreateHouseholdRequest("members test"),
+                HouseholdDto.class);
+
+        http.postForObject("/v1/users",
+                new CreateUserRequest(h.id(), "Zara", null, 1001L, null), UserDto.class);
+        http.postForObject("/v1/users",
+                new CreateUserRequest(h.id(), "Anna", null, 1002L, "admin"), UserDto.class);
+
+        UserDto[] members = http.getForObject(
+                "/v1/users/by-household/" + h.id(), UserDto[].class);
+        assertThat(members).hasSize(2);
+        assertThat(members[0].displayName()).isEqualTo("Anna");
+        assertThat(members[1].displayName()).isEqualTo("Zara");
+    }
+
+    @Test
     void duplicateTelegramIdRejectedAsConflict() {
         RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
         HouseholdDto h = http.postForObject(

@@ -70,6 +70,13 @@ public class UserController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/by-household/{householdId}")
+    public java.util.List<UserDto> listByHousehold(@PathVariable UUID householdId) {
+        return users.findByHouseholdIdOrderByDisplayName(householdId).stream()
+                .map(UserController::toDto)
+                .toList();
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> duplicate(DataIntegrityViolationException e) {
         return ResponseEntity.status(409).body(Map.of(
