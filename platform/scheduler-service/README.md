@@ -40,3 +40,19 @@ SCHEDULER_BATCH_SIZE=50
 `mvn -B -pl platform/scheduler-service -am test` — Testcontainers pgvector PG
 (no AGE needed) + OkHttp MockWebServer as orchestrator. Tick is invoked directly
 (not via `@Scheduled`) so tests are deterministic.
+
+## Key classes
+- `SchedulerApplication`.
+- `config/SchedulerProperties` — `scheduler.{orchestrator-base-url, tick-millis, batch-size}`.
+- `config/HttpConfig` — WebClient bean for orchestrator.
+- `config/ShedLockConfig` — JDBC lock provider over `core.shedlock`.
+- `domain/Schedule` + `domain/ScheduleRepository` — JPA over `core.schedules`.
+- `domain/NextRunCalculator` — cron → next `Instant` (Spring `CronExpression`, UTC). One-shot rows clear `cron` and have `run_at` only.
+- `domain/ScheduleService` — CRUD + lifecycle (pause/resume/delete).
+- `orchestrator/OrchestratorClient` — POST `/v1/agents/wake`.
+- `tick/ScheduleTick` — pure tickable: read due rows in a per-row tx, POST, recompute next or `enabled=false` for one-shots. **Test-friendly: invoke directly.**
+- `tick/TickRunner` — `@Scheduled(fixedDelay)` wrapper, `@SchedulerLock("scheduler-tick")`.
+- `web/ScheduleController` — REST endpoints from the table above.
+
+## Schema
+[002-scheduling.yml](../../infra/liquibase/features/002-scheduling.yml) — `core.schedules` + `core.shedlock` (standard ShedLock 4.x schema).

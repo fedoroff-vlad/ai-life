@@ -57,3 +57,25 @@ mvn -B -pl mcp/mcp-caldav -am verify
 
 Spins up two Testcontainers (Postgres `pgvector/pgvector:pg16` + `tomsquest/docker-radicale`)
 and runs an end-to-end CRUD flow asserting both the Radicale upstream and the cache row.
+
+## Key classes
+- `McpCaldavApplication`.
+- `config/McpCaldavProperties` — `caldav.{url, user, password, default-calendar}`.
+- `config/HttpConfig` — `WebClient` for Radicale (basic-auth filter if creds present).
+- `caldav/CalDavClient` — write-only CalDAV: idempotent `MKCOL` (principal) → `MKCALENDAR` → `PUT`/`DELETE`. 405/409 are swallowed (already-exists).
+- `caldav/IcsConverter` — render single-VEVENT VCALENDAR for `PUT`.
+- `domain/CalendarEvent` — JPA over `calendar.events_cache`.
+- `domain/EventsCacheRepository` — `findInRange` (indexed scan) + `searchBySimilarity` (`pg_trgm`).
+- `domain/EventMirror` — applies upstream CalDAV op result to the cache row.
+- `tools/CalendarMcpTools` — the 5 `@Tool` methods.
+- `tools/ToolsConfig` — exposes them via `MethodToolCallbackProvider`.
+
+## Schema
+[010-calendar.yml](../../infra/liquibase/features/010-calendar.yml) — `calendar.events_cache`
+(unique `(household_id, source_calendar, calendar_uid)`, indexes on `(household_id, dtstart)`,
+`person_id`, GIN on `categories`).
+
+## Radicale gotchas (captured so we don't relearn them)
+1. Principal `/{household}/` must be `MKCOL`'d before `MKCALENDAR /{household}/{calendar}/`, otherwise `PUT` events return 409 "Conflict in the request". `CalDavClient.ensureCollection` does both, idempotent.
+2. `tomsquest/docker-radicale` has no bash, so Testcontainers' default port-listening check no-ops and the wait returns instantly. Use `Wait.forHttp("/.web/")` — the web UI endpoint returns 200 only once Python has bound.
+3. Custom Radicale config mounts at `/etc/radicale/config` (not `/config/config`). Tests mount with `[rights] type = none` so anonymous (auth=none) can MKCALENDAR/PUT.

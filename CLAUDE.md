@@ -2,9 +2,18 @@
 
 Personal AI agents system. Telegram → orchestrator → domain agents → narrow MCP servers → Postgres.
 
-## Plan — read SELECTIVELY, never the whole thing
-Design lives in `plans/` split per domain. **Read `plans/INDEX.md` first** (1 page), then the ONE relevant domain file. Never load more than one domain file per task. Do NOT re-read a file you already read this session. Current in-flight work + next steps: `plans/STATUS.md` (update it at the end of each PR).
-Files: `architecture.md` (cross-cutting), `core.md`, `calendar.md`, `finance.md`, `platform.md`, `roadmap.md`, `STATUS.md`.
+## Session start — fixed reading order (do NOT deviate)
+1. This file (`CLAUDE.md`).
+2. `plans/STATUS.md` — current in-flight branch + next concrete steps.
+3. `plans/INDEX.md` — map of `plans/`; pick ONE domain file relevant to the task.
+4. The single relevant `plans/<domain>.md` (e.g. `calendar.md`). Never load more than one domain file per task.
+5. **Module README first, source code second.** Before reading any `.java` in a module, read that module's `README.md` (`<module>/README.md`). It lists purpose, port, env, endpoints/tools, and a one-line index of key classes. Open a class only when the README points you there or you need its actual behaviour, not its existence.
+6. For a known cross-cutting recipe (new MCP module / new agent / new migration / new contract), read `plans/PATTERNS.md` — it points at the canonical example so you don't have to re-derive the layout by reading a sibling module wholesale.
+
+Do NOT re-read a file you already read this session. Do NOT broad-Glob/Grep the repo to "see what's there" — start with READMEs and follow their pointers.
+
+## README upkeep — non-negotiable
+Every module has a `README.md` at its root. Every PR that changes a module's **public contract** (env vars, endpoints, MCP tools, key class names, behaviour summary, port, manifest) **must update that module's README in the same PR.** READMEs that drift past one PR are worse than no READMEs at all — they actively mislead future sessions. Folder-level READMEs only exist where the grouping isn't obvious from filenames (e.g. `config/`, `sync/`). Don't add folder READMEs that just enumerate filenames.
 
 ## Work style — minimise overthinking
 - One PR = one small vertical slice. If a task needs >~5 files changed, STOP and propose splitting before writing code.

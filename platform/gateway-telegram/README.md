@@ -41,3 +41,21 @@ GATEWAY_TELEGRAM_BOT_TOKEN=... \
 ```
 
 Then DM your bot. The first message creates your household and you as `admin`.
+
+## `POST /internal/send`
+
+Internal-only outbound channel for notifier-service (notifier never touches the
+Telegram bot API directly — the token stays here). Bearer-gated by
+`GATEWAY_INTERNAL_API_TOKEN` (must match `INTERNAL_API_TOKEN` in notifier-service).
+Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/notify/InternalSendRequest.java).
+
+## Key classes
+- `GatewayApplication`.
+- `bot/AiLifeBot` — Telegram bot impl.
+- `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
+- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`.
+- `identity/IdentityResolver` — `tg_user_id → User` (creates user + household on first contact).
+- `identity/ProfileClient` — WebClient → profile-service.
+- `orchestrator/OrchestratorClient` — POST `/v1/intent`.
+- `internal/InternalSendController` — `POST /internal/send`, Bearer-gated.
+- `config/GatewayProperties`, `config/HttpClientsConfig`, `config/TelegramClientConfig` — `TelegramClient` exposed as a conditional bean so both `BotRegistration` and `InternalSendController` share it via `ObjectProvider`.
