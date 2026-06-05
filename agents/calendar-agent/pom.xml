@@ -81,6 +81,17 @@
                     <include>AGENT.md</include>
                 </includes>
             </resource>
+            <!-- Skills live at the repo root in skills/<domain>/<name>/SKILL.md
+                 so they're not owned by any single module. The calendar agent
+                 bundles its domain onto the classpath under skills/calendar/ —
+                 SkillLoader scans classpath*:skills/calendar/*/SKILL.md. -->
+            <resource>
+                <directory>${project.basedir}/../../skills/calendar</directory>
+                <targetPath>skills/calendar</targetPath>
+                <includes>
+                    <include>**/SKILL.md</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>

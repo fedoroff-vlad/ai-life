@@ -40,8 +40,4 @@ public class IntentRouter {
                     return target.handle(message);
                 });
     }
-
-    public boolean has(String agentName) {
-        return agents.containsKey(agentName);
-    }
 }
