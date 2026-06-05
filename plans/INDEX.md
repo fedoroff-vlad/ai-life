@@ -12,6 +12,9 @@ Never load more than one domain file per task. Do not re-read a file you already
 | `platform.md` | shared services: orchestrator, gateway-telegram, llm-gateway, memory-service, scheduler, notifier; `memory/audit/bus/media` schemas | Working on a platform/shared service |
 | `roadmap.md` | Stage 0–6 plan, future agents (tasks/health/docs/briefing/...), n8n variant, open-source reuse table, risks | Planning next work, picking what to build, evaluating a reusable component |
 | `STATUS.md` | Current in-flight branch, what's done, next concrete steps. **Mutable** — update as work progresses | Resuming work, checking what's in flight. Update at end of each PR |
+| `PATTERNS.md` | Short scaffolding recipes (new MCP module, new agent, new migration, new contract) pointing at canonical examples | About to scaffold something new — read this BEFORE reading a sibling module as a template |
+
+After this file you usually read **the single relevant domain file + the target module's `README.md`** (e.g. `mcp/mcp-caldav/README.md`). Open `.java` only when the module README points you there. Each module has a README that lists purpose, port, env, endpoints/tools, and a one-line index of key classes; PRs that change that public contract must update the README in the same change.
 
 ## Hard rules (do not violate)
 - One PR = one small vertical slice. >~5 files changed → stop and propose a split first.

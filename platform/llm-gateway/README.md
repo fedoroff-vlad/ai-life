@@ -54,3 +54,12 @@ curl -s http://localhost:8081/v1/chat \
   -H 'content-type: application/json' \
   -d '{"channel":"default","messages":[{"role":"user","content":"hi"}]}'
 ```
+
+## Key classes
+- `LlmGatewayApplication` — `@SpringBootApplication`.
+- `config/LlmGatewayProperties` — `@ConfigurationProperties("llm")` (provider id, base-url, api-key, per-channel model ids).
+- `provider/LlmProvider` — provider SPI.
+- `provider/ProviderRegistry` — selects active provider via `LLM_PROVIDER`.
+- `provider/mock/MockProvider` — deterministic echo + 384-dim CRC32-keyed embeddings; used in every other module's tests.
+- `web/ChatController` — `POST /v1/chat`, `POST /v1/chat/stream` (SSE).
+- `web/EmbedController` — `POST /v1/embed`.
