@@ -9,6 +9,13 @@ loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recomme
 Also handles `ics.pull` as a **system trigger** (no LLM) forwarded directly to
 mcp-ics-import's `POST /internal/pull/{id}`.
 
+**Cross-agent recall (PR17)**: before every skill LLM call, `TriggerController`
+zips two memory-service calls — `POST /v1/memories/recall` (top-k by
+householdId/personId) and `GET /v1/graph/person/{id}/relations` — and injects
+their results as `memories[]` and `relations` fields in the user-message JSON.
+Both calls are soft-fail (500 ms timeout, errors collapse to empty) — the skill
+always runs, just without that enrichment when memory-service is down.
+
 ## Port: `8086` (`CALENDAR_AGENT_PORT`)
 
 ## Endpoints
@@ -38,7 +45,9 @@ logged + swallowed; the trigger still returns 202.
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | Via `libs/llm-client`. |
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | Person + household-members lookup. |
 | `NOTIFIER_URL` | `http://notifier-service:8084` | Outbound channel. |
-| `calendar-agent.ics-import-url` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
+| `calendar-agent.ics-import-url` / `MCP_ICS_IMPORT_URL` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
+| `calendar-agent.memory-service-url` / `MEMORY_SERVICE_URL` | `http://memory-service:8087` | Pre-skill recall + relations enrichment. |
+| `calendar-agent.memory-recall-k` / `CALENDAR_AGENT_MEMORY_RECALL_K` | `5` | Top-k for the recall call. |
 
 ## AGENT.md convention
 
@@ -68,6 +77,7 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `http/ProfileClient` — `personById(uuid) → PersonDto`, `usersByHousehold(uuid) → list`.
 - `http/NotifierClient` — `POST /v1/notify` per user (failures logged + swallowed).
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import.
+- `http/MemoryClient` — `recall(householdId, userId, personId, query)` POSTs `/v1/memories/recall`; `personRelations(householdId, personId)` GETs `/v1/graph/person/{id}/relations`. 500 ms timeout, strict no-throw (errors → empty list / empty `PersonRelationsResponse`). **Second consumer in the codebase** (orchestrator was first in PR15) — when a third lands, lift to `libs/memory-client`.
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
 - `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
@@ -77,14 +87,15 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `skill/SkillRegistry` — trigger kind → `Skill` index.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt.
-- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution + household fan-out via notifier.
+- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution + **memory enrichment (recall + relations zipped)** + household fan-out via notifier. `buildRecallQuery` anchors the recall query on the person's display name when available.
 
 ## Tests
 
-`mvn -B -pl agents/calendar-agent -am test` — 9 tests:
+`mvn -B -pl agents/calendar-agent -am test` — 10 tests:
 - Manifest endpoint returns frontmatter + body.
 - Skill loader discovers both `birthday-greeter` and `gift-recommender`.
-- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import) covers `birthday.greet` and `gift.recommend` end-to-end, asserting both household members receive the notify POST and the LLM body contains the resolved person's `interests`/`notes`.
+- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service) covers `birthday.greet` and `gift.recommend` end-to-end, asserting (a) both household members receive the notify POST, (b) the LLM body contains the resolved person's `interests`/`notes`, **(c) the recalled memory text + relation `object_label` are present**.
+- New: memory-service returns 500 → skill still runs, LLM body has **no** `memories` or `relations` block (soft-fail).
 - `ics.pull` system trigger forwards to mcp-ics-import without touching LLM or notifier; downstream 500 still returns 202.
 - Unknown trigger kind → 404 (no skill, no system handler).
 
