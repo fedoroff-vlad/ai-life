@@ -11,6 +11,7 @@ public class CalendarAgentProperties {
 
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
+    private String icsImportUrl = "http://mcp-ics-import:8091";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -19,4 +20,7 @@ public class CalendarAgentProperties {
 
     public String getNotifierUrl() { return notifierUrl; }
     public void setNotifierUrl(String notifierUrl) { this.notifierUrl = notifierUrl; }
+
+    public String getIcsImportUrl() { return icsImportUrl; }
+    public void setIcsImportUrl(String icsImportUrl) { this.icsImportUrl = icsImportUrl; }
 }

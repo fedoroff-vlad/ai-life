@@ -29,4 +29,12 @@ public class HttpConfig {
                 .defaultHeader(HttpHeaders.ACCEPT, "text/calendar, text/plain, */*")
                 .build();
     }
+
+    @Bean
+    public WebClient schedulerWebClient(McpIcsImportProperties props, WebClient.Builder builder) {
+        return builder.clone()
+                .baseUrl(props.getSchedulerUrl())
+                .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-ics-import 0.0.1")
+                .build();
+    }
 }
