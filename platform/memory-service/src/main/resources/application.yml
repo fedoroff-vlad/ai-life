@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: memory-service
+  datasource:
+    url: ${MEMORY_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MEMORY_DB_USER:ailife}
+    password: ${MEMORY_DB_PASSWORD:ailife}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+server:
+  port: ${MEMORY_PORT:8087}
+
+memory:
+  default-k: ${MEMORY_DEFAULT_K:5}
+  max-k: ${MEMORY_MAX_K:50}
+  dim: ${MEMORY_EMBED_DIM:384}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

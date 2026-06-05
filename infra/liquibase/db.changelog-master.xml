@@ -17,6 +17,7 @@
     <include file="features/010-calendar.yml" relativeToChangelogFile="true"/>
     <include file="features/011-ics-subscriptions.yml" relativeToChangelogFile="true"/>
     <include file="features/012-ics-subscriptions-schedule-id.yml" relativeToChangelogFile="true"/>
+    <include file="features/040-memory.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):
     <include file="features/002-memory.yml" relativeToChangelogFile="true"/>

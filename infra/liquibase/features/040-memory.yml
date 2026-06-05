@@ -1,0 +1,103 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 040-memory-schema
+      author: ai-life
+      comment: |
+        memory schema. memory.memories is a flat embeddings table indexed by HNSW
+        cosine for fast top-k recall. Scope is encoded as household_id + optional
+        user_id (a memory specific to one user) and/or person_id (a memory ABOUT
+        a person — birthday context, gift hints, etc.). A memory with only
+        household_id is shared across the household.
+
+        embedding is vector(384) to match the llm-gateway mock provider's
+        deterministic embeddings. When Stage 5 wires real bge-m3 (1024-dim) we
+        will run a migration to widen the column + re-embed all rows.
+
+        We use pgvector's HNSW index (m=16, ef_construction=64 — the upstream
+        defaults). Apache AGE / graph relations land in PR16.
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS memory;
+            stripComments: false
+
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS vector;
+            stripComments: false
+
+        - createTable:
+            schemaName: memory
+            tableName: memories
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_memories_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: user_id
+                  type: uuid
+              - column:
+                  name: person_id
+                  type: uuid
+              - column:
+                  name: source
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: text
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - sql:
+            sql: |
+              ALTER TABLE memory.memories
+                ADD COLUMN embedding vector(384) NOT NULL;
+            stripComments: false
+
+        - createIndex:
+            schemaName: memory
+            tableName: memories
+            indexName: ix_memories_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createIndex:
+            schemaName: memory
+            tableName: memories
+            indexName: ix_memories_person
+            columns:
+              - column:
+                  name: person_id
+
+        - sql:
+            sql: |
+              CREATE INDEX ix_memories_embedding_hnsw
+                ON memory.memories USING hnsw (embedding vector_cosine_ops);
+            stripComments: false
