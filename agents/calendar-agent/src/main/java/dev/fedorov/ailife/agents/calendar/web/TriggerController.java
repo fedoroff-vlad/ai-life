@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.agents.calendar.web;
 
+import dev.fedorov.ailife.agents.calendar.http.NotifierClient;
+import dev.fedorov.ailife.agents.calendar.http.ProfileClient;
 import dev.fedorov.ailife.agents.calendar.skill.Skill;
 import dev.fedorov.ailife.agents.calendar.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -23,10 +25,13 @@ import java.util.List;
 /**
  * Hit by orchestrator when scheduler-service wakes this agent for a {@code kind}
  * declared in {@link AgentManifest#triggers()}. Resolves the trigger to a
- * {@link Skill} via {@link SkillRegistry} and runs it: the system prompt is
- * AGENT.md body + SKILL.md body, the user message is the wake payload (as
- * JSON). The generated text is logged for now — wiring to notifier-service so
- * the user actually receives the greeting is a follow-up PR.
+ * {@link Skill}, runs it (LLM with AGENT.md + SKILL.md bodies as layered system
+ * prompts and the wake payload as the user message), then fans the generated
+ * text out to every user in the wake's household via notifier-service.
+ *
+ * <p>Notifier failures per-user don't block the others — they're logged and the
+ * overall response is still 202. The schedule advances on the scheduler side
+ * regardless, since the wake itself succeeded.
  */
 @RestController
 @RequestMapping("/agents/calendar/triggers")
@@ -37,11 +42,19 @@ public class TriggerController {
     private final LlmClient llm;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
+    private final ProfileClient profile;
+    private final NotifierClient notifier;
 
-    public TriggerController(LlmClient llm, AgentManifest manifest, SkillRegistry skills) {
+    public TriggerController(LlmClient llm,
+                             AgentManifest manifest,
+                             SkillRegistry skills,
+                             ProfileClient profile,
+                             NotifierClient notifier) {
         this.llm = llm;
         this.manifest = manifest;
         this.skills = skills;
+        this.profile = profile;
+        this.notifier = notifier;
     }
 
     @PostMapping("/{kind}")
@@ -60,9 +73,21 @@ public class TriggerController {
                 LlmMessage.user(userPayload)));
 
         return llm.chat(chat)
-                .doOnNext(resp -> log.info("trigger kind={} skill={} produced ({} chars): {}",
-                        kind, skill.name(), resp.content() == null ? 0 : resp.content().length(),
-                        resp.content()))
+                .flatMap(resp -> {
+                    String text = resp.content();
+                    log.info("trigger kind={} skill={} produced {} chars",
+                            kind, skill.name(), text == null ? 0 : text.length());
+                    if (text == null || text.isBlank() || req.householdId() == null) {
+                        return Mono.empty();
+                    }
+                    return profile.usersByHousehold(req.householdId())
+                            .flatMap(u -> notifier.notify(u.id(), text)
+                                    .doOnError(e -> log.warn(
+                                            "notify failed for user={} kind={}: {}",
+                                            u.id(), kind, e.toString()))
+                                    .onErrorResume(e -> Mono.empty()))
+                            .then();
+                })
                 .then(Mono.just(ResponseEntity.<Void>accepted().build()));
     }
 }
