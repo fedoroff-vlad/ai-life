@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.calendar.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.memory.MemoryDto;
+import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
+import dev.fedorov.ailife.contracts.memory.RelationDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
@@ -46,8 +50,10 @@ class TriggerControllerTest {
     static MockWebServer profileService;
     static MockWebServer notifier;
     static MockWebServer icsImport;
+    static MockWebServer memoryService;
 
     static ProfileDispatcher profileDispatcher;
+    static MemoryDispatcher memoryDispatcher;
 
     @BeforeAll
     static void start() throws Exception {
@@ -67,6 +73,10 @@ class TriggerControllerTest {
         notifier.start();
         icsImport = new MockWebServer();
         icsImport.start();
+        memoryService = new MockWebServer();
+        memoryDispatcher = new MemoryDispatcher();
+        memoryService.setDispatcher(memoryDispatcher);
+        memoryService.start();
     }
 
     @AfterAll
@@ -75,6 +85,7 @@ class TriggerControllerTest {
         profileService.shutdown();
         notifier.shutdown();
         icsImport.shutdown();
+        memoryService.shutdown();
     }
 
     @DynamicPropertySource
@@ -87,11 +98,14 @@ class TriggerControllerTest {
                 () -> "http://localhost:" + notifier.getPort());
         r.add("calendar-agent.ics-import-url",
                 () -> "http://localhost:" + icsImport.getPort());
+        r.add("calendar-agent.memory-service-url",
+                () -> "http://localhost:" + memoryService.getPort());
     }
 
     @BeforeEach
-    void resetProfileDispatcher() {
+    void resetDispatchers() {
         profileDispatcher.reset();
+        memoryDispatcher.reset();
     }
 
     @Autowired WebTestClient http;
@@ -122,6 +136,17 @@ class TriggerControllerTest {
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()),
                 new UserDto(wifeId, householdId, "Wife", "ru-RU", 2L, "admin", Instant.now()));
 
+        // Cross-agent chain: enrich with memories + relations BEFORE the LLM call.
+        memoryDispatcher.recallHits = List.of(new RecallMemoryHit(new MemoryDto(
+                UUID.randomUUID(), householdId, null, personId, "chat",
+                "Maria mentioned wanting a quiet birthday this year.", null, Instant.now()), 0.12));
+        memoryDispatcher.relations = new PersonRelationsResponse(
+                personId,
+                List.of(new RelationDto(
+                        UUID.randomUUID(), householdId, "person", personId, "likes",
+                        "label", null, "loose-leaf earl grey tea", 1.0f, "chat", null, Instant.now())),
+                List.of());
+
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse(
@@ -138,14 +163,16 @@ class TriggerControllerTest {
                 .exchange()
                 .expectStatus().isAccepted();
 
-        // LLM saw the resolved person fields in the user message.
+        // LLM saw the resolved person fields AND the recalled memories AND the relations.
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq).isNotNull();
         String llmBody = llmReq.getBody().readUtf8();
         assertThat(llmBody)
                 .contains("Maria")
                 .contains("sister")
-                .contains("earl grey");
+                .contains("earl grey")                               // person.notes
+                .contains("Maria mentioned wanting a quiet birthday") // memory recall hit
+                .contains("loose-leaf earl grey tea");                // relation object_label
 
         // Two notify POSTs landed.
         RecordedRequest first = notifier.takeRequest(2, TimeUnit.SECONDS);
@@ -172,6 +199,18 @@ class TriggerControllerTest {
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
 
+        // gift.recommend benefits the most from memory enrichment.
+        memoryDispatcher.recallHits = List.of(new RecallMemoryHit(new MemoryDto(
+                UUID.randomUUID(), householdId, null, personId, "chat",
+                "Maria signed up for the Lake District ultra in October.",
+                null, Instant.now()), 0.07));
+        memoryDispatcher.relations = new PersonRelationsResponse(
+                personId,
+                List.of(new RelationDto(
+                        UUID.randomUUID(), householdId, "person", personId, "owns",
+                        "label", null, "Hoka Speedgoat 5", 1.0f, "chat", null, Instant.now())),
+                List.of());
+
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse(
@@ -193,13 +232,58 @@ class TriggerControllerTest {
         assertThat(llmReq).isNotNull();
         String body = llmReq.getBody().readUtf8();
         assertThat(body)
-                .contains("suggest gift ideas")        // gift-recommender SKILL.md body
-                .contains("hiking")                    // person.interests
-                .contains("trail running");            // person.notes
+                .contains("suggest gift ideas")             // gift-recommender SKILL.md body
+                .contains("hiking")                         // person.interests
+                .contains("trail running")                  // person.notes
+                .contains("Lake District ultra in October") // memory recall hit
+                .contains("Hoka Speedgoat 5");              // relation object_label
 
         RecordedRequest notify = notifier.takeRequest(2, TimeUnit.SECONDS);
         assertThat(notify).isNotNull();
         assertThat(notify.getBody().readUtf8()).contains(vladId.toString());
+    }
+
+    @Test
+    void memoryServiceFailureDoesNotBlockSkill() throws Exception {
+        // memory-service returns 500 on every endpoint → MemoryClient soft-fails to empty.
+        memoryDispatcher.simulate5xx = true;
+
+        UUID householdId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        UUID vladId = UUID.randomUUID();
+
+        profileDispatcher.person = new PersonDto(
+                personId, householdId, "Maria", "sister", "ru-RU",
+                json.createArrayNode().add("books"), "n/a", null, Instant.now());
+        profileDispatcher.householdMembers = List.of(
+                new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
+
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "Happy birthday!", "stop", new LlmUsage(40, 4, 44)))));
+
+        var payload = json.createObjectNode().put("personId", personId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), householdId, "calendar", "birthday.greet", payload);
+
+        http.post().uri("/agents/calendar/triggers/birthday.greet")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // LLM was still called (skill still ran) and no memories/relations leaked into the body.
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(llmReq).isNotNull();
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body)
+                .contains("Maria")
+                .doesNotContain("\"memories\"")
+                .doesNotContain("\"relations\"");
+
+        // Notify still happened.
+        assertThat(notifier.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
     }
 
     @Test
@@ -296,6 +380,50 @@ class TriggerControllerTest {
                     return new MockResponse()
                             .setHeader("content-type", "application/json")
                             .setBody(M.writeValueAsString(householdMembers));
+                }
+            } catch (Exception e) {
+                return new MockResponse().setResponseCode(500).setBody(e.toString());
+            }
+            return new MockResponse().setResponseCode(404);
+        }
+    }
+
+    /**
+     * Routes {@code POST /v1/memories/recall} and
+     * {@code GET /v1/graph/person/{id}/relations}. Seeded per test; defaults to empty
+     * lists. {@code simulate5xx} flips both endpoints to 500 to test soft-fail.
+     */
+    private static class MemoryDispatcher extends Dispatcher {
+        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        volatile List<RecallMemoryHit> recallHits = List.of();
+        volatile PersonRelationsResponse relations;
+        volatile boolean simulate5xx;
+
+        void reset() {
+            recallHits = List.of();
+            relations = null;
+            simulate5xx = false;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest req) {
+            if (simulate5xx) {
+                return new MockResponse().setResponseCode(500).setBody("boom");
+            }
+            String path = req.getPath() == null ? "" : req.getPath();
+            try {
+                if (path.startsWith("/v1/memories/recall")) {
+                    return new MockResponse()
+                            .setHeader("content-type", "application/json")
+                            .setBody(M.writeValueAsString(recallHits));
+                }
+                if (path.startsWith("/v1/graph/person/") && path.contains("/relations")) {
+                    PersonRelationsResponse body = relations == null
+                            ? new PersonRelationsResponse(null, List.of(), List.of())
+                            : relations;
+                    return new MockResponse()
+                            .setHeader("content-type", "application/json")
+                            .setBody(M.writeValueAsString(body));
                 }
             } catch (Exception e) {
                 return new MockResponse().setResponseCode(500).setBody(e.toString());

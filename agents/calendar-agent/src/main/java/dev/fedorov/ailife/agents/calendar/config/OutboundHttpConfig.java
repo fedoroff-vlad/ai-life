@@ -27,4 +27,9 @@ public class OutboundHttpConfig {
     public WebClient icsImportWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
         return builder.clone().baseUrl(props.getIcsImportUrl()).build();
     }
+
+    @Bean
+    public WebClient memoryServiceWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
+        return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
+    }
 }

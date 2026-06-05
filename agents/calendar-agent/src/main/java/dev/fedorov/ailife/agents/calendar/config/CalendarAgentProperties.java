@@ -12,6 +12,9 @@ public class CalendarAgentProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String icsImportUrl = "http://mcp-ics-import:8091";
+    private String memoryServiceUrl = "http://memory-service:8087";
+    /** Top-k requested from memory-service when enriching a skill prompt. */
+    private int memoryRecallK = 5;
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -23,4 +26,8 @@ public class CalendarAgentProperties {
 
     public String getIcsImportUrl() { return icsImportUrl; }
     public void setIcsImportUrl(String icsImportUrl) { this.icsImportUrl = icsImportUrl; }
+    public String getMemoryServiceUrl() { return memoryServiceUrl; }
+    public void setMemoryServiceUrl(String memoryServiceUrl) { this.memoryServiceUrl = memoryServiceUrl; }
+    public int getMemoryRecallK() { return memoryRecallK; }
+    public void setMemoryRecallK(int memoryRecallK) { this.memoryRecallK = memoryRecallK; }
 }
