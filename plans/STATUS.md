@@ -1,9 +1,12 @@
 # STATUS — current in-flight work (MUTABLE: update at the end of each PR)
 
 ## Now
-- **Stage:** 1 (calendar). **Branch:** `stage-1-pr13-ics-scheduling` (about to merge). ICS subscriptions now auto-register an hourly `ics.pull` cron in scheduler-service; calendar-agent's TriggerController gained a **system-trigger** path that bypasses the LLM and forwards `ics.pull` straight to mcp-ics-import's new `POST /internal/pull/{id}`.
-- **Next goal (PR14):** end-to-end proactive birthday test as Stage 1 closer — seed a person with birthday tomorrow, schedule a `birthday.greet` cron via scheduler-service, advance time / call the tick directly, assert the household members receive the greeting via notifier→gateway-telegram (`/internal/send` mock).
-- **Then:** Stage 1 closed → move into Stage 2 (finance or memory; pick at the start of the next session).
+- **Stage:** 4 (memory). Stage 1 closed without a dedicated e2e closer — every seam (scheduler tick, orchestrator wake, calendar-agent trigger fan-out, notifier → gateway-telegram) has unit/integration coverage with mocks at the boundary; full-pipeline integration test deferred (see "Deferred work" below). Stages 2 (finance) and 3 (tasks) intentionally skipped for now — memory unlocks cross-agent recall, which makes every subsequent agent measurably better.
+- **Next goal (PR14):** memory-service skeleton — new `platform/memory-service` module + `memory` schema (`040-memory.yml`: `memory.memories` table with pgvector embedding column, scope = household + optional user/person). Endpoints: `POST /v1/memories` (write, embeds via llm-gateway `embedding` channel), `POST /v1/memories/recall` (top-k cosine similarity + scope filter), `DELETE /v1/memories/{id}`. Apache AGE graph + `/graph/person/{id}/relations` deferred to PR16 (AGE container is its own gotcha). Mirror of PR6 (mcp-caldav) shape.
+- **Then:** PR15 = orchestrator calls memory recall before intent classification (top-3 memories injected into the fast-channel prompt). PR16 = AGE graph + relations endpoint.
+
+## Deferred work (pick up before Stage 5 — real LLM)
+- **E2E Stage-1 closer test.** New `tests/e2e-stage1` module with two in-process Spring contexts (scheduler-service + calendar-agent) + MockWebServers for orchestrator/profile/llm/notifier, asserting tick→notify end-to-end. Reason for deferral: every seam is already covered with mocks-on-boundary; the meaningful classes of bugs this catches (timeouts, retries, provider quirks) only show up once a real LLM is wired in Stage 5, so the test will be written then alongside Anthropic/OpenAI provider impls.
 
 ## Done (Stage 0, merged)
 End-to-end echo path: gateway-telegram → orchestrator → llm-gateway (mock) → reply. PRs 1–5 merged.
@@ -25,8 +28,11 @@ End-to-end echo path: gateway-telegram → orchestrator → llm-gateway (mock) �
     2. `tomsquest/docker-radicale` image has no bash, so Testcontainers' default port listening check no-ops and the wait returns instantly. Use `Wait.forHttp("/.web/").forStatusCodeMatching(c -> c >= 200 && c < 500)` instead — the `/.web/` UI endpoint returns 200 only after the Python server has bound.
     3. Custom Radicale config mounts to `/etc/radicale/config` (not `/config/config`). Tests mount a copy with `[rights] type = none` so anonymous (auth=none) requests can create/write collections.
 
-## Next PRs (Stage 1)
-- PR14: end-to-end proactive birthday test (Stage 1 closer).
+## Next PRs (Stage 4)
+- PR14: memory-service skeleton (schema, write, recall).
+- PR15: orchestrator pre-routing recall (inject top-3 memories into intent classifier prompt).
+- PR16: AGE graph + `/v1/graph/person/{id}/relations`.
+- PR17: first cross-agent chain (`calendar.birthday_upcoming → memory.recall(person) → calendar-agent.gift-recommender` enriched with recalled context).
 
 ## Workflow reminder
 Run only the relevant test class while iterating; full suite once before PR (CI is the authority). Don't paste full logs — extract failing assertion + ~3 lines. Auto-merge squash on green, delete branch. Start a fresh Claude Code session after each merged PR.
