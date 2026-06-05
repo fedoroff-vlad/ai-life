@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: mcp-ics-import
+  datasource:
+    url: ${MCP_ICS_IMPORT_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MCP_ICS_IMPORT_DB_USER:ailife}
+    password: ${MCP_ICS_IMPORT_DB_PASSWORD:ailife}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-ics-import
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Read-only external calendar subscriptions (Apple iCloud, Google public
+          calendars). Each subscription is fetched as ICS and mirrored into a
+          per-subscription Radicale collection plus the shared events_cache.
+
+server:
+  port: ${MCP_ICS_IMPORT_PORT:8091}
+
+icsimport:
+  caldav-url: ${CALDAV_URL:http://localhost:5232}
+  caldav-user: ${CALDAV_USER:}
+  caldav-password: ${CALDAV_PASSWORD:}
+  collection-prefix: ${ICS_IMPORT_COLLECTION_PREFIX:external}
+  max-ics-bytes: ${ICS_IMPORT_MAX_BYTES:5242880}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

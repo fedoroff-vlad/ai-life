@@ -1,0 +1,73 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 011-ics-subscriptions
+      author: ai-life
+      comment: |
+        Read-only external ICS feeds (Apple/Google subscriptions). mcp-ics-import
+        polls each row hourly (scheduler-driven in a later PR), GETs the url,
+        parses VEVENTs and writes them into a Radicale collection named
+        external-<slug> with source_calendar = "external-<slug>" in events_cache.
+        last_error is human-readable; empty/null on success.
+      changes:
+        - createTable:
+            schemaName: calendar
+            tableName: ics_subscriptions
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_ics_subscriptions_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: slug
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: url
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_synced_at
+                  type: timestamptz
+              - column:
+                  name: last_error
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: calendar
+            tableName: ics_subscriptions
+            columnNames: household_id, slug
+            constraintName: uq_ics_subscriptions_household_slug
+
+        - createIndex:
+            schemaName: calendar
+            tableName: ics_subscriptions
+            indexName: ix_ics_subscriptions_household
+            columns:
+              - column:
+                  name: household_id
