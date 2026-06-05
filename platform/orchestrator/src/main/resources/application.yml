@@ -13,6 +13,10 @@ orchestrator:
   agents:
     - name: calendar
       base-url: ${CALENDAR_AGENT_URL:http://calendar-agent:8086}
+  memory:
+    enabled: ${ORCHESTRATOR_MEMORY_ENABLED:true}
+    url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+    recall-k: ${ORCHESTRATOR_MEMORY_RECALL_K:3}
 
 management:
   endpoints:

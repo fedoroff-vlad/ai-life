@@ -7,12 +7,15 @@ import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.memory.MemoryDto;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +28,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -39,6 +43,7 @@ class AgentRoutingTest {
 
     static MockWebServer llmGateway;
     static MockWebServer calendarAgent;
+    static MockWebServer memoryService;
 
     @BeforeAll
     static void startMocks() throws Exception {
@@ -47,12 +52,15 @@ class AgentRoutingTest {
         calendarAgent = new MockWebServer();
         calendarAgent.setDispatcher(new CalendarDispatcher());
         calendarAgent.start();
+        memoryService = new MockWebServer();
+        memoryService.start();
     }
 
     @AfterAll
     static void stopMocks() throws Exception {
         llmGateway.shutdown();
         calendarAgent.shutdown();
+        memoryService.shutdown();
     }
 
     @DynamicPropertySource
@@ -62,14 +70,36 @@ class AgentRoutingTest {
         r.add("orchestrator.agents[0].name", () -> "calendar");
         r.add("orchestrator.agents[0].base-url",
                 () -> "http://localhost:" + calendarAgent.getPort());
+        r.add("orchestrator.memory.url",
+                () -> "http://localhost:" + memoryService.getPort());
     }
 
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
 
+    @BeforeEach
+    void resetCalendarHits() {
+        CalendarDispatcher.intentHits.set(0);
+    }
+
     @Test
-    void classifierPicksCalendarAndOrchestratorForwards() throws Exception {
-        // LLM call #1 = classification. Reply must match a known agent name.
+    void classifierRecallsMemoriesAndPicksCalendarAndForwards() throws Exception {
+        UUID household = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+
+        // memory-service returns two relevant memories.
+        var memories = List.of(
+                new RecallMemoryHit(new MemoryDto(
+                        UUID.randomUUID(), household, user, null, "chat",
+                        "Maria's birthday is May 5.", null, Instant.now()), 0.05),
+                new RecallMemoryHit(new MemoryDto(
+                        UUID.randomUUID(), household, user, null, "chat",
+                        "Maria loves earl grey tea.", null, Instant.now()), 0.18));
+        memoryService.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(memories)));
+
+        // LLM call = classification. Reply must match a known agent name.
         var classifyResp = new LlmChatResponse(
                 "mock-fast", "calendar", "stop", new LlmUsage(50, 1, 51));
         llmGateway.enqueue(new MockResponse()
@@ -77,7 +107,7 @@ class AgentRoutingTest {
                 .setBody(json.writeValueAsString(classifyResp)));
 
         var msg = new NormalizedMessage(
-                UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                user, household, MessageScope.PRIVATE,
                 "Когда у Маши день рождения?",
                 List.of(), "telegram", "42", Instant.now());
 
@@ -92,13 +122,59 @@ class AgentRoutingTest {
                     assertThat(r.text()).isEqualTo("Maria's birthday: May 5");
                 });
 
-        // The classifier hit the LLM on the FAST channel.
+        // memory-service was hit with the right scope + query.
+        RecordedRequest recall = memoryService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(recall).isNotNull();
+        assertThat(recall.getPath()).isEqualTo("/v1/memories/recall");
+        String recallBody = recall.getBody().readUtf8();
+        assertThat(recallBody)
+                .contains("\"householdId\":\"" + household + "\"")
+                .contains("\"userId\":\"" + user + "\"")
+                .contains("\"k\":3")
+                .contains("Когда у Маши день рождения?");
+
+        // The classifier hit the LLM on the FAST channel WITH the recalled memories.
         RecordedRequest classify = llmGateway.takeRequest();
         assertThat(classify.getPath()).isEqualTo("/v1/chat");
-        assertThat(classify.getBody().readUtf8()).contains("\"channel\":\"fast\"");
+        String classifyBody = classify.getBody().readUtf8();
+        assertThat(classifyBody)
+                .contains("\"channel\":\"fast\"")
+                .contains("Maria's birthday is May 5.")     // recalled memory injected
+                .contains("Maria loves earl grey tea.");    // both hits present
 
         // The orchestrator forwarded to calendar-agent /agents/calendar/intent.
         assertThat(CalendarDispatcher.intentHits.get()).isEqualTo(1);
+    }
+
+    @Test
+    void classifierStillWorksWhenMemoryReturnsEmpty() throws Exception {
+        // memory returns []
+        memoryService.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("[]"));
+
+        var classifyResp = new LlmChatResponse(
+                "mock-fast", "calendar", "stop", new LlmUsage(20, 1, 21));
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(classifyResp)));
+
+        var msg = new NormalizedMessage(
+                UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                "Add a meeting tomorrow at 15:00",
+                List.of(), "telegram", "43", Instant.now());
+
+        http.post().uri("/v1/intent")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(msg)
+                .exchange()
+                .expectStatus().isOk();
+
+        // Classification body has NO "Relevant long-term context" block when recall is empty.
+        memoryService.takeRequest(2, TimeUnit.SECONDS);
+        RecordedRequest classify = llmGateway.takeRequest();
+        assertThat(classify.getBody().readUtf8())
+                .doesNotContain("Relevant long-term context");
     }
 
     private static class CalendarDispatcher extends Dispatcher {

@@ -5,13 +5,16 @@ import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.llm.LlmClient;
 import dev.fedorov.ailife.orchestrator.agent.AgentRegistry;
+import dev.fedorov.ailife.orchestrator.memory.MemoryClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,7 +22,9 @@ import java.util.Set;
 /**
  * Picks an agent name for an incoming {@link NormalizedMessage} by asking the
  * LLM on the {@link LlmChannel#FAST} channel. The few-shot prompt is built once
- * from {@link AgentRegistry} (frozen at startup).
+ * from {@link AgentRegistry} (frozen at startup); per-request long-term context
+ * is pulled from {@link MemoryClient} and injected as a second system message
+ * when non-empty.
  *
  * <p>Decision contract: the model must reply with exactly one of the known agent
  * names (case-insensitive, trimmed). Any other reply — or any failure — resolves
@@ -33,11 +38,13 @@ public class LlmIntentClassifier {
     private static final String ECHO = "echo";
 
     private final LlmClient llm;
+    private final MemoryClient memory;
     private final Set<String> knownAgents;
     private final String systemPrompt;
 
-    public LlmIntentClassifier(LlmClient llm, AgentRegistry registry) {
+    public LlmIntentClassifier(LlmClient llm, MemoryClient memory, AgentRegistry registry) {
         this.llm = llm;
+        this.memory = memory;
         this.knownAgents = buildKnownSet(registry);
         this.systemPrompt = buildPrompt(registry);
         log.info("intent classifier ready: agents={}", knownAgents);
@@ -45,18 +52,38 @@ public class LlmIntentClassifier {
 
     public Mono<String> classify(NormalizedMessage message) {
         if (knownAgents.size() == 1) {
-            // Only echo is registered — no remote agents discovered.
+            // Only echo is registered — no remote agents discovered. Don't bother
+            // recalling either: echo doesn't read context.
             return Mono.just(ECHO);
         }
-        LlmChatRequest req = LlmChatRequest.of(LlmChannel.FAST, List.of(
-                LlmMessage.system(systemPrompt),
-                LlmMessage.user(message.text())));
-        return llm.chat(req)
-                .map(resp -> normalize(resp.content()))
+        return memory.recall(message.householdId(), message.userId(), message.text())
+                .flatMap(hits -> {
+                    List<LlmMessage> chat = new ArrayList<>(3);
+                    chat.add(LlmMessage.system(systemPrompt));
+                    String contextBlock = renderMemories(hits);
+                    if (contextBlock != null) {
+                        chat.add(LlmMessage.system(contextBlock));
+                    }
+                    chat.add(LlmMessage.user(message.text()));
+                    LlmChatRequest req = LlmChatRequest.of(LlmChannel.FAST, chat);
+                    return llm.chat(req).map(resp -> normalize(resp.content()));
+                })
                 .onErrorResume(e -> {
                     log.warn("intent classification failed, falling back to {}: {}", ECHO, e.toString());
                     return Mono.just(ECHO);
                 });
+    }
+
+    /** {@code null} when no memories to inject — avoids an empty system message. */
+    private static String renderMemories(List<RecallMemoryHit> hits) {
+        if (hits == null || hits.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder("Relevant long-term context for this user (most similar first):\n");
+        for (RecallMemoryHit hit : hits) {
+            if (hit.memory() == null || hit.memory().text() == null) continue;
+            sb.append("- ").append(hit.memory().text()).append('\n');
+        }
+        sb.append("Use this only if it helps choose the right agent; otherwise ignore.");
+        return sb.toString();
     }
 
     private String normalize(String raw) {

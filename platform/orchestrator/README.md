@@ -1,11 +1,16 @@
 # orchestrator
 
-The "brain". Takes a `NormalizedMessage` from gateway-telegram, classifies the intent
-via the FAST llm-gateway channel using few-shot drawn from each registered agent's
-manifest, and forwards to that agent's `/agents/<name>/intent`. Also dispatches
+The "brain". Takes a `NormalizedMessage` from gateway-telegram, **recalls top-k
+long-term context from memory-service** (gated on having >1 known agent), classifies
+the intent via the FAST llm-gateway channel using few-shot drawn from each registered
+agent's manifest, and forwards to that agent's `/agents/<name>/intent`. Also dispatches
 scheduler wake-ups via `POST /v1/agents/wake → /agents/<name>/triggers/{kind}`. Agent
 discovery: at startup, fetch `/agents/<name>/manifest` for every entry in
 `orchestrator.agents[]` (3 s timeout, soft-fail).
+
+Memory recall is **strict no-throw**: any error (disabled, no household on the
+message, network, 5xx, 500 ms timeout) collapses to "no memories" and classification
+proceeds without the second system message. Routing never blocks on memory.
 
 ## Endpoints
 
@@ -23,6 +28,9 @@ discovery: at startup, fetch `/agents/<name>/manifest` for every entry in
 ```
 ORCHESTRATOR_PORT=8083
 LLM_GATEWAY_URL=http://llm-gateway:8081
+MEMORY_SERVICE_URL=http://memory-service:8087
+ORCHESTRATOR_MEMORY_ENABLED=true
+ORCHESTRATOR_MEMORY_RECALL_K=3
 ```
 
 ## Run locally
@@ -59,7 +67,9 @@ chosen agent, and returns the LLM content with the right `agent` / `llmModel`.
 - `agent/AgentRegistryProperties` — `orchestrator.agents[]` config.
 - `agent/AgentDiscovery` — startup manifest fetch.
 - `agent/AgentRegistry` — name → `Agent` map; backs both routing and wake dispatch.
+- `memory/MemoryProperties` — `orchestrator.memory.{enabled, url, recall-k}`.
+- `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`).
 - `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision.
-- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; lenient parsing + echo fallback.
+- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty. Lenient parsing + echo fallback.
 - `web/IntentController` — `POST /v1/intent`.
 - `web/AgentWakeController` — `POST /v1/agents/wake`.
