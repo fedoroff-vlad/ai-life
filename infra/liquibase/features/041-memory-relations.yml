@@ -1,0 +1,114 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 041-memory-relations
+      author: ai-life
+      comment: |
+        Single-hop relation edges for memory recall (e.g. "Maria likes books").
+        Plain SQL table, NOT Apache AGE — AGE deferred per plans/STATUS.md:
+          * roadmap §Risks calls AGE image unstable;
+          * PR17 (first cross-agent chain) only needs single-hop ("what does Maria
+            like?") which a plain table answers in one indexed lookup;
+          * promote to AGE when we genuinely need multi-hop traversal
+            (friends-of-friends, transitive recommendations, etc.).
+
+        subject is the row this relation is *about* (typically a core.people row);
+        object is what's on the other end — either another core.* row or a free-text
+        label. object_id is nullable: a free-text label like "loose-leaf tea" has no
+        canonical entity yet, so we store the label and let agents resolve it later.
+      changes:
+        - createTable:
+            schemaName: memory
+            tableName: relations
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_relations_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject_type
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: edge
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: object_type
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: object_id
+                  type: uuid
+              - column:
+                  name: object_label
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: confidence
+                  type: real
+                  defaultValueNumeric: 1.0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: memory
+            tableName: relations
+            indexName: ix_relations_subject
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject_type
+              - column:
+                  name: subject_id
+
+        - createIndex:
+            schemaName: memory
+            tableName: relations
+            indexName: ix_relations_object
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: object_type
+              - column:
+                  name: object_id
