@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.calendar.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import okhttp3.mockwebserver.Dispatcher;
@@ -12,6 +13,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,10 +30,14 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Trigger flow: scheduler-shaped {@link AgentWakeRequest} → SkillRegistry
- * resolves the kind to a skill → LLM is called with manifest+skill prompts →
+ * Trigger flow: scheduler-shaped wake → SkillRegistry resolves the kind to a
+ * skill → personId in payload is resolved against profile-service → LLM is
+ * called with manifest+skill prompts and {payload, person} as user message →
  * household members are pulled from profile-service → each one receives a
  * notify POST with the generated text.
+ *
+ * <p>profile-service handles BOTH calls (person lookup + by-household) via a
+ * Dispatcher; the test seeds the person + member list per case.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class TriggerControllerTest {
@@ -40,13 +46,23 @@ class TriggerControllerTest {
     static MockWebServer profileService;
     static MockWebServer notifier;
 
+    static ProfileDispatcher profileDispatcher;
+
     @BeforeAll
     static void start() throws Exception {
         llmGateway = new MockWebServer();
         llmGateway.start();
         profileService = new MockWebServer();
+        profileDispatcher = new ProfileDispatcher();
+        profileService.setDispatcher(profileDispatcher);
         profileService.start();
         notifier = new MockWebServer();
+        notifier.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest req) {
+                return new MockResponse().setResponseCode(202);
+            }
+        });
         notifier.start();
     }
 
@@ -67,48 +83,46 @@ class TriggerControllerTest {
                 () -> "http://localhost:" + notifier.getPort());
     }
 
+    @BeforeEach
+    void resetProfileDispatcher() {
+        profileDispatcher.reset();
+    }
+
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
     @Autowired SkillRegistry skills;
 
     @Test
-    void birthdayGreeterSkillIsRegisteredFromClasspath() {
+    void bothSkillsRegisteredFromClasspath() {
         assertThat(skills.forTrigger("birthday.greet")).isPresent();
-        var skill = skills.forTrigger("birthday.greet").orElseThrow();
-        assertThat(skill.name()).isEqualTo("birthday-greeter");
+        assertThat(skills.forTrigger("birthday.greet").orElseThrow().name())
+                .isEqualTo("birthday-greeter");
+        assertThat(skills.forTrigger("gift.recommend")).isPresent();
+        assertThat(skills.forTrigger("gift.recommend").orElseThrow().name())
+                .isEqualTo("gift-recommender");
     }
 
     @Test
-    void birthdayWakeRunsSkillAndFansGreetingOutToAllHouseholdUsers() throws Exception {
+    void birthdayWakeResolvesPersonRunsSkillAndFansGreetingOut() throws Exception {
         UUID householdId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
         UUID vladId = UUID.randomUUID();
         UUID wifeId = UUID.randomUUID();
 
-        // LLM returns the greeting.
-        var llmResp = new LlmChatResponse(
-                "mock-large", "С днём рождения, Маша!",
-                "stop", new LlmUsage(80, 8, 88));
-        llmGateway.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(llmResp)));
-
-        // Profile returns two users in the household.
-        var users = List.of(
+        profileDispatcher.person = new PersonDto(
+                personId, householdId, "Maria", "sister", "ru-RU",
+                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now());
+        profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()),
                 new UserDto(wifeId, householdId, "Wife", "ru-RU", 2L, "admin", Instant.now()));
-        profileService.enqueue(new MockResponse()
+
+        llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(users)));
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "С днём рождения, Маша!", "stop",
+                        new LlmUsage(80, 8, 88)))));
 
-        // Notifier accepts both calls.
-        notifier.setDispatcher(new Dispatcher() {
-            @Override
-            public MockResponse dispatch(RecordedRequest req) {
-                return new MockResponse().setResponseCode(202);
-            }
-        });
-
-        var payload = json.createObjectNode().put("personId", UUID.randomUUID().toString());
+        var payload = json.createObjectNode().put("personId", personId.toString());
         var wake = new AgentWakeRequest(
                 UUID.randomUUID(), householdId, "calendar", "birthday.greet", payload);
 
@@ -118,29 +132,68 @@ class TriggerControllerTest {
                 .exchange()
                 .expectStatus().isAccepted();
 
-        // The LLM was called once.
+        // LLM saw the resolved person fields in the user message.
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq).isNotNull();
-        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
+        String llmBody = llmReq.getBody().readUtf8();
+        assertThat(llmBody)
+                .contains("Maria")
+                .contains("sister")
+                .contains("earl grey");
 
-        // Profile-service was queried for the household members.
-        RecordedRequest profileReq = profileService.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(profileReq).isNotNull();
-        assertThat(profileReq.getPath()).isEqualTo("/v1/users/by-household/" + householdId);
-
-        // Notifier received exactly one POST per household user, with the greeting text.
+        // Two notify POSTs landed.
         RecordedRequest first = notifier.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest second = notifier.takeRequest(2, TimeUnit.SECONDS);
         assertThat(first).isNotNull();
         assertThat(second).isNotNull();
-        assertThat(first.getPath()).isEqualTo("/v1/notify");
-        assertThat(second.getPath()).isEqualTo("/v1/notify");
-        String firstBody = first.getBody().readUtf8();
-        String secondBody = second.getBody().readUtf8();
-        assertThat(firstBody + secondBody)
+        String bodies = first.getBody().readUtf8() + second.getBody().readUtf8();
+        assertThat(bodies)
                 .contains(vladId.toString())
                 .contains(wifeId.toString())
                 .contains("С днём рождения");
+    }
+
+    @Test
+    void giftRecommendWakeRoutesToGiftRecommenderSkill() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        UUID vladId = UUID.randomUUID();
+
+        profileDispatcher.person = new PersonDto(
+                personId, householdId, "Maria", "sister", "ru-RU",
+                json.createArrayNode().add("hiking").add("books"),
+                "into trail running lately", null, Instant.now());
+        profileDispatcher.householdMembers = List.of(
+                new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
+
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large",
+                        "1. Trail running shoes from a local store...\n2. ...\n3. ...",
+                        "stop", new LlmUsage(120, 60, 180)))));
+
+        var payload = json.createObjectNode().put("personId", personId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), householdId, "calendar", "gift.recommend", payload);
+
+        http.post().uri("/agents/calendar/triggers/gift.recommend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(llmReq).isNotNull();
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body)
+                .contains("suggest gift ideas")        // gift-recommender SKILL.md body
+                .contains("hiking")                    // person.interests
+                .contains("trail running");            // person.notes
+
+        RecordedRequest notify = notifier.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(notify).isNotNull();
+        assertThat(notify.getBody().readUtf8()).contains(vladId.toString());
     }
 
     @Test
@@ -153,5 +206,43 @@ class TriggerControllerTest {
                 .bodyValue(wake)
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    /**
+     * Routes {@code /v1/people/{id}} and {@code /v1/users/by-household/{id}}.
+     * Test seeds the row(s) per case; misses respond 404 / empty list.
+     */
+    private static class ProfileDispatcher extends Dispatcher {
+        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        volatile PersonDto person;
+        volatile List<UserDto> householdMembers = List.of();
+
+        void reset() {
+            person = null;
+            householdMembers = List.of();
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest req) {
+            String path = req.getPath() == null ? "" : req.getPath();
+            try {
+                if (path.startsWith("/v1/people/")) {
+                    if (person == null) {
+                        return new MockResponse().setResponseCode(404);
+                    }
+                    return new MockResponse()
+                            .setHeader("content-type", "application/json")
+                            .setBody(M.writeValueAsString(person));
+                }
+                if (path.startsWith("/v1/users/by-household/")) {
+                    return new MockResponse()
+                            .setHeader("content-type", "application/json")
+                            .setBody(M.writeValueAsString(householdMembers));
+                }
+            } catch (Exception e) {
+                return new MockResponse().setResponseCode(500).setBody(e.toString());
+            }
+            return new MockResponse().setResponseCode(404);
+        }
     }
 }
