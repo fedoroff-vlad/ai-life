@@ -6,6 +6,8 @@ reminders for a household. The canonical role description and capabilities live 
 
 Currently bound MCP servers: `mcp-caldav` (write-through Radicale + cache). Skills
 loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recommender`.
+Also handles `ics.pull` as a **system trigger** (no LLM) forwarded directly to
+mcp-ics-import's `POST /internal/pull/{id}`.
 
 ## Port: `8086` (`CALENDAR_AGENT_PORT`)
 
@@ -18,7 +20,10 @@ loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recomme
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
 | GET    | `/actuator/health`                         | liveness                                             |
 
-`/triggers/{kind}` looks up the bound skill in `SkillRegistry`, **resolves `personId`
+`/triggers/{kind}` first consults `SystemTriggerRegistry`. If a `SystemTriggerHandler`
+claims the kind (e.g. `ics.pull`), it runs without the LLM and without notifier fan-out —
+just whatever the handler does (for `ics.pull`: forward to mcp-ics-import). Otherwise it
+falls through to `SkillRegistry`, **resolves `personId`
 from the wake payload via profile-service** before the LLM call, calls llm-gateway
 with `[manifest.body, skill.body]` as system prompts and the wake payload (as JSON
 text, augmented with the resolved `person` object) as the user message. The generated
@@ -33,6 +38,7 @@ logged + swallowed; the trigger still returns 202.
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | Via `libs/llm-client`. |
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | Person + household-members lookup. |
 | `NOTIFIER_URL` | `http://notifier-service:8084` | Outbound channel. |
+| `calendar-agent.ics-import-url` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
 
 ## AGENT.md convention
 
@@ -61,21 +67,26 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `config/OutboundHttpConfig` — `WebClient` per outbound dependency (LLM, profile, notifier), each via `WebClient.Builder.clone()`.
 - `http/ProfileClient` — `personById(uuid) → PersonDto`, `usersByHousehold(uuid) → list`.
 - `http/NotifierClient` — `POST /v1/notify` per user (failures logged + swallowed).
+- `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import.
+- `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
+- `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
+- `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
 - `manifest/ManifestLoader` — SnakeYAML frontmatter + body, exposed as `AgentManifest`.
 - `skill/Skill` — `(name, triggers[], body)` record.
 - `skill/SkillLoader` — `classpath*:skills/calendar/*/SKILL.md`.
 - `skill/SkillRegistry` — trigger kind → `Skill` index.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt.
-- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. Skill dispatch, person resolution, household fan-out via notifier.
+- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution + household fan-out via notifier.
 
 ## Tests
 
-`mvn -B -pl agents/calendar-agent -am test` — 7 tests:
+`mvn -B -pl agents/calendar-agent -am test` — 9 tests:
 - Manifest endpoint returns frontmatter + body.
 - Skill loader discovers both `birthday-greeter` and `gift-recommender`.
-- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier) covers `birthday.greet` and `gift.recommend` end-to-end, asserting both household members receive the notify POST and the LLM body contains the resolved person's `interests`/`notes`.
-- Unknown trigger kind → 200 with a no-op log.
+- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import) covers `birthday.greet` and `gift.recommend` end-to-end, asserting both household members receive the notify POST and the LLM body contains the resolved person's `interests`/`notes`.
+- `ics.pull` system trigger forwards to mcp-ics-import without touching LLM or notifier; downstream 500 still returns 202.
+- Unknown trigger kind → 404 (no skill, no system handler).
 
 ## Gotcha (captured here so we don't relearn it)
 In the wake handler, do NOT use `switchIfEmpty` on a `Mono<Void>` to fall back when the

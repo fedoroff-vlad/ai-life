@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS calendar.ics_subscriptions (
     url             text         NOT NULL,
     last_synced_at  timestamptz,
     last_error      text,
+    schedule_id     uuid,
     created_at      timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uq_ics_subscriptions_household_slug UNIQUE (household_id, slug)
 );

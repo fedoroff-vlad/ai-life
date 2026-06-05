@@ -9,6 +9,7 @@ import dev.fedorov.ailife.mcp.icsimport.domain.ExternalEvent;
 import dev.fedorov.ailife.mcp.icsimport.domain.ExternalEventRepository;
 import dev.fedorov.ailife.mcp.icsimport.domain.IcsSubscription;
 import dev.fedorov.ailife.mcp.icsimport.domain.IcsSubscriptionRepository;
+import dev.fedorov.ailife.mcp.icsimport.scheduler.SchedulerClient;
 import dev.fedorov.ailife.mcp.icsimport.sync.SubscriptionSync;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
@@ -32,17 +33,20 @@ public class IcsImportMcpTools {
     private final ExternalEventRepository events;
     private final SubscriptionSync sync;
     private final CalDavWriteClient caldav;
+    private final SchedulerClient scheduler;
     private final McpIcsImportProperties props;
 
     public IcsImportMcpTools(IcsSubscriptionRepository subs,
                              ExternalEventRepository events,
                              SubscriptionSync sync,
                              CalDavWriteClient caldav,
+                             SchedulerClient scheduler,
                              McpIcsImportProperties props) {
         this.subs = subs;
         this.events = events;
         this.sync = sync;
         this.caldav = caldav;
+        this.scheduler = scheduler;
         this.props = props;
     }
 
@@ -67,6 +71,16 @@ public class IcsImportMcpTools {
         sub = subs.save(sub);
 
         sync.pull(sub, sourceCalendar(slug));
+
+        // Auto-register the hourly pull cron. Scheduler unreachable → schedule_id
+        // stays null and a future reconciliation pass (or manual re-add) creates it.
+        if (sub.getScheduleId() == null) {
+            UUID scheduleId = scheduler.register(sub.getHouseholdId(), sub.getId());
+            if (scheduleId != null) {
+                sub.setScheduleId(scheduleId);
+                sub = subs.save(sub);
+            }
+        }
         return sub.toDto();
     }
 
@@ -104,6 +118,7 @@ public class IcsImportMcpTools {
     @Transactional
     public boolean removeSubscription(UUID subscriptionId) {
         return subs.findById(subscriptionId).map(sub -> {
+            scheduler.delete(sub.getScheduleId());
             String calendar = sourceCalendar(sub.getSlug());
             for (ExternalEvent ev : events.findByHouseholdIdAndSourceCalendar(
                     sub.getHouseholdId(), calendar)) {

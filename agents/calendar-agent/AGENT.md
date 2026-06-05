@@ -11,6 +11,8 @@ triggers:
     description: Fired by scheduler-service ahead of (or on) a person's birthday.
   - kind: gift.recommend
     description: Fired by scheduler-service 7 days before a person's birthday.
+  - kind: ics.pull
+    description: System trigger fired hourly by scheduler-service per calendar.ics_subscriptions row. Bypasses LLM — forwarded directly to mcp-ics-import's /internal/pull/{id}.
 intents:
   - example: Add a meeting tomorrow at 15:00 about quarterly planning
     description: Create or update a calendar event.

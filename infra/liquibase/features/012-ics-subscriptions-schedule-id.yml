@@ -1,0 +1,22 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 012-ics-subscriptions-schedule-id
+      author: ai-life
+      comment: |
+        Link each ICS subscription to its scheduler-service cron row so we can
+        delete the cron when the subscription is removed. Nullable — old rows
+        created before this change won't have one until next re-pull, and during
+        the transition we don't want to fail loudly.
+
+        No FK to core.schedules — keeping the coupling soft so a stale schedule
+        id (e.g. scheduler row manually deleted) just makes the cleanup a no-op
+        instead of throwing. mcp-ics-import treats a 404 on DELETE as success.
+      changes:
+        - addColumn:
+            schemaName: calendar
+            tableName: ics_subscriptions
+            columns:
+              - column:
+                  name: schedule_id
+                  type: uuid

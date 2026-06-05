@@ -35,6 +35,9 @@ public class IcsSubscription {
     @Column(name = "last_error")
     private String lastError;
 
+    @Column(name = "schedule_id")
+    private UUID scheduleId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -61,11 +64,13 @@ public class IcsSubscription {
     public String getUrl() { return url; }
     public Instant getLastSyncedAt() { return lastSyncedAt; }
     public String getLastError() { return lastError; }
+    public UUID getScheduleId() { return scheduleId; }
 
     public void setUrl(String url) { this.url = url; }
     public void setName(String name) { this.name = name; }
     public void setLastSyncedAt(Instant lastSyncedAt) { this.lastSyncedAt = lastSyncedAt; }
     public void setLastError(String lastError) { this.lastError = lastError; }
+    public void setScheduleId(UUID scheduleId) { this.scheduleId = scheduleId; }
 
     public IcsSubscriptionDto toDto() {
         return new IcsSubscriptionDto(id, householdId, name, slug, url, lastSyncedAt, lastError);

@@ -7,6 +7,8 @@ import dev.fedorov.ailife.agents.calendar.http.NotifierClient;
 import dev.fedorov.ailife.agents.calendar.http.ProfileClient;
 import dev.fedorov.ailife.agents.calendar.skill.Skill;
 import dev.fedorov.ailife.agents.calendar.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.calendar.system.SystemTriggerHandler;
+import dev.fedorov.ailife.agents.calendar.system.SystemTriggerRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
@@ -48,6 +50,7 @@ public class TriggerController {
     private final LlmClient llm;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
+    private final SystemTriggerRegistry systemTriggers;
     private final ProfileClient profile;
     private final NotifierClient notifier;
     private final ObjectMapper json;
@@ -55,12 +58,14 @@ public class TriggerController {
     public TriggerController(LlmClient llm,
                              AgentManifest manifest,
                              SkillRegistry skills,
+                             SystemTriggerRegistry systemTriggers,
                              ProfileClient profile,
                              NotifierClient notifier,
                              ObjectMapper json) {
         this.llm = llm;
         this.manifest = manifest;
         this.skills = skills;
+        this.systemTriggers = systemTriggers;
         this.profile = profile;
         this.notifier = notifier;
         this.json = json;
@@ -69,6 +74,14 @@ public class TriggerController {
     @PostMapping("/{kind}")
     public Mono<ResponseEntity<Void>> trigger(@PathVariable String kind,
                                               @RequestBody AgentWakeRequest req) {
+        // System triggers (cron-driven, no NL) bypass the LLM entirely. Checked
+        // before SkillRegistry so a kind cannot accidentally be both — system wins.
+        SystemTriggerHandler system = systemTriggers.forKind(kind).orElse(null);
+        if (system != null) {
+            return system.handle(req)
+                    .then(Mono.just(ResponseEntity.<Void>accepted().build()));
+        }
+
         Skill skill = skills.forTrigger(kind).orElse(null);
         if (skill == null) {
             log.warn("no skill bound to trigger kind={} (schedule={})", kind, req.scheduleId());

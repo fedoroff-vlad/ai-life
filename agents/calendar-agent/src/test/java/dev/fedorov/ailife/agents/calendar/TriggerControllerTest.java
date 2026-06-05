@@ -45,6 +45,7 @@ class TriggerControllerTest {
     static MockWebServer llmGateway;
     static MockWebServer profileService;
     static MockWebServer notifier;
+    static MockWebServer icsImport;
 
     static ProfileDispatcher profileDispatcher;
 
@@ -64,6 +65,8 @@ class TriggerControllerTest {
             }
         });
         notifier.start();
+        icsImport = new MockWebServer();
+        icsImport.start();
     }
 
     @AfterAll
@@ -71,6 +74,7 @@ class TriggerControllerTest {
         llmGateway.shutdown();
         profileService.shutdown();
         notifier.shutdown();
+        icsImport.shutdown();
     }
 
     @DynamicPropertySource
@@ -81,6 +85,8 @@ class TriggerControllerTest {
                 () -> "http://localhost:" + profileService.getPort());
         r.add("calendar-agent.notifier-url",
                 () -> "http://localhost:" + notifier.getPort());
+        r.add("calendar-agent.ics-import-url",
+                () -> "http://localhost:" + icsImport.getPort());
     }
 
     @BeforeEach
@@ -206,6 +212,58 @@ class TriggerControllerTest {
                 .bodyValue(wake)
                 .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    @Test
+    void icsPullTriggerForwardsToMcpIcsImportWithoutLlmOrNotifier() throws Exception {
+        UUID subscriptionId = UUID.randomUUID();
+        UUID householdId = UUID.randomUUID();
+
+        icsImport.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("{\"subscriptionId\":\"" + subscriptionId
+                        + "\",\"eventsUpserted\":3,\"eventsRemoved\":0}"));
+
+        var payload = json.createObjectNode()
+                .put("subscriptionId", subscriptionId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), householdId, "calendar", "ics.pull", payload);
+
+        http.post().uri("/agents/calendar/triggers/ics.pull")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        RecordedRequest forwarded = icsImport.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(forwarded).isNotNull();
+        assertThat(forwarded.getPath()).isEqualTo("/internal/pull/" + subscriptionId);
+        assertThat(forwarded.getMethod()).isEqualTo("POST");
+
+        // No LLM call (no skill was invoked) and no notifier fan-out (system trigger).
+        assertThat(llmGateway.takeRequest(200, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(notifier.takeRequest(200, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void icsPullSwallowsDownstreamErrorAndStillReturns202() throws Exception {
+        UUID subscriptionId = UUID.randomUUID();
+
+        icsImport.enqueue(new MockResponse().setResponseCode(500).setBody("boom"));
+
+        var payload = json.createObjectNode()
+                .put("subscriptionId", subscriptionId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), UUID.randomUUID(), "calendar", "ics.pull", payload);
+
+        http.post().uri("/agents/calendar/triggers/ics.pull")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // Forward attempt happened.
+        assertThat(icsImport.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
     }
 
     /**
