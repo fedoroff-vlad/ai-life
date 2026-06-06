@@ -1,0 +1,20 @@
+package dev.fedorov.ailife.contracts.finance;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public record FinAccountDto(
+        UUID id,
+        UUID householdId,
+        UUID ownerId,
+        String name,
+        String type,
+        String currency,
+        BigDecimal openingBalance,
+        boolean archived,
+        Instant createdAt) {
+}

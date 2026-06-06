@@ -47,6 +47,7 @@
         <module>platform/memory-service</module>
         <module>mcp/mcp-caldav</module>
         <module>mcp/mcp-ics-import</module>
+        <module>mcp/mcp-finance</module>
         <module>agents/calendar-agent</module>
     </modules>
 

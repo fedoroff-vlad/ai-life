@@ -17,15 +17,14 @@
     <include file="features/010-calendar.yml" relativeToChangelogFile="true"/>
     <include file="features/011-ics-subscriptions.yml" relativeToChangelogFile="true"/>
     <include file="features/012-ics-subscriptions-schedule-id.yml" relativeToChangelogFile="true"/>
+    <include file="features/020-finance.yml" relativeToChangelogFile="true"/>
     <include file="features/040-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/041-memory-relations.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):
-    <include file="features/002-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/003-audit.yml"  relativeToChangelogFile="true"/>
     <include file="features/004-bus.yml"    relativeToChangelogFile="true"/>
     <include file="features/005-media.yml"  relativeToChangelogFile="true"/>
-    <include file="features/020-finance.yml"  relativeToChangelogFile="true"/>
     <include file="features/030-tasks.yml"    relativeToChangelogFile="true"/>
     -->
 
