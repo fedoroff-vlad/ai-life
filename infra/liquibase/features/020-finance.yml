@@ -1,0 +1,283 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 020-finance-accounts-categories
+      author: ai-life
+      comment: |
+        Stage 2 opener: source-of-truth finance tables for mcp-finance.
+        Starter set covers fin_account, fin_category, fin_transaction — enough for
+        add_transaction / list_transactions / get_balance / upsert/list_categories.
+        fin_budget, fin_recurring and matviews land in later PRs when their tools do.
+
+        Money convention: amount is numeric(18,2). Sign convention follows
+        plans/finance.md — expense<0, income>0, transfer rows always come in pairs
+        the agent layer reconciles (no DB-level pair enforcement yet).
+
+        owner_id is nullable on accounts/transactions to allow household-scoped
+        (shared) accounts; per finance.md private accounts MUST set owner_id and
+        the agent layer is responsible for scope filtering.
+      changes:
+        - createTable:
+            schemaName: finance
+            tableName: fin_account
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_account_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_account_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: opening_balance
+                  type: numeric(18,2)
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: archived
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_account
+            indexName: ix_fin_account_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createTable:
+            schemaName: finance
+            tableName: fin_category
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_category_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: parent_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_category_parent
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_category
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: kind
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: icon
+                  type: varchar(64)
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: finance
+            tableName: fin_category
+            columnNames: household_id, name, kind
+            constraintName: uq_fin_category_household_name_kind
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_category
+            indexName: ix_fin_category_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createTable:
+            schemaName: finance
+            tableName: fin_transaction
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_transaction_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: account_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_transaction_account
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_account
+                    referencedColumnNames: id
+              - column:
+                  name: category_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_transaction_category
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_category
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_transaction_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: amount
+                  type: numeric(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ts
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: source
+                  type: varchar(32)
+                  defaultValue: manual
+                  constraints:
+                    nullable: false
+              - column:
+                  name: external_ref
+                  type: varchar(128)
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: finance
+            tableName: fin_transaction
+            columnNames: household_id, source, external_ref
+            constraintName: uq_fin_transaction_external_ref
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_transaction
+            indexName: ix_fin_transaction_account_ts
+            columns:
+              - column:
+                  name: account_id
+              - column:
+                  name: ts
+                  descending: true
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_transaction
+            indexName: ix_fin_transaction_household_ts
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: ts
+                  descending: true
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_transaction
+            indexName: ix_fin_transaction_category
+            columns:
+              - column:
+                  name: category_id
