@@ -31,10 +31,18 @@ public class LlmGatewayProperties {
     private String visionModel;
     private String embeddingModel = "mock-embed";
 
+    /** Anthropic API version pinned in the {@code anthropic-version} header. */
+    private String anthropicVersion = "2023-06-01";
+
+    /** Fallback for {@code max_tokens} when callers don't set one (Anthropic requires it). */
+    private int maxTokens = 4096;
+
     public String provider() { return provider; }
     public String baseUrl() { return baseUrl; }
     public String apiKey() { return apiKey; }
     public String defaultModel() { return defaultModel; }
+    public String anthropicVersion() { return anthropicVersion; }
+    public int maxTokens() { return maxTokens; }
 
     public Map<LlmChannel, String> channelModels() {
         Map<LlmChannel, String> map = new EnumMap<>(LlmChannel.class);
@@ -52,4 +60,6 @@ public class LlmGatewayProperties {
     public void setFastModel(String fastModel) { this.fastModel = fastModel; }
     public void setVisionModel(String visionModel) { this.visionModel = visionModel; }
     public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
+    public void setAnthropicVersion(String anthropicVersion) { this.anthropicVersion = anthropicVersion; }
+    public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
 }
