@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: finance-agent
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${FINANCE_AGENT_PORT:8093}
+
+finance-agent:
+  manifest-classpath: AGENT.md
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

@@ -49,6 +49,7 @@
         <module>mcp/mcp-ics-import</module>
         <module>mcp/mcp-finance</module>
         <module>agents/calendar-agent</module>
+        <module>agents/finance-agent</module>
     </modules>
 
     <dependencyManagement>
