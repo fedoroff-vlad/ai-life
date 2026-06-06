@@ -21,7 +21,7 @@ and can be swapped at redeploy without changing any client code (see plan §5).
 |-----------------------|--------|--------------------------------------------------------|
 | `mock`                | ready  | deterministic stub for dev and golden tests            |
 | `anthropic`           | ready  | Messages API; no embeddings (see below)                |
-| `openai-compatible`   | TODO   | DeepSeek / Ollama / Together / OpenAI                  |
+| `openai-compatible`   | ready  | local Ollama (free) / DeepSeek / Together / OpenAI     |
 
 `MockProvider` echoes the last user message prefixed with the channel name, and produces
 stable 384-dim embeddings keyed off a CRC32 of the input. Token counts are approximate
@@ -37,6 +37,13 @@ stable 384-dim embeddings keyed off a CRC32 of the input. Token counts are appro
 - **Embeddings are unsupported** — Anthropic ships no embedding endpoint. The `embedding`
   channel needs a separate llm-gateway instance pointed at an embedding-capable provider
   (e.g. OpenAI-compatible / Ollama with `bge-m3`).
+
+`OpenAiCompatibleProvider` calls `POST /chat/completions` (+ SSE) and `POST /embeddings`
+against any OpenAI-dialect server: local Ollama (the free baseline for tests + dev),
+DeepSeek cloud, Together, vLLM, OpenAI proper. `LLM_API_KEY` is **optional** — when set
+it goes through as `Authorization: Bearer <key>`; Ollama works without one. `LLM_BASE_URL`
+is required (must include the OpenAI version prefix, e.g. `http://ollama:11434/v1`). The
+SSE stream extracts `choices[0].delta.content` and terminates on `data: [DONE]`.
 
 ## Configuration (env vars)
 
@@ -60,6 +67,27 @@ LLM_FAST_MODEL=claude-haiku-4-5
 LLM_VISION_MODEL=claude-opus-4-7
 # LLM_ANTHROPIC_VERSION=2023-06-01        # optional, pinned in x-anthropic-version
 # LLM_MAX_TOKENS=4096                     # optional, fallback when callers omit it
+```
+
+OpenAI-compatible profile (local Ollama, free):
+
+```
+LLM_PROVIDER=openai-compatible
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_DEFAULT_MODEL=qwen2.5:72b-instruct
+LLM_FAST_MODEL=qwen2.5:7b-instruct
+LLM_VISION_MODEL=qwen2.5-vl:32b
+LLM_EMBEDDING_MODEL=bge-m3
+# LLM_API_KEY=                             # optional — Ollama ignores Authorization
+```
+
+OpenAI-compatible profile (DeepSeek cloud):
+
+```
+LLM_PROVIDER=openai-compatible
+LLM_API_KEY=sk-...
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_DEFAULT_MODEL=deepseek-chat
 ```
 
 ## Run locally
@@ -86,5 +114,6 @@ curl -s http://localhost:8081/v1/chat \
 - `provider/ProviderRegistry` — selects active provider via `LLM_PROVIDER`.
 - `provider/mock/MockProvider` — deterministic echo + 384-dim CRC32-keyed embeddings; used in every other module's tests.
 - `provider/anthropic/AnthropicProvider` — Anthropic Messages API (`POST /v1/messages`, SSE stream). Active when `LLM_PROVIDER=anthropic`; embeddings rejected as unsupported.
+- `provider/openai/OpenAiCompatibleProvider` — OpenAI Chat Completions dialect (`POST /chat/completions` + SSE, `POST /embeddings`). Active when `LLM_PROVIDER=openai-compatible`; covers local Ollama / DeepSeek / Together / OpenAI.
 - `web/ChatController` — `POST /v1/chat`, `POST /v1/chat/stream` (SSE).
 - `web/EmbedController` — `POST /v1/embed`.
