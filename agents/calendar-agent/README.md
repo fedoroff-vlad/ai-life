@@ -74,17 +74,12 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `CalendarAgentApplication`.
 - `config/CalendarAgentProperties` — `calendar-agent.{profile-service-url, notifier-url}`.
 - `config/OutboundHttpConfig` — `WebClient` per outbound dependency (LLM, profile, notifier), each via `WebClient.Builder.clone()`.
-- `http/ProfileClient` — `personById(uuid) → PersonDto`, `usersByHousehold(uuid) → list`.
-- `http/NotifierClient` — `POST /v1/notify` per user (failures logged + swallowed).
-- `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import.
-- `http/MemoryClient` — `recall(householdId, userId, personId, query)` POSTs `/v1/memories/recall`; `personRelations(householdId, personId)` GETs `/v1/graph/person/{id}/relations`. 500 ms timeout, strict no-throw (errors → empty list / empty `PersonRelationsResponse`). **Second consumer in the codebase** (orchestrator was first in PR15) — when a third lands, lift to `libs/memory-client`.
+- `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them with `@Qualifier`-driven `WebClient` injection, so the per-agent `OutboundHttpConfig` only owns the URL binding.
+- `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
 - `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
-- `manifest/ManifestLoader` — SnakeYAML frontmatter + body, exposed as `AgentManifest`.
-- `skill/Skill` — `(name, triggers[], body)` record.
-- `skill/SkillLoader` — `classpath*:skills/calendar/*/SKILL.md`.
-- `skill/SkillRegistry` — trigger kind → `Skill` index.
+- AGENT.md / SKILL.md loaders + `SkillRegistry` live in shared `libs/agent-runtime` as of PR25a. Agent opts in with `@Import(AgentRuntimeConfig.class)` on `CalendarAgentApplication`; scan paths come from `agent.{manifest-classpath, skills-classpath}` in `application.yml`.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt.
 - `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution + **memory enrichment (recall + relations zipped)** + household fan-out via notifier. `buildRecallQuery` anchors the recall query on the person's display name when available.

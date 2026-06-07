@@ -1,0 +1,105 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 021-fin-budget
+      author: ai-life
+      comment: |
+        Budgets per (household, category, period). Powers set_budget /
+        get_budget_status / spending_by_category in mcp-finance and feeds the
+        scheduler-driven budget.alert trigger consumed by finance-agent's
+        budget-alerts skill.
+
+        Period values: month|week|year — enforced at the tool layer, not the DB,
+        to keep migration changes cheap when we add a fourth period.
+
+        Time-versioned: one "active" row per (household, category, period) has
+        valid_to IS NULL; set_budget closes the old row (valid_to=now()) and
+        inserts a new one, so historical budgets stay queryable. A partial
+        unique index on (household_id, category_id, period) WHERE valid_to IS
+        NULL guards the invariant.
+
+        fin_recurring + matviews stay deferred until their tools land.
+      changes:
+        - createTable:
+            schemaName: finance
+            tableName: fin_budget
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_budget_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: category_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_budget_category
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_category
+                    referencedColumnNames: id
+              - column:
+                  name: period
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: limit_amount
+                  type: numeric(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valid_from
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valid_to
+                  type: timestamptz
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_budget
+            indexName: ix_fin_budget_household
+            columns:
+              - column:
+                  name: household_id
+
+        - sql:
+            comment: |
+              Partial unique: only one currently-active budget per
+              (household, category, period). Historical rows (valid_to NOT NULL)
+              are exempt so set_budget can keep a full audit trail.
+            sql: |
+              CREATE UNIQUE INDEX uq_fin_budget_active
+                ON finance.fin_budget (household_id, category_id, period)
+                WHERE valid_to IS NULL;

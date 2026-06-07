@@ -7,13 +7,16 @@ spring:
 server:
   port: ${CALENDAR_AGENT_PORT:8086}
 
-calendar-agent:
+agent:
   manifest-classpath: AGENT.md
+  skills-classpath: classpath*:skills/calendar/*/SKILL.md
+  memory-recall-k: ${CALENDAR_AGENT_MEMORY_RECALL_K:5}
+
+calendar-agent:
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   ics-import-url: ${MCP_ICS_IMPORT_URL:http://mcp-ics-import:8091}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
-  memory-recall-k: ${CALENDAR_AGENT_MEMORY_RECALL_K:5}
 
 ailife:
   llm-client:

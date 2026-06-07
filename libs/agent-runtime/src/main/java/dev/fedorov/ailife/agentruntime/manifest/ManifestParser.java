@@ -1,49 +1,32 @@
-package dev.fedorov.ailife.agents.finance.manifest;
+package dev.fedorov.ailife.agentruntime.manifest;
 
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
 import org.yaml.snakeyaml.Yaml;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
- * Reads {@code AGENT.md} from the classpath at startup and exposes the parsed
- * {@link AgentManifest} as a singleton bean. Parser shape is identical to
- * calendar-agent's — duplicated for now; lift to a shared lib if a third agent
- * ships.
+ * Parses an AGENT.md file (YAML frontmatter + markdown body) into an
+ * {@link AgentManifest}. Pure: no Spring, no I/O.
+ *
+ * <p>Lifted verbatim from calendar-agent + finance-agent (PR9b / PR22) — the
+ * parsers were byte-identical except for the package, so this is the shared
+ * canonical implementation. New agents do not write their own parser.
  */
-@Configuration
-public class ManifestLoader {
-
-    private static final Logger log = LoggerFactory.getLogger(ManifestLoader.class);
+public final class ManifestParser {
 
     private static final Pattern FRONTMATTER = Pattern.compile(
             "^---\\s*\\R(.*?)\\R---\\s*\\R(.*)$",
             Pattern.DOTALL);
 
-    @Bean
-    public AgentManifest agentManifest(
-            @Value("${finance-agent.manifest-classpath:AGENT.md}") String classpathLocation) {
-        String content = readClasspath(classpathLocation);
-        AgentManifest manifest = parse(content);
-        log.info("loaded AGENT.md manifest: name={} version={} mcp={} triggers={}",
-                manifest.name(), manifest.version(), manifest.mcp(),
-                manifest.triggers() == null ? 0 : manifest.triggers().size());
-        return manifest;
+    private ManifestParser() {
     }
 
-    static AgentManifest parse(String content) {
+    public static AgentManifest parse(String content) {
         Matcher m = FRONTMATTER.matcher(content);
         if (!m.find()) {
             throw new IllegalStateException("AGENT.md missing YAML frontmatter (--- … ---)");
@@ -68,14 +51,6 @@ public class ManifestLoader {
                 body);
     }
 
-    private static String readClasspath(String location) {
-        try (InputStream in = new ClassPathResource(location).getInputStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read AGENT.md from classpath: " + location, e);
-        }
-    }
-
     private static String str(Map<String, Object> m, String k) {
         Object v = m.get(k);
         return v == null ? null : v.toString();
@@ -87,7 +62,6 @@ public class ManifestLoader {
         return Integer.parseInt(v.toString());
     }
 
-    @SuppressWarnings("unchecked")
     private static List<String> listOfStrings(Object v) {
         if (v == null) return List.of();
         if (v instanceof List<?> list) {
@@ -96,7 +70,6 @@ public class ManifestLoader {
         throw new IllegalStateException("Expected list of strings, got: " + v.getClass());
     }
 
-    @SuppressWarnings("unchecked")
     private static List<Map<String, String>> listOfMaps(Object v) {
         if (v == null) return List.of();
         if (v instanceof List<?> list) {
@@ -106,7 +79,7 @@ public class ManifestLoader {
                             throw new IllegalStateException("Expected map, got: " + item);
                         }
                         return map.entrySet().stream()
-                                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                .collect(Collectors.toUnmodifiableMap(
                                         e -> e.getKey().toString(),
                                         e -> e.getValue() == null ? "" : e.getValue().toString()));
                     })

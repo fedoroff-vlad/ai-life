@@ -5,8 +5,17 @@ version: 0.1.0
 port: 8093
 mcp:
   - mcp-finance
-skills: []
-triggers: []
+skills:
+  - budget-alerts
+  - recurring-due
+  - transaction-categorizer
+triggers:
+  - kind: budget.alert
+    description: Fired by scheduler-service on a recurring schedule per (household, category) budget. Payload carries categoryName + limit + spent + currency + period; the LLM composes the alert text (or "SKIP" when ratio < 0.8).
+  - kind: recurring.due
+    description: Fired by scheduler-service when a recurring payment / income template is approaching its next_due. Payload from scheduler is just {recurringId}; finance-agent enriches it via mcp-finance to {name, amount, currency, nextDue, note} before the skill runs.
+  - kind: transaction.uncategorised
+    description: Fired one-shot by scheduler-service after add_transaction lands a row without a categoryId (except moneypro_import bulk loads). Payload from scheduler is just {transactionId}; finance-agent enriches it via mcp-finance to {amount, currency, note, source, ts} before the categorizer skill runs.
 intents:
   - example: I spent 12 euros on coffee yesterday
     description: Record an expense transaction; categorise it; confirm if ambiguous.

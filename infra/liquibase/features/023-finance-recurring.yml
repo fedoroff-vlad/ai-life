@@ -1,0 +1,132 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 023-finance-recurring
+      author: ai-life
+      comment: |
+        Recurring payment template — one row per "rent" / "spotify" / "salary"
+        kind of thing. The actual `fin_transaction` rows are still booked
+        manually or via Money Pro import; this table lets the agent suggest
+        the next instance ("rent due tomorrow — record it?") and, when
+        auto_remind=true, lets mcp-finance register a scheduler-service cron
+        the same way `fin_budget` does (the auto-registration tool ships in a
+        later PR — this changeSet only lands the table).
+
+        Cron over RRULE: scheduler-service already speaks Spring CronExpression
+        (002-scheduling.yml, PR8); adding an iCalendar parser just for the
+        rare case where cron isn't expressive enough is not worth it today.
+        Captured here so the next maintainer doesn't relitigate.
+
+        owner_id nullable mirrors fin_transaction — null = shared household
+        recurring (e.g. mortgage), non-null = private to one member.
+        category_id nullable so "salary income" can live without a category
+        until the user assigns one.
+      changes:
+        - createTable:
+            schemaName: finance
+            tableName: fin_recurring
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_recurring_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_recurring_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: account_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_recurring_account
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_account
+                    referencedColumnNames: id
+              - column:
+                  name: category_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_fin_recurring_category
+                    referencedTableSchemaName: finance
+                    referencedTableName: fin_category
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: cron
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_due
+                  type: timestamptz
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: auto_remind
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: schedule_id
+                  type: uuid
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_recurring
+            indexName: ix_fin_recurring_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_recurring
+            indexName: ix_fin_recurring_next_due
+            columns:
+              - column:
+                  name: next_due

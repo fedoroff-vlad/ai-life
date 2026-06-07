@@ -1,15 +1,18 @@
-package dev.fedorov.ailife.agents.calendar.http;
+package dev.fedorov.ailife.agentruntime.http;
 
 import dev.fedorov.ailife.contracts.notify.NotifyRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-@Component
+/**
+ * Shared notifier-service client. Per-user delivery failures are the caller's
+ * problem — {@code TriggerController}s log + swallow them so one bad user
+ * doesn't block the household.
+ */
 public class NotifierClient {
 
     private final WebClient http;

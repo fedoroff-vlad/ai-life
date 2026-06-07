@@ -1,14 +1,14 @@
-package dev.fedorov.ailife.agents.calendar.http;
+package dev.fedorov.ailife.agentruntime.http;
 
-import dev.fedorov.ailife.agents.calendar.config.CalendarAgentProperties;
+import dev.fedorov.ailife.agentruntime.config.AgentRuntimeProperties;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -17,16 +17,15 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Second consumer of memory-service in the codebase (orchestrator was first in PR15).
- * Kept duplicated here on purpose — when a third consumer appears, lift to
- * {@code libs/memory-client} together with these soft-fail semantics.
+ * Shared memory-service client. Lifted from calendar-agent's PR17 + finance-agent's
+ * PR24c — the implementations were byte-identical except for the package, so this
+ * is now the canonical version.
  *
  * <p>Strict no-throw contract: any error (network, 5xx, 500 ms timeout, missing
- * required field) collapses to an empty {@link List} / a {@link PersonRelationsResponse}
- * with empty arrays. Memory is enrichment — the skill MUST still run if memory-service
- * is down.
+ * required field) collapses to an empty {@link List} / a
+ * {@link PersonRelationsResponse} with empty arrays. Memory is enrichment — the
+ * skill MUST still run if memory-service is down.
  */
-@Component
 public class MemoryClient {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryClient.class);
@@ -35,10 +34,11 @@ public class MemoryClient {
             new ParameterizedTypeReference<>() {};
 
     private final WebClient http;
-    private final CalendarAgentProperties props;
+    private final AgentRuntimeProperties props;
 
-    public MemoryClient(WebClient memoryServiceWebClient, CalendarAgentProperties props) {
-        this.http = memoryServiceWebClient;
+    public MemoryClient(@Qualifier("memoryServiceWebClient") WebClient http,
+                        AgentRuntimeProperties props) {
+        this.http = http;
         this.props = props;
     }
 
@@ -59,8 +59,8 @@ public class MemoryClient {
                 .bodyToMono(HIT_LIST)
                 .timeout(TIMEOUT)
                 .onErrorResume(e -> {
-                    log.warn("memory recall failed for household={} person={}: {}",
-                            householdId, personId, e.toString());
+                    log.warn("memory recall failed for household={} query={}: {}",
+                            householdId, query, e.toString());
                     return Mono.just(List.of());
                 });
     }

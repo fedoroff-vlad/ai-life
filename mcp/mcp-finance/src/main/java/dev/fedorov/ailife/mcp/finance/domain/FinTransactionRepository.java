@@ -40,4 +40,47 @@ public interface FinTransactionRepository extends JpaRepository<FinTransaction, 
 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM FinTransaction t WHERE t.accountId = :accountId")
     BigDecimal sumAmountByAccountId(@Param("accountId") UUID accountId);
+
+    /**
+     * Signed sum of amounts for a single category in a half-open time window.
+     * Powers get_budget_status: spent = -sumAmountByCategoryInWindow(...) so a
+     * positive refund reduces "spent".
+     */
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM FinTransaction t
+            WHERE t.householdId = :householdId
+              AND t.categoryId  = :categoryId
+              AND t.ts >= :fromTs
+              AND t.ts <  :toTs
+            """)
+    BigDecimal sumAmountByCategoryInWindow(@Param("householdId") UUID householdId,
+                                           @Param("categoryId") UUID categoryId,
+                                           @Param("fromTs") Instant from,
+                                           @Param("toTs") Instant to);
+
+    /**
+     * Aggregate spending grouped by (category, currency) in [from, to). Returns
+     * Object[]{categoryId, categoryName, currency, signedSum, txCount} so the
+     * tool layer can decide what "spent" means per kind without baking sign
+     * into the SQL. Filter by category kind is optional — pass null to include
+     * every kind. Native SQL with explicit CAST mirrors the filter() pattern
+     * captured in {@link #filter} so pgjdbc can infer the bind type.
+     */
+    @Query(value = """
+            SELECT t.category_id, c.name, t.currency,
+                   COALESCE(SUM(t.amount), 0) AS signed_sum,
+                   COUNT(*)                   AS tx_count
+            FROM finance.fin_transaction t
+            JOIN finance.fin_category    c ON c.id = t.category_id
+            WHERE t.household_id = :householdId
+              AND t.ts >= :fromTs
+              AND t.ts <  :toTs
+              AND (CAST(:kind AS varchar) IS NULL OR c.kind = CAST(:kind AS varchar))
+            GROUP BY t.category_id, c.name, t.currency
+            ORDER BY ABS(SUM(t.amount)) DESC
+            """, nativeQuery = true)
+    List<Object[]> spendingByCategory(@Param("householdId") UUID householdId,
+                                      @Param("fromTs") Instant from,
+                                      @Param("toTs") Instant to,
+                                      @Param("kind") String kind);
 }

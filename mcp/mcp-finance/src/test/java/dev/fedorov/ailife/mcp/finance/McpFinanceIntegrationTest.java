@@ -1,19 +1,37 @@
 package dev.fedorov.ailife.mcp.finance;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.BalanceResult;
+import dev.fedorov.ailife.contracts.finance.BudgetStatusResult;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
+import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
+import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
+import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
+import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
+import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.finance.UpsertAccountInput;
 import dev.fedorov.ailife.contracts.finance.UpsertCategoryInput;
+import dev.fedorov.ailife.contracts.finance.UpsertRecurringInput;
+import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.mcp.finance.tools.FinanceMcpTools;
+import okhttp3.mockwebserver.Dispatcher;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -26,11 +44,12 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class McpFinanceIntegrationTest {
 
@@ -43,11 +62,44 @@ class McpFinanceIntegrationTest {
                     MountableFile.forClasspathResource("test-schema.sql"),
                     "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
+    // Started in a static initializer so the port is known when Spring resolves
+    // the @DynamicPropertySource supplier during context refresh (which runs
+    // BEFORE @BeforeAll). The dispatcher is reset per test.
+    static final MockWebServer scheduler;
+    static final SchedulerDispatcher schedulerDispatcher = new SchedulerDispatcher();
+    static {
+        scheduler = new MockWebServer();
+        scheduler.setDispatcher(schedulerDispatcher);
+        try {
+            scheduler.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @AfterAll
+    static void stopScheduler() throws Exception {
+        scheduler.shutdown();
+    }
+
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("mcp-finance.scheduler-url",
+                () -> "http://localhost:" + scheduler.getPort());
+    }
+
+    @BeforeEach
+    void resetSchedulerDispatcher() throws Exception {
+        // SpringBootTest reuses the context across methods; drain leftover
+        // recorded scheduler requests and reset dispatcher flags so each
+        // budget test starts from a clean slate.
+        while (scheduler.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+            // discard
+        }
+        schedulerDispatcher.reset();
     }
 
     static UUID householdId;
@@ -55,6 +107,7 @@ class McpFinanceIntegrationTest {
 
     @Autowired FinanceMcpTools tools;
     @Autowired JdbcTemplate jdbc;
+    @LocalServerPort int port;
 
     @BeforeAll
     static void seedHouseholds(@Autowired JdbcTemplate jdbc) {
@@ -170,6 +223,622 @@ class McpFinanceIntegrationTest {
                 new BigDecimal("-10.00"), null, Instant.now(), null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not belong to household");
+    }
+
+    @Test
+    void setBudgetUpsertClosesPriorActiveAndOnlyOneActiveRemains() throws Exception {
+        FinCategoryDto cat = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Groceries-budget-upsert", "expense", null));
+
+        FinBudgetDto first = tools.setBudget(new SetBudgetInput(
+                householdId, cat.id(), "month", new BigDecimal("300.00"), "EUR"));
+        assertThat(first.id()).isNotNull();
+        assertThat(first.validTo()).isNull();
+        assertThat(first.scheduleId()).isNotNull();
+
+        // First set_budget POSTed exactly one /v1/schedules with cron + payload.
+        RecordedRequest firstPost = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(firstPost).isNotNull();
+        assertThat(firstPost.getMethod()).isEqualTo("POST");
+        assertThat(firstPost.getPath()).isEqualTo("/v1/schedules");
+        String body = firstPost.getBody().readUtf8();
+        assertThat(body).contains("\"cron\":\"0 0 9 * * *\"");
+        assertThat(body).contains("\"kind\":\"budget.alert\"");
+        assertThat(body).contains("\"ownerAgent\":\"finance\"");
+        assertThat(body).contains(cat.id().toString());
+        assertThat(body).contains("\"period\":\"month\"");
+
+        FinBudgetDto second = tools.setBudget(new SetBudgetInput(
+                householdId, cat.id(), "month", new BigDecimal("400.00"), "EUR"));
+        assertThat(second.id()).isNotEqualTo(first.id());
+        assertThat(second.limitAmount()).isEqualByComparingTo("400.00");
+        assertThat(second.validTo()).isNull();
+        assertThat(second.scheduleId()).isNotNull();
+        assertThat(second.scheduleId()).isNotEqualTo(first.scheduleId());
+
+        // Replace flow: register new + delete old, in that order (so a flaky
+        // scheduler can't leave the budget cron-less).
+        RecordedRequest secondPost = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(secondPost).isNotNull();
+        assertThat(secondPost.getMethod()).isEqualTo("POST");
+        assertThat(secondPost.getPath()).isEqualTo("/v1/schedules");
+
+        RecordedRequest oldDelete = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(oldDelete).isNotNull();
+        assertThat(oldDelete.getMethod()).isEqualTo("DELETE");
+        assertThat(oldDelete.getPath()).isEqualTo("/v1/schedules/" + first.scheduleId());
+
+        // The original row was closed; partial unique index guarantees only
+        // one active row per (household, category, period).
+        Long activeCount = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM finance.fin_budget
+                WHERE household_id = ? AND category_id = ? AND period = ? AND valid_to IS NULL
+                """, Long.class, householdId, cat.id(), "month");
+        assertThat(activeCount).isEqualTo(1L);
+        Long historicalCount = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM finance.fin_budget
+                WHERE household_id = ? AND category_id = ? AND period = ? AND valid_to IS NOT NULL
+                """, Long.class, householdId, cat.id(), "month");
+        assertThat(historicalCount).isEqualTo(1L);
+    }
+
+    @Test
+    void setBudgetSurvivesSchedulerOutageAndSavesRowWithoutScheduleId() throws Exception {
+        FinCategoryDto cat = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Scheduler-outage-cat", "expense", null));
+        schedulerDispatcher.simulate5xx = true;
+
+        FinBudgetDto saved = tools.setBudget(new SetBudgetInput(
+                householdId, cat.id(), "month", new BigDecimal("123.00"), "EUR"));
+        // Soft-fail: budget row is created without a schedule_id so a future
+        // reconciliation pass can wire the cron later. Tool MUST NOT throw.
+        assertThat(saved.id()).isNotNull();
+        assertThat(saved.scheduleId()).isNull();
+
+        // The POST was attempted (and 500'd).
+        RecordedRequest attempted = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(attempted).isNotNull();
+        assertThat(attempted.getMethod()).isEqualTo("POST");
+        assertThat(attempted.getPath()).isEqualTo("/v1/schedules");
+    }
+
+    @Test
+    void getBudgetStatusComputesSpentInsideCurrentMonthWindow() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Status-test", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinCategoryDto cat = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Coffee-status-test", "expense", null));
+        tools.setBudget(new SetBudgetInput(
+                householdId, cat.id(), "month", new BigDecimal("50.00"), "EUR"));
+
+        // Two expenses inside the current UTC month, one refund, one outside
+        // the window — only the in-window net spend should count.
+        Instant now = Instant.now();
+        Instant lastYear = now.minus(400, ChronoUnit.DAYS);
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), cat.id(), null,
+                new BigDecimal("-8.00"), null, now, "in-window 1", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), cat.id(), null,
+                new BigDecimal("-12.00"), null, now, "in-window 2", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), cat.id(), null,
+                new BigDecimal("2.00"), null, now, "refund", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), cat.id(), null,
+                new BigDecimal("-999.00"), null, lastYear, "out-of-window", null, null));
+
+        BudgetStatusResult status = tools.getBudgetStatus(householdId, cat.id(), "month");
+        assertThat(status.limitAmount()).isEqualByComparingTo("50.00");
+        // net in-window = -8 -12 +2 = -18 → spent = 18
+        assertThat(status.spent()).isEqualByComparingTo("18.00");
+        assertThat(status.currency()).isEqualTo("EUR");
+        assertThat(status.categoryName()).isEqualTo("Coffee-status-test");
+        assertThat(status.periodTo()).isAfter(status.periodFrom());
+        // ratio = 18/50 = 0.3600
+        assertThat(status.ratio()).isEqualByComparingTo("0.3600");
+    }
+
+    @Test
+    void getBudgetStatusThrowsWhenNoActiveBudget() {
+        FinCategoryDto cat = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "No-budget-cat", "expense", null));
+        assertThatThrownBy(() -> tools.getBudgetStatus(householdId, cat.id(), "month"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("No active budget");
+    }
+
+    @Test
+    void setBudgetRejectsCrossHouseholdCategoryAndUnsupportedPeriod() {
+        FinCategoryDto theirs = tools.upsertCategory(new UpsertCategoryInput(
+                null, otherHouseholdId, null, "Their-cat", "expense", null));
+        assertThatThrownBy(() -> tools.setBudget(new SetBudgetInput(
+                householdId, theirs.id(), "month", new BigDecimal("100.00"), "EUR")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to household");
+
+        FinCategoryDto mine = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Bad-period-cat", "expense", null));
+        assertThatThrownBy(() -> tools.setBudget(new SetBudgetInput(
+                householdId, mine.id(), "decade", new BigDecimal("100.00"), "EUR")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported period");
+    }
+
+    @Test
+    void spendingByCategoryAggregatesAndDefaultsToExpenseKind() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Spending-agg", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinCategoryDto groceries = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Groceries-agg", "expense", null));
+        FinCategoryDto transport = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Transport-agg", "expense", null));
+        FinCategoryDto salary = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Salary-agg", "income", null));
+
+        Instant from = Instant.parse("2026-04-01T00:00:00Z");
+        Instant to   = Instant.parse("2026-05-01T00:00:00Z");
+        Instant in1  = Instant.parse("2026-04-10T10:00:00Z");
+        Instant in2  = Instant.parse("2026-04-15T10:00:00Z");
+        Instant out  = Instant.parse("2026-05-02T10:00:00Z");
+
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), groceries.id(), null,
+                new BigDecimal("-40.00"), null, in1, "veg", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), groceries.id(), null,
+                new BigDecimal("-60.00"), null, in2, "meat", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), transport.id(), null,
+                new BigDecimal("-25.00"), null, in1, "metro", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), salary.id(), null,
+                new BigDecimal("3000.00"), null, in1, "salary", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), groceries.id(), null,
+                new BigDecimal("-9999.00"), null, out, "out-of-window", null, null));
+
+        List<SpendingByCategoryRow> expenseRows = tools.spendingByCategory(
+                new SpendingByCategoryInput(householdId, from, to, null));
+        // Default kind is expense — salary must not appear.
+        assertThat(expenseRows).extracting(SpendingByCategoryRow::categoryId)
+                .containsExactlyInAnyOrder(groceries.id(), transport.id());
+        // Ordered by absolute spend desc — groceries (100) before transport (25).
+        assertThat(expenseRows.get(0).categoryId()).isEqualTo(groceries.id());
+        assertThat(expenseRows.get(0).spent()).isEqualByComparingTo("100.00");
+        assertThat(expenseRows.get(0).txCount()).isEqualTo(2L);
+        assertThat(expenseRows.get(1).categoryId()).isEqualTo(transport.id());
+        assertThat(expenseRows.get(1).spent()).isEqualByComparingTo("25.00");
+
+        // Explicit kind=income → only salary.
+        List<SpendingByCategoryRow> incomeRows = tools.spendingByCategory(
+                new SpendingByCategoryInput(householdId, from, to, "income"));
+        assertThat(incomeRows).hasSize(1);
+        assertThat(incomeRows.get(0).categoryId()).isEqualTo(salary.id());
+        assertThat(incomeRows.get(0).spent()).isEqualByComparingTo("3000.00");
+    }
+
+    @Test
+    void internalBudgetStatusReturnsLiveSnapshotOver404WhenNoActiveBudget() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Internal-budget-test", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinCategoryDto cat = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Internal-budget-cat", "expense", null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // No budget yet → 404.
+        client.get().uri(uri -> uri.path("/internal/budget-status")
+                        .queryParam("householdId", householdId)
+                        .queryParam("categoryId", cat.id())
+                        .queryParam("period", "month").build())
+                .exchange()
+                .expectStatus().isNotFound();
+
+        // Set a budget + one in-window expense, then expect the snapshot.
+        tools.setBudget(new SetBudgetInput(
+                householdId, cat.id(), "month", new BigDecimal("80.00"), "EUR"));
+        tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), cat.id(), null,
+                new BigDecimal("-32.00"), null, Instant.now(), "lunch", null, null));
+
+        client.get().uri(uri -> uri.path("/internal/budget-status")
+                        .queryParam("householdId", householdId)
+                        .queryParam("categoryId", cat.id())
+                        .queryParam("period", "month").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(BudgetStatusResult.class)
+                .value(r -> {
+                    assertThat(r.categoryId()).isEqualTo(cat.id());
+                    assertThat(r.categoryName()).isEqualTo("Internal-budget-cat");
+                    assertThat(r.limitAmount()).isEqualByComparingTo("80.00");
+                    assertThat(r.spent()).isEqualByComparingTo("32.00");
+                    assertThat(r.currency()).isEqualTo("EUR");
+                    assertThat(r.period()).isEqualTo("month");
+                    assertThat(r.ratio()).isEqualByComparingTo("0.4000");
+                });
+    }
+
+    /** scheduler-service stub: 201 with a JSON ScheduleDto echoing the request on POST,
+     *  204 on DELETE; flips to 500 when {@link #simulate5xx} is set so the soft-fail
+     *  path on the tool side can be exercised. */
+    static final class SchedulerDispatcher extends Dispatcher {
+        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        volatile boolean simulate5xx;
+
+        void reset() {
+            simulate5xx = false;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest recordedRequest) {
+            String path = recordedRequest.getPath() == null ? "" : recordedRequest.getPath();
+            if (simulate5xx) {
+                return new MockResponse().setResponseCode(500);
+            }
+            if ("POST".equals(recordedRequest.getMethod()) && "/v1/schedules".equals(path)) {
+                ScheduleDto dto = new ScheduleDto(
+                        UUID.randomUUID(), null, "finance", "budget.alert",
+                        "0 0 9 * * *", null, true, Instant.now(), null, Instant.now());
+                try {
+                    return new MockResponse()
+                            .setHeader("content-type", "application/json")
+                            .setBody(M.writeValueAsString(dto));
+                } catch (Exception e) {
+                    return new MockResponse().setResponseCode(500);
+                }
+            }
+            if ("DELETE".equals(recordedRequest.getMethod())
+                    && path.startsWith("/v1/schedules/")) {
+                return new MockResponse().setResponseCode(204);
+            }
+            return new MockResponse().setResponseCode(404);
+        }
+    }
+
+    @Test
+    void upsertRecurringComputesNextDueAndUpdatePreservesIdRecomputesNextDue() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-test-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinCategoryDto rent = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Rent-recurring", "expense", null));
+
+        // Every minute — so next_due is at most 60 seconds from now and
+        // definitely in the future regardless of how slow CI is.
+        FinRecurringDto created = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), rent.id(),
+                "Apartment rent", new BigDecimal("-1500.00"), null,
+                "0 * * * * *", "Bank transfer", false));
+        assertThat(created.id()).isNotNull();
+        assertThat(created.currency()).isEqualTo("EUR"); // defaulted from account
+        assertThat(created.nextDue()).isNotNull();
+        assertThat(created.nextDue()).isAfter(Instant.now().minusSeconds(2));
+        assertThat(created.nextDue()).isBefore(Instant.now().plusSeconds(70));
+        assertThat(created.autoRemind()).isFalse();
+
+        // Update: switch to "every day at 09:00" — next_due must move further out.
+        FinRecurringDto updated = tools.upsertRecurring(new UpsertRecurringInput(
+                created.id(), householdId, null, acc.id(), rent.id(),
+                "Apartment rent (updated)", new BigDecimal("-1600.00"), null,
+                "0 0 9 * * *", "Bank transfer", true));
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(updated.amount()).isEqualByComparingTo("-1600.00");
+        assertThat(updated.autoRemind()).isTrue();
+        assertThat(updated.nextDue()).isNotNull();
+        // Daily cron's next_due is at most 24h out — and definitely later than the
+        // per-minute cron's next_due was.
+        assertThat(updated.nextDue()).isAfter(created.nextDue());
+        assertThat(updated.nextDue()).isBefore(Instant.now().plusSeconds(86400 + 60));
+    }
+
+    @Test
+    void listRecurringFiltersByAccountAndOrdersByNextDueAsc() {
+        FinAccountDto acc1 = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-list-1", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinAccountDto acc2 = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-list-2", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        // acc1 has two: one per-minute (soonest), one daily (later).
+        tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc1.id(), null,
+                "soon", new BigDecimal("-1.00"), null, "0 * * * * *", null, false));
+        tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc1.id(), null,
+                "later", new BigDecimal("-2.00"), null, "0 0 9 * * *", null, false));
+        // acc2 has one — must NOT appear when we filter by acc1.
+        tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc2.id(), null,
+                "other-acc", new BigDecimal("-3.00"), null, "0 0 9 * * *", null, false));
+
+        List<FinRecurringDto> onAcc1 = tools.listRecurring(householdId, acc1.id(), null);
+        assertThat(onAcc1).hasSize(2);
+        assertThat(onAcc1.get(0).name()).isEqualTo("soon"); // next_due ASC
+        assertThat(onAcc1.get(1).name()).isEqualTo("later");
+        assertThat(onAcc1).allMatch(r -> acc1.id().equals(r.accountId()));
+    }
+
+    @Test
+    void upsertRecurringWithAutoRemindRegistersScheduleAndPropagatesId() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-autoremind-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        FinRecurringDto created = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Spotify", new BigDecimal("-9.99"), null,
+                "0 0 9 1 * *", null, true));
+
+        assertThat(created.autoRemind()).isTrue();
+        assertThat(created.scheduleId()).isNotNull();
+
+        RecordedRequest post = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post).isNotNull();
+        assertThat(post.getMethod()).isEqualTo("POST");
+        assertThat(post.getPath()).isEqualTo("/v1/schedules");
+        String body = post.getBody().readUtf8();
+        // Cron comes from the row, not props — that's the key difference vs budgets.
+        assertThat(body).contains("\"cron\":\"0 0 9 1 * *\"");
+        assertThat(body).contains("\"kind\":\"recurring.due\"");
+        assertThat(body).contains("\"ownerAgent\":\"finance\"");
+        assertThat(body).contains(created.id().toString());
+    }
+
+    @Test
+    void upsertRecurringWithoutAutoRemindSkipsRegister() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-no-autoremind-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        FinRecurringDto created = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Manual rent", new BigDecimal("-1500.00"), null,
+                "0 0 9 1 * *", null, false));
+
+        assertThat(created.autoRemind()).isFalse();
+        assertThat(created.scheduleId()).isNull();
+        // No scheduler call at all.
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void updateChangingCronWithAutoRemindReplacesSchedule() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-replace-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        FinRecurringDto first = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Subscription", new BigDecimal("-9.99"), null,
+                "0 0 9 1 * *", null, true));
+        assertThat(first.scheduleId()).isNotNull();
+        RecordedRequest firstPost = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(firstPost).isNotNull();
+        assertThat(firstPost.getMethod()).isEqualTo("POST");
+
+        FinRecurringDto updated = tools.upsertRecurring(new UpsertRecurringInput(
+                first.id(), householdId, null, acc.id(), null,
+                "Subscription (yearly now)", new BigDecimal("-99.99"), null,
+                "0 0 9 1 1 *", null, true));
+        assertThat(updated.id()).isEqualTo(first.id());
+        assertThat(updated.scheduleId()).isNotNull();
+        assertThat(updated.scheduleId()).isNotEqualTo(first.scheduleId());
+
+        // Replace order: POST new first, DELETE old after — same flake-safe
+        // ordering as setBudget (PR27b).
+        RecordedRequest newPost = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(newPost).isNotNull();
+        assertThat(newPost.getMethod()).isEqualTo("POST");
+        assertThat(newPost.getBody().readUtf8()).contains("\"cron\":\"0 0 9 1 1 *\"");
+
+        RecordedRequest oldDelete = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(oldDelete).isNotNull();
+        assertThat(oldDelete.getMethod()).isEqualTo("DELETE");
+        assertThat(oldDelete.getPath()).isEqualTo("/v1/schedules/" + first.scheduleId());
+    }
+
+    @Test
+    void updateFlippingAutoRemindToFalseDeletesSchedule() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-flip-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        FinRecurringDto first = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Reminder-on", new BigDecimal("-50.00"), null,
+                "0 0 9 1 * *", null, true));
+        assertThat(first.scheduleId()).isNotNull();
+        UUID priorScheduleId = first.scheduleId();
+        assertThat(scheduler.takeRequest(2, TimeUnit.SECONDS).getMethod()).isEqualTo("POST");
+
+        FinRecurringDto disabled = tools.upsertRecurring(new UpsertRecurringInput(
+                first.id(), householdId, null, acc.id(), null,
+                "Reminder-off", new BigDecimal("-50.00"), null,
+                "0 0 9 1 * *", null, false));
+        assertThat(disabled.id()).isEqualTo(first.id());
+        assertThat(disabled.autoRemind()).isFalse();
+        assertThat(disabled.scheduleId()).isNull();
+
+        RecordedRequest delete = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(delete).isNotNull();
+        assertThat(delete.getMethod()).isEqualTo("DELETE");
+        assertThat(delete.getPath()).isEqualTo("/v1/schedules/" + priorScheduleId);
+        // No POST during the flip-off.
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void upsertRecurringRejectsCrossHouseholdAccountAndInvalidCron() {
+        FinAccountDto theirAcc = tools.upsertAccount(new UpsertAccountInput(
+                null, otherHouseholdId, null, "Their-acc-recurring", "card", "EUR",
+                BigDecimal.ZERO, null));
+        assertThatThrownBy(() -> tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, theirAcc.id(), null,
+                "x", new BigDecimal("-10.00"), null, "0 * * * * *", null, false)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to household");
+
+        FinAccountDto mine = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Mine-recurring-bad-cron", "card", "EUR",
+                BigDecimal.ZERO, null));
+        assertThatThrownBy(() -> tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, mine.id(), null,
+                "x", new BigDecimal("-10.00"), null, "not a cron", null, false)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid cron");
+    }
+
+    @Test
+    void internalRecurringReturnsRowAfterUpsertAnd404Otherwise() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Internal-recurring-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        UUID unknown = UUID.randomUUID();
+        client.get().uri("/internal/recurring/{id}", unknown)
+                .exchange()
+                .expectStatus().isNotFound();
+
+        FinRecurringDto created = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Internal-recurring-test", new BigDecimal("-99.00"), null,
+                "0 0 9 * * *", "snapshot", false));
+
+        client.get().uri("/internal/recurring/{id}", created.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinRecurringDto.class)
+                .value(r -> {
+                    assertThat(r.id()).isEqualTo(created.id());
+                    assertThat(r.name()).isEqualTo("Internal-recurring-test");
+                    assertThat(r.amount()).isEqualByComparingTo("-99.00");
+                    assertThat(r.currency()).isEqualTo("EUR");
+                    assertThat(r.nextDue()).isNotNull();
+                });
+    }
+
+    @Test
+    void internalRecurringAdvanceRecomputesNextDueAnd404Otherwise() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Recurring-advance-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        UUID unknown = UUID.randomUUID();
+        client.post().uri("/internal/recurring/{id}/advance", unknown)
+                .exchange()
+                .expectStatus().isNotFound();
+
+        FinRecurringDto created = tools.upsertRecurring(new UpsertRecurringInput(
+                null, householdId, null, acc.id(), null,
+                "Advance-test", new BigDecimal("-10.00"), null,
+                "0 0 9 * * *", null, false));
+        assertThat(created.nextDue()).isNotNull();
+
+        client.post().uri("/internal/recurring/{id}/advance", created.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinRecurringDto.class)
+                .value(r -> {
+                    assertThat(r.id()).isEqualTo(created.id());
+                    // Invariant: post-advance next_due is strictly after "now" —
+                    // CronExpression.next(from) is strictly > from. Comparing to the
+                    // pre-advance value is flaky for slow crons (might land on the
+                    // same boundary), so we assert the invariant instead.
+                    assertThat(r.nextDue()).isAfter(Instant.now());
+                });
+    }
+
+    @Test
+    void addTransactionWithoutCategoryRegistersOneshotSchedule() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Uncategorised-test-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        FinTransactionDto saved = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), null, null,
+                new BigDecimal("-4.50"), null, Instant.now(),
+                "morning coffee", "telegram", null));
+        assertThat(saved.id()).isNotNull();
+        assertThat(saved.categoryId()).isNull();
+
+        // The uncategorised row triggers a one-shot wake so the categorizer
+        // skill can suggest a category. Payload carries just transactionId;
+        // finance-agent's enrichment hydrates the rest at trigger time.
+        RecordedRequest post = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post).isNotNull();
+        assertThat(post.getMethod()).isEqualTo("POST");
+        assertThat(post.getPath()).isEqualTo("/v1/schedules");
+        String body = post.getBody().readUtf8();
+        assertThat(body).contains("\"kind\":\"transaction.uncategorised\"");
+        assertThat(body).contains("\"ownerAgent\":\"finance\"");
+        assertThat(body).contains(saved.id().toString());
+        // One-shot — runAt is set, cron is not.
+        assertThat(body).contains("\"runAt\"");
+        assertThat(body).doesNotContain("\"cron\":\"");
+    }
+
+    @Test
+    void addTransactionFromMoneyProImportDoesNotRegisterScheduler() throws Exception {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "MoneyPro-bulk-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        // Bulk import: even though categoryId is null, the categorizer skill is
+        // not appropriate — reconciliation is a different code path. No scheduler
+        // call must happen.
+        FinTransactionDto bulk = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), null, null,
+                new BigDecimal("-19.99"), null, Instant.now(),
+                "imported row", "moneypro_import", "ext-42"));
+        assertThat(bulk.id()).isNotNull();
+        assertThat(bulk.source()).isEqualTo("moneypro_import");
+
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void internalTransactionReturnsRowAfterAddAnd404Otherwise() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Internal-transaction-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        UUID unknown = UUID.randomUUID();
+        client.get().uri("/internal/transaction/{id}", unknown)
+                .exchange()
+                .expectStatus().isNotFound();
+
+        FinTransactionDto saved = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), null, null,
+                new BigDecimal("-7.25"), null, Instant.parse("2026-05-01T09:00:00Z"),
+                "internal-test", "manual", null));
+
+        client.get().uri("/internal/transaction/{id}", saved.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinTransactionDto.class)
+                .value(r -> {
+                    assertThat(r.id()).isEqualTo(saved.id());
+                    assertThat(r.amount()).isEqualByComparingTo("-7.25");
+                    assertThat(r.currency()).isEqualTo("EUR");
+                    assertThat(r.note()).isEqualTo("internal-test");
+                    assertThat(r.source()).isEqualTo("manual");
+                });
     }
 
     @Test

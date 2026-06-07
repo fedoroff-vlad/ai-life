@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.agents.finance.skill;
+package dev.fedorov.ailife.agentruntime.skill;
 
 import java.util.List;
 import java.util.Map;
@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Read-only index of loaded skills. Built once at startup by {@link SkillLoader}.
+ * Read-only index of loaded skills. Built once at startup by the agent-runtime.
  * Lookup happens by trigger {@code kind} — the same string the scheduler emits
  * in {@code AgentWakeRequest.kind}.
  */
