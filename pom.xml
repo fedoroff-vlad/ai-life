@@ -48,6 +48,7 @@
         <module>mcp/mcp-caldav</module>
         <module>mcp/mcp-ics-import</module>
         <module>mcp/mcp-finance</module>
+        <module>mcp/mcp-money-pro-import</module>
         <module>agents/calendar-agent</module>
         <module>agents/finance-agent</module>
     </modules>
