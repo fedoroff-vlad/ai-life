@@ -38,6 +38,7 @@
         <module>libs/mcp-client</module>
         <module>libs/event-bus</module>
         <module>libs/platform-common</module>
+        <module>libs/agent-runtime</module>
         <module>platform/llm-gateway</module>
         <module>platform/profile-service</module>
         <module>platform/orchestrator</module>
@@ -121,6 +122,11 @@
             <dependency>
                 <groupId>dev.fedorov.ailife</groupId>
                 <artifactId>platform-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.fedorov.ailife</groupId>
+                <artifactId>agent-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.calendar;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.fedorov.ailife.agents.calendar.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;

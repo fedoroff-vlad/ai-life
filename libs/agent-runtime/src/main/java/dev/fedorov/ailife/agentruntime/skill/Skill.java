@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.agents.finance.skill;
+package dev.fedorov.ailife.agentruntime.skill;
 
 import java.util.List;
 

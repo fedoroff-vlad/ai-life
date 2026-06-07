@@ -1,0 +1,22 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 022-fin-budget-schedule-id
+      author: ai-life
+      comment: |
+        Per-budget recurring schedule id, set by mcp-finance when `set_budget`
+        creates a new active row and the scheduler-service POST /v1/schedules
+        succeeded. Nullable so a transient scheduler outage doesn't break the
+        upsert — we accept "no cron yet" rather than rolling the budget back.
+
+        No FK to core.schedules: scheduler-service owns its own row lifecycle
+        and a deleted schedule row should not cascade-corrupt a budget row.
+        Mirrors calendar.ics_subscriptions.schedule_id (PR13).
+      changes:
+        - addColumn:
+            schemaName: finance
+            tableName: fin_budget
+            columns:
+              - column:
+                  name: schedule_id
+                  type: uuid

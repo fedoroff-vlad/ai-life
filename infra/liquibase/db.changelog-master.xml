@@ -18,6 +18,9 @@
     <include file="features/011-ics-subscriptions.yml" relativeToChangelogFile="true"/>
     <include file="features/012-ics-subscriptions-schedule-id.yml" relativeToChangelogFile="true"/>
     <include file="features/020-finance.yml" relativeToChangelogFile="true"/>
+    <include file="features/021-fin-budget.yml" relativeToChangelogFile="true"/>
+    <include file="features/022-fin-budget-schedule-id.yml" relativeToChangelogFile="true"/>
+    <include file="features/023-finance-recurring.yml" relativeToChangelogFile="true"/>
     <include file="features/040-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/041-memory-relations.yml" relativeToChangelogFile="true"/>
 

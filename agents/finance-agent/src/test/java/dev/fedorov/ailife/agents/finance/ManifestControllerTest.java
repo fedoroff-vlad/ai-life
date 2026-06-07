@@ -43,7 +43,9 @@ class ManifestControllerTest {
         assertThat(loaded.name()).isEqualTo("finance");
         assertThat(loaded.port()).isEqualTo(8093);
         assertThat(loaded.mcp()).contains("mcp-finance");
-        assertThat(loaded.triggers()).isEmpty();
+        assertThat(loaded.triggers())
+                .extracting(m -> m.get("kind"))
+                .contains("budget.alert");
         assertThat(loaded.intents())
                 .extracting(m -> m.get("example"))
                 .anyMatch(s -> s.contains("12 euros on coffee"));
@@ -58,7 +60,7 @@ class ManifestControllerTest {
                 .expectBody(AgentManifest.class)
                 .value(m -> {
                     assertThat(m.name()).isEqualTo("finance");
-                    assertThat(m.skills()).isEmpty();
+                    assertThat(m.skills()).contains("budget-alerts");
                     assertThat(m.body()).contains("English");
                 });
     }

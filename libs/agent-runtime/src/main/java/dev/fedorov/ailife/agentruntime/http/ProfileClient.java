@@ -1,11 +1,10 @@
-package dev.fedorov.ailife.agents.calendar.http;
+package dev.fedorov.ailife.agentruntime.http;
 
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
-import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -13,7 +12,16 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.UUID;
 
-@Component
+/**
+ * Shared profile-service client for agents. The {@link WebClient} bean named
+ * {@code profileServiceWebClient} is owned by each agent (it binds the base URL
+ * from per-agent properties); this class is purely the request shape.
+ *
+ * <p>{@link #personById(UUID)} is calendar-only today (finance has no people),
+ * kept on the shared client because the cost is zero and a third agent may
+ * need it. {@link #usersByHousehold(UUID)} powers the trigger fan-out flow
+ * both agents already share.
+ */
 public class ProfileClient {
 
     private static final ParameterizedTypeReference<List<UserDto>> USER_LIST =
@@ -25,7 +33,7 @@ public class ProfileClient {
         this.http = http;
     }
 
-    /** Empty list if no users found (also when the household is unknown). */
+    /** Empty stream if no users found (also when the household is unknown). */
     public Flux<UserDto> usersByHousehold(UUID householdId) {
         return http.get()
                 .uri("/v1/users/by-household/{id}", householdId)

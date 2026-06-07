@@ -26,6 +26,19 @@ spring:
 server:
   port: ${MCP_FINANCE_PORT:8092}
 
+mcp-finance:
+  scheduler-url: ${SCHEDULER_URL:http://scheduler-service:8085}
+  budget:
+    cron: ${MCP_FINANCE_BUDGET_CRON:0 0 9 * * *}
+    owner-agent: ${MCP_FINANCE_BUDGET_OWNER_AGENT:finance}
+    trigger-kind: ${MCP_FINANCE_BUDGET_TRIGGER_KIND:budget.alert}
+  recurring:
+    owner-agent: ${MCP_FINANCE_RECURRING_OWNER_AGENT:finance}
+    trigger-kind: ${MCP_FINANCE_RECURRING_TRIGGER_KIND:recurring.due}
+  transaction:
+    owner-agent: ${MCP_FINANCE_TRANSACTION_OWNER_AGENT:finance}
+    trigger-kind: ${MCP_FINANCE_TRANSACTION_TRIGGER_KIND:transaction.uncategorised}
+
 management:
   endpoints:
     web:

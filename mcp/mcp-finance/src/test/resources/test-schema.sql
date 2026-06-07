@@ -74,3 +74,44 @@ CREATE INDEX IF NOT EXISTS ix_fin_transaction_household_ts
     ON finance.fin_transaction (household_id, ts DESC);
 CREATE INDEX IF NOT EXISTS ix_fin_transaction_category
     ON finance.fin_transaction (category_id);
+
+CREATE TABLE IF NOT EXISTS finance.fin_budget (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id    uuid NOT NULL REFERENCES core.households(id),
+    category_id     uuid NOT NULL REFERENCES finance.fin_category(id),
+    period          varchar(16)   NOT NULL,
+    limit_amount    numeric(18,2) NOT NULL,
+    currency        varchar(8)    NOT NULL,
+    valid_from      timestamptz   NOT NULL DEFAULT now(),
+    valid_to        timestamptz,
+    schedule_id     uuid,
+    metadata        jsonb         NOT NULL DEFAULT '{}'::jsonb,
+    created_at      timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_fin_budget_household ON finance.fin_budget (household_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fin_budget_active
+    ON finance.fin_budget (household_id, category_id, period)
+    WHERE valid_to IS NULL;
+
+CREATE TABLE IF NOT EXISTS finance.fin_recurring (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id    uuid NOT NULL REFERENCES core.households(id),
+    owner_id        uuid REFERENCES core.users(id),
+    account_id      uuid NOT NULL REFERENCES finance.fin_account(id),
+    category_id     uuid REFERENCES finance.fin_category(id),
+    name            varchar(128)  NOT NULL,
+    amount          numeric(18,2) NOT NULL,
+    currency        varchar(8)    NOT NULL,
+    cron            varchar(64)   NOT NULL,
+    next_due        timestamptz,
+    note            text,
+    auto_remind     boolean       NOT NULL DEFAULT false,
+    schedule_id     uuid,
+    metadata        jsonb         NOT NULL DEFAULT '{}'::jsonb,
+    created_at      timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_fin_recurring_household ON finance.fin_recurring (household_id);
+CREATE INDEX IF NOT EXISTS ix_fin_recurring_next_due ON finance.fin_recurring (next_due);
