@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.tools;
 
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -64,6 +65,22 @@ public class ToolDispatcher {
         return Arrays.stream(p.getToolCallbacks())
                 .map(cb -> cb.getToolDefinition().name())
                 .sorted()
+                .toList();
+    }
+
+    /**
+     * Full tool definitions (name + description + JSON Schema) — used by
+     * {@code IntentRouter} to build the LLM classifier prompt. Returns
+     * empty when the MCP client is disabled. Order matches
+     * {@link #availableToolNames()} (alphabetical) so the prompt stays
+     * deterministic across restarts.
+     */
+    public List<ToolDefinition> availableToolDefinitions() {
+        ToolCallbackProvider p = providerRef.getIfAvailable();
+        if (p == null) return List.of();
+        return Arrays.stream(p.getToolCallbacks())
+                .map(ToolCallback::getToolDefinition)
+                .sorted((a, b) -> a.name().compareTo(b.name()))
                 .toList();
     }
 

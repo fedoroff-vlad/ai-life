@@ -1,43 +1,47 @@
 package dev.fedorov.ailife.agents.finance.web;
 
+import dev.fedorov.ailife.agents.finance.intent.IntentRouter;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
-import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
-import dev.fedorov.ailife.contracts.llm.LlmMessage;
-import dev.fedorov.ailife.llm.LlmClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
-
 /**
- * Hit by orchestrator when intent routing selects {@code finance}. AGENT.md body
- * is the system prompt; the LLM gateway answers on the default channel. Domain
- * skills + mcp-finance tool-calls plug in here once they ship.
+ * Hit by orchestrator when intent routing selects {@code finance}. As of PR35
+ * the controller delegates the heavy lifting to {@link IntentRouter}:
+ * <ul>
+ *   <li>If MCP tools are wired, the router prompts the LLM to either invoke
+ *   a tool or reply directly; tool dispatches go through
+ *   {@link dev.fedorov.ailife.agents.finance.tools.ToolDispatcher}.</li>
+ *   <li>Otherwise the router falls back to a plain LLM chat (the pre-PR35
+ *   behaviour preserved verbatim).</li>
+ * </ul>
+ * The controller stays thin — it only translates {@link NormalizedMessage}
+ * to text and wraps the router's result back into an {@link IntentResponse}.
+ *
+ * <p>The {@code llmModel} field of the response carries the model id from
+ * the routing turn — preserves the pre-PR35 contract the orchestrator's
+ * intent tests assert on.
  */
 @RestController
 @RequestMapping("/agents/finance")
 public class IntentController {
 
-    private final LlmClient llm;
+    private final IntentRouter router;
     private final AgentManifest manifest;
 
-    public IntentController(LlmClient llm, AgentManifest manifest) {
-        this.llm = llm;
+    public IntentController(IntentRouter router, AgentManifest manifest) {
+        this.router = router;
         this.manifest = manifest;
     }
 
     @PostMapping("/intent")
     public Mono<IntentResponse> intent(@RequestBody NormalizedMessage message) {
-        var request = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
-                LlmMessage.system(manifest.body()),
-                LlmMessage.user(message.text())));
-        return llm.chat(request)
-                .map(resp -> new IntentResponse(manifest.name(), resp.content(), resp.model()));
+        return router.route(message.text())
+                .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel()));
     }
 }
