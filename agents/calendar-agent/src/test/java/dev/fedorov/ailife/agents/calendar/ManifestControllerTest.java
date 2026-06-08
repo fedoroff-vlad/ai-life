@@ -58,7 +58,10 @@ class ManifestControllerTest {
                 .expectBody(AgentManifest.class)
                 .value(m -> {
                     assertThat(m.name()).isEqualTo("calendar");
-                    assertThat(m.skills()).isEmpty();
+                    // PR32 backfilled the skills list — used by the loader
+                    // hardening to fail-fast on a missing SKILL.md.
+                    assertThat(m.skills())
+                            .containsExactly("birthday-greeter", "gift-recommender");
                     assertThat(m.body()).contains("English");
                 });
     }
