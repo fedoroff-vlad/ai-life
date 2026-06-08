@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Wires the agent-runtime beans into a Spring Boot agent: the parsed
@@ -79,11 +82,16 @@ public class AgentRuntimeConfig {
     }
 
     @Bean
-    public SkillRegistry skillRegistry(AgentRuntimeProperties props) {
+    public SkillRegistry skillRegistry(AgentRuntimeProperties props, AgentManifest manifest) {
         String pattern = props.getSkillsClasspath();
         List<Skill> loaded = new ArrayList<>();
+        // Per-skill parse failures keyed by resource description, so the
+        // fail-fast error below can point the next maintainer directly at the
+        // file that broke instead of forcing them to dig through the WARN log.
+        List<String> parseFailures = new ArrayList<>();
         if (pattern == null || pattern.isBlank()) {
             log.info("agent.skills-classpath is unset — registry will be empty");
+            verifyDeclaredSkillsLoaded(manifest, loaded, parseFailures);
             return new SkillRegistry(loaded);
         }
         try {
@@ -95,12 +103,51 @@ public class AgentRuntimeConfig {
                     loaded.add(s);
                     log.info("loaded skill {} (triggers={})", s.name(), s.triggers());
                 } catch (RuntimeException | IOException e) {
+                    String desc = r.getDescription() + ": " + e.getMessage();
+                    parseFailures.add(desc);
                     log.warn("skipped malformed skill at {}: {}", r.getDescription(), e.toString());
                 }
             }
         } catch (IOException e) {
             log.warn("skill scan failed for pattern={}: {}", pattern, e.toString());
         }
+        verifyDeclaredSkillsLoaded(manifest, loaded, parseFailures);
         return new SkillRegistry(loaded);
+    }
+
+    /**
+     * Loader hardening: if {@code AGENT.md} declared {@code skills: [...]} and
+     * any of those names didn't make it into the loaded registry, abort
+     * startup. A silent registry was the actual failure mode that caught us
+     * during the {@code transaction-categorizer} skill bring-up — a colon-space
+     * inside an {@code inputs} description made SnakeYAML reject the whole
+     * SKILL.md, the loader logged WARN and continued, and the agent kept
+     * 404-ing trigger requests until a test happened to exercise that exact
+     * trigger kind.
+     *
+     * <p>If {@code skills} is empty / missing in AGENT.md the check is skipped
+     * (the agent is opting out of the cross-check; calendar-agent did this
+     * until PR32 backfilled the list).
+     */
+    private static void verifyDeclaredSkillsLoaded(AgentManifest manifest,
+                                                   List<Skill> loaded,
+                                                   List<String> parseFailures) {
+        List<String> declared = manifest.skills();
+        if (declared == null || declared.isEmpty()) return;
+        Set<String> loadedNames = loaded.stream()
+                .map(Skill::name)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<String> missing = declared.stream()
+                .filter(name -> !loadedNames.contains(name))
+                .toList();
+        if (missing.isEmpty()) return;
+        throw new IllegalStateException(
+                "Agent manifest declares skills that were not loaded into the SkillRegistry: "
+                        + missing + ". Loaded skills: " + loadedNames + ". "
+                        + "Parse failures during scan: "
+                        + (parseFailures.isEmpty() ? "(none — likely a name mismatch or "
+                                + "skills-classpath pattern that did not match)" : parseFailures)
+                        + ". Fix the SKILL.md files, drop the entries from AGENT.md, "
+                        + "or check that agent.skills-classpath matches them.");
     }
 }

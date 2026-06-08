@@ -5,7 +5,9 @@ version: 0.1.0
 port: 8086
 mcp:
   - mcp-caldav
-skills: []
+skills:
+  - birthday-greeter
+  - gift-recommender
 triggers:
   - kind: birthday.greet
     description: Fired by scheduler-service ahead of (or on) a person's birthday.
