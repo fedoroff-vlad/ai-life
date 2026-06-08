@@ -46,6 +46,20 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+            Spring AI MCP client (reactive WebFlux SSE transport). Lets the
+            agent discover and call @Tool methods exposed by remote MCP
+            servers — first wired here for mcp-money-pro-import; mcp-finance
+            and future MCP servers can be added by extending the
+            spring.ai.mcp.client.sse.connections.* block in application.yml.
+            Spring Boot auto-config builds the SyncMcpToolCallbackProvider
+            bean we autowire below.
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client-webflux</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

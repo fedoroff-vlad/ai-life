@@ -71,6 +71,8 @@ clients pick up by qualifier).
 | `MEMORY_SERVICE_URL` | `http://memory-service:8087` | POST `/v1/memories/recall` for skill prompt enrichment. |
 | `FINANCE_AGENT_MEMORY_RECALL_K` | `5` | Top-k hits requested from memory-service. |
 | `MCP_FINANCE_URL` | `http://mcp-finance:8092` | `GET /internal/budget-status` for `budget.alert` enrichment. |
+| `MCP_MONEY_PRO_IMPORT_URL` | `http://mcp-money-pro-import:8094` | First real Spring AI MCP-client connection (SSE). The auto-config dials this URL eagerly at agent boot so a missing import server surfaces immediately, not on the first import attempt. Set `FINANCE_AGENT_MCP_CLIENT_ENABLED=false` to silence the client in degraded / dev environments. |
+| `FINANCE_AGENT_MCP_CLIENT_ENABLED` | `true` | Toggle Spring AI MCP client auto-config. Tests default to `false` via `src/test/resources/application.yml` so they don't pay the 20s connect timeout. |
 
 Orchestrator side: `FINANCE_AGENT_URL` (default `http://finance-agent:8093`)
 is registered alongside calendar-agent in
@@ -93,6 +95,7 @@ is registered alongside calendar-agent in
 - `http/BudgetStatusClient` — `GET /internal/budget-status` against mcp-finance. 200 → `Optional.of(result)`; 404 → `Optional.empty()` (no active budget — skill emits SKIP); 5xx / timeout → propagated, controller returns 503 so scheduler retries.
 - `http/RecurringClient` — `GET /internal/recurring/{id}` (enrichment) + `POST /internal/recurring/{id}/advance` (post-tick `next_due` recompute, PR30). GET shares the 200/404/5xx policy with `BudgetStatusClient`; POST is soft-failed by the caller (`maybeAdvanceRecurring`) — a stale `next_due` is cosmetic.
 - `http/TransactionClient` — `GET /internal/transaction/{id}` against mcp-finance. Same 200/404/5xx policy as `BudgetStatusClient` / `RecurringClient` GET.
+- **Spring AI MCP client (`spring.ai.mcp.client.sse.connections.*` in `application.yml`)** — first real MCP-client wiring in any agent (today everything else goes through llm-gateway + HTTP-passthroughs). PR33 wires up `mcp-money-pro-import` only: the auto-config exposes a `ToolCallbackProvider` bean with the remote `@Tool`s; downstream code (intent controller, future ChatClient hookup) consumes it. mcp-finance stays on its HTTP `/internal/*` passthroughs because they're stricter and faster than an LLM-driven tool call; switching mcp-finance to MCP would only pay off once we have a ChatClient choosing tools, and that's a later PR.
 
 ## Skills
 

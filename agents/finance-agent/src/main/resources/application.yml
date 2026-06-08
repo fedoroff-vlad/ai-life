@@ -3,6 +3,28 @@ spring:
     name: finance-agent
   main:
     web-application-type: reactive
+  ai:
+    mcp:
+      client:
+        # Each connection is dialled lazily on first tool invocation, so
+        # finance-agent boots even if a downstream MCP server is offline —
+        # but a fully missing block disables auto-config entirely. Toggle
+        # via FINANCE_AGENT_MCP_CLIENT_ENABLED if you need to silence the
+        # client in tests or a degraded environment.
+        enabled: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:true}
+        # Tool name prefixing keeps mcp-money-pro-import.import_moneypro_csv
+        # distinct from any future like-named tool from another server
+        # (e.g. a hypothetical mcp-finance.import_*).
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            # Server identifier used as the tool-name prefix when prefixing
+            # is enabled (see toolcallback above). Future MCP servers add
+            # another entry below; mcp-finance stays on its HTTP /internal
+            # passthroughs until an agent-side @Tool call shape needs it.
+            mcp-money-pro-import:
+              url: ${MCP_MONEY_PRO_IMPORT_URL:http://mcp-money-pro-import:8094}
 
 server:
   port: ${FINANCE_AGENT_PORT:8093}
