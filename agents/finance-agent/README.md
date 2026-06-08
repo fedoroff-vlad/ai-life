@@ -58,6 +58,8 @@ clients pick up by qualifier).
 | GET    | `/agents/finance/manifest`                 | parsed AGENT.md (frontmatter + body)                 |
 | POST   | `/agents/finance/intent`                   | hit by orchestrator on user intent                   |
 | POST   | `/agents/finance/triggers/{kind}`          | dispatches to a SKILL.md bound to `kind`; 404 if no skill matches |
+| GET    | `/agents/finance/internal/tools`           | system: list MCP tool names the dispatcher sees (PR34) |
+| POST   | `/agents/finance/internal/tools/{toolName}` | system: invoke an MCP tool by name with raw JSON args (PR34) |
 | GET    | `/actuator/health`                         | liveness                                             |
 
 ## Env
@@ -96,6 +98,8 @@ is registered alongside calendar-agent in
 - `http/RecurringClient` — `GET /internal/recurring/{id}` (enrichment) + `POST /internal/recurring/{id}/advance` (post-tick `next_due` recompute, PR30). GET shares the 200/404/5xx policy with `BudgetStatusClient`; POST is soft-failed by the caller (`maybeAdvanceRecurring`) — a stale `next_due` is cosmetic.
 - `http/TransactionClient` — `GET /internal/transaction/{id}` against mcp-finance. Same 200/404/5xx policy as `BudgetStatusClient` / `RecurringClient` GET.
 - **Spring AI MCP client (`spring.ai.mcp.client.sse.connections.*` in `application.yml`)** — first real MCP-client wiring in any agent (today everything else goes through llm-gateway + HTTP-passthroughs). PR33 wires up `mcp-money-pro-import` only: the auto-config exposes a `ToolCallbackProvider` bean with the remote `@Tool`s; downstream code (intent controller, future ChatClient hookup) consumes it. mcp-finance stays on its HTTP `/internal/*` passthroughs because they're stricter and faster than an LLM-driven tool call; switching mcp-finance to MCP would only pay off once we have a ChatClient choosing tools, and that's a later PR.
+- `tools/ToolDispatcher` (PR34) — pure dispatcher that takes a tool name + JSON args, finds the matching `ToolCallback` in the provider, invokes it. The `ToolCallbackProvider` dependency is resolved via `ObjectProvider` so the bean is wired even when the MCP client is disabled (`spring.ai.mcp.client.enabled=false`, default for tests) — in that mode `availableToolNames()` is empty and `dispatch` throws a clear "MCP client is disabled" error. Used today by `InternalToolsController`; future user-facing intent flow will reuse it after an LLM picks the tool name + args.
+- `web/InternalToolsController` (PR34) — system passthrough (`GET /internal/tools` to list names, `POST /internal/tools/{name}` to invoke). Body is the raw JSON args object Spring AI's `ToolCallback.call(String)` expects; response is the tool's JSON-stringified result verbatim (no envelope wrapping). Blocking `ToolCallback.call` is scheduled on `Schedulers.boundedElastic` so WebFlux stays unblocked. Unknown tool name → 400 with `{"error": "..."}`. No auth — admin-only by convention (not routed via orchestrator), intended for cron / deploy scripts / the future intent-flow PR.
 
 ## Skills
 
