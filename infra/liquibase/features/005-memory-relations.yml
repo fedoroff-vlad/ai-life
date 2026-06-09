@@ -1,7 +1,7 @@
 databaseChangeLog:
 
   - changeSet:
-      id: 041-memory-relations
+      id: 005-memory-relations
       author: ai-life
       comment: |
         Single-hop relation edges for memory recall (e.g. "Maria likes books").

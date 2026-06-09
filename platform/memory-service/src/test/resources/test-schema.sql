@@ -1,4 +1,4 @@
--- Mirrors infra/liquibase/features/{001-core, 040-memory}.yml just enough to run
+-- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations}.yml just enough to run
 -- memory-service integration tests. Kept minimal so drift surfaces as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

@@ -68,14 +68,47 @@ Canonical examples: [011-ics-subscriptions.yml](../infra/liquibase/features/011-
 (simple), [010-calendar.yml](../infra/liquibase/features/010-calendar.yml) (with raw-SQL
 GIN index).
 
-1. New file `infra/liquibase/features/NNN-<domain>-<topic>.yml`. Numbering: `001-009`
-   core schemas, `010-019` calendar, `020-029` finance, `030-039` tasks, etc.
+### Numbering convention (do not deviate without updating this table)
+
+| Range | Domain | Schemas / topic |
+|---|---|---|
+| `001-009` | core / cross-cutting | `core` (households, users, sessions), `scheduling`, `people`, `memory`, `audit`, `bus`, `media` |
+| `010-019` | calendar | `calendar.*`, ICS subscriptions |
+| `020-029` | finance | `finance.*` (transactions, budgets, recurring) |
+| `030-039` | tasks | `tasks.*` |
+| `040-049` | _next domain_ (reserved) | — |
+
+Rules:
+- **Pick the lowest free slot inside your range** — don't leave gaps unless you
+  know what you're holding them for. New cross-cutting schema → next free in
+  `001-009`. New domain table → next free in that domain's range.
+- **One concept per file.** `020-finance.yml` introduces the schema +
+  base tables; `021-fin-budget.yml` adds a feature on top; a schema-id column
+  added to an existing table goes into its own file (`022-fin-budget-schedule-id.yml`).
+  Never amend an already-merged migration — write a new file.
+- **Filename = `NNN-<domain>-<topic>.yml`.** Topic is what the file actually
+  does, in kebab-case. Topic is required for follow-ups (anything after the
+  domain's base file).
+- **`changeSet.id` matches the filename without `.yml`** (e.g. `021-fin-budget`).
+  `author: ai-life` for every entry.
+- **Master changelog order matters.** Add the `<include>` in
+  [db.changelog-master.xml](../infra/liquibase/db.changelog-master.xml) **after**
+  any migration whose tables yours references via FK. Numerically-sorted order
+  is the convention; deviate only if a cross-domain dependency forces it
+  (rare — call it out in a YAML comment).
+
+### Steps
+
+1. New file `infra/liquibase/features/NNN-<domain>-<topic>.yml` per the
+   convention above.
 2. `changeSet.id` matches the filename without `.yml`. `author: ai-life`.
-3. Include the file in `infra/liquibase/db.changelog-master.xml` `<include>` list (order
-   matters — depend-on tables come first).
-4. For every integration test that touches the new tables, **mirror the minimal DDL** in
-   that module's `src/test/resources/test-schema.sql`. Drift = failing test; that is the
-   intended early-warning mechanism.
+3. Include the file in `infra/liquibase/db.changelog-master.xml` `<include>` list
+   (numerically sorted unless a cross-range dependency forces otherwise).
+4. For every integration test that touches the new tables, **mirror the minimal
+   DDL** in that module's `src/test/resources/test-schema.sql`. Drift = failing
+   test; that is the intended early-warning mechanism. Update the
+   `-- Mirrors infra/liquibase/features/{…}.yml` header comment so the next
+   maintainer can re-sync.
 
 ## Recipe: add a new contract DTO
 Canonical examples: any record in [libs/contracts](../libs/contracts) — they are

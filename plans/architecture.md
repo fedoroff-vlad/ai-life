@@ -52,7 +52,8 @@ ai-life/
 │   ├── mcp-client/          # wrapper over Spring AI MCP + retry/trace
 │   ├── llm-client/          # client to llm-gateway (channel-based)
 │   ├── event-bus/           # Postgres LISTEN/NOTIFY adapter
-│   └── platform-common/     # security, logging, metrics, errors, AGENT.md/SKILL.md loaders
+│   ├── platform-common/     # security, logging, metrics, errors
+│   └── agent-runtime/       # AGENT.md/SKILL.md loaders + SkillRegistry + shared ProfileClient/NotifierClient/MemoryClient (agents @Import this)
 ├── infra/
 │   ├── docker-compose.yml          # all services
 │   ├── docker-compose.dev.yml      # infra only (PG/Radicale/MinIO/Langfuse)
@@ -70,13 +71,25 @@ Adding an agent/MCP = new folder from template + register in docker-compose. No 
 One Postgres, schemas split by **bounded context, not by service**:
 `core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks`.
 
-One shared Liquibase changelog, features split by domain:
+One shared Liquibase changelog, features split by domain. Numbering convention
+is owned by [PATTERNS.md](PATTERNS.md) §"Recipe: add a Liquibase migration" —
+read it before creating a new file. Cheat-sheet:
+
+| Range | Domain |
+|---|---|
+| `001-009` | core / cross-cutting (`core`, `memory`, `audit`, `bus`, `media`, `scheduling`, `people`) |
+| `010-019` | calendar |
+| `020-029` | finance |
+| `030-039` | tasks |
+| `040-049` | _reserved for next domain_ |
+
 ```
 infra/liquibase/
-├── db.changelog-master.xml          # XML master
+├── db.changelog-master.xml          # XML master, <include> order matters (deps first)
 └── features/
-    ├── 001-core.yml   002-memory.yml  003-audit.yml  004-bus.yml  005-media.yml
-    ├── 010-calendar.yml   020-finance.yml   030-tasks.yml
+    ├── 001-core.yml  002-scheduling.yml  003-people.yml  004-memory.yml  005-memory-relations.yml
+    ├── 010-calendar.yml   011-ics-subscriptions.yml  012-ics-subscriptions-schedule-id.yml
+    ├── 020-finance.yml    021-fin-budget.yml         022-fin-budget-schedule-id.yml  023-finance-recurring.yml
     └── NNN-<domain>/*.sql            # complex DDL referenced from YAML
 ```
 Format: master = XML; per-feature = YAML; complex DDL / data fixes = raw SQL referenced from YAML.

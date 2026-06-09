@@ -16,7 +16,7 @@ import java.util.UUID;
 
 /**
  * JdbcTemplate over memory.relations. Single-hop edges only — multi-hop graph
- * traversal would warrant Apache AGE, which is deferred (see 041 changelog
+ * traversal would warrant Apache AGE, which is deferred (see 005 changelog
  * comment for why).
  */
 @Repository

@@ -46,8 +46,8 @@ returns the person's outgoing + incoming edges.
 - `web/RelationController` — `/v1/relations` + `/v1/graph/person/{id}/relations`.
 
 ## Schema
-- [040-memory.yml](../../infra/liquibase/features/040-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
-- [041-memory-relations.yml](../../infra/liquibase/features/041-memory-relations.yml) — `memory.relations` (single-hop edges). `subject_type`/`subject_id` + `edge` + `object_type`/`object_id`/`object_label` (the label is always present even when `object_id` is null, so display works for free-text objects like "loose-leaf tea"). Indexes on `(household_id, subject_type, subject_id)` and `(household_id, object_type, object_id)`.
+- [004-memory.yml](../../infra/liquibase/features/004-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
+- [005-memory-relations.yml](../../infra/liquibase/features/005-memory-relations.yml) — `memory.relations` (single-hop edges). `subject_type`/`subject_id` + `edge` + `object_type`/`object_id`/`object_label` (the label is always present even when `object_id` is null, so display works for free-text objects like "loose-leaf tea"). Indexes on `(household_id, subject_type, subject_id)` and `(household_id, object_type, object_id)`.
 
 ## Dim mismatch (the one gotcha)
 The column is `vector(384)` and the mock provider emits 384-dim. When Stage 5
@@ -57,7 +57,7 @@ returned embedding's length differs from `memory.dim` — this is the first thin
 to check when you see `embedding dim mismatch` in logs.
 
 ## Why a SQL table instead of Apache AGE
-[041](../../infra/liquibase/features/041-memory-relations.yml) is plain SQL on
+[005](../../infra/liquibase/features/005-memory-relations.yml) is plain SQL on
 purpose. The original plan (`plans/architecture.md`, `roadmap.md`) was AGE — and
 that's still where we end up — but:
 1. The roadmap §Risks calls the AGE container image unstable, plan B = Neo4j.
