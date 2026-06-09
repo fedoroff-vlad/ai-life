@@ -1,7 +1,7 @@
 databaseChangeLog:
 
   - changeSet:
-      id: 040-memory-schema
+      id: 004-memory-schema
       author: ai-life
       comment: |
         memory schema. memory.memories is a flat embeddings table indexed by HNSW
