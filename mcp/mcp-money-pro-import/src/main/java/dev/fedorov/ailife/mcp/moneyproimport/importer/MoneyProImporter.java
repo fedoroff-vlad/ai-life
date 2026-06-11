@@ -45,6 +45,10 @@ public class MoneyProImporter {
 
     static final String SOURCE = "moneypro_import";
     private static final int MAX_ERRORS_RETURNED = 20;
+    // Money Pro CSV doesn't tell us an account's type; "cash" is a neutral default
+    // the user can re-type later. Currency falls back here only when a row has none.
+    private static final String AUTO_ACCOUNT_TYPE = "cash";
+    private static final String DEFAULT_CURRENCY = "USD";
 
     private final FinAccountRepository accounts;
     private final FinTransactionRepository transactions;
@@ -61,20 +65,30 @@ public class MoneyProImporter {
         Map<String, UUID> accountMap = lowerKeyed(input.accountMap());
         Map<String, UUID> categoryMap = lowerKeyed(input.categoryMap());
         boolean dryRun = Boolean.TRUE.equals(input.dryRun());
+        boolean autoCreate = Boolean.TRUE.equals(input.autoCreateAccounts());
 
-        verifyAccountMapScope(input.householdId(), accountMap);
+        verifyAccountMapScope(input.householdId(), accountMap, autoCreate);
 
         byte[] bytes = Base64.getDecoder().decode(input.csvBase64());
         String text = CsvSniffer.decode(bytes, input.encoding());
         List<String> lines = CsvReader.splitLines(text);
         if (lines.isEmpty()) {
-            return new ImportMoneyProCsvResult(dryRun, 0, 0, 0, 0, List.of());
+            return new ImportMoneyProCsvResult(dryRun, 0, 0, 0, 0, List.of(), List.of());
         }
         char delimiter = CsvSniffer.detectDelimiter(lines.get(0));
         List<String> headers = CsvReader.splitLine(lines.get(0), delimiter);
         HeaderIndex idx = HeaderIndex.from(headers);
 
         Map<UUID, FinAccount> accountCache = new HashMap<>();
+        // For auto-create: index existing household accounts by lowercased name so we
+        // reuse a match instead of duplicating, and track names we create as we go.
+        Map<String, FinAccount> accountsByName = new HashMap<>();
+        if (autoCreate) {
+            for (FinAccount a : accounts.findByHouseholdId(input.householdId())) {
+                accountsByName.putIfAbsent(a.getName().toLowerCase(Locale.ROOT), a);
+            }
+        }
+        List<String> createdAccounts = new ArrayList<>();
         List<ImportRowError> errors = new ArrayList<>();
         int total = 0, created = 0, skipped = 0, errored = 0;
 
@@ -86,16 +100,23 @@ public class MoneyProImporter {
             try {
                 List<String> cells = CsvReader.splitLine(line, delimiter);
                 String accountName = cell(cells, idx.account).trim();
+                String rowCurrency = idx.currency >= 0 ? cell(cells, idx.currency).trim() : "";
                 UUID accountId = accountMap.get(accountName.toLowerCase(Locale.ROOT));
-                if (accountId == null) {
+                FinAccount account;
+                if (accountId != null) {
+                    account = accountCache.computeIfAbsent(accountId, this::loadAccount);
+                } else if (autoCreate) {
+                    account = resolveOrCreateAccount(input.householdId(), accountName, rowCurrency,
+                            accountsByName, createdAccounts, dryRun);
+                    accountId = account.getId();
+                    accountCache.putIfAbsent(accountId, account);
+                } else {
                     throw new IllegalArgumentException("Unknown account: '" + accountName + "'");
                 }
-                FinAccount account = accountCache.computeIfAbsent(accountId, this::loadAccount);
 
                 BigDecimal amount = AmountParser.parse(cell(cells, idx.amount));
                 Instant ts = DateParser.parse(cell(cells, idx.date));
-                String currency = idx.currency >= 0 ? cell(cells, idx.currency).trim() : "";
-                if (currency.isEmpty()) currency = account.getCurrency();
+                String currency = rowCurrency.isEmpty() ? account.getCurrency() : rowCurrency;
                 String note = idx.note >= 0 ? cell(cells, idx.note).trim() : null;
                 if (note != null && note.isEmpty()) note = null;
                 String categoryName = idx.category >= 0 ? cell(cells, idx.category).trim() : "";
@@ -137,7 +158,8 @@ public class MoneyProImporter {
             }
         }
 
-        return new ImportMoneyProCsvResult(dryRun, total, created, skipped, errored, errors);
+        return new ImportMoneyProCsvResult(
+                dryRun, total, created, skipped, errored, errors, List.copyOf(createdAccounts));
     }
 
     private FinAccount loadAccount(UUID id) {
@@ -145,8 +167,38 @@ public class MoneyProImporter {
                 () -> new IllegalArgumentException("Account not found: " + id));
     }
 
-    private void verifyAccountMapScope(UUID householdId, Map<String, UUID> accountMap) {
+    /**
+     * Reuses an existing household account whose name matches (case-insensitive), else creates a
+     * fresh one. The new account's currency is the row's currency when present, else a constant
+     * fallback — its type is unknown from a CSV so it lands as {@value #AUTO_ACCOUNT_TYPE}. In a
+     * dry run the account is built transiently (real id, never persisted) so the row still counts.
+     */
+    private FinAccount resolveOrCreateAccount(UUID householdId, String name, String rowCurrency,
+                                              Map<String, FinAccount> byName,
+                                              List<String> createdAccounts, boolean dryRun) {
+        if (name.isBlank()) {
+            throw new IllegalArgumentException("Missing account name");
+        }
+        String key = name.toLowerCase(Locale.ROOT);
+        FinAccount existing = byName.get(key);
+        if (existing != null) {
+            return existing;
+        }
+        String currency = rowCurrency.isEmpty() ? DEFAULT_CURRENCY : rowCurrency;
+        FinAccount account = new FinAccount(UUID.randomUUID(), householdId, name, AUTO_ACCOUNT_TYPE, currency);
+        if (!dryRun) {
+            account = accounts.save(account);
+        }
+        byName.put(key, account);
+        createdAccounts.add(name);
+        return account;
+    }
+
+    private void verifyAccountMapScope(UUID householdId, Map<String, UUID> accountMap, boolean autoCreate) {
         if (accountMap.isEmpty()) {
+            if (autoCreate) {
+                return; // accounts are supplied as rows are read
+            }
             throw new IllegalArgumentException("accountMap is empty — Money Pro account names must be mapped to fin_account ids");
         }
         for (Map.Entry<String, UUID> e : accountMap.entrySet()) {
