@@ -125,6 +125,12 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   payload (just `{transactionId}` from `add_transaction`'s soft hook) into the
   full transaction so the `transaction-categorizer` skill can suggest a
   category.
+- `POST /internal/transaction` (body `AddTransactionInput`) → `FinTransactionDto`
+  (200) | 400. Delegates to the `add_transaction` tool verbatim (same
+  cross-household guard, currency default, and uncategorised one-shot trigger),
+  so an agent that already holds a concrete `AddTransactionInput` can persist it
+  without an LLM-driven MCP tool call. Used by the `receipt-parser` flow once it
+  has parsed a draft from a photo. Validation failures → `{"error": "..."}` 400.
 
 ## Schema
 
