@@ -498,6 +498,8 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
+      media-service:
+        condition: service_healthy
       mcp-finance:
         condition: service_healthy
       mcp-money-pro-import:
@@ -508,6 +510,7 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      MEDIA_SERVICE_URL: http://media-service:8088
       FINANCE_AGENT_MEMORY_RECALL_K: ${FINANCE_AGENT_MEMORY_RECALL_K:-5}
       MCP_FINANCE_URL: http://mcp-finance:8092
       MCP_MONEY_PRO_IMPORT_URL: http://mcp-money-pro-import:8094

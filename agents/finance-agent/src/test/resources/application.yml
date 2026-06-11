@@ -27,6 +27,7 @@ finance-agent:
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   mcp-finance-url: ${MCP_FINANCE_URL:http://mcp-finance:8092}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
 
 ailife:
   llm-client:

@@ -16,6 +16,7 @@ public class FinanceAgentProperties {
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
     private String mcpFinanceUrl = "http://mcp-finance:8092";
+    private String mediaServiceUrl = "http://media-service:8088";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -33,5 +34,10 @@ public class FinanceAgentProperties {
     public String getMcpFinanceUrl() { return mcpFinanceUrl; }
     public void setMcpFinanceUrl(String mcpFinanceUrl) {
         this.mcpFinanceUrl = mcpFinanceUrl;
+    }
+
+    public String getMediaServiceUrl() { return mediaServiceUrl; }
+    public void setMediaServiceUrl(String mediaServiceUrl) {
+        this.mediaServiceUrl = mediaServiceUrl;
     }
 }
