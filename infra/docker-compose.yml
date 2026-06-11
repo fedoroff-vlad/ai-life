@@ -1,0 +1,471 @@
+# Full local-deployment compose: infra + every Spring Boot service.
+#
+# Use this when you want the whole system up (e.g. validating end-to-end on
+# Mac Studio, or smoke-testing a release). For IDE-driven development you
+# usually want docker-compose.dev.yml instead — that one stops at the infra
+# layer (postgres + radicale + minio + one-shot liquibase) so you can run
+# the JVMs from IntelliJ pointed at host ports.
+#
+#   cp .env.example .env                           # edit if you want non-default ports/passwords
+#   docker compose -f docker-compose.yml up -d     # all services
+#   docker compose -f docker-compose.yml down      # stop
+#   docker compose -f docker-compose.yml down -v   # nuke volumes too
+#
+# Build contexts assume repo root — every Dockerfile copies pom.xml + libs/
+# from there, so the compose runs from infra/ but the build context is `..`.
+#
+# Healthchecks: every Spring Boot app exposes /actuator/health (configured
+# in its application.yml). depends_on uses condition: service_healthy so
+# downstream services don't start until their dependency is reachable.
+# Liquibase runs once and exits 0 — depends_on for app services uses
+# condition: service_completed_successfully on that one.
+#
+# Inter-service URLs are pinned to docker network service names (e.g.
+# http://llm-gateway:8081); the matching env vars in .env.example carry
+# localhost defaults that suit IDE-driven dev — compose overrides those
+# here so the same .env works in both modes.
+
+name: ai-life
+
+services:
+  # ---------- infrastructure ----------
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ai-life-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ailife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      POSTGRES_DB: ${POSTGRES_DB:-ailife}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ailife} -d ${POSTGRES_DB:-ailife}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  liquibase:
+    image: liquibase/liquibase:4.30
+    container_name: ai-life-liquibase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-ailife}
+      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
+      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+    volumes:
+      - ./liquibase:/liquibase/changelog:ro
+    command: ["update"]
+
+  radicale:
+    image: tomsquest/docker-radicale:latest
+    container_name: ai-life-radicale
+    restart: unless-stopped
+    ports:
+      - "${RADICALE_PORT:-5232}:5232"
+    volumes:
+      - radicale-data:/data
+      - ./radicale/config:/etc/radicale/config:ro
+    healthcheck:
+      # Radicale's image has no bash so the default port-listening check
+      # no-ops; hit the web root explicitly.
+      test: ["CMD", "curl", "-fsS", "http://localhost:5232/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ---------- platform services ----------
+
+  llm-gateway:
+    image: ai-life/llm-gateway:local
+    container_name: ai-life-llm-gateway
+    build:
+      context: ..
+      dockerfile: platform/llm-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      LLM_GATEWAY_PORT: 8081
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-mock-large}
+      LLM_FAST_MODEL: ${LLM_FAST_MODEL:-mock-fast}
+      LLM_VISION_MODEL: ${LLM_VISION_MODEL:-mock-vision}
+      LLM_EMBEDDING_PROVIDER: ${LLM_EMBEDDING_PROVIDER:-mock}
+      LLM_EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-mock-embed}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_ANTHROPIC_VERSION: ${LLM_ANTHROPIC_VERSION:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-}
+    ports:
+      - "${LLM_GATEWAY_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  profile-service:
+    image: ai-life/profile-service:local
+    container_name: ai-life-profile-service
+    build:
+      context: ..
+      dockerfile: platform/profile-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      PROFILE_SERVICE_PORT: 8082
+      PROFILE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      PROFILE_DB_USER: ${POSTGRES_USER:-ailife}
+      PROFILE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  memory-service:
+    image: ai-life/memory-service:local
+    container_name: ai-life-memory-service
+    build:
+      context: ..
+      dockerfile: platform/memory-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+      llm-gateway:
+        condition: service_healthy
+    environment:
+      MEMORY_PORT: 8087
+      MEMORY_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MEMORY_DB_USER: ${POSTGRES_USER:-ailife}
+      MEMORY_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MEMORY_DEFAULT_K: ${MEMORY_DEFAULT_K:-5}
+      MEMORY_MAX_K: ${MEMORY_MAX_K:-50}
+      MEMORY_EMBED_DIM: ${MEMORY_EMBED_DIM:-384}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  scheduler-service:
+    image: ai-life/scheduler-service:local
+    container_name: ai-life-scheduler-service
+    build:
+      context: ..
+      dockerfile: platform/scheduler-service/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      SCHEDULER_PORT: 8085
+      SCHEDULER_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      SCHEDULER_DB_USER: ${POSTGRES_USER:-ailife}
+      SCHEDULER_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      SCHEDULER_TICK_MILLIS: ${SCHEDULER_TICK_MILLIS:-30000}
+      SCHEDULER_BATCH_SIZE: ${SCHEDULER_BATCH_SIZE:-50}
+      ORCHESTRATOR_URL: http://orchestrator:8083
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  notifier-service:
+    image: ai-life/notifier-service:local
+    container_name: ai-life-notifier-service
+    build:
+      context: ..
+      dockerfile: platform/notifier-service/Dockerfile
+    restart: unless-stopped
+    environment:
+      NOTIFIER_PORT: 8084
+      GATEWAY_TELEGRAM_URL: http://gateway-telegram:8080
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  orchestrator:
+    image: ai-life/orchestrator:local
+    container_name: ai-life-orchestrator
+    build:
+      context: ..
+      dockerfile: platform/orchestrator/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+    environment:
+      ORCHESTRATOR_PORT: 8083
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      CALENDAR_AGENT_URL: http://calendar-agent:8086
+      FINANCE_AGENT_URL: http://finance-agent:8093
+      ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
+      ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  gateway-telegram:
+    image: ai-life/gateway-telegram:local
+    container_name: ai-life-gateway-telegram
+    build:
+      context: ..
+      dockerfile: platform/gateway-telegram/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      profile-service:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    environment:
+      GATEWAY_PORT: 8080
+      GATEWAY_TELEGRAM_BOT_USERNAME: ${GATEWAY_TELEGRAM_BOT_USERNAME:-ai_life_bot}
+      GATEWAY_TELEGRAM_BOT_TOKEN: ${GATEWAY_TELEGRAM_BOT_TOKEN:-}
+      GATEWAY_DEFAULT_HOUSEHOLD_NAME: ${GATEWAY_DEFAULT_HOUSEHOLD_NAME:-default household}
+      GATEWAY_INTERNAL_API_TOKEN: ${GATEWAY_INTERNAL_API_TOKEN:-}
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      ORCHESTRATOR_URL: http://orchestrator:8083
+    ports:
+      # Only the gateway needs to be reachable from outside the compose
+      # network — Telegram webhooks hit it. Everything else is internal.
+      - "${GATEWAY_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # ---------- MCP servers ----------
+
+  mcp-caldav:
+    image: ai-life/mcp-caldav:local
+    container_name: ai-life-mcp-caldav
+    build:
+      context: ..
+      dockerfile: mcp/mcp-caldav/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+      radicale:
+        condition: service_healthy
+    environment:
+      MCP_CALDAV_PORT: 8090
+      MCP_CALDAV_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_CALDAV_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_CALDAV_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      CALDAV_URL: http://radicale:5232
+      CALDAV_USER: ${CALDAV_USER:-}
+      CALDAV_PASSWORD: ${CALDAV_PASSWORD:-}
+      CALDAV_DEFAULT_CALENDAR: ${CALDAV_DEFAULT_CALENDAR:-ours}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  mcp-ics-import:
+    image: ai-life/mcp-ics-import:local
+    container_name: ai-life-mcp-ics-import
+    build:
+      context: ..
+      dockerfile: mcp/mcp-ics-import/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+      radicale:
+        condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
+    environment:
+      MCP_ICS_IMPORT_PORT: 8091
+      MCP_ICS_IMPORT_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_ICS_IMPORT_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_ICS_IMPORT_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      CALDAV_URL: http://radicale:5232
+      CALDAV_USER: ${CALDAV_USER:-}
+      CALDAV_PASSWORD: ${CALDAV_PASSWORD:-}
+      ICS_IMPORT_COLLECTION_PREFIX: ${ICS_IMPORT_COLLECTION_PREFIX:-external}
+      ICS_IMPORT_MAX_BYTES: ${ICS_IMPORT_MAX_BYTES:-5242880}
+      ICSIMPORT_SCHEDULER_URL: http://scheduler-service:8085
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8091/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  mcp-finance:
+    image: ai-life/mcp-finance:local
+    container_name: ai-life-mcp-finance
+    build:
+      context: ..
+      dockerfile: mcp/mcp-finance/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+      scheduler-service:
+        condition: service_healthy
+    environment:
+      MCP_FINANCE_PORT: 8092
+      MCP_FINANCE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_FINANCE_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_FINANCE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      SCHEDULER_URL: http://scheduler-service:8085
+      MCP_FINANCE_BUDGET_CRON: ${MCP_FINANCE_BUDGET_CRON:-0 0 9 * * *}
+      MCP_FINANCE_BUDGET_OWNER_AGENT: ${MCP_FINANCE_BUDGET_OWNER_AGENT:-finance}
+      MCP_FINANCE_BUDGET_TRIGGER_KIND: ${MCP_FINANCE_BUDGET_TRIGGER_KIND:-budget.alert}
+      MCP_FINANCE_RECURRING_OWNER_AGENT: ${MCP_FINANCE_RECURRING_OWNER_AGENT:-finance}
+      MCP_FINANCE_RECURRING_TRIGGER_KIND: ${MCP_FINANCE_RECURRING_TRIGGER_KIND:-recurring.due}
+      MCP_FINANCE_TRANSACTION_OWNER_AGENT: ${MCP_FINANCE_TRANSACTION_OWNER_AGENT:-finance}
+      MCP_FINANCE_TRANSACTION_TRIGGER_KIND: ${MCP_FINANCE_TRANSACTION_TRIGGER_KIND:-transaction.uncategorised}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8092/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  mcp-money-pro-import:
+    image: ai-life/mcp-money-pro-import:local
+    container_name: ai-life-mcp-money-pro-import
+    build:
+      context: ..
+      dockerfile: mcp/mcp-money-pro-import/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      MCP_MONEY_PRO_IMPORT_PORT: 8094
+      MCP_MONEY_PRO_IMPORT_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_MONEY_PRO_IMPORT_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_MONEY_PRO_IMPORT_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8094/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # ---------- agents ----------
+
+  calendar-agent:
+    image: ai-life/calendar-agent:local
+    container_name: ai-life-calendar-agent
+    build:
+      context: ..
+      dockerfile: agents/calendar-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-caldav:
+        condition: service_healthy
+    environment:
+      CALENDAR_AGENT_PORT: 8086
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      MCP_CALDAV_URL: http://mcp-caldav:8090
+      MCP_ICS_IMPORT_URL: http://mcp-ics-import:8091
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  finance-agent:
+    image: ai-life/finance-agent:local
+    container_name: ai-life-finance-agent
+    build:
+      context: ..
+      dockerfile: agents/finance-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-finance:
+        condition: service_healthy
+      mcp-money-pro-import:
+        condition: service_healthy
+    environment:
+      FINANCE_AGENT_PORT: 8093
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      FINANCE_AGENT_MEMORY_RECALL_K: ${FINANCE_AGENT_MEMORY_RECALL_K:-5}
+      MCP_FINANCE_URL: http://mcp-finance:8092
+      MCP_MONEY_PRO_IMPORT_URL: http://mcp-money-pro-import:8094
+      FINANCE_AGENT_MCP_CLIENT_ENABLED: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:-true}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8093/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  radicale-data:
