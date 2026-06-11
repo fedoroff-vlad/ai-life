@@ -6,11 +6,12 @@ Telegram entry point. Long-polling bot that:
 3. Builds a `NormalizedMessage` and sends it to `orchestrator`.
 4. Replies to the chat with the orchestrator's response.
 
-Photo messages are supported: the largest variant is downloaded and uploaded to `media-service`,
-and the returned object id rides on the `NormalizedMessage` as an `image` attachment
-(`storageUri` = the media object id; the caption becomes `text`). A downstream agent fetches the
-bytes back from media-service by that id. Audio / video / documents land later alongside
-`mcp-media-processing`.
+Photo and document messages are supported: the bytes are downloaded and uploaded to
+`media-service`, and the returned object id rides on the `NormalizedMessage` as an attachment
+(`storageUri` = the media object id; the caption becomes `text`). Photos get `kind=image` (receipt
+flow); documents get `kind=file` (e.g. a Money Pro CSV), except an image sent uncompressed as a
+document which keeps `kind=image`. A downstream agent fetches the bytes back from media-service by
+that id. Audio / video land later alongside `mcp-media-processing`.
 
 ## Configuration
 

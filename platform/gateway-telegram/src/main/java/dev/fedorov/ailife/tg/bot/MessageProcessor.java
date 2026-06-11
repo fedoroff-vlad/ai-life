@@ -41,19 +41,20 @@ public class MessageProcessor {
     }
 
     /**
-     * A photo message stores its bytes in media-service first; the resulting object id rides on the
-     * {@link NormalizedMessage} as an {@link Attachment} (kind=image, storageUri=object id) so a
-     * downstream agent can fetch the bytes back. Text-only messages skip this entirely.
+     * A media message (photo or document) stores its bytes in media-service first; the resulting
+     * object id rides on the {@link NormalizedMessage} as an {@link Attachment}
+     * (kind=image|file, storageUri=object id) so a downstream agent can fetch the bytes back.
+     * Text-only messages skip this entirely.
      */
     private Mono<List<Attachment>> attachmentsFor(UserDto user, IncomingMessage incoming) {
-        IncomingPhoto photo = incoming.photo();
-        if (photo == null) {
+        IncomingMedia m = incoming.media();
+        if (m == null) {
             return Mono.just(List.of());
         }
-        return media.upload(user.householdId(), user.id(), "image", "telegram",
-                        photo.filename(), photo.mimeType(), photo.bytes())
+        return media.upload(user.householdId(), user.id(), m.kind(), "telegram",
+                        m.filename(), m.mimeType(), m.bytes())
                 .map(dto -> List.of(
-                        new Attachment("image", dto.mimeType(), dto.id().toString(), null)));
+                        new Attachment(m.kind(), dto.mimeType(), dto.id().toString(), null)));
     }
 
     private NormalizedMessage normalise(UserDto user, IncomingMessage incoming, List<Attachment> attachments) {
@@ -75,7 +76,7 @@ public class MessageProcessor {
             String text,
             MessageScope scope,
             String messageId,
-            IncomingPhoto photo) {
+            IncomingMedia media) {
 
         /** Text-only message — no attached media. */
         public IncomingMessage(long telegramUserId,
@@ -88,7 +89,11 @@ public class MessageProcessor {
         }
     }
 
-    /** A downloaded inbound photo: raw bytes plus what to store them as. */
-    public record IncomingPhoto(byte[] bytes, String mimeType, String filename) {
+    /**
+     * A downloaded inbound media blob (photo or document): raw bytes plus what to store them as.
+     * {@code kind} is the attachment kind a downstream agent branches on — {@code image} for a
+     * Telegram photo (receipt flow), {@code file} for a document (e.g. a Money Pro CSV).
+     */
+    public record IncomingMedia(byte[] bytes, String mimeType, String filename, String kind) {
     }
 }

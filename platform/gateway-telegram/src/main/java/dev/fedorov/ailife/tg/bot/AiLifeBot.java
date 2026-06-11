@@ -7,6 +7,7 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.File;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
@@ -51,16 +52,26 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         if (from == null || from.getIsBot()) {
             return;
         }
-        // Only text and photo messages are supported today; everything else (stickers,
-        // voice, documents, …) is ignored until its own processing path lands.
-        if (!msg.hasText() && !msg.hasPhoto()) {
+        // Text, photo and document messages are supported; everything else (stickers,
+        // voice, video, …) is ignored until its own processing path lands.
+        if (!msg.hasText() && !msg.hasPhoto() && !msg.hasDocument()) {
             return;
         }
 
         try {
-            // For a photo message the text is in the caption (may be null).
-            MessageProcessor.IncomingPhoto photo = msg.hasPhoto() ? downloadLargestPhoto(msg) : null;
-            String text = msg.hasPhoto() ? msg.getCaption() : msg.getText();
+            // For a photo / document message the text is in the caption (may be null).
+            MessageProcessor.IncomingMedia media;
+            String text;
+            if (msg.hasPhoto()) {
+                media = downloadLargestPhoto(msg);
+                text = msg.getCaption();
+            } else if (msg.hasDocument()) {
+                media = downloadDocument(msg);
+                text = msg.getCaption();
+            } else {
+                media = null;
+                text = msg.getText();
+            }
 
             var incoming = new MessageProcessor.IncomingMessage(
                     from.getId(),
@@ -69,7 +80,7 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
                     text,
                     scopeFor(msg),
                     String.valueOf(msg.getMessageId()),
-                    photo);
+                    media);
 
             var response = processor.process(incoming).block();
             String reply = response != null && response.text() != null
@@ -88,7 +99,7 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
      * resolve its file path via {@code getFile}, then stream the bytes. The bytes are read fully
      * into memory — fine for receipts; media-service enforces the hard size cap.
      */
-    private MessageProcessor.IncomingPhoto downloadLargestPhoto(Message msg)
+    private MessageProcessor.IncomingMedia downloadLargestPhoto(Message msg)
             throws TelegramApiException, IOException {
         List<PhotoSize> sizes = msg.getPhoto();
         PhotoSize largest = sizes.stream()
@@ -97,11 +108,34 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
 
         File tgFile = client.execute(GetFile.builder().fileId(largest.getFileId()).build());
         String path = tgFile.getFilePath();
-        byte[] bytes;
+        byte[] bytes = download(tgFile);
+        return new MessageProcessor.IncomingMedia(
+                bytes, mimeFromPath(path), filenameFromPath(path, largest.getFileId()), "image");
+    }
+
+    /**
+     * Downloads a document attachment (e.g. a Money Pro CSV). Telegram carries the file name and
+     * declared MIME on the {@link Document}; we trust those (falling back to octet-stream when
+     * absent). {@code kind} is {@code image} when the document is itself an image sent uncompressed,
+     * else {@code file} — that's what a downstream agent branches on.
+     */
+    private MessageProcessor.IncomingMedia downloadDocument(Message msg)
+            throws TelegramApiException, IOException {
+        Document doc = msg.getDocument();
+        File tgFile = client.execute(GetFile.builder().fileId(doc.getFileId()).build());
+        byte[] bytes = download(tgFile);
+        String mime = doc.getMimeType() != null && !doc.getMimeType().isBlank()
+                ? doc.getMimeType() : "application/octet-stream";
+        String filename = doc.getFileName() != null && !doc.getFileName().isBlank()
+                ? doc.getFileName() : "file-" + doc.getFileId();
+        String kind = mime.startsWith("image/") ? "image" : "file";
+        return new MessageProcessor.IncomingMedia(bytes, mime, filename, kind);
+    }
+
+    private byte[] download(File tgFile) throws TelegramApiException, IOException {
         try (InputStream in = client.downloadFileAsStream(tgFile)) {
-            bytes = in.readAllBytes();
+            return in.readAllBytes();
         }
-        return new MessageProcessor.IncomingPhoto(bytes, mimeFromPath(path), filenameFromPath(path, largest.getFileId()));
     }
 
     private static String mimeFromPath(String path) {
