@@ -3,6 +3,7 @@ package dev.fedorov.ailife.tg.bot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import okhttp3.mockwebserver.MockResponse;
@@ -11,6 +12,7 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,23 +25,26 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Boots gateway-telegram and points {@link ProfileClient} and {@link OrchestratorClient}
- * at MockWebServers. Each test gets a fresh pair of mocks so request order is
- * deterministic.
+ * Boots gateway-telegram and points {@link ProfileClient}, {@link OrchestratorClient} and
+ * {@link dev.fedorov.ailife.tg.media.MediaServiceClient} at MockWebServers. Each test gets a fresh
+ * pair of mocks so request order is deterministic.
  */
 @SpringBootTest(properties = "gateway.telegram.bot-token=")
 class MessageProcessorTest {
 
     private static MockWebServer profile;
     private static MockWebServer orchestrator;
+    private static MockWebServer media;
 
     @DynamicPropertySource
     static void wireServices(DynamicPropertyRegistry registry) {
         profile = new MockWebServer();
         orchestrator = new MockWebServer();
+        media = new MockWebServer();
         try {
             profile.start();
             orchestrator.start();
+            media.start();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to start mock servers", e);
         }
@@ -47,6 +52,8 @@ class MessageProcessorTest {
                 () -> "http://localhost:" + profile.getPort());
         registry.add("gateway.services.orchestrator-base-url",
                 () -> "http://localhost:" + orchestrator.getPort());
+        registry.add("gateway.services.media-base-url",
+                () -> "http://localhost:" + media.getPort());
     }
 
     @AfterEach
@@ -58,6 +65,8 @@ class MessageProcessorTest {
         while (profile.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
         //noinspection StatementWithEmptyBody
         while (orchestrator.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
+        //noinspection StatementWithEmptyBody
+        while (media.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
     }
 
     @Autowired
@@ -105,6 +114,8 @@ class MessageProcessorTest {
         assertThat(body).contains("\"text\":\"hi\"");
         assertThat(body).contains("\"sourceChannel\":\"telegram\"");
         assertThat(body).contains(userId.toString());
+        // Text-only message never touches media-service.
+        assertThat(media.getRequestCount()).isZero();
     }
 
     @Test
@@ -132,5 +143,53 @@ class MessageProcessorTest {
 
         RecordedRequest orchestratorRequest = orchestrator.takeRequest();
         assertThat(orchestratorRequest.getBody().readUtf8()).contains("\"text\":\"hello\"");
+    }
+
+    @Test
+    void photoMessageUploadsToMediaAndAttachesStorageUri() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID mediaId = UUID.randomUUID();
+
+        profile.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new UserDto(
+                        userId, householdId, "vlad", "ru", 99L, "admin", Instant.now()))));
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new MediaObjectDto(
+                        mediaId, householdId, userId, "image", "image/jpeg",
+                        23L, "deadbeef", "telegram", Instant.now()))));
+        orchestrator.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new IntentResponse("finance", "draft ready", "mock-large"))));
+
+        byte[] photoBytes = "fake-jpeg-bytes-receipt".getBytes(StandardCharsets.UTF_8);
+        var incoming = new MessageProcessor.IncomingMessage(
+                99L, "vlad", "ru", "на чеке кофе", MessageScope.PRIVATE, "7",
+                new MessageProcessor.IncomingPhoto(photoBytes, "image/jpeg", "receipt.jpg"));
+
+        IntentResponse result = processor.process(incoming).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text()).isEqualTo("draft ready");
+
+        // Bytes were uploaded to media-service as multipart.
+        RecordedRequest mediaRequest = media.takeRequest();
+        assertThat(mediaRequest.getMethod()).isEqualTo("POST");
+        assertThat(mediaRequest.getPath()).isEqualTo("/v1/media");
+        assertThat(mediaRequest.getHeader("content-type")).startsWith("multipart/form-data");
+        String mediaBody = mediaRequest.getBody().readUtf8();
+        assertThat(mediaBody).contains(householdId.toString());   // householdId form field
+        assertThat(mediaBody).contains("telegram");               // source form field
+
+        // The NormalizedMessage carries the media object id as an image attachment storageUri,
+        // and the caption lands in text.
+        RecordedRequest orchestratorRequest = orchestrator.takeRequest();
+        String body = orchestratorRequest.getBody().readUtf8();
+        assertThat(body).contains("\"text\":\"на чеке кофе\"");
+        assertThat(body).contains("\"kind\":\"image\"");
+        assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
+        assertThat(body).contains("\"mimeType\":\"image/jpeg\"");
     }
 }

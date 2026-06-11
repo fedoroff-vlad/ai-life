@@ -16,4 +16,9 @@ public class HttpClientsConfig {
     public WebClient orchestratorWebClient(GatewayProperties props, WebClient.Builder builder) {
         return builder.baseUrl(props.getServices().getOrchestratorBaseUrl()).build();
     }
+
+    @Bean
+    public WebClient mediaWebClient(GatewayProperties props, WebClient.Builder builder) {
+        return builder.clone().baseUrl(props.getServices().getMediaBaseUrl()).build();
+    }
 }

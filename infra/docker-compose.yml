@@ -301,6 +301,8 @@ services:
         condition: service_healthy
       orchestrator:
         condition: service_healthy
+      media-service:
+        condition: service_healthy
     environment:
       GATEWAY_PORT: 8080
       GATEWAY_TELEGRAM_BOT_USERNAME: ${GATEWAY_TELEGRAM_BOT_USERNAME:-ai_life_bot}
@@ -309,6 +311,7 @@ services:
       GATEWAY_INTERNAL_API_TOKEN: ${GATEWAY_INTERNAL_API_TOKEN:-}
       PROFILE_SERVICE_URL: http://profile-service:8082
       ORCHESTRATOR_URL: http://orchestrator:8083
+      MEDIA_SERVICE_URL: http://media-service:8088
     ports:
       # Only the gateway needs to be reachable from outside the compose
       # network — Telegram webhooks hit it. Everything else is internal.

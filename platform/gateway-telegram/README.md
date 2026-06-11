@@ -6,7 +6,11 @@ Telegram entry point. Long-polling bot that:
 3. Builds a `NormalizedMessage` and sends it to `orchestrator`.
 4. Replies to the chat with the orchestrator's response.
 
-Media handling (audio / image / video) will land in Stage 1 alongside `mcp-media-processing`.
+Photo messages are supported: the largest variant is downloaded and uploaded to `media-service`,
+and the returned object id rides on the `NormalizedMessage` as an `image` attachment
+(`storageUri` = the media object id; the caption becomes `text`). A downstream agent fetches the
+bytes back from media-service by that id. Audio / video / documents land later alongside
+`mcp-media-processing`.
 
 ## Configuration
 
@@ -18,6 +22,7 @@ Media handling (audio / image / video) will land in Stage 1 alongside `mcp-media
 | `GATEWAY_DEFAULT_HOUSEHOLD_NAME` | `default household`                  |          |
 | `PROFILE_SERVICE_URL`            | `http://profile-service:8082`        |          |
 | `ORCHESTRATOR_URL`               | `http://orchestrator:8083`           |          |
+| `MEDIA_SERVICE_URL`              | `http://media-service:8088`          |          |
 
 If the token is empty the HTTP server still starts (so `/actuator/health` works) but the
 bot doesn't connect — handy for CI and local IDE runs.
@@ -53,7 +58,8 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `GatewayApplication`.
 - `bot/AiLifeBot` — Telegram bot impl.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
-- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`.
+- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo to media-service first and attaches the returned object id.
+- `media/MediaServiceClient` — multipart `POST /v1/media` upload of photo bytes → `MediaObjectDto`. Not soft-failed: for a photo message the upload is the payload.
 - `identity/IdentityResolver` — `tg_user_id → User` (creates user + household on first contact).
 - `identity/ProfileClient` — WebClient → profile-service.
 - `orchestrator/OrchestratorClient` — POST `/v1/intent`.
