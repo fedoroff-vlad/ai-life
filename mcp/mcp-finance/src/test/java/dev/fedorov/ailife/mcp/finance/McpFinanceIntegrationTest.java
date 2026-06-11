@@ -883,6 +883,30 @@ class McpFinanceIntegrationTest {
     }
 
     @Test
+    void internalAccountsListReturnsHouseholdAccountsOnly() {
+        FinAccountDto mine = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Zeta-receipt-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinAccountDto other = tools.upsertAccount(new UpsertAccountInput(
+                null, otherHouseholdId, null, "Other-household-acc", "card", "USD",
+                BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        List<FinAccountDto> accounts = client.get()
+                .uri(uri -> uri.path("/internal/accounts").queryParam("householdId", householdId).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(FinAccountDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(accounts).isNotNull();
+        assertThat(accounts).anyMatch(a -> a.id().equals(mine.id()));
+        assertThat(accounts).noneMatch(a -> a.id().equals(other.id()));
+    }
+
+    @Test
     void listScopedToHouseholdNoCrossLeak() {
         FinAccountDto mine = tools.upsertAccount(new UpsertAccountInput(
                 null, householdId, null, "Scoped-test", "card", "EUR",
