@@ -8,7 +8,7 @@ lives in mcp-finance — this module only writes via the importer.
 
 ## Tools (MCP)
 
-- `import_moneypro_csv(householdId, csvBase64, encoding?, accountMap, categoryMap?, fileRef?, dryRun?)`
+- `import_moneypro_csv(householdId, csvBase64, encoding?, accountMap, categoryMap?, fileRef?, dryRun?, autoCreateAccounts?)`
   — decode + parse + insert.
   - **Encoding** is autodetected (UTF-8 strict, with CP-1251 fallback for older
     Russian Money Pro exports). Pass `encoding` (any JVM charset name) to override.
@@ -20,7 +20,14 @@ lives in mcp-finance — this module only writes via the importer.
   - **`accountMap`** resolves Money Pro account names (case-insensitive) to
     existing `fin_account.id` UUIDs. Every UUID in the map is verified to belong
     to `householdId` **before** any row is written — a single mismatch is fatal.
-    Rows whose account is not in the map fall into the row-error list.
+    Rows whose account is not in the map fall into the row-error list — unless
+    `autoCreateAccounts` is set.
+  - **`autoCreateAccounts=true`** auto-creates a `fin_account` for any Money Pro
+    account name not in `accountMap` and not matching an existing account by name
+    (case-insensitive), instead of erroring. `accountMap` may be empty in this
+    mode. New accounts take the row's currency (else `USD`) and a default type of
+    `cash` — best for a one-time history import; the user renames / merges later.
+    Created names come back in `createdAccounts`.
   - **`categoryMap`** is optional. Unmapped categories yield null `category_id`;
     a categorizer skill can back-fill later.
   - **`dryRun=true`** returns the counts an import would produce against the
@@ -35,7 +42,8 @@ lives in mcp-finance — this module only writes via the importer.
   "created": 138,
   "skipped": 3,
   "errored": 1,
-  "errors": [{"row": 17, "message": "Unknown account: 'Old Wallet'"}]
+  "errors": [{"row": 17, "message": "Unknown account: 'Old Wallet'"}],
+  "createdAccounts": ["Savings"]
 }
 ```
 

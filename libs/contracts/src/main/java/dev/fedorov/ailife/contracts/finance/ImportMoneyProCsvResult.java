@@ -11,6 +11,10 @@ import java.util.List;
  *
  * <p>When {@code dryRun} is true nothing is written — {@code created} and
  * {@code skipped} reflect what would have happened against the current DB state.
+ *
+ * <p>{@code createdAccounts} lists the names of any {@code fin_account}s auto-created
+ * during the import (empty unless {@code autoCreateAccounts} was set); in a dry run it
+ * lists what would have been created.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ImportMoneyProCsvResult(
@@ -19,5 +23,6 @@ public record ImportMoneyProCsvResult(
         int created,
         int skipped,
         int errored,
-        List<ImportRowError> errors) {
+        List<ImportRowError> errors,
+        List<String> createdAccounts) {
 }

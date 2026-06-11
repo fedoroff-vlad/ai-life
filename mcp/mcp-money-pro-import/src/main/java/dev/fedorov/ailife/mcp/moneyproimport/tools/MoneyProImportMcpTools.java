@@ -32,6 +32,12 @@ public class MoneyProImportMcpTools {
             before any row is written. categoryMap is optional; unmapped categories
             land as null category_id.
 
+            Set autoCreateAccounts=true to auto-create a fin_account for any Money Pro
+            account name not in accountMap (and not matching an existing account by
+            name) instead of erroring — best for a one-time history import. accountMap
+            may be empty in that mode. The created account names are returned in the
+            result's createdAccounts.
+
             Idempotency: rows are stored with source='moneypro_import' and an
             external_ref taken from the CSV's id column when present, or a SHA-1
             content hash otherwise. The DB unique on (household, source, external_ref)

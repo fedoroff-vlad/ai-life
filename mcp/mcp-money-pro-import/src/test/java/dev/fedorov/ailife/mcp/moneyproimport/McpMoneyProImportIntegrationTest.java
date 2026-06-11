@@ -182,4 +182,50 @@ class McpMoneyProImportIntegrationTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("different household");
     }
+
+    @Test
+    void autoCreateAccountsCreatesMissingAndReusesExistingByName() {
+        // Own household so the shared-DB moneypro_import counters of other tests are untouched.
+        UUID hh = UUID.randomUUID();
+        UUID existingWallet = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "auto-h");
+        jdbc.update("""
+                INSERT INTO finance.fin_account (id, household_id, name, type, currency, opening_balance)
+                VALUES (?, ?, 'Wallet', 'cash', 'EUR', 0)""", existingWallet, hh);
+
+        String csv = """
+                Date,Account,Amount,Currency,Description,ID
+                2026-07-01,Savings,-9.99,USD,New acct row,ac-1
+                2026-07-02,Wallet,-1.00,EUR,Existing by name,ac-2
+                """;
+        // Empty accountMap + autoCreateAccounts=true.
+        ImportMoneyProCsvInput in = new ImportMoneyProCsvInput(
+                hh, b64(csv, StandardCharsets.UTF_8), null,
+                Map.of(), null, "auto.csv", false, true);
+
+        ImportMoneyProCsvResult result = tools.importMoneyproCsv(in);
+
+        assertThat(result.totalRows()).isEqualTo(2);
+        assertThat(result.created()).isEqualTo(2);
+        assertThat(result.errored()).isZero();
+        // Only "Savings" is new; "Wallet" already existed (reused by name, not duplicated).
+        assertThat(result.createdAccounts()).containsExactly("Savings");
+
+        // The auto-created account uses the row's currency + the default type.
+        var acct = jdbc.queryForMap(
+                "SELECT type, currency FROM finance.fin_account WHERE household_id = ? AND name = 'Savings'", hh);
+        assertThat(acct.get("currency")).isEqualTo("USD");
+        assertThat(acct.get("type")).isEqualTo("cash");
+
+        // The Wallet row points at the pre-existing account, not a fresh one.
+        UUID walletTxAccount = jdbc.queryForObject(
+                "SELECT account_id FROM finance.fin_transaction WHERE external_ref = 'ac-2'", UUID.class);
+        assertThat(walletTxAccount).isEqualTo(existingWallet);
+
+        // Exactly one Savings account exists (no duplicate created).
+        Long savingsCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM finance.fin_account WHERE household_id = ? AND name = 'Savings'",
+                Long.class, hh);
+        assertThat(savingsCount).isEqualTo(1L);
+    }
 }
