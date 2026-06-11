@@ -15,6 +15,7 @@ gateway:
   services:
     profile-base-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
     orchestrator-base-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
+    media-base-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
   internal-api-token: ${GATEWAY_INTERNAL_API_TOKEN:}
 
 management:
