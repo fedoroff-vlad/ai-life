@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
+import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.llm.LlmRole;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -116,7 +117,7 @@ public class AnthropicProvider implements LlmProvider {
             } else if (m.role() == LlmRole.USER || m.role() == LlmRole.ASSISTANT) {
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("role", m.role().wire());
-                entry.put("content", m.content() == null ? "" : m.content());
+                entry.put("content", m.hasImages() ? imageBlocks(m) : (m.content() == null ? "" : m.content()));
                 messages.add(entry);
             } else {
                 throw new IllegalArgumentException(
@@ -142,6 +143,26 @@ public class AnthropicProvider implements LlmProvider {
         }
         body.put("messages", messages);
         return body;
+    }
+
+    /**
+     * Anthropic vision shape: a multimodal turn carries {@code content} as an array of blocks —
+     * optional leading {@code text}, then one {@code image} block per attachment with a base64
+     * {@code source}. Text-only turns keep the plain-string form (see caller).
+     */
+    private static List<Map<String, Object>> imageBlocks(LlmMessage m) {
+        List<Map<String, Object>> blocks = new ArrayList<>();
+        if (m.content() != null && !m.content().isBlank()) {
+            blocks.add(Map.of("type", "text", "text", m.content()));
+        }
+        for (LlmImage img : m.images()) {
+            Map<String, Object> source = new LinkedHashMap<>();
+            source.put("type", "base64");
+            source.put("media_type", img.mediaType());
+            source.put("data", img.dataBase64());
+            blocks.add(Map.of("type", "image", "source", source));
+        }
+        return blocks;
     }
 
     private LlmChatResponse parseResponse(JsonNode json, String model) {
