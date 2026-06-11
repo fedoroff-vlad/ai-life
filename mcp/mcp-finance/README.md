@@ -125,6 +125,10 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   payload (just `{transactionId}` from `add_transaction`'s soft hook) into the
   full transaction so the `transaction-categorizer` skill can suggest a
   category.
+- `GET /internal/accounts?householdId=<uuid>` → `List<FinAccountDto>` (ordered by
+  name). Delegates to the `list_accounts` tool. Used by finance-agent's
+  `receipt-parser` flow to resolve a target account for a parsed transaction
+  without an LLM-driven MCP tool call.
 - `POST /internal/transaction` (body `AddTransactionInput`) → `FinTransactionDto`
   (200) | 400. Delegates to the `add_transaction` tool verbatim (same
   cross-household guard, currency default, and uncategorised one-shot trigger),
