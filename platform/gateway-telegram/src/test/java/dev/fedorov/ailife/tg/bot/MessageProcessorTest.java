@@ -167,7 +167,7 @@ class MessageProcessorTest {
         byte[] photoBytes = "fake-jpeg-bytes-receipt".getBytes(StandardCharsets.UTF_8);
         var incoming = new MessageProcessor.IncomingMessage(
                 99L, "vlad", "ru", "на чеке кофе", MessageScope.PRIVATE, "7",
-                new MessageProcessor.IncomingPhoto(photoBytes, "image/jpeg", "receipt.jpg"));
+                new MessageProcessor.IncomingMedia(photoBytes, "image/jpeg", "receipt.jpg", "image"));
 
         IntentResponse result = processor.process(incoming).block();
 
@@ -191,5 +191,45 @@ class MessageProcessorTest {
         assertThat(body).contains("\"kind\":\"image\"");
         assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
         assertThat(body).contains("\"mimeType\":\"image/jpeg\"");
+    }
+
+    @Test
+    void documentMessageUploadsToMediaAsFileKind() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID mediaId = UUID.randomUUID();
+
+        profile.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new UserDto(
+                        userId, householdId, "vlad", "ru", 99L, "admin", Instant.now()))));
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new MediaObjectDto(
+                        mediaId, householdId, userId, "file", "text/csv",
+                        128L, "cafef00d", "telegram", Instant.now()))));
+        orchestrator.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new IntentResponse("finance", "import queued", "mock-large"))));
+
+        byte[] csvBytes = "Date;Account;Amount\n2026-01-01;Cash;-5".getBytes(StandardCharsets.UTF_8);
+        var incoming = new MessageProcessor.IncomingMessage(
+                99L, "vlad", "ru", "импортируй", MessageScope.PRIVATE, "8",
+                new MessageProcessor.IncomingMedia(csvBytes, "text/csv", "moneypro.csv", "file"));
+
+        IntentResponse result = processor.process(incoming).block();
+        assertThat(result).isNotNull();
+        assertThat(result.text()).isEqualTo("import queued");
+
+        // Uploaded to media-service with kind=file.
+        RecordedRequest mediaRequest = media.takeRequest();
+        assertThat(mediaRequest.getPath()).isEqualTo("/v1/media");
+        assertThat(mediaRequest.getBody().readUtf8()).contains("file");
+
+        // NormalizedMessage carries a file attachment pointing at the media id.
+        String body = orchestrator.takeRequest().getBody().readUtf8();
+        assertThat(body).contains("\"kind\":\"file\"");
+        assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
+        assertThat(body).contains("\"mimeType\":\"text/csv\"");
     }
 }
