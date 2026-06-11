@@ -36,32 +36,67 @@ pattern; mcp-caldav is older and slightly less aligned).
    and any other backend container (Radicale uses
    `Wait.forHttp("/.web/")` — its image has no bash so the default port-listening check
    no-ops).
+8. **Wire into the deploy surface — do not skip these or `docker compose up` silently
+   omits your service:**
+   - [infra/docker-compose.yml](../infra/docker-compose.yml) — new service block
+     mirroring `mcp-finance` (build context `..`, healthcheck on `/actuator/health`,
+     `depends_on: { postgres: service_healthy, liquibase: service_completed_successfully }`,
+     internal-only — no `ports:` unless there is a reason).
+   - [infra/.env.example](../infra/.env.example) — new `# === mcp-<name> ===` block
+     with port + DB url/user/password + any tool-side config (cron, owner-agent, etc.).
+   - [infra/README.md](../infra/README.md) — add a row to the port table.
+   - The full compose includes existing infra; do NOT add a separate
+     `docker-compose.dev.yml` entry for app services (`dev.yml` is infra-only by
+     convention — see infra/README §"Two compose files").
 
 ## Recipe: add a new agent (`agents/<name>`)
-Canonical example: [calendar-agent](../agents/calendar-agent).
+Canonical example: [calendar-agent](../agents/calendar-agent), [finance-agent](../agents/finance-agent).
 
 1. New module dir `agents/<name>/` with `pom.xml`, `AGENT.md` (frontmatter + EN body),
-   `README.md`.
-2. `pom.xml` `<resources>` block copies `AGENT.md` from the module root onto the
-   classpath (`<includes><include>AGENT.md</include></includes>`).
+   `README.md`, `Dockerfile` (mirror calendar-agent's two-stage Temurin 21 build).
+2. `pom.xml`:
+   - depends on `contracts` + `llm-client` + `agent-runtime` + `spring-boot-starter-webflux`.
+     **Do NOT re-implement the AGENT.md / SKILL.md loaders or `Profile`/`Notifier`/`Memory`
+     clients** — they live in `libs/agent-runtime` since PR25a/25b. New agents `@Import`
+     them; see step 3.
+   - `<resources>` block copies `AGENT.md` from the module root + the relevant skills
+     directory onto the classpath:
+     `<include>AGENT.md</include>` and a second `<resource>` for
+     `<directory>../../skills/<domain></directory>` → `<targetPath>skills/<domain></targetPath>`.
 3. Java package `dev.fedorov.ailife.agents.<name>`:
-   - `<Name>AgentApplication.java`.
-   - `manifest/ManifestLoader.java` — reads AGENT.md, parses frontmatter (SnakeYAML),
-     exposes `AgentManifest` (the contract is in `libs/contracts`).
-   - `skill/SkillLoader.java` + `SkillRegistry.java` — scan `classpath*:skills/<domain>/*/SKILL.md`,
-     index by trigger kind.
-   - `web/ManifestController.java` — `GET /agents/<name>/manifest`.
+   - `<Name>AgentApplication.java` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig.class)`
+     (the runtime sits outside the auto-scan root). Optionally
+     `@EnableConfigurationProperties(<Name>AgentProperties.class)` for per-agent config.
+   - `config/<Name>AgentProperties.java` — `<name>-agent.*` block for per-agent base URLs
+     (only the URL bindings; the HTTP clients themselves come from `agent-runtime`).
+   - `config/OutboundHttpConfig.java` — `@Qualifier`-named `WebClient` beans
+     (`profileServiceWebClient`, `notifierWebClient`, `memoryServiceWebClient`) each
+     `.clone()`d off the shared builder to avoid base-URL leakage. The runtime's
+     `ProfileClient`/`NotifierClient`/`MemoryClient` pick them up by qualifier.
    - `web/IntentController.java` — `POST /agents/<name>/intent`, calls llm-gateway with
-     AGENT.md body as system prompt.
+     `AgentManifest.body()` as system prompt.
    - `web/TriggerController.java` — `POST /agents/<name>/triggers/{kind}`, dispatches via
-     `SkillRegistry`.
-4. Outbound clients (profile-service, notifier, etc.) — `WebClient.Builder.clone()` per
-     dependency.
+     the injected `SkillRegistry` from `agent-runtime`.
+   - `web/ManifestController.java` — `GET /agents/<name>/manifest` (returns the injected
+     `AgentManifest`).
+4. `application.yml` — `agent.manifest-classpath: AGENT.md`, `agent.skills-classpath:
+   "classpath*:skills/<domain>/*/SKILL.md"` (the empty default is a deliberate
+   anti-cross-leak guard — set it per agent), `agent.memory-recall-k`, and any
+   `<name>-agent.*` base URLs.
 5. Register the agent in orchestrator config (`AgentRegistryProperties` →
    `{name, baseUrl}` + env var `<NAME>_AGENT_URL`).
 6. Skills live in repo root under `skills/<domain>/<name>/SKILL.md` (NOT inside the
    agent module) — `pom.xml` `<resources>` copies them in. First skill in a new domain
    creates the directory; subsequent skills just drop a folder beside.
+7. **Wire into the deploy surface — same checklist as a new MCP module:**
+   - [infra/docker-compose.yml](../infra/docker-compose.yml) — new service block
+     mirroring `finance-agent` (build context `..`, healthcheck on `/actuator/health`,
+     `depends_on` includes llm-gateway, profile-service, notifier-service, memory-service,
+     and every MCP server the agent talks to — all with `condition: service_healthy`).
+   - [infra/.env.example](../infra/.env.example) — new `# === <name>-agent ===` block
+     with port, URL, and any agent-specific tuning (`*_MEMORY_RECALL_K`,
+     `*_MCP_CLIENT_ENABLED`, etc.).
+   - [infra/README.md](../infra/README.md) — add a row to the port table.
 
 ## Recipe: add a Liquibase migration
 Canonical examples: [011-ics-subscriptions.yml](../infra/liquibase/features/011-ics-subscriptions.yml)
