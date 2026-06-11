@@ -1,0 +1,108 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 008-media
+      author: ai-life
+      comment: |
+        media schema. media.media_object is the catalogue of binary blobs whose
+        bytes live in MinIO (object store), not in Postgres. One row per stored
+        object: who owns it (household + optional user), what it is (kind +
+        mime), how big, a sha256 for integrity/future dedup, and where it lives
+        (bucket + storage_key). source records the ingestion path (telegram, …).
+
+        Foundational, cross-cutting (001-009): every domain that ingests photos,
+        voice notes, documents or video — finance receipts first, then the
+        future nutrition / stylist / researcher agents — catalogues here and
+        streams bytes through media-service. We deliberately do NOT enforce a
+        (household, sha256) unique yet: dedup is a later optimisation and two
+        legitimately-identical uploads should both succeed for now. sha256 is
+        indexed so that dedup can be added without a table rewrite.
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS media;
+            stripComments: false
+
+        - createTable:
+            schemaName: media
+            tableName: media_object
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_media_object_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+              - column:
+                  name: kind
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mime_type
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: size_bytes
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sha256
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: bucket
+                  type: varchar(63)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: storage_key
+                  type: varchar(256)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: varchar(64)
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: media
+            tableName: media_object
+            indexName: ix_media_object_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createIndex:
+            schemaName: media
+            tableName: media_object
+            indexName: ix_media_object_sha256
+            columns:
+              - column:
+                  name: sha256

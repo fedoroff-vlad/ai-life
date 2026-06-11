@@ -55,7 +55,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 |----------------------|------|---------------------------------------------------------------|
 | postgres             | 5432 | core DB (pgvector + pg_trgm; AGE later)                       |
 | radicale             | 5232 | CalDAV server (calendar source of truth)                      |
-| minio (dev only)     | 9000 / 9001 | S3-compatible object store / web console               |
+| minio                | 9000 / 9001 | S3-compatible object store / web console               |
 | gateway-telegram     | 8080 | Telegram webhook receiver — **the only externally-exposed app** |
 | llm-gateway          | 8081 | Provider-agnostic LLM channel                                 |
 | profile-service      | 8082 | Identity / households / people                                |
@@ -64,6 +64,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | scheduler-service    | 8085 | Cron / one-shot triggers                                      |
 | calendar-agent       | 8086 | Calendar domain agent                                         |
 | memory-service       | 8087 | pgvector recall + single-hop relations                        |
+| media-service        | 8088 | media catalogue (MinIO blobs + metadata)                      |
 | mcp-caldav           | 8090 | CalDAV CRUD MCP                                               |
 | mcp-ics-import       | 8091 | ICS subscription puller                                       |
 | mcp-finance          | 8092 | Finance CRUD MCP                                              |
@@ -83,7 +84,7 @@ Schemas split by **bounded context**, not by service:
 | memory   | memory-service                                             |
 | audit    | every service (writes); observability (reads)              |
 | bus      | event-bus library (outbox + LISTEN/NOTIFY)                 |
-| media    | gateway-telegram (writes); agents (read)                   |
+| media    | media-service (writes); gateway-telegram + agents (via media-service) |
 | calendar | mcp-caldav, calendar-agent, scheduler-service              |
 | finance  | mcp-finance, finance-agent, mcp-money-pro-import           |
 | tasks    | mcp-tasks, tasks-agent                                     |

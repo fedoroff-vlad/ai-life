@@ -15,6 +15,9 @@ Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock
 pgvector (embeddings) + Apache AGE (graph: Person/Place/Item/Event, edges likes/owns/related_to). Three levels: short-term (core.conversations), user long-term (scope user:<id>), household shared (scope household:<id>). Each record: scope, source, embedding (bge-m3 via embedding channel), graph_refs.
 API: `POST /remember`, `POST /recall` (top-k + scope filter + optional graph-walk), `POST /forget`, `GET /graph/person/{id}/relations`. Orchestrator calls recall before routing.
 
+## media-service (platform/, port 8088)
+Central media catalogue. Bytes live in **MinIO** (S3-compatible object store, raised in Docker like Postgres); metadata in `media.media_object`. REST: `POST /v1/media` (multipart upload → `MediaObjectDto`), `GET /v1/media/{id}` (raw bytes), `GET /v1/media/{id}/meta`, `DELETE /v1/media/{id}`. Callers reference an object only by `id` — bucket/key layout is internal. Every media-ingesting path goes through here instead of carrying raw bytes: finance receipts first, then future nutrition / stylist / researcher agents. No auth (internal-only); fetch is household-agnostic (caller authorized upstream). Image vision-caption / audio STT (`mcp-media-processing`) is a separate later layer — this service is storage + metadata only.
+
 ## scheduler-service (platform/, port 8085)
 `@EnableScheduling` + ShedLock (JDBC, `core.shedlock`). Table `core.schedules (id, owner_agent, cron/rrule, kind, payload jsonb, enabled, next_run_ts)`. Tick selects due jobs → POST orchestrator to wake target agent with payload. Recomputes next_run (recurring) or marks done (one_off). Does NOT think/format — only triggers. Tools (mcp-scheduler): schedule_once, schedule_recurring, list_jobs, pause/resume/cancel_job.
 

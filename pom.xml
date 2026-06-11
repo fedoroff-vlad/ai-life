@@ -26,6 +26,7 @@
         <okhttp.version>4.12.0</okhttp.version>
         <ical4j.version>4.2.5</ical4j.version>
         <shedlock.version>5.16.0</shedlock.version>
+        <minio.version>8.5.14</minio.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -46,6 +47,7 @@
         <module>platform/notifier-service</module>
         <module>platform/scheduler-service</module>
         <module>platform/memory-service</module>
+        <module>platform/media-service</module>
         <module>mcp/mcp-caldav</module>
         <module>mcp/mcp-ics-import</module>
         <module>mcp/mcp-finance</module>
@@ -96,6 +98,11 @@
                 <groupId>net.javacrumbs.shedlock</groupId>
                 <artifactId>shedlock-provider-jdbc-template</artifactId>
                 <version>${shedlock.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
             </dependency>
 
             <!-- internal libs -->

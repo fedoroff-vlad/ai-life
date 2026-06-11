@@ -16,6 +16,7 @@
     <include file="features/003-people.yml" relativeToChangelogFile="true"/>
     <include file="features/004-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/005-memory-relations.yml" relativeToChangelogFile="true"/>
+    <include file="features/008-media.yml" relativeToChangelogFile="true"/>
     <include file="features/010-calendar.yml" relativeToChangelogFile="true"/>
     <include file="features/011-ics-subscriptions.yml" relativeToChangelogFile="true"/>
     <include file="features/012-ics-subscriptions-schedule-id.yml" relativeToChangelogFile="true"/>
@@ -27,7 +28,6 @@
     <!-- Future inclusions (added in subsequent PRs):
     <include file="features/006-audit.yml"  relativeToChangelogFile="true"/>
     <include file="features/007-bus.yml"    relativeToChangelogFile="true"/>
-    <include file="features/008-media.yml"  relativeToChangelogFile="true"/>
     <include file="features/030-tasks.yml"    relativeToChangelogFile="true"/>
     -->
 
