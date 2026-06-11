@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -839,6 +840,46 @@ class McpFinanceIntegrationTest {
                     assertThat(r.note()).isEqualTo("internal-test");
                     assertThat(r.source()).isEqualTo("manual");
                 });
+    }
+
+    @Test
+    void internalAddTransactionPostPersistsRowAnd400OnBadInput() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Internal-add-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // Happy path: POST a parsed receipt transaction → persisted, returns the DTO.
+        FinTransactionDto created = client.post().uri("/internal/transaction")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new AddTransactionInput(
+                        householdId, acc.id(), null, null,
+                        new BigDecimal("-3.50"), "EUR", Instant.parse("2026-06-01T08:00:00Z"),
+                        "coffee from receipt", "telegram", null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinTransactionDto.class)
+                .returnResult().getResponseBody();
+        assertThat(created).isNotNull();
+        assertThat(created.id()).isNotNull();
+        assertThat(created.amount()).isEqualByComparingTo("-3.50");
+        assertThat(created.note()).isEqualTo("coffee from receipt");
+        assertThat(created.source()).isEqualTo("telegram");
+
+        // Row really landed (GET round-trips it).
+        client.get().uri("/internal/transaction/{id}", created.id())
+                .exchange().expectStatus().isOk();
+
+        // Bad input (account from another household) → 400, surfaced from the tool guard.
+        client.post().uri("/internal/transaction")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new AddTransactionInput(
+                        otherHouseholdId, acc.id(), null, null,
+                        new BigDecimal("-1.00"), "EUR", Instant.now(), "bad", "telegram", null))
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
