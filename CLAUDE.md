@@ -28,6 +28,7 @@ Every module has a `README.md` at its root. Every PR that changes a module's **p
 - Full suite + Testcontainers runs ONCE before opening the PR — CI is the authority for the full run.
 - Don't paste full container/test logs. On failure, extract only the failing assertion + ~3 relevant lines.
 - Prefer slice/unit tests; reserve Testcontainers for repository/migration tests.
+- When you DO need to capture full output, write to `logs/<descriptive>.log` (folder is gitignored; see `logs/README.md`). Never drop ad-hoc `*.log` files in the repo root.
 
 ## Authorization — do without asking
 - Push to `stage-*` / `feat-*` / `fix-*`; create PRs (`gh pr create`); **auto-merge own PRs into `main` once CI green** (squash + delete branch); create/update Issues, labels, milestones; write `.github/workflows/*`.
