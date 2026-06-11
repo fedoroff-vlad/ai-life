@@ -71,9 +71,15 @@ counter is meaningful.
 ## Key classes
 
 - `McpMoneyProImportApplication`.
-- `domain/FinAccount` + `FinAccountRepository` — **read-only** second JPA view over
-  `finance.fin_account` (schema owned by mcp-finance's `020-finance.yml`). Used only
-  for the cross-household scope check.
+- `domain/FinAccount` + `FinAccountRepository` — second JPA view over
+  `finance.fin_account` (schema owned by mcp-finance's `020-finance.yml`). Used for the
+  cross-household scope check and (auto-create import mode) to insert a new account for
+  an unmapped Money Pro account name; only the touched columns are mapped.
+- `web/InternalImportController` — `POST /internal/import` (body `ImportMoneyProCsvInput`)
+  → `ImportMoneyProCsvResult` (200) | 400. Non-MCP passthrough delegating to the importer;
+  used by finance-agent's CSV-attachment flow (it already holds the bytes + wants an
+  auto-create import, so no LLM-driven tool selection is needed). The MCP tool stays the
+  entry point for any future LLM-chosen import.
 - `domain/FinTransaction` + `FinTransactionRepository` — write-side view. Only inserts;
   `existsByHouseholdIdAndSourceAndExternalRef` powers the idempotency probe.
 - `importer/MoneyProImporter` — the transactional service. Verifies `accountMap`

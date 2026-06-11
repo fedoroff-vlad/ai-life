@@ -7,9 +7,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -38,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   5. accountMap entries pointing at a different household are rejected
  *      fatally before any row is written.
  */
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class McpMoneyProImportIntegrationTest {
 
@@ -66,6 +69,7 @@ class McpMoneyProImportIntegrationTest {
 
     @Autowired MoneyProImportMcpTools tools;
     @Autowired JdbcTemplate jdbc;
+    @LocalServerPort int port;
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
@@ -181,6 +185,29 @@ class McpMoneyProImportIntegrationTest {
         assertThatThrownBy(() -> tools.importMoneyproCsv(in))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("different household");
+    }
+
+    @Test
+    void internalImportPassthroughRunsImport() {
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "passthrough-h");
+        String csv = "Date,Account,Amount,Currency,ID\n2026-08-01,Petty,-2.00,USD,pt-1\n";
+        ImportMoneyProCsvInput in = new ImportMoneyProCsvInput(
+                hh, b64(csv, StandardCharsets.UTF_8), null, Map.of(), null, "p.csv", false, true);
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+        ImportMoneyProCsvResult result = client.post().uri("/internal/import")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(in)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ImportMoneyProCsvResult.class)
+                .returnResult().getResponseBody();
+
+        assertThat(result).isNotNull();
+        assertThat(result.created()).isEqualTo(1);
+        assertThat(result.createdAccounts()).containsExactly("Petty");
     }
 
     @Test
