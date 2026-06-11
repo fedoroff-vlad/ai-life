@@ -5,6 +5,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
+import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.llmgw.config.LlmGatewayProperties;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,19 @@ class MockProviderTest {
         assertThat(response.model()).isEqualTo("mock-large");
         assertThat(response.finishReason()).isEqualTo("stop");
         assertThat(response.usage().totalTokens()).isPositive();
+    }
+
+    @Test
+    void echoAcknowledgesAttachedImages() {
+        var request = LlmChatRequest.of(LlmChannel.VISION, List.of(
+                LlmMessage.userWithImages("read this receipt", List.of(
+                        new LlmImage("image/jpeg", "QUJD"),
+                        new LlmImage("image/png", "REVG")))));
+
+        LlmChatResponse response = provider.chat(request).block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.content()).isEqualTo("[vision] read this receipt [images=2]");
     }
 
     @Test

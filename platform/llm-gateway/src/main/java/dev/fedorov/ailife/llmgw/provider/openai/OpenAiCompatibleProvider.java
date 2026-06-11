@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
+import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.llm.LlmRole;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -125,7 +126,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             }
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("role", m.role().wire());
-            entry.put("content", m.content() == null ? "" : m.content());
+            entry.put("content", m.hasImages() ? imageParts(m) : (m.content() == null ? "" : m.content()));
             messages.add(entry);
         }
         Map<String, Object> body = new LinkedHashMap<>();
@@ -141,6 +142,23 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             body.put("stream", true);
         }
         return body;
+    }
+
+    /**
+     * OpenAI vision shape: {@code content} becomes an array of parts — optional leading
+     * {@code text} part, then one {@code image_url} part per attachment whose URL is a
+     * {@code data:<media-type>;base64,<data>} URI. Text-only turns keep the plain-string form.
+     */
+    private static List<Map<String, Object>> imageParts(LlmMessage m) {
+        List<Map<String, Object>> parts = new ArrayList<>();
+        if (m.content() != null && !m.content().isBlank()) {
+            parts.add(Map.of("type", "text", "text", m.content()));
+        }
+        for (LlmImage img : m.images()) {
+            String url = "data:" + img.mediaType() + ";base64," + img.dataBase64();
+            parts.add(Map.of("type", "image_url", "image_url", Map.of("url", url)));
+        }
+        return parts;
     }
 
     private LlmChatResponse parseChatResponse(JsonNode json, String fallbackModel) {

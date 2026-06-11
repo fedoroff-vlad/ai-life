@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
+import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.llmgw.config.LlmGatewayProperties;
 import okhttp3.mockwebserver.MockResponse;
@@ -124,6 +125,38 @@ class OpenAiCompatibleProviderTest {
         assertThat(body.path("model").asText()).isEqualTo("qwen2.5:7b-instruct");
         assertThat(body.has("max_tokens")).isFalse();
         assertThat(body.has("temperature")).isFalse();
+    }
+
+    @Test
+    void visionMessageBecomesTextPlusImageUrlParts() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("""
+                        {"model":"qwen2.5-vl:32b",
+                         "choices":[{"message":{"role":"assistant","content":"a receipt"},"finish_reason":"stop"}],
+                         "usage":{"prompt_tokens":20,"completion_tokens":3,"total_tokens":23}}
+                        """));
+
+        LlmGatewayProperties props = baseProps();
+        props.setVisionModel("qwen2.5-vl:32b");
+        OpenAiCompatibleProvider provider = provider(props);
+        LlmChatRequest req = LlmChatRequest.of(LlmChannel.VISION, List.of(
+                LlmMessage.userWithImages("what is this?",
+                        List.of(new LlmImage("image/png", "QUJD")))));
+
+        provider.chat(req).block();
+
+        RecordedRequest sent = server.takeRequest();
+        JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
+        assertThat(body.path("model").asText()).isEqualTo("qwen2.5-vl:32b");
+        JsonNode content = body.path("messages").get(0).path("content");
+        assertThat(content.isArray()).isTrue();
+        assertThat(content.size()).isEqualTo(2);
+        assertThat(content.get(0).path("type").asText()).isEqualTo("text");
+        assertThat(content.get(0).path("text").asText()).isEqualTo("what is this?");
+        assertThat(content.get(1).path("type").asText()).isEqualTo("image_url");
+        assertThat(content.get(1).path("image_url").path("url").asText())
+                .isEqualTo("data:image/png;base64,QUJD");
     }
 
     @Test

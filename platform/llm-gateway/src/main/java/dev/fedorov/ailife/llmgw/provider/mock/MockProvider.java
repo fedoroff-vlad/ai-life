@@ -78,12 +78,16 @@ public class MockProvider implements LlmProvider {
     }
 
     private String synthesise(LlmChatRequest request) {
-        String lastUser = request.messages().stream()
+        LlmMessage lastUser = request.messages().stream()
                 .filter(m -> m.role() == LlmRole.USER)
-                .map(LlmMessage::content)
                 .reduce((a, b) -> b)
-                .orElse("");
-        return "[" + request.channel().wire() + "] " + lastUser;
+                .orElse(null);
+        String text = lastUser == null || lastUser.content() == null ? "" : lastUser.content();
+        // Surface attached images deterministically so vision callers can assert on the echo.
+        String images = lastUser != null && lastUser.hasImages()
+                ? " [images=" + lastUser.images().size() + "]"
+                : "";
+        return "[" + request.channel().wire() + "] " + text + images;
     }
 
     private LlmUsage approximateUsage(LlmChatRequest request, String content) {

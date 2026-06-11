@@ -45,6 +45,36 @@ it goes through as `Authorization: Bearer <key>`; Ollama works without one. `LLM
 is required (must include the OpenAI version prefix, e.g. `http://ollama:11434/v1`). The
 SSE stream extracts `choices[0].delta.content` and terminates on `data: [DONE]`.
 
+## Vision channel (inline images)
+
+Any `user` message can carry one or more inline images for the `vision` channel — used by
+the finance receipt-parser. Images travel as base64 (the gateway never fetches a URL on the
+caller's behalf, so it stays stateless):
+
+```json
+{
+  "channel": "vision",
+  "messages": [
+    {"role": "system", "content": "extract amount/date/merchant from the receipt"},
+    {"role": "user", "content": "what is this?",
+     "images": [{"mediaType": "image/jpeg", "dataBase64": "<...>"}]}
+  ]
+}
+```
+
+Build the message with `LlmMessage.userWithImages(text, List.of(new LlmImage(mediaType, base64)))`.
+Text-only messages serialise exactly as before (no `images` key). Each provider translates a
+multimodal turn into its native shape:
+
+- **anthropic** → `content` array of blocks: optional leading `{"type":"text"}` then one
+  `{"type":"image","source":{"type":"base64","media_type":…,"data":…}}` per attachment.
+- **openai-compatible** → `content` array of parts: optional leading `{"type":"text"}` then one
+  `{"type":"image_url","image_url":{"url":"data:<media-type>;base64,<data>"}}` per attachment.
+- **mock** → echoes ` [images=N]` after the text so callers can assert deterministically.
+
+The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision-capable model
+(`claude-opus-4-7`, `qwen2.5-vl:32b`, …) or it falls back to `LLM_DEFAULT_MODEL`.
+
 ## Configuration (env vars)
 
 See `infra/.env.example` for the full set and provider profiles. Minimum:

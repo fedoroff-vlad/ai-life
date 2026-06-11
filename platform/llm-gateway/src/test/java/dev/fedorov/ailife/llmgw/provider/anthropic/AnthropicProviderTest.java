@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
+import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.llmgw.config.LlmGatewayProperties;
 import okhttp3.mockwebserver.MockResponse;
@@ -126,6 +127,42 @@ class AnthropicProviderTest {
         assertThat(body.path("model").asText()).isEqualTo("claude-haiku-4-5");
         assertThat(body.path("max_tokens").asInt()).isEqualTo(64);
         assertThat(body.path("temperature").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    void visionMessageBecomesTextPlusImageBlocks() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("""
+                        {"model":"claude-opus-4-7","stop_reason":"end_turn",
+                         "content":[{"type":"text","text":"a receipt"}],
+                         "usage":{"input_tokens":20,"output_tokens":3}}
+                        """));
+
+        LlmGatewayProperties props = baseProps();
+        props.setVisionModel("claude-opus-4-7");
+        AnthropicProvider provider = providerWithProps(props);
+        LlmChatRequest req = LlmChatRequest.of(LlmChannel.VISION, List.of(
+                LlmMessage.system("describe the photo"),
+                LlmMessage.userWithImages("what is this?",
+                        List.of(new LlmImage("image/jpeg", "QUJD")))));
+
+        provider.chat(req).block();
+
+        RecordedRequest sent = server.takeRequest();
+        JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
+        assertThat(body.path("model").asText()).isEqualTo("claude-opus-4-7");
+        assertThat(body.path("system").asText()).isEqualTo("describe the photo");
+        JsonNode content = body.path("messages").get(0).path("content");
+        assertThat(content.isArray()).isTrue();
+        assertThat(content.size()).isEqualTo(2);
+        assertThat(content.get(0).path("type").asText()).isEqualTo("text");
+        assertThat(content.get(0).path("text").asText()).isEqualTo("what is this?");
+        assertThat(content.get(1).path("type").asText()).isEqualTo("image");
+        JsonNode source = content.get(1).path("source");
+        assertThat(source.path("type").asText()).isEqualTo("base64");
+        assertThat(source.path("media_type").asText()).isEqualTo("image/jpeg");
+        assertThat(source.path("data").asText()).isEqualTo("QUJD");
     }
 
     @Test
