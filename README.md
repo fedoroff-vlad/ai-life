@@ -21,7 +21,8 @@ ai-life/
 │   ├── llm-client/                  channel-based client for llm-gateway
 │   ├── mcp-client/                  wrapper around Spring AI MCP
 │   ├── event-bus/                   Postgres LISTEN/NOTIFY adapter
-│   └── platform-common/             logging, metrics, error envelopes
+│   ├── platform-common/             logging, metrics, error envelopes
+│   └── agent-runtime/               AGENT.md/SKILL.md loaders + shared HTTP clients (agents @Import this)
 ├── infra/                           docker-compose, liquibase, init scripts (PR2)
 ├── platform/                        gateway, orchestrator, llm-gateway, ...  (PR3+)
 ├── agents/                          calendar, finance, tasks                  (Stage 1+)
