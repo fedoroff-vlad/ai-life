@@ -9,6 +9,7 @@ Never load more than one domain file per task. Do not re-read a file you already
 | `core.md` | `core` schema (users, household, people, sessions, conversations), profile-service, identity resolution | Working on identity, profiles, people, households |
 | `calendar.md` | calendar domain: `mcp-caldav`, `calendar-agent`, Radicale, ICS import, birthday/gift skills, `calendar.*` schema | Any calendar work |
 | `finance.md` | finance domain: `mcp-finance`, `finance-agent`, Money Pro import, `finance.*` schema, skills | Any finance work |
+| `tasks.md` | tasks/GTD domain: `mcp-tasks`, `tasks-agent`, `tasks.*` schema (projects + items + contexts), inbox/clarify flow, skills | Any tasks/GTD work |
 | `platform.md` | shared services: orchestrator, gateway-telegram, llm-gateway, memory-service, scheduler, notifier; `memory/audit/bus/media` schemas | Working on a platform/shared service |
 | `roadmap.md` | Stage 0–6 plan, future agents (tasks/health/docs/briefing/...), n8n variant, open-source reuse table, risks | Planning next work, picking what to build, evaluating a reusable component |
 | `STATUS.md` | Current in-flight branch, what's done, next concrete steps. **Mutable** — update as work progresses | Resuming work, checking what's in flight. Update at end of each PR |
