@@ -3,6 +3,8 @@ package dev.fedorov.ailife.mcp.finance.tools;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.BalanceResult;
 import dev.fedorov.ailife.contracts.finance.BudgetStatusResult;
+import dev.fedorov.ailife.contracts.finance.CsvExportResult;
+import dev.fedorov.ailife.contracts.finance.ExportCsvInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
@@ -43,10 +45,13 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Stage 2 opener: starter CRUD over finance.* (accounts, categories, transactions).
@@ -63,6 +68,8 @@ import java.util.UUID;
 public class FinanceMcpTools {
 
     private static final int LIST_HARD_CAP = 200;
+    /** export_csv reads more than the interactive list cap, but stays bounded. */
+    private static final int EXPORT_HARD_CAP = 10_000;
     private static final Set<String> SUPPORTED_PERIODS = Set.of("month", "week", "year");
 
     /** Reporting matviews owned by 024-finance-matviews.yml, in refresh order. */
@@ -306,6 +313,61 @@ public class FinanceMcpTools {
         FinTransactionDto deleted = entity.toDto();
         transactions.delete(entity);
         return deleted;
+    }
+
+    @Tool(description = """
+            Export transactions as a CSV document for the user to download/keep.
+            Same optional filters as list_transactions (`accountId`, `categoryId`,
+            `from` inclusive, `to` exclusive) but ordered oldest-first (ledger
+            style) and bounded by a higher cap (10000 rows). Columns: date,
+            amount, currency, category, account, note, source. Account and
+            category names are resolved (not UUIDs). Returns the CSV text, the
+            data-row count, and a `truncated` flag set when the cap was hit.
+            """)
+    @Transactional(readOnly = true)
+    public CsvExportResult exportCsv(ExportCsvInput input) {
+        requireField(input.householdId(), "householdId");
+        // Pull one extra row to detect truncation without a second count query.
+        List<FinTransaction> rows = transactions.filter(
+                input.householdId(), input.accountId(), input.categoryId(),
+                input.from(), input.to(), EXPORT_HARD_CAP + 1);
+        boolean truncated = rows.size() > EXPORT_HARD_CAP;
+        if (truncated) {
+            rows = rows.subList(0, EXPORT_HARD_CAP);
+        }
+        // Resolve account / category names once for the whole export.
+        Map<UUID, String> accountNames = accounts.findByHouseholdIdOrderByName(input.householdId())
+                .stream().collect(Collectors.toMap(FinAccount::getId, FinAccount::getName));
+        Map<UUID, String> categoryNames = categories.findByHouseholdIdOrderByName(input.householdId())
+                .stream().collect(Collectors.toMap(FinCategory::getId, FinCategory::getName));
+
+        // filter() returns newest-first; a ledger export reads oldest-first.
+        List<FinTransaction> ordered = rows.stream()
+                .sorted(Comparator.comparing(FinTransaction::getTs))
+                .toList();
+
+        StringBuilder sb = new StringBuilder("date,amount,currency,category,account,note,source\n");
+        for (FinTransaction t : ordered) {
+            String category = t.getCategoryId() == null ? "" : categoryNames.getOrDefault(t.getCategoryId(), "");
+            String account = accountNames.getOrDefault(t.getAccountId(), "");
+            sb.append(csvField(t.getTs().toString())).append(',')
+                    .append(csvField(t.getAmount().toPlainString())).append(',')
+                    .append(csvField(t.getCurrency())).append(',')
+                    .append(csvField(category)).append(',')
+                    .append(csvField(account)).append(',')
+                    .append(csvField(t.getNote())).append(',')
+                    .append(csvField(t.getSource())).append('\n');
+        }
+        return new CsvExportResult(sb.toString(), ordered.size(), truncated);
+    }
+
+    /** RFC-4180 field escaping: quote when the value holds a comma, quote, CR or LF. */
+    private static String csvField(String value) {
+        if (value == null) return "";
+        boolean needsQuote = value.indexOf(',') >= 0 || value.indexOf('"') >= 0
+                || value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0;
+        if (!needsQuote) return value;
+        return '"' + value.replace("\"", "\"\"") + '"';
     }
 
     @Tool(description = """

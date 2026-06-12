@@ -37,6 +37,12 @@ PR).
 - `delete_transaction(id)` — delete a row and return the deleted DTO (so the
   agent can confirm / offer undo). Throws if the id is unknown. Confirming the
   destructive action with the user is the agent layer's job.
+- `export_csv(householdId, accountId?, categoryId?, from?, to?)` — export
+  transactions as a CSV document (columns: date, amount, currency, category,
+  account, note, source — account/category resolved to names). Same filters as
+  `list_transactions` but ordered oldest-first and bounded by a higher cap
+  (10000 rows; `truncated` flag set when hit). Returns the CSV text + data-row
+  count. RFC-4180 field quoting.
 - `get_balance(accountId)` — `opening_balance + Σ amount` (sign-aware). Returns the
   account's currency alongside the balance.
 - `set_budget(householdId, categoryId, period, limitAmount, currency)` — upsert
@@ -109,11 +115,12 @@ layer's job — this MCP is intentionally low-level.
 - `domain/FinRecurring` + `FinRecurringRepository` — JPA over
   `finance.fin_recurring`; `filter()` is the parameterised list ordered by
   `next_due ASC NULLS LAST`.
-- `tools/FinanceMcpTools` — fifteen `@Tool` methods. Cross-household guards on
+- `tools/FinanceMcpTools` — sixteen `@Tool` methods. Cross-household guards on
   `add_transaction` / `update_transaction` (account) and `set_budget` (category)
   are the only invariants enforced here; everything else relies on DB
   constraints. `update_transaction` is a partial (non-null-only) update;
-  `delete_transaction` returns the deleted row. Period
+  `delete_transaction` returns the deleted row; `export_csv` resolves
+  account/category names and hand-rolls RFC-4180 quoting (`csvField`). Period
   windows in `get_budget_status` are UTC-anchored. `refresh_matviews` runs the
   two `REFRESH MATERIALIZED VIEW` statements via the injected `JdbcTemplate`
   (matview names are a fixed in-class constant, never caller input).
