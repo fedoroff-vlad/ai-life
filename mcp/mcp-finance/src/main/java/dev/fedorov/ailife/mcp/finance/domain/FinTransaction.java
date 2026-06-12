@@ -88,6 +88,17 @@ public class FinTransaction {
     public String getExternalRef() { return externalRef; }
     public Instant getCreatedAt() { return createdAt; }
 
+    // Mutable fields for update_transaction. householdId / source / externalRef /
+    // createdAt stay fixed — moving a row across households or rewriting its
+    // provenance is not an "edit" and would break idempotent-import invariants.
+    public void setAccountId(UUID accountId) { this.accountId = accountId; }
+    public void setCategoryId(UUID categoryId) { this.categoryId = categoryId; }
+    public void setOwnerId(UUID ownerId) { this.ownerId = ownerId; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setCurrency(String currency) { this.currency = currency; }
+    public void setTs(Instant ts) { this.ts = ts; }
+    public void setNote(String note) { this.note = note; }
+
     public FinTransactionDto toDto() {
         return new FinTransactionDto(id, householdId, accountId, categoryId, ownerId,
                 amount, currency, ts, note, source, externalRef, createdAt);

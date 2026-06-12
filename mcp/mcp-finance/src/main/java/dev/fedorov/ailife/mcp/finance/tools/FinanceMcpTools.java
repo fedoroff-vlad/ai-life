@@ -13,6 +13,7 @@ import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
+import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import dev.fedorov.ailife.contracts.finance.UpsertAccountInput;
 import dev.fedorov.ailife.contracts.finance.UpsertCategoryInput;
 import dev.fedorov.ailife.contracts.finance.UpsertRecurringInput;
@@ -255,6 +256,56 @@ public class FinanceMcpTools {
         if (sum == null) sum = BigDecimal.ZERO;
         return new BalanceResult(accountId, account.getCurrency(),
                 account.getOpeningBalance().add(sum));
+    }
+
+    @Tool(description = """
+            Update an existing transaction. `id` is required; every other field is
+            optional and applied only when non-null (null = leave unchanged), so
+            this tool can re-categorise or fix an amount but cannot clear an
+            already-set field. Provenance (household, source, externalRef) and
+            createdAt are immutable. Moving the row to a different `accountId` is
+            allowed only within the same household. Sign convention is unchanged:
+            expense<0, income>0.
+            """)
+    @Transactional
+    public FinTransactionDto updateTransaction(UpdateTransactionInput input) {
+        requireField(input.id(), "id");
+        FinTransaction entity = transactions.findById(input.id()).orElseThrow(
+                () -> new IllegalArgumentException("Transaction not found: " + input.id()));
+        if (input.accountId() != null && !input.accountId().equals(entity.getAccountId())) {
+            FinAccount target = accounts.findById(input.accountId()).orElseThrow(
+                    () -> new IllegalArgumentException("Account not found: " + input.accountId()));
+            if (!target.getHouseholdId().equals(entity.getHouseholdId())) {
+                throw new IllegalArgumentException(
+                        "Account does not belong to household: " + input.accountId());
+            }
+            entity.setAccountId(input.accountId());
+        }
+        if (input.categoryId() != null) entity.setCategoryId(input.categoryId());
+        if (input.ownerId() != null) entity.setOwnerId(input.ownerId());
+        if (input.amount() != null) entity.setAmount(input.amount());
+        if (input.currency() != null && !input.currency().isBlank()) {
+            entity.setCurrency(input.currency());
+        }
+        if (input.ts() != null) entity.setTs(input.ts());
+        if (input.note() != null) entity.setNote(input.note());
+        return transactions.save(entity).toDto();
+    }
+
+    @Tool(description = """
+            Delete a transaction by id and return the deleted row so the caller can
+            confirm or offer an undo. Throws if the id does not exist. The agent
+            layer is responsible for confirming destructive actions with the user
+            before calling this.
+            """)
+    @Transactional
+    public FinTransactionDto deleteTransaction(UUID id) {
+        requireField(id, "id");
+        FinTransaction entity = transactions.findById(id).orElseThrow(
+                () -> new IllegalArgumentException("Transaction not found: " + id));
+        FinTransactionDto deleted = entity.toDto();
+        transactions.delete(entity);
+        return deleted;
     }
 
     @Tool(description = """

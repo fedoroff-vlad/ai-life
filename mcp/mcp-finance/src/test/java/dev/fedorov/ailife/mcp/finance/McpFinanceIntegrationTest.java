@@ -14,6 +14,7 @@ import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
+import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import dev.fedorov.ailife.contracts.finance.UpsertAccountInput;
 import dev.fedorov.ailife.contracts.finance.UpsertCategoryInput;
 import dev.fedorov.ailife.contracts.finance.UpsertRecurringInput;
@@ -905,6 +906,75 @@ class McpFinanceIntegrationTest {
         assertThat(accounts).isNotNull();
         assertThat(accounts).anyMatch(a -> a.id().equals(mine.id()));
         assertThat(accounts).noneMatch(a -> a.id().equals(other.id()));
+    }
+
+    @Test
+    void updateTransactionAppliesNonNullFieldsAndGuardsCrossHousehold() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Update-tx-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinCategoryDto coffee = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Update-coffee", "expense", null));
+        FinCategoryDto snacks = tools.upsertCategory(new UpsertCategoryInput(
+                null, householdId, null, "Update-snacks", "expense", null));
+
+        FinTransactionDto tx = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), coffee.id(), null,
+                new BigDecimal("-4.50"), null, Instant.parse("2026-05-01T10:00:00Z"),
+                "latte", "manual", null));
+
+        // Partial update: change amount, note, category — leave the rest.
+        FinTransactionDto updated = tools.updateTransaction(new UpdateTransactionInput(
+                tx.id(), null, snacks.id(), null,
+                new BigDecimal("-5.25"), null, null, "latte + cookie"));
+        assertThat(updated.id()).isEqualTo(tx.id());
+        assertThat(updated.amount()).isEqualByComparingTo("-5.25");
+        assertThat(updated.note()).isEqualTo("latte + cookie");
+        assertThat(updated.categoryId()).isEqualTo(snacks.id());
+        // Untouched fields preserved.
+        assertThat(updated.currency()).isEqualTo("EUR");
+        assertThat(updated.ts()).isEqualTo(Instant.parse("2026-05-01T10:00:00Z"));
+        assertThat(updated.source()).isEqualTo("manual");
+
+        // Moving to an account in another household is rejected.
+        FinAccountDto theirAcc = tools.upsertAccount(new UpsertAccountInput(
+                null, otherHouseholdId, null, "Their-update-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        assertThatThrownBy(() -> tools.updateTransaction(new UpdateTransactionInput(
+                tx.id(), theirAcc.id(), null, null, null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to household");
+
+        // Unknown id → clear error.
+        assertThatThrownBy(() -> tools.updateTransaction(new UpdateTransactionInput(
+                UUID.randomUUID(), null, null, null, new BigDecimal("-1.00"),
+                null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Transaction not found");
+    }
+
+    @Test
+    void deleteTransactionReturnsDeletedRowAndThrowsOnUnknown() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Delete-tx-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinTransactionDto tx = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), null, null,
+                new BigDecimal("-7.00"), null, Instant.now(), "to delete", "manual", null));
+
+        FinTransactionDto deleted = tools.deleteTransaction(tx.id());
+        assertThat(deleted.id()).isEqualTo(tx.id());
+        assertThat(deleted.note()).isEqualTo("to delete");
+
+        // Row is gone — listing the account no longer shows it.
+        List<FinTransactionDto> remaining = tools.listTransactions(new ListTransactionsInput(
+                householdId, acc.id(), null, null, null, null));
+        assertThat(remaining).noneMatch(t -> tx.id().equals(t.id()));
+
+        // Second delete (now unknown) throws.
+        assertThatThrownBy(() -> tools.deleteTransaction(tx.id()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Transaction not found");
     }
 
     @Test
