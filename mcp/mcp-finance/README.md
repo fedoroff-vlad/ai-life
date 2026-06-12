@@ -1,9 +1,10 @@
 # mcp-finance
 
-MCP server: source-of-truth CRUD + budget tracking over the `finance.*` schema
-(accounts, categories, transactions, budgets). Recurring payments and
-matview-backed aggregates still land in later PRs. Money Pro CSV import lives
-in its own MCP module (`mcp-money-pro-import`, separate PR).
+MCP server: source-of-truth CRUD + budget tracking + recurring templates over
+the `finance.*` schema (accounts, categories, transactions, budgets,
+recurring), plus reporting matviews the dashboard layer reads directly. Money
+Pro CSV import lives in its own MCP module (`mcp-money-pro-import`, separate
+PR).
 
 ## Tools (MCP)
 
@@ -55,6 +56,12 @@ in its own MCP module (`mcp-money-pro-import`, separate PR).
   is on → register new + delete old (register-first ordering matches PR27b).
 - `list_recurring(householdId, accountId?, categoryId?)` — ordered by
   `next_due` ascending (soonest first; nulls last).
+- `refresh_matviews()` — recompute the reporting matviews
+  (`fin_mv_account_balance`, `fin_mv_monthly_by_category`) so the dashboard
+  layer (Metabase/Grafana, which read them directly) sees current numbers.
+  Returns the refreshed matview names + completion time. Plain `REFRESH`
+  (not CONCURRENTLY) — a brief lock is fine for personal-finance volumes.
+  Run it after a batch of writes (e.g. a Money Pro import) or on a schedule.
 
 Scope rule: every tool takes a `householdId` and reads/writes only within that
 household. Per-user privacy (private accounts filtered by `owner_id`) is the agent
@@ -93,10 +100,12 @@ layer's job — this MCP is intentionally low-level.
 - `domain/FinRecurring` + `FinRecurringRepository` — JPA over
   `finance.fin_recurring`; `filter()` is the parameterised list ordered by
   `next_due ASC NULLS LAST`.
-- `tools/FinanceMcpTools` — ten `@Tool` methods. Cross-household guards on
+- `tools/FinanceMcpTools` — thirteen `@Tool` methods. Cross-household guards on
   `add_transaction` (account) and `set_budget` (category) are the only
   invariants enforced here; everything else relies on DB constraints. Period
-  windows in `get_budget_status` are UTC-anchored.
+  windows in `get_budget_status` are UTC-anchored. `refresh_matviews` runs the
+  two `REFRESH MATERIALIZED VIEW` statements via the injected `JdbcTemplate`
+  (matview names are a fixed in-class constant, never caller input).
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 - `config/McpFinanceProperties` — `mcp-finance.scheduler-url` + `mcp-finance.budget.{cron,owner-agent,trigger-kind}`.
 - `config/HttpConfig` — `schedulerWebClient` bean (`.clone()` per outbound — same builder-leakage caveat as elsewhere).
@@ -152,8 +161,13 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - [023-finance-recurring.yml](../../infra/liquibase/features/023-finance-recurring.yml) —
   `finance.fin_recurring` (id, household, owner?, account, category?, name,
   amount, currency, cron, next_due, note, auto_remind, schedule_id, metadata,
-  created_at) with indices on `household_id` and `next_due`. Matviews still
-  land in a later PR when their tools do.
+  created_at) with indices on `household_id` and `next_due`.
+- [024-finance-matviews.yml](../../infra/liquibase/features/024-finance-matviews.yml) —
+  two reporting matviews: `fin_mv_monthly_by_category` (net + `spent` per
+  household/month/category/currency; uncategorised rows kept via LEFT JOIN) and
+  `fin_mv_account_balance` (opening + sign-aware Σ amount per account). The BI
+  read surface — dashboards query these directly; `refresh_matviews` keeps them
+  current. Plain (non-unique) `household_id` indices for dashboard filtering.
 
 ## Sign / scope notes
 

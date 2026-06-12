@@ -1,5 +1,6 @@
--- Mirrors infra/liquibase/features/{001-core, 020-finance}.yml — just enough to run
--- mcp-finance integration tests. Kept minimal so drift surfaces as a failing test.
+-- Mirrors infra/liquibase/features/{001-core, 020-finance, 024-finance-matviews}.yml —
+-- just enough to run mcp-finance integration tests. Kept minimal so drift surfaces
+-- as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -115,3 +116,43 @@ CREATE TABLE IF NOT EXISTS finance.fin_recurring (
 
 CREATE INDEX IF NOT EXISTS ix_fin_recurring_household ON finance.fin_recurring (household_id);
 CREATE INDEX IF NOT EXISTS ix_fin_recurring_next_due ON finance.fin_recurring (next_due);
+
+-- Reporting matviews (024-finance-matviews.yml). Dashboards read these directly;
+-- mcp-finance refreshes them via the refresh_matviews tool.
+CREATE MATERIALIZED VIEW IF NOT EXISTS finance.fin_mv_monthly_by_category AS
+SELECT
+    t.household_id                                       AS household_id,
+    (date_trunc('month', t.ts AT TIME ZONE 'UTC'))::date AS month,
+    t.category_id                                        AS category_id,
+    c.name                                               AS category_name,
+    c.kind                                               AS category_kind,
+    t.currency                                           AS currency,
+    sum(t.amount)                                        AS net_amount,
+    sum(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS spent,
+    count(*)                                             AS tx_count
+FROM finance.fin_transaction t
+LEFT JOIN finance.fin_category c ON c.id = t.category_id
+GROUP BY t.household_id,
+         (date_trunc('month', t.ts AT TIME ZONE 'UTC'))::date,
+         t.category_id, c.name, c.kind, t.currency
+WITH DATA;
+
+CREATE INDEX IF NOT EXISTS ix_fin_mv_monthly_by_category_household
+    ON finance.fin_mv_monthly_by_category (household_id, month);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS finance.fin_mv_account_balance AS
+SELECT
+    a.id                                           AS account_id,
+    a.household_id                                 AS household_id,
+    a.name                                         AS account_name,
+    a.currency                                     AS currency,
+    a.archived                                     AS archived,
+    a.opening_balance + COALESCE(sum(t.amount), 0) AS balance,
+    count(t.id)                                    AS tx_count
+FROM finance.fin_account a
+LEFT JOIN finance.fin_transaction t ON t.account_id = a.id
+GROUP BY a.id, a.household_id, a.name, a.currency, a.archived, a.opening_balance
+WITH DATA;
+
+CREATE INDEX IF NOT EXISTS ix_fin_mv_account_balance_household
+    ON finance.fin_mv_account_balance (household_id);

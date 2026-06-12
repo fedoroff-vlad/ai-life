@@ -10,6 +10,7 @@ import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
+import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
@@ -904,6 +905,68 @@ class McpFinanceIntegrationTest {
         assertThat(accounts).isNotNull();
         assertThat(accounts).anyMatch(a -> a.id().equals(mine.id()));
         assertThat(accounts).noneMatch(a -> a.id().equals(other.id()));
+    }
+
+    @Test
+    void refreshMatviewsRecomputesBalanceAndMonthlyRollup() {
+        // A fresh household keeps the matview assertions deterministic — the
+        // shared test DB accumulates rows across methods.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "matview hh");
+
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, hh, null, "MV-account", "card", "EUR",
+                new BigDecimal("100.00"), null));
+        FinCategoryDto coffee = tools.upsertCategory(new UpsertCategoryInput(
+                null, hh, null, "MV-coffee", "expense", null));
+
+        Instant inMonth = Instant.parse("2026-03-10T10:00:00Z");
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), coffee.id(), null,
+                new BigDecimal("-30.00"), null, inMonth, "latte", null, null));
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), coffee.id(), null,
+                new BigDecimal("-20.00"), null, inMonth, "espresso", null, null));
+
+        MatviewRefreshResult result = tools.refreshMatviews();
+        assertThat(result.refreshedAt()).isNotNull();
+        assertThat(result.refreshed()).containsExactlyInAnyOrder(
+                "finance.fin_mv_account_balance", "finance.fin_mv_monthly_by_category");
+
+        // fin_mv_account_balance = opening (100) + sum(-30, -20) = 50.
+        BigDecimal balance = jdbc.queryForObject(
+                "SELECT balance FROM finance.fin_mv_account_balance WHERE account_id = ?",
+                BigDecimal.class, acc.id());
+        assertThat(balance).isEqualByComparingTo("50.00");
+
+        // fin_mv_monthly_by_category: one row for the March/coffee/EUR slot,
+        // spent = 50 (magnitude of outflow), tx_count = 2.
+        BigDecimal spent = jdbc.queryForObject("""
+                SELECT spent FROM finance.fin_mv_monthly_by_category
+                WHERE household_id = ? AND category_id = ? AND month = DATE '2026-03-01'
+                """, BigDecimal.class, hh, coffee.id());
+        assertThat(spent).isEqualByComparingTo("50.00");
+        Long txCount = jdbc.queryForObject("""
+                SELECT tx_count FROM finance.fin_mv_monthly_by_category
+                WHERE household_id = ? AND category_id = ? AND month = DATE '2026-03-01'
+                """, Long.class, hh, coffee.id());
+        assertThat(txCount).isEqualTo(2L);
+
+        // A subsequent write is invisible until the next refresh (proves the
+        // matview is a snapshot, not a live view).
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), coffee.id(), null,
+                new BigDecimal("-10.00"), null, inMonth, "flat white", null, null));
+        BigDecimal staleBalance = jdbc.queryForObject(
+                "SELECT balance FROM finance.fin_mv_account_balance WHERE account_id = ?",
+                BigDecimal.class, acc.id());
+        assertThat(staleBalance).isEqualByComparingTo("50.00");
+
+        tools.refreshMatviews();
+        BigDecimal freshBalance = jdbc.queryForObject(
+                "SELECT balance FROM finance.fin_mv_account_balance WHERE account_id = ?",
+                BigDecimal.class, acc.id());
+        assertThat(freshBalance).isEqualByComparingTo("40.00");
     }
 
     @Test
