@@ -447,6 +447,30 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-tasks:
+    image: ai-life/mcp-tasks:local
+    container_name: ai-life-mcp-tasks
+    build:
+      context: ..
+      dockerfile: mcp/mcp-tasks/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      MCP_TASKS_PORT: 8095
+      MCP_TASKS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_TASKS_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_TASKS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8095/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   # ---------- agents ----------
 
   calendar-agent:

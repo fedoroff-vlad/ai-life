@@ -70,6 +70,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-finance          | 8092 | Finance CRUD MCP                                              |
 | finance-agent        | 8093 | Finance domain agent                                          |
 | mcp-money-pro-import | 8094 | Money Pro CSV importer                                        |
+| mcp-tasks            | 8095 | Tasks/GTD CRUD MCP                                            |
 
 Default credentials are in `.env.example`. Replace them in your `.env` before
 exposing anything to a network.

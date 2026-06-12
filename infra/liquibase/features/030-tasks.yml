@@ -1,0 +1,211 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 030-tasks
+      author: ai-life
+      comment: |
+        Stage 3 opener: source-of-truth GTD tables for mcp-tasks (plans/tasks.md).
+        Starter set covers task_project + task_item — enough for
+        add_task / list_tasks / upsert_project / list_projects. GTD transitions
+        (clarify/complete/link) reuse these tables; they land with their tools.
+
+        GTD model → data: task_item.status carries the workflow state
+        (inbox|next|waiting|scheduled|done|dropped); a fresh capture defaults to
+        'inbox' with no project/context. context is a free-text tag (@home, @work,
+        …) — NOT a lookup table (small, personal, evolving set; finance.md's varchar
+        period made the same call). calendar_event_uid links an item to a calendar
+        event (set when "turned into an event") — no cross-schema FK: calendar is a
+        different domain and Radicale owns event lifecycle, same no-FK reasoning as
+        fin_budget.schedule_id. schedule_id is the scheduler row for a due reminder.
+      changes:
+        - createTable:
+            schemaName: tasks
+            tableName: task_project
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_task_project_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_task_project_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: active
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: tasks
+            tableName: task_project
+            indexName: ix_task_project_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createTable:
+            schemaName: tasks
+            tableName: task_item
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_task_item_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_task_item_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: project_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_task_item_project
+                    referencedTableSchemaName: tasks
+                    referencedTableName: task_project
+                    referencedColumnNames: id
+              - column:
+                  name: title
+                  type: varchar(256)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: inbox
+                  constraints:
+                    nullable: false
+              - column:
+                  name: context
+                  type: varchar(64)
+              - column:
+                  name: priority
+                  type: smallint
+              - column:
+                  name: due_at
+                  type: timestamptz
+              - column:
+                  name: defer_until
+                  type: timestamptz
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: source
+                  type: varchar(32)
+                  defaultValue: manual
+                  constraints:
+                    nullable: false
+              - column:
+                  name: external_ref
+                  type: varchar(128)
+              - column:
+                  name: calendar_event_uid
+                  type: varchar(256)
+              - column:
+                  name: schedule_id
+                  type: uuid
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: timestamptz
+
+        - createIndex:
+            schemaName: tasks
+            tableName: task_item
+            indexName: ix_task_item_household_status
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: status
+
+        - createIndex:
+            schemaName: tasks
+            tableName: task_item
+            indexName: ix_task_item_project
+            columns:
+              - column:
+                  name: project_id
+
+        - createIndex:
+            schemaName: tasks
+            tableName: task_item
+            indexName: ix_task_item_due_at
+            columns:
+              - column:
+                  name: due_at
+
+        - createIndex:
+            schemaName: tasks
+            tableName: task_item
+            indexName: ix_task_item_household_context
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: context
