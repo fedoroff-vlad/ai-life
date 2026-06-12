@@ -19,6 +19,11 @@ package sits outside their `@SpringBootApplication` scan root.
   consuming per-agent-named `WebClient` beans (`profileServiceWebClient`,
   `notifierWebClient`, `memoryServiceWebClient`) so each agent binds its own
   base URL.
+- `SkillInfoContributor` — exposes the loaded skill inventory under
+  `/actuator/info` as `skills.{count, names, triggers}` so a deploy smoke check
+  can verify the registry from outside the JVM (the quiet observability lane
+  complementing PR32's loud-at-startup fail-fast). Appears only when the agent
+  exposes the `info` endpoint — both agents do.
 
 ## Configuration (`agent.*`)
 | Property | Default | Purpose |
@@ -37,7 +42,11 @@ package sits outside their `@SpringBootApplication` scan root.
 - `http/ProfileClient` — `usersByHousehold`, `personById`.
 - `http/NotifierClient` — `notify(userId, text)`.
 - `http/MemoryClient` — `recall(query, scope, k)` with 500ms timeout + no-throw downgrade to empty list (memory downtime must not block the trigger path).
+- `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 
 ## Tests
 `libs/agent-runtime/src/test/resources/test-skills/{good,bad}/SKILL.md` drive
 the parse + fail-fast cases; see `AgentRuntimeConfigTest`.
+`SkillInfoContributorTest` covers the `/actuator/info` skill-inventory shape
+(sorted names/triggers, empty registry, dedup across skills, null-trigger
+tolerance).

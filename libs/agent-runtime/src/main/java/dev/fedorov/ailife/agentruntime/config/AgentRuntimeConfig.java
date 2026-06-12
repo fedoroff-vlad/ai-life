@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agentruntime.config;
 
+import dev.fedorov.ailife.agentruntime.actuate.SkillInfoContributor;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
@@ -79,6 +80,16 @@ public class AgentRuntimeConfig {
             @Qualifier("memoryServiceWebClient") WebClient memoryServiceWebClient,
             AgentRuntimeProperties props) {
         return new MemoryClient(memoryServiceWebClient, props);
+    }
+
+    /**
+     * Exposes the loaded skill inventory under {@code /actuator/info} so a deploy
+     * smoke check can verify the registry from outside the JVM — the quiet
+     * observability lane that complements PR32's loud fail-fast.
+     */
+    @Bean
+    public SkillInfoContributor skillInfoContributor(SkillRegistry skillRegistry) {
+        return new SkillInfoContributor(skillRegistry);
     }
 
     @Bean
