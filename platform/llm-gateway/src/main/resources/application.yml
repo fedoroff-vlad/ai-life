@@ -24,6 +24,12 @@ llm:
   vision-model: ${LLM_VISION_MODEL:}
   embedding-model: ${LLM_EMBEDDING_MODEL:mock-embed}
 
+langfuse:
+  enabled: ${LANGFUSE_ENABLED:false}
+  base-url: ${LANGFUSE_BASE_URL:https://cloud.langfuse.com}
+  public-key: ${LANGFUSE_PUBLIC_KEY:}
+  secret-key: ${LANGFUSE_SECRET_KEY:}
+
 logging:
   level:
     root: INFO

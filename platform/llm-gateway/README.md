@@ -75,6 +75,26 @@ multimodal turn into its native shape:
 The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision-capable model
 (`claude-opus-4-7`, `qwen2.5-vl:32b`, …) or it falls back to `LLM_DEFAULT_MODEL`.
 
+## Tracing (Langfuse)
+
+Every non-streaming `/v1/chat` call is exported to [Langfuse](https://langfuse.com) as a trace
+(`llm-gateway.chat`) plus a `GENERATION` observation carrying model, channel, the input turns, the
+output text, token usage, and latency (start/end). Export is **off by default** — `mock` dev runs and
+every other module's test stay silent — and turns on with a project key pair:
+
+```
+LANGFUSE_ENABLED=true
+LANGFUSE_BASE_URL=https://cloud.langfuse.com   # or a self-hosted instance
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+```
+
+Tracing is **best-effort**: the tracer fires fire-and-forget after the response is produced and
+swallows any ingestion error (network / 4xx-5xx / 5s timeout) at DEBUG, so a Langfuse outage never
+slows or breaks an LLM call. It POSTs the batch ingestion API (`POST /api/public/ingestion`, HTTP
+Basic public/secret key). SSE streaming and embeddings are not traced yet (delta accumulation /
+different usage shape — a separate follow-up).
+
 ## Configuration (env vars)
 
 See `infra/.env.example` for the full set and provider profiles. Minimum:
@@ -140,6 +160,8 @@ curl -s http://localhost:8081/v1/chat \
 ## Key classes
 - `LlmGatewayApplication` — `@SpringBootApplication`.
 - `config/LlmGatewayProperties` — `@ConfigurationProperties("llm")` (provider id, base-url, api-key, per-channel model ids, anthropic-version, max-tokens fallback).
+- `config/LangfuseProperties` — `@ConfigurationProperties("langfuse")` (enabled, base-url, public/secret key) for the trace export.
+- `trace/LangfuseTracer` — fire-and-forget, soft-fail export of each chat call to Langfuse's batch ingestion API; no-op when `langfuse.enabled=false`.
 - `provider/LlmProvider` — provider SPI.
 - `provider/ProviderRegistry` — selects active provider via `LLM_PROVIDER`.
 - `provider/mock/MockProvider` — deterministic echo + 384-dim CRC32-keyed embeddings; used in every other module's tests.
