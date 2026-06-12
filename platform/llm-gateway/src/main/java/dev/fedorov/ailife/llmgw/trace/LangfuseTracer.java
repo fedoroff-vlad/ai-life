@@ -1,7 +1,10 @@
 package dev.fedorov.ailife.llmgw.trace;
 
+import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
+import dev.fedorov.ailife.contracts.llm.LlmEmbedRequest;
+import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.llmgw.config.LangfuseProperties;
@@ -20,17 +23,19 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Exports each completed chat call to Langfuse as a trace + a GENERATION observation, via the
- * batch ingestion API ({@code POST /api/public/ingestion}, HTTP Basic public/secret key).
+ * Exports each completed LLM call to Langfuse as a trace + a GENERATION observation, via the batch
+ * ingestion API ({@code POST /api/public/ingestion}, HTTP Basic public/secret key). Covers all three
+ * surfaces: non-streaming chat ({@link #traceChat}), SSE streaming chat ({@link #traceChatStream}),
+ * and embeddings ({@link #traceEmbed}).
  *
- * <p>Best-effort by contract: {@link #traceChat} is called fire-and-forget from the controller and
- * never blocks the LLM response. When {@code langfuse.enabled=false} it short-circuits to
- * {@link Mono#empty()} and makes no HTTP call, so {@code mock} dev runs and tests stay silent. Any
+ * <p>Best-effort by contract: every {@code trace*} method is called fire-and-forget from a controller
+ * and never blocks the response. When {@code langfuse.enabled=false} they short-circuit to
+ * {@link Mono#empty()} and make no HTTP call, so {@code mock} dev runs and tests stay silent. Any
  * ingestion failure (network, 4xx/5xx, timeout) is logged at DEBUG and swallowed — a tracing outage
  * must not surface to callers.
  *
- * <p>Only the non-streaming {@code /v1/chat} path is traced here; SSE streaming and embeddings are a
- * separate follow-up (they need delta accumulation / a different usage shape).
+ * <p>Streaming reports no token usage (providers emit text deltas only), so the streamed generation
+ * carries the accumulated output but omits the {@code usage} block.
  */
 @Component
 public class LangfuseTracer {
@@ -56,17 +61,58 @@ public class LangfuseTracer {
         }
     }
 
-    /**
-     * Build and POST one ingestion batch for a finished chat call. Returns the in-flight POST so the
-     * caller can {@code .subscribe()} it fire-and-forget (or {@code .block()} it in a test); a
-     * no-op {@link Mono#empty()} when tracing is disabled.
-     */
+    /** Trace a finished non-streaming {@code /v1/chat} call (model + usage come from the response). */
     public Mono<Void> traceChat(LlmChatRequest request, LlmChatResponse response,
                                 Instant start, Instant end) {
-        if (!props.enabled() || http == null) {
+        if (disabled()) {
             return Mono.empty();
         }
-        Map<String, Object> batch = buildBatch(request, response, start, end);
+        Map<String, Object> meta = new LinkedHashMap<>();
+        if (response.finishReason() != null) {
+            meta.put("finishReason", response.finishReason());
+        }
+        return post(buildBatch("llm-gateway.chat", "chat", channelOf(request.channel()),
+                response.model(), renderInput(request.messages()), response.content(),
+                renderUsage(response.usage()), meta, start, end));
+    }
+
+    /**
+     * Trace a finished streaming {@code /v1/chat/stream} call. The provider stream yields text deltas
+     * only — the caller accumulates them into {@code output} and resolves the {@code model} from the
+     * channel; no token usage is available, so the generation omits the usage block.
+     */
+    public Mono<Void> traceChatStream(LlmChatRequest request, String output, String model,
+                                      Instant start, Instant end) {
+        if (disabled()) {
+            return Mono.empty();
+        }
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("streamed", true);
+        return post(buildBatch("llm-gateway.chat.stream", "chat-stream", channelOf(request.channel()),
+                model, renderInput(request.messages()), output, null, meta, start, end));
+    }
+
+    /** Trace a finished {@code /v1/embed} call (always the {@code embedding} channel). */
+    public Mono<Void> traceEmbed(LlmEmbedRequest request, LlmEmbedResponse response,
+                                 Instant start, Instant end) {
+        if (disabled()) {
+            return Mono.empty();
+        }
+        int dim = response.vectors().isEmpty() ? 0 : response.vectors().get(0).length;
+        Map<String, Object> meta = new LinkedHashMap<>();
+        meta.put("vectorCount", response.vectors().size());
+        meta.put("dimensions", dim);
+        String output = response.vectors().size() + " vectors × " + dim + " dims";
+        return post(buildBatch("llm-gateway.embed", "embed", "embedding",
+                response.model(), request.inputs(), output,
+                renderUsage(response.usage()), meta, start, end));
+    }
+
+    private boolean disabled() {
+        return !props.enabled() || http == null;
+    }
+
+    private Mono<Void> post(Map<String, Object> batch) {
         return http.post()
                 .uri(INGESTION_PATH)
                 .bodyValue(batch)
@@ -78,35 +124,40 @@ public class LangfuseTracer {
                 .then();
     }
 
-    private Map<String, Object> buildBatch(LlmChatRequest request, LlmChatResponse response,
+    /**
+     * Build a one-call ingestion batch: a {@code trace-create} wrapping a {@code generation-create}
+     * observation. {@code usage} is omitted when null (e.g. streaming).
+     */
+    private Map<String, Object> buildBatch(String traceName, String generationName, String channel,
+                                           String model, Object input, Object output,
+                                           Map<String, Object> usage, Map<String, Object> extraMeta,
                                            Instant start, Instant end) {
         String traceId = UUID.randomUUID().toString();
-        String channel = request.channel() == null ? "default"
-                : request.channel().name().toLowerCase();
 
         Map<String, Object> traceBody = new LinkedHashMap<>();
         traceBody.put("id", traceId);
-        traceBody.put("name", "llm-gateway.chat");
+        traceBody.put("name", traceName);
         traceBody.put("timestamp", start.toString());
-        traceBody.put("input", renderInput(request.messages()));
-        traceBody.put("output", response.content());
+        traceBody.put("input", input);
+        traceBody.put("output", output);
         traceBody.put("metadata", Map.of("channel", channel));
+
+        Map<String, Object> genMeta = new LinkedHashMap<>();
+        genMeta.put("channel", channel);
+        genMeta.putAll(extraMeta);
 
         Map<String, Object> genBody = new LinkedHashMap<>();
         genBody.put("id", UUID.randomUUID().toString());
         genBody.put("traceId", traceId);
         genBody.put("type", "GENERATION");
-        genBody.put("name", "chat");
-        genBody.put("model", response.model());
+        genBody.put("name", generationName);
+        genBody.put("model", model);
         genBody.put("startTime", start.toString());
         genBody.put("endTime", end.toString());
-        genBody.put("input", renderInput(request.messages()));
-        genBody.put("output", response.content());
-        genBody.put("usage", renderUsage(response.usage()));
-        Map<String, Object> genMeta = new LinkedHashMap<>();
-        genMeta.put("channel", channel);
-        if (response.finishReason() != null) {
-            genMeta.put("finishReason", response.finishReason());
+        genBody.put("input", input);
+        genBody.put("output", output);
+        if (usage != null) {
+            genBody.put("usage", usage);
         }
         genBody.put("metadata", genMeta);
 
@@ -122,6 +173,10 @@ public class LangfuseTracer {
         ev.put("timestamp", ts.toString());
         ev.put("body", body);
         return ev;
+    }
+
+    private static String channelOf(LlmChannel channel) {
+        return channel == null ? "default" : channel.name().toLowerCase();
     }
 
     /** Messages as a plain role/content list — Langfuse renders this as the chat input. */

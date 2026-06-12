@@ -77,10 +77,18 @@ The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision
 
 ## Tracing (Langfuse)
 
-Every non-streaming `/v1/chat` call is exported to [Langfuse](https://langfuse.com) as a trace
-(`llm-gateway.chat`) plus a `GENERATION` observation carrying model, channel, the input turns, the
-output text, token usage, and latency (start/end). Export is **off by default** — `mock` dev runs and
-every other module's test stay silent — and turns on with a project key pair:
+Every LLM call is exported to [Langfuse](https://langfuse.com) as a trace plus a `GENERATION`
+observation carrying model, channel, input, output, token usage (where available), and latency
+(start/end). All three surfaces are covered:
+
+| call | trace name | notes |
+|------|------------|-------|
+| `POST /v1/chat` | `llm-gateway.chat` | full input turns + output + usage |
+| `POST /v1/chat/stream` | `llm-gateway.chat.stream` | accumulated delta output; **no usage** (stream emits text only), model resolved from the channel |
+| `POST /v1/embed` | `llm-gateway.embed` | input texts + usage; metadata carries `vectorCount`/`dimensions` |
+
+Export is **off by default** — `mock` dev runs and every other module's test stay silent — and turns
+on with a project key pair:
 
 ```
 LANGFUSE_ENABLED=true
@@ -92,8 +100,7 @@ LANGFUSE_SECRET_KEY=sk-lf-...
 Tracing is **best-effort**: the tracer fires fire-and-forget after the response is produced and
 swallows any ingestion error (network / 4xx-5xx / 5s timeout) at DEBUG, so a Langfuse outage never
 slows or breaks an LLM call. It POSTs the batch ingestion API (`POST /api/public/ingestion`, HTTP
-Basic public/secret key). SSE streaming and embeddings are not traced yet (delta accumulation /
-different usage shape — a separate follow-up).
+Basic public/secret key).
 
 ## Configuration (env vars)
 
