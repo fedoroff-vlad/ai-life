@@ -17,6 +17,7 @@ public class FinanceAgentProperties {
     private String memoryServiceUrl = "http://memory-service:8087";
     private String mcpFinanceUrl = "http://mcp-finance:8092";
     private String mediaServiceUrl = "http://media-service:8088";
+    private String mcpMoneyProImportUrl = "http://mcp-money-pro-import:8094";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -39,5 +40,10 @@ public class FinanceAgentProperties {
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) {
         this.mediaServiceUrl = mediaServiceUrl;
+    }
+
+    public String getMcpMoneyProImportUrl() { return mcpMoneyProImportUrl; }
+    public void setMcpMoneyProImportUrl(String mcpMoneyProImportUrl) {
+        this.mcpMoneyProImportUrl = mcpMoneyProImportUrl;
     }
 }

@@ -1,6 +1,6 @@
 ---
 name: finance
-description: Manages transactions, accounts, categories, budgets and recurring payments for a household. Owns finance.* via mcp-finance; one-shot Money Pro CSV history import via mcp-money-pro-import (later PR).
+description: Manages transactions, accounts, categories, budgets and recurring payments for a household. Owns finance.* via mcp-finance; receipt photos become transactions via the vision channel; one-shot Money Pro CSV history import (auto-creating accounts) via mcp-money-pro-import.
 version: 0.1.0
 port: 8093
 mcp:
