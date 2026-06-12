@@ -28,6 +28,15 @@ PR).
   and is swallowed — the row is still saved.
 - `list_transactions(householdId, accountId?, categoryId?, from?, to?, limit?)` —
   newest first, `from` inclusive / `to` exclusive, hard cap 200, default 50.
+- `update_transaction(id, accountId?, categoryId?, ownerId?, amount?, currency?, ts?, note?)`
+  — partial update of an existing row. `id` required; other fields applied only
+  when non-null (null = leave unchanged) so it can re-categorise / fix an amount
+  but cannot clear a set field. Provenance (`household, source, externalRef`) and
+  `createdAt` are immutable; moving to another `accountId` is allowed only within
+  the same household. Returns the updated DTO.
+- `delete_transaction(id)` — delete a row and return the deleted DTO (so the
+  agent can confirm / offer undo). Throws if the id is unknown. Confirming the
+  destructive action with the user is the agent layer's job.
 - `get_balance(accountId)` — `opening_balance + Σ amount` (sign-aware). Returns the
   account's currency alongside the balance.
 - `set_budget(householdId, categoryId, period, limitAmount, currency)` — upsert
@@ -100,9 +109,11 @@ layer's job — this MCP is intentionally low-level.
 - `domain/FinRecurring` + `FinRecurringRepository` — JPA over
   `finance.fin_recurring`; `filter()` is the parameterised list ordered by
   `next_due ASC NULLS LAST`.
-- `tools/FinanceMcpTools` — thirteen `@Tool` methods. Cross-household guards on
-  `add_transaction` (account) and `set_budget` (category) are the only
-  invariants enforced here; everything else relies on DB constraints. Period
+- `tools/FinanceMcpTools` — fifteen `@Tool` methods. Cross-household guards on
+  `add_transaction` / `update_transaction` (account) and `set_budget` (category)
+  are the only invariants enforced here; everything else relies on DB
+  constraints. `update_transaction` is a partial (non-null-only) update;
+  `delete_transaction` returns the deleted row. Period
   windows in `get_budget_status` are UTC-anchored. `refresh_matviews` runs the
   two `REFRESH MATERIALIZED VIEW` statements via the injected `JdbcTemplate`
   (matview names are a fixed in-class constant, never caller input).
