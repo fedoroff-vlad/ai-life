@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.BalanceResult;
 import dev.fedorov.ailife.contracts.finance.BudgetStatusResult;
+import dev.fedorov.ailife.contracts.finance.CsvExportResult;
+import dev.fedorov.ailife.contracts.finance.ExportCsvInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
@@ -951,6 +953,48 @@ class McpFinanceIntegrationTest {
                 null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Transaction not found");
+    }
+
+    @Test
+    void exportCsvRendersOldestFirstWithResolvedNamesAndEscaping() {
+        // Fresh household keeps the export deterministic against the shared DB.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "export hh");
+
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, hh, null, "Main, card", "card", "EUR", BigDecimal.ZERO, null));
+        FinCategoryDto coffee = tools.upsertCategory(new UpsertCategoryInput(
+                null, hh, null, "Coffee", "expense", null));
+
+        Instant t1 = Instant.parse("2026-02-01T08:00:00Z");
+        Instant t2 = Instant.parse("2026-02-02T08:00:00Z");
+        // Insert newest first to prove the export re-sorts to oldest-first.
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), coffee.id(), null,
+                new BigDecimal("-5.00"), null, t2, "note \"with\" quote", "manual", null));
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), null, null,
+                new BigDecimal("-3.50"), null, t1, "plain", "telegram", null));
+
+        CsvExportResult result = tools.exportCsv(new ExportCsvInput(hh, null, null, null, null));
+        assertThat(result.rowCount()).isEqualTo(2);
+        assertThat(result.truncated()).isFalse();
+
+        String[] lines = result.csv().split("\n");
+        assertThat(lines[0]).isEqualTo("date,amount,currency,category,account,note,source");
+        // Oldest-first: t1 (plain) before t2.
+        assertThat(lines[1]).isEqualTo(
+                "2026-02-01T08:00:00Z,-3.50,EUR,,\"Main, card\",plain,telegram");
+        // t2 row: uncategorised? no — coffee; account name has a comma → quoted;
+        // note has embedded quotes → doubled + wrapped.
+        assertThat(lines[2]).isEqualTo(
+                "2026-02-02T08:00:00Z,-5.00,EUR,Coffee,\"Main, card\",\"note \"\"with\"\" quote\",manual");
+
+        // Filtering by category narrows the export.
+        CsvExportResult coffeeOnly = tools.exportCsv(
+                new ExportCsvInput(hh, null, coffee.id(), null, null));
+        assertThat(coffeeOnly.rowCount()).isEqualTo(1);
+        assertThat(coffeeOnly.csv()).contains("Coffee").doesNotContain("plain");
     }
 
     @Test
