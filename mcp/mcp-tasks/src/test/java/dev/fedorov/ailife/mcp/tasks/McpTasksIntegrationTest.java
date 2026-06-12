@@ -1,9 +1,11 @@
 package dev.fedorov.ailife.mcp.tasks;
 
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
+import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ListTasksInput;
 import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.TaskProjectDto;
+import dev.fedorov.ailife.contracts.tasks.UpdateTaskInput;
 import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
 import dev.fedorov.ailife.mcp.tasks.tools.TasksMcpTools;
 import org.junit.jupiter.api.BeforeAll;
@@ -19,10 +21,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests aren't isolated across methods (shared SpringBootTest context + DB) — assertions
@@ -140,6 +145,91 @@ class McpTasksIntegrationTest {
         assertThat(tools.listTasks(new ListTasksInput(h1, null, null, null, null, null)))
                 .singleElement()
                 .satisfies(t -> assertThat(t.title()).isEqualTo("h1 task"));
+    }
+
+    @Test
+    void clarifyTaskOrganizesInboxItemAndIsFilterableByNewState() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        TaskProjectDto proj = tools.upsertProject(new UpsertProjectInput(
+                null, h, null, "Home", null, null));
+        TaskItemDto captured = tools.addTask(new AddTaskInput(h, null, "fix the sink", null, null));
+
+        Instant due = Instant.now().plus(2, ChronoUnit.DAYS);
+        TaskItemDto clarified = tools.clarifyTask(new ClarifyTaskInput(
+                captured.id(), "next", "@home", proj.id(), due, null, 1));
+        assertThat(clarified.status()).isEqualTo("next");
+        assertThat(clarified.context()).isEqualTo("@home");
+        assertThat(clarified.projectId()).isEqualTo(proj.id());
+        assertThat(clarified.priority()).isEqualTo(1);
+        assertThat(clarified.completedAt()).isNull();
+
+        // Now filterable by its organized state, no longer in inbox.
+        assertThat(tools.listTasks(new ListTasksInput(h, "next", "@home", proj.id(), null, null)))
+                .singleElement().satisfies(t -> assertThat(t.title()).isEqualTo("fix the sink"));
+        assertThat(tools.listTasks(new ListTasksInput(h, "inbox", null, null, null, null))).isEmpty();
+    }
+
+    @Test
+    void clarifyRejectsBadStatusAndCrossHouseholdProject() {
+        TaskItemDto t = tools.addTask(new AddTaskInput(householdId, null, "thing", null, null));
+        assertThatThrownBy(() -> tools.clarifyTask(new ClarifyTaskInput(
+                t.id(), "bogus", null, null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported status");
+
+        // A project from another household must be rejected.
+        TaskProjectDto foreign = tools.upsertProject(new UpsertProjectInput(
+                null, otherHouseholdId, null, "Foreign", null, null));
+        assertThatThrownBy(() -> tools.clarifyTask(new ClarifyTaskInput(
+                t.id(), "next", null, foreign.id(), null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to household");
+    }
+
+    @Test
+    void completeTaskStampsCompletedAtThenClarifyAwayClearsIt() {
+        TaskItemDto t = tools.addTask(new AddTaskInput(householdId, null, "ship it", null, null));
+        TaskItemDto done = tools.completeTask(t.id());
+        assertThat(done.status()).isEqualTo("done");
+        assertThat(done.completedAt()).isNotNull();
+
+        // Re-opening via clarify clears the completion stamp.
+        TaskItemDto reopened = tools.clarifyTask(new ClarifyTaskInput(
+                t.id(), "next", null, null, null, null, null));
+        assertThat(reopened.status()).isEqualTo("next");
+        assertThat(reopened.completedAt()).isNull();
+    }
+
+    @Test
+    void updateTaskAppliesNonNullFieldsOnly() {
+        TaskItemDto t = tools.addTask(new AddTaskInput(householdId, null, "draft", null, "telegram"));
+        TaskItemDto updated = tools.updateTask(new UpdateTaskInput(
+                t.id(), "final title", "a note", "@work", null, 2, null, null));
+        assertThat(updated.title()).isEqualTo("final title");
+        assertThat(updated.note()).isEqualTo("a note");
+        assertThat(updated.context()).isEqualTo("@work");
+        assertThat(updated.priority()).isEqualTo(2);
+        // Untouched immutables / fields stay.
+        assertThat(updated.source()).isEqualTo("telegram");
+        assertThat(updated.status()).isEqualTo("inbox"); // update doesn't move status
+    }
+
+    @Test
+    void deleteTaskReturnsRowAndThrowsOnUnknown() {
+        TaskItemDto t = tools.addTask(new AddTaskInput(householdId, null, "temp", null, null));
+        TaskItemDto deleted = tools.deleteTask(t.id());
+        assertThat(deleted.id()).isEqualTo(t.id());
+        assertThatThrownBy(() -> tools.deleteTask(t.id()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Task not found");
+    }
+
+    @Test
+    void linkTaskToEventStoresUid() {
+        TaskItemDto t = tools.addTask(new AddTaskInput(householdId, null, "call dentist", null, null));
+        TaskItemDto linked = tools.linkTaskToEvent(t.id(), "evt-uid-123");
+        assertThat(linked.calendarEventUid()).isEqualTo("evt-uid-123");
     }
 
     @Autowired JdbcTemplate jdbc;

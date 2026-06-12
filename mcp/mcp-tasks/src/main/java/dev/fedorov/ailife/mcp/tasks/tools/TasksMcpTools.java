@@ -1,9 +1,11 @@
 package dev.fedorov.ailife.mcp.tasks.tools;
 
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
+import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ListTasksInput;
 import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.TaskProjectDto;
+import dev.fedorov.ailife.contracts.tasks.UpdateTaskInput;
 import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskItem;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskItemRepository;
@@ -13,7 +15,9 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -29,6 +33,8 @@ import java.util.UUID;
 public class TasksMcpTools {
 
     private static final int LIST_HARD_CAP = 200;
+    private static final Set<String> VALID_STATUSES =
+            Set.of("inbox", "next", "waiting", "scheduled", "done", "dropped");
 
     private final TaskProjectRepository projects;
     private final TaskItemRepository items;
@@ -113,6 +119,127 @@ public class TasksMcpTools {
                         limit).stream()
                 .map(TaskItem::toDto)
                 .toList();
+    }
+
+    @Tool(description = """
+            Clarify an inbox task into an organized GTD state — the core inbox→organized
+            move. `id` and `status` are required (status ∈
+            inbox|next|waiting|scheduled|done|dropped). The organizing fields `context`
+            (e.g. @home), `projectId`, `dueAt`, `deferUntil`, `priority` are applied when
+            non-null. A `projectId` must belong to the task's household. Setting status to
+            "done" stamps completedAt; moving away from "done" clears it.
+            """)
+    @Transactional
+    public TaskItemDto clarifyTask(ClarifyTaskInput input) {
+        requireField(input.id(), "id");
+        requireField(input.status(), "status");
+        requireStatus(input.status());
+        TaskItem item = items.findById(input.id()).orElseThrow(
+                () -> new IllegalArgumentException("Task not found: " + input.id()));
+        if (input.projectId() != null) {
+            requireProjectInHousehold(input.projectId(), item.getHouseholdId());
+            item.setProjectId(input.projectId());
+        }
+        if (input.context() != null) item.setContext(input.context());
+        if (input.dueAt() != null) item.setDueAt(input.dueAt());
+        if (input.deferUntil() != null) item.setDeferUntil(input.deferUntil());
+        if (input.priority() != null) item.setPriority(input.priority());
+        applyStatus(item, input.status());
+        return items.save(item).toDto();
+    }
+
+    @Tool(description = """
+            Partial content edit of a task. `id` is required; every other field is applied
+            only when non-null (null = leave unchanged), so this fixes a title / re-contexts
+            / re-schedules but cannot clear a set field. Status changes go through
+            clarify_task or complete_task, not here. A `projectId` must belong to the task's
+            household. household/source/externalRef/createdAt are immutable.
+            """)
+    @Transactional
+    public TaskItemDto updateTask(UpdateTaskInput input) {
+        requireField(input.id(), "id");
+        TaskItem item = items.findById(input.id()).orElseThrow(
+                () -> new IllegalArgumentException("Task not found: " + input.id()));
+        if (input.projectId() != null) {
+            requireProjectInHousehold(input.projectId(), item.getHouseholdId());
+            item.setProjectId(input.projectId());
+        }
+        if (input.title() != null && !input.title().isBlank()) item.setTitle(input.title());
+        if (input.note() != null) item.setNote(input.note());
+        if (input.context() != null) item.setContext(input.context());
+        if (input.priority() != null) item.setPriority(input.priority());
+        if (input.dueAt() != null) item.setDueAt(input.dueAt());
+        if (input.deferUntil() != null) item.setDeferUntil(input.deferUntil());
+        return items.save(item).toDto();
+    }
+
+    @Tool(description = """
+            Mark a task done — sets status=done and stamps completedAt. Shortcut for the
+            common terminal transition. Throws if the id is unknown.
+            """)
+    @Transactional
+    public TaskItemDto completeTask(UUID id) {
+        requireField(id, "id");
+        TaskItem item = items.findById(id).orElseThrow(
+                () -> new IllegalArgumentException("Task not found: " + id));
+        applyStatus(item, "done");
+        return items.save(item).toDto();
+    }
+
+    @Tool(description = """
+            Delete a task and return the deleted row (so the agent can confirm / offer undo).
+            Throws if the id is unknown. Confirming the destructive action with the user is
+            the agent layer's job.
+            """)
+    @Transactional
+    public TaskItemDto deleteTask(UUID id) {
+        requireField(id, "id");
+        TaskItem item = items.findById(id).orElseThrow(
+                () -> new IllegalArgumentException("Task not found: " + id));
+        TaskItemDto dto = item.toDto();
+        items.delete(item);
+        return dto;
+    }
+
+    @Tool(description = """
+            Link a task to a calendar event ("turn task into an event"). Stores the event's
+            calendar UID on the task; creating the actual calendar event is the agent's job
+            (via orchestrator → calendar-agent). Throws if the id is unknown.
+            """)
+    @Transactional
+    public TaskItemDto linkTaskToEvent(UUID id, String calendarEventUid) {
+        requireField(id, "id");
+        requireField(calendarEventUid, "calendarEventUid");
+        TaskItem item = items.findById(id).orElseThrow(
+                () -> new IllegalArgumentException("Task not found: " + id));
+        item.setCalendarEventUid(calendarEventUid);
+        return items.save(item).toDto();
+    }
+
+    /** Apply a status transition, keeping completedAt consistent with the done state. */
+    private static void applyStatus(TaskItem item, String status) {
+        item.setStatus(status);
+        if ("done".equals(status)) {
+            if (item.getCompletedAt() == null) item.setCompletedAt(Instant.now());
+        } else {
+            item.setCompletedAt(null);
+        }
+    }
+
+    private void requireProjectInHousehold(UUID projectId, UUID householdId) {
+        TaskProject project = projects.findById(projectId).orElseThrow(
+                () -> new IllegalArgumentException("Project not found: " + projectId));
+        if (!project.getHouseholdId().equals(householdId)) {
+            throw new IllegalArgumentException(
+                    "Project does not belong to household: " + projectId);
+        }
+    }
+
+    private static void requireStatus(String status) {
+        if (!VALID_STATUSES.contains(status)) {
+            throw new IllegalArgumentException(
+                    "Unsupported status: " + status + " (expected one of " + VALID_STATUSES + ")");
+        }
     }
 
     private static void requireField(Object value, String name) {
