@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: mcp-tasks
+  datasource:
+    url: ${MCP_TASKS_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MCP_TASKS_DB_USER:ailife}
+    password: ${MCP_TASKS_DB_PASSWORD:ailife}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-tasks
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Source-of-truth GTD task CRUD over Postgres tasks.* schema. Projects and
+          items for personal/household task management. Capture goes to the inbox;
+          clarification organises items into next-actions, waiting-for and scheduled.
+
+server:
+  port: ${MCP_TASKS_PORT:8095}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
