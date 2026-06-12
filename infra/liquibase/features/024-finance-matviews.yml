@@ -1,0 +1,76 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 024-finance-matviews
+      author: ai-life
+      comment: |
+        Reporting matviews over finance.* for the dashboard layer
+        (Metabase/Grafana read these directly — they are the BI read surface,
+        not exposed as MCP tools). mcp-finance owns refresh via the
+        refresh_matviews tool; scheduler-driven refresh registration is a
+        follow-up.
+
+        fin_mv_monthly_by_category — net + spent per (household, month,
+        category, currency). `spent` is the magnitude of outflow (amount < 0)
+        so an expense category reads positive; `net_amount` keeps the sign so
+        income months stay distinguishable. category_id/name/kind are LEFT
+        JOINed so uncategorised transactions still aggregate (category_* null).
+
+        fin_mv_account_balance — opening_balance + Σ amount per account
+        (sign-aware), mirroring get_balance but precomputed for every account
+        at once. LEFT JOIN so a zero-transaction account still shows its
+        opening balance.
+
+        Plain (non-unique) household indices for dashboard filtering. We do NOT
+        use REFRESH ... CONCURRENTLY (which would need a unique index and a
+        coalesce over nullable category_id) — a personal-finance dataset is
+        small and a brief refresh lock is acceptable. Revisit if a household's
+        transaction volume ever makes the lock noticeable.
+      changes:
+        - sql:
+            comment: Monthly spend/income rollup by category.
+            sql: |
+              CREATE MATERIALIZED VIEW finance.fin_mv_monthly_by_category AS
+              SELECT
+                  t.household_id                                       AS household_id,
+                  (date_trunc('month', t.ts AT TIME ZONE 'UTC'))::date AS month,
+                  t.category_id                                        AS category_id,
+                  c.name                                               AS category_name,
+                  c.kind                                               AS category_kind,
+                  t.currency                                           AS currency,
+                  sum(t.amount)                                        AS net_amount,
+                  sum(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END) AS spent,
+                  count(*)                                             AS tx_count
+              FROM finance.fin_transaction t
+              LEFT JOIN finance.fin_category c ON c.id = t.category_id
+              GROUP BY t.household_id,
+                       (date_trunc('month', t.ts AT TIME ZONE 'UTC'))::date,
+                       t.category_id, c.name, c.kind, t.currency
+              WITH DATA;
+        - sql:
+            comment: Filter index for fin_mv_monthly_by_category.
+            sql: |
+              CREATE INDEX ix_fin_mv_monthly_by_category_household
+                  ON finance.fin_mv_monthly_by_category (household_id, month);
+        - sql:
+            comment: Precomputed per-account balance (opening + sign-aware sum).
+            sql: |
+              CREATE MATERIALIZED VIEW finance.fin_mv_account_balance AS
+              SELECT
+                  a.id                                           AS account_id,
+                  a.household_id                                 AS household_id,
+                  a.name                                         AS account_name,
+                  a.currency                                     AS currency,
+                  a.archived                                     AS archived,
+                  a.opening_balance + COALESCE(sum(t.amount), 0) AS balance,
+                  count(t.id)                                    AS tx_count
+              FROM finance.fin_account a
+              LEFT JOIN finance.fin_transaction t ON t.account_id = a.id
+              GROUP BY a.id, a.household_id, a.name, a.currency, a.archived,
+                       a.opening_balance
+              WITH DATA;
+        - sql:
+            comment: Filter index for fin_mv_account_balance.
+            sql: |
+              CREATE INDEX ix_fin_mv_account_balance_household
+                  ON finance.fin_mv_account_balance (household_id);

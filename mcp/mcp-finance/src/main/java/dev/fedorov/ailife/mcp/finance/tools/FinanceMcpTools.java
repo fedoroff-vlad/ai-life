@@ -9,6 +9,7 @@ import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
+import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
@@ -27,6 +28,7 @@ import dev.fedorov.ailife.mcp.finance.domain.FinTransaction;
 import dev.fedorov.ailife.mcp.finance.domain.FinTransactionRepository;
 import dev.fedorov.ailife.mcp.finance.scheduler.SchedulerClient;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,25 +64,33 @@ public class FinanceMcpTools {
     private static final int LIST_HARD_CAP = 200;
     private static final Set<String> SUPPORTED_PERIODS = Set.of("month", "week", "year");
 
+    /** Reporting matviews owned by 024-finance-matviews.yml, in refresh order. */
+    private static final List<String> MATVIEWS = List.of(
+            "finance.fin_mv_account_balance",
+            "finance.fin_mv_monthly_by_category");
+
     private final FinAccountRepository accounts;
     private final FinCategoryRepository categories;
     private final FinTransactionRepository transactions;
     private final FinBudgetRepository budgets;
     private final FinRecurringRepository recurring;
     private final SchedulerClient scheduler;
+    private final JdbcTemplate jdbc;
 
     public FinanceMcpTools(FinAccountRepository accounts,
                            FinCategoryRepository categories,
                            FinTransactionRepository transactions,
                            FinBudgetRepository budgets,
                            FinRecurringRepository recurring,
-                           SchedulerClient scheduler) {
+                           SchedulerClient scheduler,
+                           JdbcTemplate jdbc) {
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
         this.budgets = budgets;
         this.recurring = recurring;
         this.scheduler = scheduler;
+        this.jdbc = jdbc;
     }
 
     @Tool(description = """
@@ -476,6 +486,22 @@ public class FinanceMcpTools {
         return recurring.filter(householdId, accountId, categoryId).stream()
                 .map(FinRecurring::toDto)
                 .toList();
+    }
+
+    @Tool(description = """
+            Recompute the finance reporting matviews (fin_mv_account_balance,
+            fin_mv_monthly_by_category) so the dashboard layer (Metabase/Grafana,
+            which read them directly) sees current numbers. Run after a batch of
+            writes (e.g. a Money Pro import) or on a schedule. Returns the
+            refreshed matview names and the completion time. Not CONCURRENTLY —
+            a brief refresh lock is acceptable for personal-finance volumes.
+            """)
+    @Transactional
+    public MatviewRefreshResult refreshMatviews() {
+        for (String mv : MATVIEWS) {
+            jdbc.execute("REFRESH MATERIALIZED VIEW " + mv);
+        }
+        return new MatviewRefreshResult(MATVIEWS, Instant.now());
     }
 
     /**
