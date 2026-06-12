@@ -1,9 +1,8 @@
 # mcp-tasks
 
-MCP server: source-of-truth GTD CRUD over the `tasks.*` schema (projects + items).
-Stage-3 opener — the starter slice covers capture / read / projects; the GTD
-transitions (clarify, complete, link-to-event) land in the next PR. See
-[plans/tasks.md](../../plans/tasks.md).
+MCP server: source-of-truth GTD CRUD over the `tasks.*` schema (projects + items),
+including the GTD transitions (clarify / update / complete / delete / link-to-event).
+See [plans/tasks.md](../../plans/tasks.md).
 
 ## Tools (MCP)
 
@@ -17,6 +16,19 @@ transitions (clarify, complete, link-to-event) land in the next PR. See
 - `list_tasks(householdId, status?, context?, projectId?, dueBefore?, limit?)` — all
   filters optional; ordered by due date soonest-first (undated last). Hard cap 200,
   default 50.
+- `clarify_task(id, status, context?, projectId?, dueAt?, deferUntil?, priority?)` — the
+  inbox→organized GTD move. `status` ∈ inbox|next|waiting|scheduled|done|dropped;
+  organizing fields applied when non-null. `projectId` must belong to the task's
+  household. status=done stamps `completedAt`; leaving done clears it.
+- `update_task(id, title?, note?, context?, projectId?, priority?, dueAt?, deferUntil?)` —
+  partial content edit (non-null fields only); status changes go through clarify/complete.
+  `projectId` cross-household guarded. household/source/externalRef/createdAt immutable.
+- `complete_task(id)` — status=done + `completedAt` stamp. Throws on unknown id.
+- `delete_task(id)` — delete and return the deleted row (so the agent can confirm/undo).
+  Throws on unknown id. Confirming the destructive action is the agent layer's job.
+- `link_task_to_event(id, calendarEventUid)` — store the linked calendar event UID
+  ("turn task into event"); creating the event itself is the agent's job (via
+  orchestrator → calendar-agent).
 
 Scope rule: every tool takes a `householdId` and reads/writes only within that
 household. Per-user privacy (private items filtered by `owner_id`) is the agent
@@ -37,9 +49,12 @@ layer's job — this MCP is intentionally low-level.
 - `domain/TaskItem` + `TaskItemRepository` — JPA over `tasks.task_item`; `filter()` is
   the parameterised list query (all filters optional, due soonest-first, native-SQL
   `CAST` for NULL-safe binds — same pgjdbc workaround as mcp-finance).
-- `tools/TasksMcpTools` — four `@Tool` methods (`upsert_project`, `list_projects`,
-  `add_task`→inbox, `list_tasks`). No cross-entity invariants beyond the household
-  scope; everything else relies on DB constraints.
+- `tools/TasksMcpTools` — nine `@Tool` methods: CRUD (`upsert_project`, `list_projects`,
+  `add_task`→inbox, `list_tasks`) + GTD transitions (`clarify_task`, `update_task`,
+  `complete_task`, `delete_task`, `link_task_to_event`). The only invariants enforced
+  here are the household scope, the `projectId` cross-household guard (clarify/update),
+  and the status whitelist; everything else relies on DB constraints. `clarify_task` and
+  `complete_task` keep `completed_at` consistent with the `done` state.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 
 ## Schema
