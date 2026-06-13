@@ -80,9 +80,10 @@ class IntentControllerTest {
 
         RecordedRequest llmCall = llmGateway.takeRequest();
         String body = llmCall.getBody().readUtf8();
-        // AGENT.md body went in as a system prompt and the user's message as the turn.
+        // With the MCP client disabled in tests the router falls back to the plain chat path:
+        // AGENT.md body as a system prompt + the user's message, on the default channel.
         assertThat(body).contains("tasks agent");
         assertThat(body).contains("Напомни позвонить стоматологу");
-        assertThat(body).contains("\"channel\":\"fast\"");
+        assertThat(body).contains("\"channel\":\"default\"");
     }
 }
