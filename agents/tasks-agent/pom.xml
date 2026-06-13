@@ -46,6 +46,17 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+            Spring AI MCP client (reactive WebFlux SSE transport). Lets the agent
+            discover and call @Tool methods exposed by mcp-tasks. Spring Boot
+            auto-config builds the ToolCallbackProvider bean the tool dispatcher
+            (later PR) consumes. Mirrors finance-agent's wiring (PR33).
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client-webflux</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

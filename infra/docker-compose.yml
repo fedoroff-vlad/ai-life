@@ -553,10 +553,10 @@ services:
       context: ..
       dockerfile: agents/tasks-agent/Dockerfile
     restart: unless-stopped
-    # Skeleton slice: only the LLM is needed. profile/notifier/memory/mcp deps
-    # are added when the first skill (and MCP-tool wiring) lands.
     depends_on:
       llm-gateway:
+        condition: service_healthy
+      mcp-tasks:
         condition: service_healthy
     environment:
       TASKS_AGENT_PORT: 8096
@@ -564,6 +564,8 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      MCP_TASKS_URL: http://mcp-tasks:8095
+      TASKS_AGENT_MCP_CLIENT_ENABLED: ${TASKS_AGENT_MCP_CLIENT_ENABLED:-true}
       TASKS_AGENT_MEMORY_RECALL_K: ${TASKS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8096/actuator/health"]
