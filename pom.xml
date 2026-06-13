@@ -55,6 +55,7 @@
         <module>mcp/mcp-tasks</module>
         <module>agents/calendar-agent</module>
         <module>agents/finance-agent</module>
+        <module>agents/tasks-agent</module>
     </modules>
 
     <dependencyManagement>
