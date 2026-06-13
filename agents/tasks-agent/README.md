@@ -5,8 +5,13 @@ tasks; tools come from `mcp-tasks` (source of truth: Postgres `tasks.*`). See
 [plans/tasks.md](../../plans/tasks.md).
 
 **Skeleton slice** — manifest + intent are real; triggers are a stub (no skills ship yet, so
-every trigger kind 404s). Outbound clients (profile/notifier/memory) and MCP-tool-call routing
-land with the first skill, mirroring how finance-agent grew.
+every trigger kind 404s). The Spring AI MCP client to `mcp-tasks` is wired (PR56), but the
+LLM-driven tool dispatch in front of it (so `intent` actually calls `add_task`/`clarify`/`list`)
+lands in a later PR — today `intent` is a plain LLM chat.
+
+The MCP client dials `mcp-tasks` at boot (`spring.ai.mcp.client.enabled`, default true) — a
+missing mcp-tasks surfaces at agent startup. Toggle off with `TASKS_AGENT_MCP_CLIENT_ENABLED=false`
+in dev/degraded environments.
 
 ## Endpoints
 
