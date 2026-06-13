@@ -15,6 +15,7 @@ public class TasksAgentProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
+    private String mcpTasksUrl = "http://mcp-tasks:8095";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -28,4 +29,7 @@ public class TasksAgentProperties {
     public void setMemoryServiceUrl(String memoryServiceUrl) {
         this.memoryServiceUrl = memoryServiceUrl;
     }
+
+    public String getMcpTasksUrl() { return mcpTasksUrl; }
+    public void setMcpTasksUrl(String mcpTasksUrl) { this.mcpTasksUrl = mcpTasksUrl; }
 }
