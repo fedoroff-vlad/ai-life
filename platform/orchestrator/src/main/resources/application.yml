@@ -15,6 +15,8 @@ orchestrator:
       base-url: ${CALENDAR_AGENT_URL:http://calendar-agent:8086}
     - name: finance
       base-url: ${FINANCE_AGENT_URL:http://finance-agent:8093}
+    - name: tasks
+      base-url: ${TASKS_AGENT_URL:http://tasks-agent:8096}
   memory:
     enabled: ${ORCHESTRATOR_MEMORY_ENABLED:true}
     url: ${MEMORY_SERVICE_URL:http://memory-service:8087}

@@ -546,6 +546,32 @@ services:
       retries: 10
       start_period: 30s
 
+  tasks-agent:
+    image: ai-life/tasks-agent:local
+    container_name: ai-life-tasks-agent
+    build:
+      context: ..
+      dockerfile: agents/tasks-agent/Dockerfile
+    restart: unless-stopped
+    # Skeleton slice: only the LLM is needed. profile/notifier/memory/mcp deps
+    # are added when the first skill (and MCP-tool wiring) lands.
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+    environment:
+      TASKS_AGENT_PORT: 8096
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      TASKS_AGENT_MEMORY_RECALL_K: ${TASKS_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8096/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
 volumes:
   postgres-data:
   radicale-data:
