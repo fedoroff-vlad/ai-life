@@ -27,4 +27,10 @@ public class OutboundHttpConfig {
     public WebClient memoryServiceWebClient(WebClient.Builder builder, TasksAgentProperties props) {
         return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
     }
+
+    /** REST passthrough to mcp-tasks (e.g. /internal/review) — separate from the MCP-SSE transport. */
+    @Bean
+    public WebClient mcpTasksWebClient(WebClient.Builder builder, TasksAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpTasksUrl()).build();
+    }
 }

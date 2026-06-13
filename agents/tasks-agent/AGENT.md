@@ -5,6 +5,11 @@ version: 0.1.0
 port: 8096
 mcp:
   - mcp-tasks
+skills:
+  - weekly-review
+triggers:
+  - kind: weekly.review
+    description: Fired by scheduler-service on a weekly schedule per household. tasks-agent enriches the wake payload via mcp-tasks /internal/review into inbox/waiting counts + capped samples + stuck active projects; the weekly-review skill composes a short GTD nudge (or "SKIP" when everything is clean).
 intents:
   - example: Remind me to call the dentist
     description: Capture a new task to the GTD inbox (no project/context yet — clarified later).
