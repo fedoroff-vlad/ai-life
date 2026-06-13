@@ -34,6 +34,16 @@ Scope rule: every tool takes a `householdId` and reads/writes only within that
 household. Per-user privacy (private items filtered by `owner_id`) is the agent
 layer's job — this MCP is intentionally low-level.
 
+## Internal REST passthroughs
+
+Non-MCP, no LLM tax — for system callers driven by scheduler-service.
+
+- `GET /internal/review?householdId=<uuid>` → `WeeklyReviewResult` — the GTD
+  weekly-review aggregate: inbox/waiting counts + capped samples + "stuck"
+  active projects (no next-action). Used by tasks-agent's `weekly-review` skill
+  to enrich its scheduler-driven wake payload. Mirrors mcp-finance's
+  `/internal/budget-status`.
+
 ## Env
 
 | Var | Default | Purpose |
@@ -56,6 +66,9 @@ layer's job — this MCP is intentionally low-level.
   and the status whitelist; everything else relies on DB constraints. `clarify_task` and
   `complete_task` keep `completed_at` consistent with the `done` state.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
+- `review/ReviewService` — read-only GTD weekly-review aggregation (inbox/waiting
+  counts + samples + stuck active projects via `findActiveWithoutNextAction`).
+- `web/InternalReviewController` — `GET /internal/review` over `ReviewService`.
 
 ## Schema
 

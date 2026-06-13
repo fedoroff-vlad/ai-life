@@ -7,6 +7,8 @@ import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.TaskProjectDto;
 import dev.fedorov.ailife.contracts.tasks.UpdateTaskInput;
 import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
+import dev.fedorov.ailife.contracts.tasks.WeeklyReviewResult;
+import dev.fedorov.ailife.mcp.tasks.review.ReviewService;
 import dev.fedorov.ailife.mcp.tasks.tools.TasksMcpTools;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -57,6 +59,7 @@ class McpTasksIntegrationTest {
     static UUID otherHouseholdId;
 
     @Autowired TasksMcpTools tools;
+    @Autowired ReviewService reviewService;
 
     @BeforeAll
     static void seedHouseholds(@Autowired JdbcTemplate jdbc) {
@@ -232,7 +235,63 @@ class McpTasksIntegrationTest {
         assertThat(linked.calendarEventUid()).isEqualTo("evt-uid-123");
     }
 
+    @Test
+    void weeklyReviewAggregatesInboxWaitingAndStuckProjects() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        // Two inbox captures (left un-clarified).
+        tools.addTask(new AddTaskInput(h, null, "inbox A", null, null));
+        tools.addTask(new AddTaskInput(h, null, "inbox B", null, null));
+
+        // One delegated waiting-for.
+        TaskItemDto delegated = tools.addTask(new AddTaskInput(h, null, "wait on Bob", null, null));
+        tools.clarifyTask(new ClarifyTaskInput(delegated.id(), "waiting", null, null, null, null, null));
+
+        // A stuck project: active, no next-action.
+        TaskProjectDto stuck = tools.upsertProject(new UpsertProjectInput(null, h, null, "Stuck proj", null, null));
+        // A healthy project: active, has a next-action.
+        TaskProjectDto healthy = tools.upsertProject(new UpsertProjectInput(null, h, null, "Healthy proj", null, null));
+        TaskItemDto step = tools.addTask(new AddTaskInput(h, null, "do the thing", null, null));
+        tools.clarifyTask(new ClarifyTaskInput(step.id(), "next", "@home", healthy.id(), null, null, null));
+
+        WeeklyReviewResult r = reviewService.review(h);
+        assertThat(r.inboxCount()).isEqualTo(2);
+        assertThat(r.waitingCount()).isEqualTo(1);
+        assertThat(r.inbox()).extracting(TaskItemDto::title).containsExactlyInAnyOrder("inbox A", "inbox B");
+        assertThat(r.waiting()).singleElement().satisfies(t -> assertThat(t.title()).isEqualTo("wait on Bob"));
+        // Only the project without a next-action is "stuck".
+        assertThat(r.stuckProjectCount()).isEqualTo(1);
+        assertThat(r.stuckProjects()).singleElement()
+                .satisfies(p -> assertThat(p.name()).isEqualTo("Stuck proj"));
+    }
+
+    @Test
+    void internalReviewEndpointReturnsAggregate() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        tools.addTask(new AddTaskInput(h, null, "endpoint inbox", null, null));
+
+        org.springframework.test.web.reactive.server.WebTestClient client =
+                org.springframework.test.web.reactive.server.WebTestClient.bindToServer()
+                        .baseUrl("http://localhost:" + port).build();
+
+        WeeklyReviewResult r = client.get()
+                .uri(uriBuilder -> uriBuilder.path("/internal/review")
+                        .queryParam("householdId", h).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(WeeklyReviewResult.class)
+                .returnResult().getResponseBody();
+
+        assertThat(r).isNotNull();
+        assertThat(r.householdId()).isEqualTo(h);
+        assertThat(r.inboxCount()).isEqualTo(1);
+        assertThat(r.inbox()).singleElement().satisfies(t -> assertThat(t.title()).isEqualTo("endpoint inbox"));
+    }
+
     @Autowired JdbcTemplate jdbc;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
 
     private void seedHousehold(UUID id) {
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", id, "h-" + id);
