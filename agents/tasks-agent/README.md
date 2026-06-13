@@ -4,10 +4,10 @@ GTD tasks agent (port **8096**). Owns the inbox → clarify → engage flow for 
 tasks; tools come from `mcp-tasks` (source of truth: Postgres `tasks.*`). See
 [plans/tasks.md](../../plans/tasks.md).
 
-**Skeleton slice** — manifest + intent are real; triggers are a stub (no skills ship yet, so
-every trigger kind 404s). The Spring AI MCP client to `mcp-tasks` is wired (PR56), but the
-LLM-driven tool dispatch in front of it (so `intent` actually calls `add_task`/`clarify`/`list`)
-lands in a later PR — today `intent` is a plain LLM chat.
+Manifest + intent are real; triggers are still a stub (no skills ship yet, so every trigger kind
+404s). `intent` routes via `IntentRouter` (PR58): when mcp-tasks tools are wired the LLM either
+invokes a tool (`add_task`/`clarify_task`/`list_tasks`/…) or replies directly; with the MCP client
+disabled it falls back to a plain chat.
 
 The MCP client dials `mcp-tasks` at boot (`spring.ai.mcp.client.enabled`, default true) — a
 missing mcp-tasks surfaces at agent startup. Toggle off with `TASKS_AGENT_MCP_CLIENT_ENABLED=false`
@@ -18,7 +18,7 @@ in dev/degraded environments.
 | method | path | purpose |
 |--------|------|---------|
 | GET  | `/agents/tasks/manifest`        | parsed AGENT.md (orchestrator scrapes at startup) |
-| POST | `/agents/tasks/intent`          | LLM chat with AGENT.md as the system prompt (fast channel) |
+| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call or a chat reply (`IntentRouter`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake — **404 until skills ship** |
 | GET  | `/actuator/health`              | liveness |
 
