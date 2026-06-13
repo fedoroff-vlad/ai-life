@@ -36,4 +36,7 @@ public interface TaskItemRepository extends JpaRepository<TaskItem, UUID> {
                           @Param("projectId") UUID projectId,
                           @Param("dueBefore") Instant dueBefore,
                           @Param("lim") int limit);
+
+    /** Count of items in a given status — powers the weekly-review totals without loading rows. */
+    int countByHouseholdIdAndStatus(UUID householdId, String status);
 }
