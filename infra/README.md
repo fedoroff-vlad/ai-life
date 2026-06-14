@@ -65,6 +65,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | calendar-agent       | 8086 | Calendar domain agent                                         |
 | memory-service       | 8087 | pgvector recall + single-hop relations                        |
 | media-service        | 8088 | media catalogue (MinIO blobs + metadata)                      |
+| conversation-service | 8089 | short-term conversation control state (route-lock + pending)  |
 | mcp-caldav           | 8090 | CalDAV CRUD MCP                                               |
 | mcp-ics-import       | 8091 | ICS subscription puller                                       |
 | mcp-finance          | 8092 | Finance CRUD MCP                                              |

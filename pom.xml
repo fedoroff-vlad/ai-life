@@ -48,6 +48,7 @@
         <module>platform/scheduler-service</module>
         <module>platform/memory-service</module>
         <module>platform/media-service</module>
+        <module>platform/conversation-service</module>
         <module>mcp/mcp-caldav</module>
         <module>mcp/mcp-ics-import</module>
         <module>mcp/mcp-finance</module>
