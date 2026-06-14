@@ -459,11 +459,17 @@ services:
         condition: service_healthy
       liquibase:
         condition: service_completed_successfully
+      scheduler-service:
+        condition: service_healthy
     environment:
       MCP_TASKS_PORT: 8095
       MCP_TASKS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_TASKS_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_TASKS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      SCHEDULER_URL: http://scheduler-service:8085
+      MCP_TASKS_REVIEW_CRON: ${MCP_TASKS_REVIEW_CRON:-0 0 9 * * MON}
+      MCP_TASKS_REVIEW_OWNER_AGENT: ${MCP_TASKS_REVIEW_OWNER_AGENT:-tasks}
+      MCP_TASKS_REVIEW_TRIGGER_KIND: ${MCP_TASKS_REVIEW_TRIGGER_KIND:-weekly.review}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8095/actuator/health"]
       interval: 10s

@@ -1,5 +1,8 @@
 package dev.fedorov.ailife.mcp.tasks;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ListTasksInput;
@@ -10,7 +13,13 @@ import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
 import dev.fedorov.ailife.contracts.tasks.WeeklyReviewResult;
 import dev.fedorov.ailife.mcp.tasks.review.ReviewService;
 import dev.fedorov.ailife.mcp.tasks.tools.TasksMcpTools;
+import okhttp3.mockwebserver.Dispatcher;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +36,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,11 +58,42 @@ class McpTasksIntegrationTest {
                     MountableFile.forClasspathResource("test-schema.sql"),
                     "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
+    // Started in a static initializer so the port is known when Spring resolves the
+    // @DynamicPropertySource supplier during context refresh (runs BEFORE @BeforeAll).
+    static final MockWebServer scheduler;
+    static final SchedulerDispatcher schedulerDispatcher = new SchedulerDispatcher();
+    static {
+        scheduler = new MockWebServer();
+        scheduler.setDispatcher(schedulerDispatcher);
+        try {
+            scheduler.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @AfterAll
+    static void stopScheduler() throws Exception {
+        scheduler.shutdown();
+    }
+
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("mcp-tasks.scheduler-url",
+                () -> "http://localhost:" + scheduler.getPort());
+    }
+
+    @BeforeEach
+    void resetScheduler() throws Exception {
+        // Context (and recorded requests) are reused across methods — drain leftovers
+        // and reset the stub so each weekly-review test starts clean.
+        while (scheduler.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+            // discard
+        }
+        schedulerDispatcher.reset();
     }
 
     static UUID householdId;
@@ -288,6 +329,141 @@ class McpTasksIntegrationTest {
         assertThat(r.householdId()).isEqualTo(h);
         assertThat(r.inboxCount()).isEqualTo(1);
         assertThat(r.inbox()).singleElement().satisfies(t -> assertThat(t.title()).isEqualTo("endpoint inbox"));
+    }
+
+    @Test
+    void enableWeeklyReviewRegistersWhenNoneExists() throws Exception {
+        UUID h = UUID.randomUUID();
+        ScheduleDto created = tools.enableWeeklyReview(h, null);
+        assertThat(created).isNotNull();
+        assertThat(created.kind()).isEqualTo("weekly.review");
+
+        // First the list lookup, then the create — no delete (nothing to replace).
+        RecordedRequest list = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(list.getMethod()).isEqualTo("GET");
+        assertThat(list.getPath()).startsWith("/v1/schedules");
+
+        RecordedRequest post = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post.getMethod()).isEqualTo("POST");
+        assertThat(post.getPath()).isEqualTo("/v1/schedules");
+        JsonNode body = MAPPER.readTree(post.getBody().readUtf8());
+        assertThat(body.get("householdId").asText()).isEqualTo(h.toString());
+        assertThat(body.get("ownerAgent").asText()).isEqualTo("tasks");
+        assertThat(body.get("kind").asText()).isEqualTo("weekly.review");
+        assertThat(body.get("cron").asText()).isEqualTo("0 0 9 * * MON"); // default
+        assertThat(body.hasNonNull("runAt")).isFalse();
+
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void enableWeeklyReviewIsNoOpWhenSameCronAlreadyActive() throws Exception {
+        UUID h = UUID.randomUUID();
+        UUID existingId = UUID.randomUUID();
+        schedulerDispatcher.existing = new ScheduleDto(existingId, h, "tasks", "weekly.review",
+                "0 0 9 * * MON", null, true, Instant.now(), null, Instant.now());
+
+        ScheduleDto result = tools.enableWeeklyReview(h, null);
+        assertThat(result.id()).isEqualTo(existingId);
+
+        // Only the list lookup — no create, no delete.
+        assertThat(scheduler.takeRequest(2, TimeUnit.SECONDS).getMethod()).isEqualTo("GET");
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void enableWeeklyReviewReplacesScheduleWhenCronDiffers() throws Exception {
+        UUID h = UUID.randomUUID();
+        UUID oldId = UUID.randomUUID();
+        schedulerDispatcher.existing = new ScheduleDto(oldId, h, "tasks", "weekly.review",
+                "0 0 9 * * MON", null, true, Instant.now(), null, Instant.now());
+
+        ScheduleDto result = tools.enableWeeklyReview(h, "0 0 18 * * FRI");
+        assertThat(result).isNotNull();
+
+        assertThat(scheduler.takeRequest(2, TimeUnit.SECONDS).getMethod()).isEqualTo("GET");
+        // Register-first ordering: new POST, then delete the old one.
+        RecordedRequest post = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post.getMethod()).isEqualTo("POST");
+        assertThat(MAPPER.readTree(post.getBody().readUtf8()).get("cron").asText())
+                .isEqualTo("0 0 18 * * FRI");
+        RecordedRequest delete = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(delete.getMethod()).isEqualTo("DELETE");
+        assertThat(delete.getPath()).isEqualTo("/v1/schedules/" + oldId);
+    }
+
+    @Test
+    void enableWeeklyReviewRejectsInvalidCron() {
+        assertThatThrownBy(() -> tools.enableWeeklyReview(UUID.randomUUID(), "not a cron"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid cron");
+    }
+
+    @Test
+    void disableWeeklyReviewDeletesExistingThenNoOpWhenAbsent() throws Exception {
+        UUID h = UUID.randomUUID();
+        UUID existingId = UUID.randomUUID();
+        schedulerDispatcher.existing = new ScheduleDto(existingId, h, "tasks", "weekly.review",
+                "0 0 9 * * MON", null, true, Instant.now(), null, Instant.now());
+
+        ScheduleDto removed = tools.disableWeeklyReview(h);
+        assertThat(removed.id()).isEqualTo(existingId);
+        assertThat(scheduler.takeRequest(2, TimeUnit.SECONDS).getMethod()).isEqualTo("GET");
+        RecordedRequest delete = scheduler.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(delete.getMethod()).isEqualTo("DELETE");
+        assertThat(delete.getPath()).isEqualTo("/v1/schedules/" + existingId);
+
+        // Nothing active now → disable is a no-op (only the list lookup, no delete).
+        schedulerDispatcher.existing = null;
+        assertThat(tools.disableWeeklyReview(h)).isNull();
+        assertThat(scheduler.takeRequest(2, TimeUnit.SECONDS).getMethod()).isEqualTo("GET");
+        assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
+
+    /**
+     * scheduler-service stub: GET /v1/schedules → a JSON array holding {@link #existing}
+     * (or empty); POST /v1/schedules → 200 echoing the request's cron as a fresh
+     * ScheduleDto; DELETE → 204.
+     */
+    static final class SchedulerDispatcher extends Dispatcher {
+        volatile ScheduleDto existing;
+
+        void reset() {
+            existing = null;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest req) {
+            String path = req.getPath() == null ? "" : req.getPath();
+            String base = path.split("\\?", 2)[0];
+            try {
+                if ("GET".equals(req.getMethod()) && base.equals("/v1/schedules")) {
+                    ScheduleDto[] body = existing == null
+                            ? new ScheduleDto[0] : new ScheduleDto[]{existing};
+                    return json(MAPPER.writeValueAsString(body));
+                }
+                if ("POST".equals(req.getMethod()) && base.equals("/v1/schedules")) {
+                    // Don't read the request body here — the test consumes it via
+                    // takeRequest() to assert the create payload (a Buffer is single-read).
+                    ScheduleDto created = new ScheduleDto(UUID.randomUUID(), null, "tasks",
+                            "weekly.review", "0 0 9 * * MON", null, true,
+                            Instant.now(), null, Instant.now());
+                    return json(MAPPER.writeValueAsString(created));
+                }
+                if ("DELETE".equals(req.getMethod()) && base.startsWith("/v1/schedules/")) {
+                    return new MockResponse().setResponseCode(204);
+                }
+            } catch (Exception e) {
+                return new MockResponse().setResponseCode(500);
+            }
+            return new MockResponse().setResponseCode(404);
+        }
+
+        private static MockResponse json(String body) {
+            return new MockResponse().setHeader("content-type", "application/json").setBody(body);
+        }
     }
 
     @Autowired JdbcTemplate jdbc;
