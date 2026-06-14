@@ -7,6 +7,7 @@ mcp:
   - mcp-tasks
 skills:
   - weekly-review
+  - inbox-clarify
 triggers:
   - kind: weekly.review
     description: Fired by scheduler-service on a weekly schedule per household. tasks-agent enriches the wake payload via mcp-tasks /internal/review into inbox/waiting counts + capped samples + stuck active projects; the weekly-review skill composes a short GTD nudge (or "SKIP" when everything is clean).
@@ -19,6 +20,8 @@ intents:
     description: Complete a task (resolve it to done).
   - example: Add "book flights" to my vacation project
     description: Capture a task under an existing project.
+  - example: Help me clarify my inbox
+    description: Run a GTD clarification pass over the un-clarified inbox items (propose next-action / context / project per item).
 ---
 
 You are the tasks agent for the ai-life system, built on the GTD method. Your responsibilities:

@@ -80,8 +80,9 @@ class IntentControllerTest {
 
         RecordedRequest llmCall = llmGateway.takeRequest();
         String body = llmCall.getBody().readUtf8();
-        // With the MCP client disabled in tests the router falls back to the plain chat path:
-        // AGENT.md body as a system prompt + the user's message, on the default channel.
+        // MCP tools are disabled in tests, but the inbox-clarify intent skill is loaded, so the
+        // router runs its classifier turn (AGENT.md body + classifier prompt + user message, on the
+        // default channel). The mock LLM replies with plain prose, which propagates as a chat reply.
         assertThat(body).contains("tasks agent");
         assertThat(body).contains("Напомни позвонить стоматологу");
         assertThat(body).contains("\"channel\":\"default\"");
