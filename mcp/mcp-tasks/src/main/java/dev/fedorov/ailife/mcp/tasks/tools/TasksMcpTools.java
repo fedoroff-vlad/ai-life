@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.mcp.tasks.tools;
 
+import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ListTasksInput;
@@ -7,16 +8,20 @@ import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.TaskProjectDto;
 import dev.fedorov.ailife.contracts.tasks.UpdateTaskInput;
 import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
+import dev.fedorov.ailife.mcp.tasks.config.McpTasksProperties;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskItem;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskItemRepository;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskProject;
 import dev.fedorov.ailife.mcp.tasks.domain.TaskProjectRepository;
+import dev.fedorov.ailife.mcp.tasks.scheduler.SchedulerClient;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,10 +43,15 @@ public class TasksMcpTools {
 
     private final TaskProjectRepository projects;
     private final TaskItemRepository items;
+    private final SchedulerClient scheduler;
+    private final McpTasksProperties props;
 
-    public TasksMcpTools(TaskProjectRepository projects, TaskItemRepository items) {
+    public TasksMcpTools(TaskProjectRepository projects, TaskItemRepository items,
+                         SchedulerClient scheduler, McpTasksProperties props) {
         this.projects = projects;
         this.items = items;
+        this.scheduler = scheduler;
+        this.props = props;
     }
 
     @Tool(description = """
@@ -214,6 +224,46 @@ public class TasksMcpTools {
                 () -> new IllegalArgumentException("Task not found: " + id));
         item.setCalendarEventUid(calendarEventUid);
         return items.save(item).toDto();
+    }
+
+    @Tool(description = """
+            Enable the GTD weekly review for a household — registers a recurring schedule in
+            scheduler-service that wakes the tasks agent with kind=weekly.review. `cron` is an
+            optional Spring cron expression (UTC); omit it for the default weekly Monday 09:00.
+            Idempotent: an existing review on the same cron is left untouched; a different cron
+            replaces it. Returns the active schedule.
+            """)
+    public ScheduleDto enableWeeklyReview(UUID householdId, String cron) {
+        requireField(householdId, "householdId");
+        String effectiveCron = (cron == null || cron.isBlank()) ? props.getReview().getCron() : cron;
+        if (!CronExpression.isValidExpression(effectiveCron)) {
+            throw new IllegalArgumentException("Invalid cron expression: " + effectiveCron);
+        }
+        Optional<ScheduleDto> existing = scheduler.findWeeklyReview(householdId);
+        if (existing.isPresent()
+                && effectiveCron.equals(existing.get().cron())
+                && existing.get().enabled()) {
+            return existing.get(); // already configured on this cron — no-op
+        }
+        // Register the new schedule FIRST, then drop the old one — a scheduler hiccup
+        // between the two leaves the household with a live cron rather than none
+        // (same flake-safe ordering mcp-finance's set_budget uses).
+        ScheduleDto created = scheduler.register(householdId, effectiveCron);
+        existing.ifPresent(old -> scheduler.delete(old.id()));
+        return created;
+    }
+
+    @Tool(description = """
+            Disable the GTD weekly review for a household — deletes its scheduler-service
+            schedule so the agent is no longer woken weekly. Returns the removed schedule, or
+            null if no weekly review was active.
+            """)
+    public ScheduleDto disableWeeklyReview(UUID householdId) {
+        requireField(householdId, "householdId");
+        Optional<ScheduleDto> existing = scheduler.findWeeklyReview(householdId);
+        if (existing.isEmpty()) return null;
+        scheduler.delete(existing.get().id());
+        return existing.get();
     }
 
     /** Apply a status transition, keeping completedAt consistent with the done state. */

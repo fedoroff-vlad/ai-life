@@ -26,6 +26,13 @@ spring:
 server:
   port: ${MCP_TASKS_PORT:8095}
 
+mcp-tasks:
+  scheduler-url: ${SCHEDULER_URL:http://scheduler-service:8085}
+  review:
+    cron: ${MCP_TASKS_REVIEW_CRON:0 0 9 * * MON}
+    owner-agent: ${MCP_TASKS_REVIEW_OWNER_AGENT:tasks}
+    trigger-kind: ${MCP_TASKS_REVIEW_TRIGGER_KIND:weekly.review}
+
 management:
   endpoints:
     web:
