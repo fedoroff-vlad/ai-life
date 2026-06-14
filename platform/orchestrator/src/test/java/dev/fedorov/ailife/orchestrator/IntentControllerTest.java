@@ -51,6 +51,7 @@ class IntentControllerTest {
     static void wireLlmClient(DynamicPropertyRegistry registry) {
         registry.add("ailife.llm-client.base-url",
                 () -> "http://localhost:" + llmGateway.getPort());
+        registry.add("orchestrator.conversation.enabled", () -> "false");
     }
 
     @Autowired

@@ -20,6 +20,9 @@ orchestrator:
       base-url: ${FINANCE_AGENT_URL:http://finance-agent:8093}
     - name: tasks
       base-url: ${TASKS_AGENT_URL:http://tasks-agent:8096}
+  conversation:
+    enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
+    url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
   memory:
     enabled: ${ORCHESTRATOR_MEMORY_ENABLED:true}
     url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
