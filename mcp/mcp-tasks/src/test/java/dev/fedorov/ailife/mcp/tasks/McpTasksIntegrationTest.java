@@ -420,6 +420,35 @@ class McpTasksIntegrationTest {
         assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
+    @Test
+    void internalTasksEndpointReturnsFilteredNextActions() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        // One inbox capture clarified to a next-action, plus one left in inbox.
+        TaskItemDto toClarify = tools.addTask(new AddTaskInput(h, null, "позвонить врачу", null, null));
+        tools.clarifyTask(new ClarifyTaskInput(toClarify.id(), "next", "@calls", null, null, null, null));
+        tools.addTask(new AddTaskInput(h, null, "still in inbox", null, null));
+
+        org.springframework.test.web.reactive.server.WebTestClient client =
+                org.springframework.test.web.reactive.server.WebTestClient.bindToServer()
+                        .baseUrl("http://localhost:" + port).build();
+
+        List<TaskItemDto> nextActions = client.get()
+                .uri(uriBuilder -> uriBuilder.path("/internal/tasks")
+                        .queryParam("householdId", h)
+                        .queryParam("status", "next")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(TaskItemDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(nextActions).singleElement().satisfies(t -> {
+            assertThat(t.title()).isEqualTo("позвонить врачу");
+            assertThat(t.context()).isEqualTo("@calls");
+        });
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
 
     /**
