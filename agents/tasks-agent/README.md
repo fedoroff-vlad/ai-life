@@ -47,6 +47,9 @@ in dev/degraded environments.
 - `intent/InboxClarifier` — runs the `inbox-clarify` flow: fetch the inbox via `TaskReviewClient`
   (`/internal/review`) → LLM with AGENT.md + SKILL.md → proposal text. Proposal-only (apply-on-
   confirm deferred with the conversation-state layer).
+- `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via
+  `NextActionClient` (`/internal/tasks?status=next`) → LLM ranks by due/priority/context. Read-only
+  (suggests, doesn't change tasks).
 
 ## Skills
 
@@ -57,5 +60,5 @@ Skills live at the repo root under `skills/tasks/<name>/SKILL.md`.
 - `inbox-clarify` — reactive (user-invoked, e.g. "разбери инбокс"): the router routes to it, the
   agent fetches the un-clarified inbox and proposes a GTD clarification per item. Proposal-only —
   applying the `clarify_task` calls is deferred (needs the conversation-state confirm layer).
-
-`next-action-suggester` arrives in a later PR.
+- `next-action-suggester` — reactive (user-invoked, e.g. "что мне сейчас сделать"): fetches the open
+  next-actions and ranks them by due date / priority / context. Read-only suggestion.

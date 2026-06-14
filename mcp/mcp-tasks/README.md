@@ -50,6 +50,10 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   active projects (no next-action). Used by tasks-agent's `weekly-review` skill
   to enrich its scheduler-driven wake payload. Mirrors mcp-finance's
   `/internal/budget-status`.
+- `GET /internal/tasks?householdId=&status=&context=&dueBefore=&limit=` →
+  `List<TaskItemDto>` — a filtered task list (same filters as the `list_tasks`
+  tool, delegates straight to it). Used by tasks-agent's `next-action-suggester`
+  skill to fetch open next-actions (`status=next`).
 
 ## Env
 
@@ -86,6 +90,8 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `review/ReviewService` — read-only GTD weekly-review aggregation (inbox/waiting
   counts + samples + stuck active projects via `findActiveWithoutNextAction`).
 - `web/InternalReviewController` — `GET /internal/review` over `ReviewService`.
+- `web/InternalTaskController` — `GET /internal/tasks` filtered list, delegates to
+  `TasksMcpTools.listTasks` (the `list_tasks` tool).
 
 ## Schema
 
