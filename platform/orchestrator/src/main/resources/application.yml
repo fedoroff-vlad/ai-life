@@ -10,6 +10,9 @@ ailife:
     base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
 
 orchestrator:
+  # Catch-all for actionable messages matching no specialized domain → GTD inbox.
+  # Self-disables to echo if the named agent isn't registered.
+  catch-all-agent: ${ORCHESTRATOR_CATCH_ALL_AGENT:tasks}
   agents:
     - name: calendar
       base-url: ${CALENDAR_AGENT_URL:http://calendar-agent:8086}

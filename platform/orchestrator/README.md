@@ -12,6 +12,14 @@ Memory recall is **strict no-throw**: any error (disabled, no household on the
 message, network, 5xx, 500 ms timeout) collapses to "no memories" and classification
 proceeds without the second system message. Routing never blocks on memory.
 
+**Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
+that captures any *actionable* message matching no specialized domain — the GTD
+"anything not calendar/finance → inbox" fallback. When set to a registered agent the
+classifier prompt routes such messages there and reserves `echo` for greetings / small
+talk. It **self-disables to `echo`** if the named agent isn't registered, and the
+deterministic fallbacks (LLM error, un-parseable output, no remote agents) always stay
+`echo`.
+
 ## Endpoints
 
 | method | path                  | purpose                                        |
@@ -31,6 +39,7 @@ LLM_GATEWAY_URL=http://llm-gateway:8081
 MEMORY_SERVICE_URL=http://memory-service:8087
 ORCHESTRATOR_MEMORY_ENABLED=true
 ORCHESTRATOR_MEMORY_RECALL_K=3
+ORCHESTRATOR_CATCH_ALL_AGENT=tasks   # actionable-unmatched → this agent; empty = echo-only
 ```
 
 ## Run locally
