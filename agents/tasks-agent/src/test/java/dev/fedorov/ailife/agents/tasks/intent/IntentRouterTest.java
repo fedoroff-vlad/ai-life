@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.agents.tasks.intent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.skill.Skill;
+import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
@@ -42,7 +44,8 @@ class IntentRouterTest {
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             "You are the tasks agent for the ai-life system.");
 
-    private final IntentRouter router = new IntentRouter(llm, dispatcher, manifest, json);
+    private final SkillRegistry skills = new SkillRegistry(List.of());
+    private final IntentRouter router = new IntentRouter(llm, dispatcher, manifest, skills, json);
 
     @Test
     void noToolsWiredFallsBackToPlainChatNoRoutingPrompt() {
@@ -132,6 +135,54 @@ class IntentRouterTest {
                     assertThat(r.text()).contains("add_task");
                     assertThat(r.text()).contains("Missing required field");
                     assertThat(r.invokedTool()).isEqualTo("add_task");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void llmRoutesToIntentSkillWhenUserAsksForIt() {
+        Skill inboxClarify = new Skill("inbox-clarify", "Propose a GTD clarification for inbox items.",
+                "0.1.0", "tasks", List.of(), List.of("en", "ru"), "skill body");
+        IntentRouter skillRouter = new IntentRouter(llm, dispatcher, manifest,
+                new SkillRegistry(List.of(inboxClarify)), json);
+        // No MCP tools wired, but the intent skill alone is enough to build the classifier.
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of());
+        AtomicReference<LlmChatRequest> seen = new AtomicReference<>();
+        when(llm.chat(any(LlmChatRequest.class))).thenAnswer(inv -> {
+            seen.set(inv.getArgument(0));
+            return Mono.just(reply("mock-large", "{\"action\":\"skill\",\"name\":\"inbox-clarify\"}"));
+        });
+
+        StepVerifier.create(skillRouter.route("разбери мой инбокс"))
+                .assertNext(r -> {
+                    assertThat(r.invokedSkill()).isEqualTo("inbox-clarify");
+                    assertThat(r.text()).isNull();
+                    assertThat(r.invokedTool()).isNull();
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // The classifier prompt advertised the skill so the LLM could pick it.
+        assertThat(seen.get().messages()).hasSize(3);
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void llmRoutesToUnknownSkillFallsBackToChat() {
+        Skill inboxClarify = new Skill("inbox-clarify", "x", "0.1.0", "tasks",
+                List.of(), List.of("en"), "body");
+        IntentRouter skillRouter = new IntentRouter(llm, dispatcher, manifest,
+                new SkillRegistry(List.of(inboxClarify)), json);
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of());
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"skill\",\"name\":\"ghost-skill\"}")));
+
+        StepVerifier.create(skillRouter.route("что-то"))
+                .assertNext(r -> {
+                    assertThat(r.invokedSkill()).isNull();
+                    assertThat(r.invokedTool()).isNull();
+                    // Unknown skill → the raw body is treated as the chat reply.
+                    assertThat(r.text()).contains("ghost-skill");
                 })
                 .verifyComplete();
     }
