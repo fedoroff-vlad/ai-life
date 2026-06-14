@@ -564,6 +564,12 @@ services:
     depends_on:
       llm-gateway:
         condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
       mcp-tasks:
         condition: service_healthy
     environment:
