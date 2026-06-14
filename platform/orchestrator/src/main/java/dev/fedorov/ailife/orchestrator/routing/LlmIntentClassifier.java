@@ -8,6 +8,7 @@ import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.llm.LlmClient;
 import dev.fedorov.ailife.orchestrator.agent.AgentRegistry;
+import dev.fedorov.ailife.orchestrator.agent.AgentRegistryProperties;
 import dev.fedorov.ailife.orchestrator.memory.MemoryClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,13 @@ import java.util.Set;
  * names (case-insensitive, trimmed). Any other reply — or any failure — resolves
  * to {@code echo}, the always-available fallback. We never throw from the
  * classifier; bad LLM output simply degrades to the safe default.
+ *
+ * <p>Catch-all routing: when {@code orchestrator.catch-all-agent} names a registered
+ * agent (e.g. {@code tasks}), the prompt instructs the model to route any
+ * <em>actionable</em> message that fits no specialized domain to that agent (GTD
+ * "capture to inbox") and reserve {@code echo} for greetings / small talk. The
+ * deterministic fallbacks (LLM error, un-parseable output, no remote agents) stay
+ * {@code echo} — those mean "couldn't classify", not "user wants something captured".
  */
 @Component
 public class LlmIntentClassifier {
@@ -42,12 +50,21 @@ public class LlmIntentClassifier {
     private final Set<String> knownAgents;
     private final String systemPrompt;
 
-    public LlmIntentClassifier(LlmClient llm, MemoryClient memory, AgentRegistry registry) {
+    public LlmIntentClassifier(LlmClient llm, MemoryClient memory,
+                               AgentRegistry registry, AgentRegistryProperties props) {
         this.llm = llm;
         this.memory = memory;
         this.knownAgents = buildKnownSet(registry);
-        this.systemPrompt = buildPrompt(registry);
-        log.info("intent classifier ready: agents={}", knownAgents);
+        String catchAll = resolveCatchAll(props.getCatchAllAgent(), this.knownAgents);
+        this.systemPrompt = buildPrompt(registry, catchAll);
+        log.info("intent classifier ready: agents={} catchAll={}", knownAgents, catchAll);
+    }
+
+    /** Honour the configured catch-all only if it's a real, non-echo registered agent. */
+    private static String resolveCatchAll(String configured, Set<String> knownAgents) {
+        if (configured == null) return ECHO;
+        String c = configured.trim().toLowerCase();
+        return (!c.isEmpty() && !ECHO.equals(c) && knownAgents.contains(c)) ? c : ECHO;
     }
 
     public Mono<String> classify(NormalizedMessage message) {
@@ -108,13 +125,24 @@ public class LlmIntentClassifier {
         return Set.copyOf(set);
     }
 
-    private static String buildPrompt(AgentRegistry registry) {
+    private static String buildPrompt(AgentRegistry registry, String catchAll) {
+        boolean hasCatchAll = !ECHO.equals(catchAll);
         StringBuilder sb = new StringBuilder();
         sb.append("You are an intent classifier. Choose exactly ONE agent name for the user's message. ");
         sb.append("Reply with only the agent name, lowercase, no punctuation. ");
-        sb.append("If no specialized agent fits, reply 'echo'.\n\n");
+        if (hasCatchAll) {
+            sb.append("If no specialized agent fits but the message is something to do, remember, ");
+            sb.append("buy, or capture, reply '").append(catchAll).append("'. ");
+            sb.append("Reply 'echo' only for greetings and small talk.\n\n");
+        } else {
+            sb.append("If no specialized agent fits, reply 'echo'.\n\n");
+        }
         sb.append("Available agents:\n");
-        sb.append("- echo: default fallback. Use for greetings, small talk, or anything not matching a specialized agent.\n");
+        if (hasCatchAll) {
+            sb.append("- echo: greetings and small talk only.\n");
+        } else {
+            sb.append("- echo: default fallback. Use for greetings, small talk, or anything not matching a specialized agent.\n");
+        }
         for (Map.Entry<String, AgentManifest> e : registry.manifests().entrySet()) {
             AgentManifest m = e.getValue();
             sb.append("- ").append(m.name())
@@ -127,6 +155,11 @@ public class LlmIntentClassifier {
                     }
                 }
             }
+        }
+        if (hasCatchAll) {
+            sb.append("\nWhen unsure between '").append(catchAll)
+                    .append("' and 'echo' for an actionable message, prefer '").append(catchAll)
+                    .append("' (capture-first — never drop something the user wants to remember).");
         }
         sb.append("\nReply with one agent name only.");
         return sb.toString();

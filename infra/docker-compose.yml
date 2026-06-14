@@ -280,6 +280,8 @@ services:
       MEMORY_SERVICE_URL: http://memory-service:8087
       CALENDAR_AGENT_URL: http://calendar-agent:8086
       FINANCE_AGENT_URL: http://finance-agent:8093
+      TASKS_AGENT_URL: http://tasks-agent:8096
+      ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
     healthcheck:
