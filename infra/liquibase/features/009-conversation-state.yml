@@ -1,0 +1,74 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 009-conversation-state
+      author: ai-life
+      comment: |
+        Short-term conversation control state (Stage 4, Track A). One row per active
+        (household, user, channel) dialog. route_lock names the agent that owns an
+        open question; pending_action is the opaque payload that agent will resume on
+        the user's reply. expires_at is a TTL — a stale lock is ignored, so a forgotten
+        confirmation never traps the conversation. Distinct from core.conversations
+        (message history) — this is routing/confirmation control, owned by
+        conversation-service.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: conversation_state
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_conversation_state_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: channel
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: route_lock
+                  type: varchar(64)
+              - column:
+                  name: pending_action
+                  type: jsonb
+              - column:
+                  name: expires_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        # One active control-state row per conversation; an upsert replaces it.
+        - addUniqueConstraint:
+            schemaName: core
+            tableName: conversation_state
+            columnNames: household_id, user_id, channel
+            constraintName: uq_conversation_state_key
