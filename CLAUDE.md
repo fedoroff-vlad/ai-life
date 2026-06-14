@@ -27,7 +27,8 @@ Every module has a `README.md` at its root. Every PR that changes a module's **p
 - While iterating, run ONLY the relevant test class (`mvn -Dtest=ClassName test`), never the full suite.
 - Full suite + Testcontainers runs ONCE before opening the PR — CI is the authority for the full run.
 - Don't paste full container/test logs. On failure, extract only the failing assertion + ~3 relevant lines.
-- Prefer slice/unit tests; reserve Testcontainers for repository/migration tests.
+- Prefer slice/unit tests for iterating; reserve Testcontainers for repository/migration tests.
+- **End-to-end test is mandatory for each stage closer and for any slice that adds/changes a cross-service wire contract.** Fast slice/unit tests stay the default while iterating, but the slice is not done until the chain is proven across real HTTP boundaries. Shape (the monorepo's fat-jar packaging blocks a true all-real-services module, so don't attempt one): ONE real Spring context for the pivotal service + MockWebServers that **forward** between hops, asserting the `libs/contracts` DTOs survive serialisation each way. Canonical example: [`E2EStage1ClosingFlowTest`](platform/scheduler-service/src/test/java/dev/fedorov/ailife/scheduler/E2EStage1ClosingFlowTest.java) (scheduler → orchestrator → agent wake) and [`E2EStage3TasksWakeFlowTest`](platform/scheduler-service/src/test/java/dev/fedorov/ailife/scheduler/E2EStage3TasksWakeFlowTest.java) (scheduler → orchestrator → tasks-agent `weekly.review`). Name them `E2E<Stage/Feature>…Test`.
 - When you DO need to capture full output, write to `logs/<descriptive>.log` (folder is gitignored; see `logs/README.md`). Never drop ad-hoc `*.log` files in the repo root.
 
 ## Authorization — do without asking
