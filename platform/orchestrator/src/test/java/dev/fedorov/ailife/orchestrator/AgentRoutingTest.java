@@ -72,6 +72,8 @@ class AgentRoutingTest {
                 () -> "http://localhost:" + calendarAgent.getPort());
         r.add("orchestrator.memory.url",
                 () -> "http://localhost:" + memoryService.getPort());
+        // No conversation-service in this test — disable the route-lock check so routing classifies.
+        r.add("orchestrator.conversation.enabled", () -> "false");
     }
 
     @Autowired WebTestClient http;

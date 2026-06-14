@@ -302,6 +302,7 @@ services:
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
       MEMORY_SERVICE_URL: http://memory-service:8087
+      CONVERSATION_SERVICE_URL: http://conversation-service:8089
       CALENDAR_AGENT_URL: http://calendar-agent:8086
       FINANCE_AGENT_URL: http://finance-agent:8093
       TASKS_AGENT_URL: http://tasks-agent:8096

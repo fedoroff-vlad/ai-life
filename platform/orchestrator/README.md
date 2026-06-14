@@ -12,6 +12,14 @@ Memory recall is **strict no-throw**: any error (disabled, no household on the
 message, network, 5xx, 500 ms timeout) collapses to "no memories" and classification
 proceeds without the second system message. Routing never blocks on memory.
 
+**Route-lock first (Stage 4 / A2):** before classifying, the orchestrator asks conversation-service
+(`GET /v1/conversation-state`) whether this `(household, user, channel)` has an active route-lock. If
+it does and names a known agent, the message is a reply to that agent's open question — it's routed
+**straight there, bypassing classification**. No lock, a lock to an unknown agent, or
+conversation-service unreachable (the client soft-fails to empty) → normal classification. Toggle
+with `orchestrator.conversation.enabled`. (Agents setting/clearing the lock + a resume endpoint are
+later Track-A slices.)
+
 **Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
 that captures any *actionable* message matching no specialized domain — the GTD
 "anything not calendar/finance → inbox" fallback. When set to a registered agent the
@@ -40,6 +48,8 @@ MEMORY_SERVICE_URL=http://memory-service:8087
 ORCHESTRATOR_MEMORY_ENABLED=true
 ORCHESTRATOR_MEMORY_RECALL_K=3
 ORCHESTRATOR_CATCH_ALL_AGENT=tasks   # actionable-unmatched → this agent; empty = echo-only
+CONVERSATION_SERVICE_URL=http://conversation-service:8089
+ORCHESTRATOR_CONVERSATION_ENABLED=true   # route-lock check before classify; false = always classify
 ```
 
 ## Run locally
