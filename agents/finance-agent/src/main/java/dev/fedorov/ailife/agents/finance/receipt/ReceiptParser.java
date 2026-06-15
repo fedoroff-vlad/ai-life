@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.receipt;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
@@ -10,6 +11,7 @@ import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
@@ -31,23 +33,30 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Turns an inbound receipt photo into a finance transaction (write-immediately MVP).
+ * Turns an inbound receipt photo into a finance transaction, <b>confirm-before-write</b>
+ * (Stage 4 / A4 — closes the owner-flagged deferred debt).
  *
  * <p>Pipeline: fetch the image bytes from media-service → ask the {@code vision} channel to
  * extract a structured draft (amount / currency / merchant / date) using the {@code receipt-parser}
- * SKILL.md → resolve a target account (first non-archived) → write the transaction via
- * mcp-finance's {@code POST /internal/transaction} → reply with what landed.
+ * SKILL.md → resolve a target account (first non-archived) → reply with the parsed draft plus a
+ * {@code pendingAction}, so the orchestrator locks the conversation to finance. On the user's reply
+ * the orchestrator calls {@link #resume} with that pendingAction: an affirmative ("да") writes the
+ * transaction via mcp-finance's {@code POST /internal/transaction}; anything else cancels.
  *
- * <p><b>No confirm-before-write</b> in the MVP (owner decision, see STATUS Deferred work): the
- * draft is persisted immediately and the user is invited to correct it. Category is left null so
- * mcp-finance's one-shot {@code transaction.uncategorised} hook fires the categorizer skill.
- * Failures at any stage degrade to a friendly user-facing message rather than an exception.
+ * <p>Category is left null so mcp-finance's one-shot {@code transaction.uncategorised} hook fires
+ * the categorizer skill after the write. Failures at any stage degrade to a friendly user-facing
+ * message (with no pendingAction → no lock) rather than an exception.
  */
 @Component
 public class ReceiptParser {
 
     private static final Logger log = LoggerFactory.getLogger(ReceiptParser.class);
     private static final String SKILL_NAME = "receipt-parser";
+    /** pendingAction discriminator the finance ResumeController dispatches on. */
+    public static final String FLOW = "receipt-confirm";
+    private static final java.util.Set<String> AFFIRMATIVE = java.util.Set.of(
+            "да", "ага", "верно", "сохрани", "сохранить", "ок", "окей", "давай", "+",
+            "yes", "y", "ok", "save", "confirm");
 
     private final MediaClient media;
     private final AccountClient accounts;
@@ -84,7 +93,7 @@ public class ReceiptParser {
                             LlmMessage.userWithImages(
                                     captionOr(msg.text()),
                                     List.of(new LlmImage(img.mimeType(), base64)))));
-                    return llm.chat(req).flatMap(resp -> persist(msg, resp.content(), resp.model()));
+                    return llm.chat(req).flatMap(resp -> confirm(msg, resp.content(), resp.model()));
                 })
                 .onErrorResume(e -> {
                     log.warn("receipt parse failed for media {}: {}", mediaId, e.toString());
@@ -94,31 +103,81 @@ public class ReceiptParser {
                 });
     }
 
-    private Mono<IntentResponse> persist(NormalizedMessage msg, String llmContent, String model) {
+    /** Parse the draft, resolve an account, and ask the user to confirm — stash the write as a pendingAction. */
+    private Mono<IntentResponse> confirm(NormalizedMessage msg, String llmContent, String model) {
         Draft draft = parseDraft(llmContent);
         if (draft == null || draft.amount() == null) {
             return Mono.just(reply(
                     "Не удалось распознать сумму на чеке. Пришлите фото почётче или запишите вручную.",
                     model));
         }
-        return accounts.list(msg.householdId()).flatMap(list -> {
+        return accounts.list(msg.householdId()).map(list -> {
             Optional<FinAccountDto> account = list.stream()
                     .filter(a -> !a.archived())
                     .findFirst();
             if (account.isEmpty()) {
-                return Mono.just(reply(
-                        "Сначала добавьте счёт, чтобы я мог записать расход с чека.", model));
+                return reply("Сначала добавьте счёт, чтобы я мог записать расход с чека.", model);
             }
             AddTransactionInput input = buildInput(msg, draft, account.get());
-            return transactions.add(input)
-                    .map(saved -> reply(successText(saved.amount(), saved.currency(),
-                            input.note(), account.get().name()), model))
-                    .onErrorResume(e -> {
-                        log.warn("add_transaction from receipt failed: {}", e.toString());
-                        return Mono.just(reply(
-                                "Распознал чек, но не смог записать транзакцию. Попробуйте позже.", model));
-                    });
+            String currency = blankToNull(draft.currency()) != null
+                    ? draft.currency() : account.get().currency();
+            String confirmText = confirmText(draft, currency, account.get().name());
+            return new IntentResponse(manifest.name(), confirmText, model,
+                    pendingAction(input, account.get().name()));
         });
+    }
+
+    /**
+     * Resume after the user replies to the confirmation. Affirmative → write the stashed draft;
+     * anything else → cancel. Either reply carries no pendingAction, so the orchestrator clears the
+     * conversation lock.
+     */
+    public Mono<IntentResponse> resume(ResumeRequest req) {
+        JsonNode pending = req.pendingAction();
+        if (pending == null || !pending.path("input").isObject()) {
+            return Mono.just(reply("Нечего подтверждать — пришлите фото чека заново.", null));
+        }
+        String text = req.message() == null ? null : req.message().text();
+        if (!isAffirmative(text)) {
+            return Mono.just(reply("Отменил — ничего не записал. Пришлите чек заново, если нужно.", null));
+        }
+        AddTransactionInput input;
+        try {
+            input = json.treeToValue(pending.get("input"), AddTransactionInput.class);
+        } catch (Exception e) {
+            log.warn("receipt resume: bad pendingAction input: {}", e.toString());
+            return Mono.just(reply("Не смог восстановить черновик чека. Пришлите фото заново.", null));
+        }
+        String accountName = pending.path("accountName").asText("счёт");
+        return transactions.add(input)
+                .map(saved -> reply(successText(saved.amount(), saved.currency(),
+                        input.note(), accountName), null))
+                .onErrorResume(e -> {
+                    log.warn("add_transaction from receipt confirm failed: {}", e.toString());
+                    return Mono.just(reply(
+                            "Не смог записать транзакцию. Попробуйте позже.", null));
+                });
+    }
+
+    private JsonNode pendingAction(AddTransactionInput input, String accountName) {
+        ObjectNode node = json.createObjectNode();
+        node.put("flow", FLOW);
+        node.set("input", json.valueToTree(input));
+        node.put("accountName", accountName);
+        return node;
+    }
+
+    private static boolean isAffirmative(String text) {
+        if (text == null) return false;
+        return AFFIRMATIVE.contains(text.trim().toLowerCase());
+    }
+
+    private static String confirmText(Draft draft, String currency, String accountName) {
+        String merchant = (draft.merchant() != null && !draft.merchant().isBlank())
+                ? draft.merchant() : "расход";
+        String cur = (currency == null || currency.isBlank()) ? "" : " " + currency;
+        return "Записать: " + merchant + " " + draft.amount().abs() + cur
+                + " (счёт «" + accountName + "»)? Ответьте «да», чтобы сохранить.";
     }
 
     private AddTransactionInput buildInput(NormalizedMessage msg, Draft draft, FinAccountDto account) {
