@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
+import dev.fedorov.ailife.contracts.tasks.LinkTaskToEventInput;
 import dev.fedorov.ailife.contracts.tasks.ListTasksInput;
 import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.TaskProjectDto;
@@ -329,6 +330,32 @@ class McpTasksIntegrationTest {
         assertThat(r.householdId()).isEqualTo(h);
         assertThat(r.inboxCount()).isEqualTo(1);
         assertThat(r.inbox()).singleElement().satisfies(t -> assertThat(t.title()).isEqualTo("endpoint inbox"));
+    }
+
+    @Test
+    void internalLinkEventStoresUidAnd400OnUnknown() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        TaskItemDto t = tools.addTask(new AddTaskInput(h, null, "pay rent", null, null));
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        TaskItemDto linked = client.post().uri("/internal/link-event")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new LinkTaskToEventInput(t.id(), "evt-xyz"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TaskItemDto.class)
+                .returnResult().getResponseBody();
+        assertThat(linked).isNotNull();
+        assertThat(linked.calendarEventUid()).isEqualTo("evt-xyz");
+
+        client.post().uri("/internal/link-event")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new LinkTaskToEventInput(UUID.randomUUID(), "evt-1"))
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
