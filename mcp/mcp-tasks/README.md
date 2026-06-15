@@ -58,6 +58,11 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   applies a GTD clarification, delegating to the `clarify_task` tool (status
   whitelist + cross-household project guard apply). Used by tasks-agent's
   `inbox-clarify` confirm flow to apply each proposal once the user says "да".
+- `POST /internal/link-event` (body `LinkTaskToEventInput{id, calendarEventUid}`) →
+  `TaskItemDto` | 400 — records the calendar event UID on a task, delegating to the
+  `link_task_to_event` tool (required-field + unknown-id guards apply). Used by
+  tasks-agent's task-to-event flow after calendar-agent (via orchestrator) created
+  the event (Stage 4 / C1).
 
 ## Env
 
@@ -96,6 +101,7 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `web/InternalReviewController` — `GET /internal/review` over `ReviewService`.
 - `web/InternalTaskController` — `GET /internal/tasks` filtered list, delegates to
   `TasksMcpTools.listTasks` (the `list_tasks` tool).
+- `web/InternalLinkEventController` — `POST /internal/link-event`, delegates to `link_task_to_event` (400 on bad input / unknown id).
 - `web/InternalClarifyController` — `POST /internal/clarify`, delegates to
   `TasksMcpTools.clarifyTask` (validation failures → 400).
 
