@@ -32,4 +32,9 @@ public class OutboundHttpConfig {
     public WebClient memoryServiceWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
         return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
     }
+
+    @Bean
+    public WebClient mcpCaldavWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpCaldavUrl()).build();
+    }
 }

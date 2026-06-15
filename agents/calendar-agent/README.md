@@ -25,6 +25,7 @@ always runs, just without that enrichment when memory-service is down.
 | GET    | `/agents/calendar/manifest`                | parsed AGENT.md (frontmatter + body)                 |
 | POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent                   |
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
+| POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4 / C1); `create_event` → mcp-caldav `/internal/event`, returns `{eventUid}` |
 | GET    | `/actuator/health`                         | liveness                                             |
 
 `/triggers/{kind}` first consults `SystemTriggerRegistry`. If a `SystemTriggerHandler`
@@ -47,6 +48,7 @@ logged + swallowed; the trigger still returns 202.
 | `NOTIFIER_URL` | `http://notifier-service:8084` | Outbound channel. |
 | `calendar-agent.ics-import-url` / `MCP_ICS_IMPORT_URL` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
 | `calendar-agent.memory-service-url` / `MEMORY_SERVICE_URL` | `http://memory-service:8087` | Pre-skill recall + relations enrichment. |
+| `calendar-agent.mcp-caldav-url` / `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | Target for the `create_event` action (`POST /internal/event`). |
 | `calendar-agent.memory-recall-k` / `CALENDAR_AGENT_MEMORY_RECALL_K` | `5` | Top-k for the recall call. |
 
 ## AGENT.md convention
@@ -76,6 +78,8 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `config/OutboundHttpConfig` — `WebClient` per outbound dependency (LLM, profile, notifier), each via `WebClient.Builder.clone()`.
 - `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them with `@Qualifier`-driven `WebClient` injection, so the per-agent `OutboundHttpConfig` only owns the URL binding.
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
+- `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`. Used by the `create_event` action.
+- `web/ActionController` — `POST /agents/calendar/actions/{action}`; inter-agent action endpoint. `create_event` maps the invoke `args` → `CreateEventInput`, calls mcp-caldav, returns `{eventUid}`. Always replies an `AgentActionResult` (structured `ok=false` on bad input, never an HTTP error).
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
 - `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
