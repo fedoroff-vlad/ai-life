@@ -2,6 +2,7 @@ package dev.fedorov.ailife.orchestrator.agent;
 
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -35,6 +36,16 @@ public class RemoteAgent implements Agent {
                 .uri("/agents/" + name + "/intent")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(message)
+                .retrieve()
+                .bodyToMono(IntentResponse.class);
+    }
+
+    @Override
+    public Mono<IntentResponse> resume(ResumeRequest request) {
+        return http.post()
+                .uri("/agents/" + name + "/resume")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
                 .retrieve()
                 .bodyToMono(IntentResponse.class);
     }
