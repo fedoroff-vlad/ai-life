@@ -17,6 +17,7 @@ calendar-agent:
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   ics-import-url: ${MCP_ICS_IMPORT_URL:http://mcp-ics-import:8091}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  mcp-caldav-url: ${MCP_CALDAV_URL:http://mcp-caldav:8090}
 
 ailife:
   llm-client:
