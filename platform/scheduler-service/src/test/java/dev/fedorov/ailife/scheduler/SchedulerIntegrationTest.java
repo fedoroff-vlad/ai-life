@@ -76,6 +76,7 @@ class SchedulerIntegrationTest {
     @Autowired ScheduleRepository repo;
     @Autowired ScheduleTick tick;
     @Autowired ObjectMapper json;
+    @Autowired JdbcTemplate jdbc;
 
     @Test
     @Order(1)
@@ -113,6 +114,18 @@ class SchedulerIntegrationTest {
         var stored = repo.findById(due.id()).orElseThrow();
         assertThat(stored.isEnabled()).isFalse();
         assertThat(stored.getLastRunTs()).isNotNull();
+
+        // Producer side (B2): the wake also emitted a schedule.fired event to the outbox.
+        Integer fired = jdbc.queryForObject("""
+                SELECT count(*) FROM bus.outbox
+                WHERE topic = 'schedule.fired' AND payload->>'scheduleId' = ?
+                """, Integer.class, due.id().toString());
+        assertThat(fired).isEqualTo(1);
+        String firedKind = jdbc.queryForObject("""
+                SELECT payload->>'kind' FROM bus.outbox
+                WHERE topic = 'schedule.fired' AND payload->>'scheduleId' = ?
+                """, String.class, due.id().toString());
+        assertThat(firedKind).isEqualTo("birthday.greet");
     }
 
     @Test
