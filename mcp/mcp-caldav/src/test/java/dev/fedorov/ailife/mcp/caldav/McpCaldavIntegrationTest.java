@@ -11,9 +11,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -30,7 +33,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class McpCaldavIntegrationTest {
 
@@ -70,6 +73,11 @@ class McpCaldavIntegrationTest {
     @Autowired CalendarMcpTools tools;
     @Autowired JdbcTemplate jdbc;
     @Autowired McpCaldavProperties caldavProps;
+    @LocalServerPort int port;
+
+    private WebTestClient client() {
+        return WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+    }
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
@@ -143,5 +151,30 @@ class McpCaldavIntegrationTest {
     void deleteOnUnknownIdReturnsFalse() {
         boolean removed = tools.deleteEvent(UUID.randomUUID());
         assertThat(removed).isFalse();
+    }
+
+    @Test
+    void internalEventPostCreatesEventAndMirrorsCache() {
+        Instant start = Instant.parse("2027-09-10T18:00:00Z");
+        var input = new CreateEventInput(
+                householdId, "Pay rent", null, null,
+                start, start.plus(1, ChronoUnit.HOURS), null, null, null);
+
+        CalendarEventDto created = client().post().uri("/internal/event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(input)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(created).isNotNull();
+        assertThat(created.calendarUid()).isNotBlank();
+        assertThat(created.summary()).isEqualTo("Pay rent");
+
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM calendar.events_cache WHERE id = ?",
+                Integer.class, created.id());
+        assertThat(rows).isEqualTo(1);
     }
 }
