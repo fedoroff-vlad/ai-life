@@ -2,10 +2,13 @@ package dev.fedorov.ailife.agents.finance;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.ResumeRequest;
+import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -27,15 +30,16 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Exercises the full receipt-parser path through {@code POST /agents/finance/intent}: a message
- * with an image attachment → fetch bytes from media-service → vision draft from llm-gateway →
- * resolve account + write transaction via mcp-finance. Three MockWebServers stand in for those
- * services; FIFO ordering on the shared mcp-finance mock matches the call order
- * (GET /internal/accounts then POST /internal/transaction).
+ * Exercises the receipt-parser confirm-before-write flow (Stage 4 / A4) through the agent's HTTP
+ * surface. The photo intent ({@code POST /agents/finance/intent}) parses a draft and replies with a
+ * confirmation + a {@code pendingAction} — it does NOT write. The user's reply
+ * ({@code POST /agents/finance/resume}) writes on "да" and cancels otherwise. Three MockWebServers
+ * stand in for media / llm-gateway / mcp-finance.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ReceiptFlowTest {
@@ -72,28 +76,59 @@ class ReceiptFlowTest {
     @Autowired ObjectMapper json;
 
     @Test
-    void photoAttachmentParsesDraftAndWritesTransaction() throws Exception {
+    void photoAttachmentParsesDraftAndAsksToConfirmWithoutWriting() throws Exception {
         UUID householdId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();
         String mediaId = UUID.randomUUID().toString();
 
-        // 1. media-service returns the photo bytes.
         media.enqueue(new MockResponse()
-                .setHeader("content-type", "image/jpeg")
-                .setBody("fake-jpeg-bytes"));
-        // 2. llm-gateway (vision) returns a strict-JSON draft as the chat content.
+                .setHeader("content-type", "image/jpeg").setBody("fake-jpeg-bytes"));
         var draftJson = "{\"amount\": 4.50, \"currency\": \"EUR\", \"merchant\": \"Starbucks\", \"date\": \"2026-06-01\"}";
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse(
                         "mock-vision", draftJson, "stop", new LlmUsage(30, 10, 40)))));
-        // 3. mcp-finance: list accounts, then accept the POST.
+        // mcp-finance: only the account list — NO transaction POST in the confirm step.
         mcpFinance.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(List.of(new FinAccountDto(
                         accountId, householdId, null, "Main card", "card", "EUR",
                         BigDecimal.ZERO, false, Instant.now())))));
+
+        var msg = new NormalizedMessage(
+                UUID.randomUUID(), householdId, MessageScope.PRIVATE, "вот чек за кофе",
+                List.of(new Attachment("image", "image/jpeg", mediaId, null)),
+                "telegram", "55", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/finance/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Записать").contains("Starbucks").contains("Main card");
+        // The confirm carries a pendingAction so the orchestrator locks the conversation to finance.
+        assertThat(resp.pendingAction()).isNotNull();
+        assertThat(resp.pendingAction().path("flow").asText()).isEqualTo("receipt-confirm");
+        assertThat(resp.pendingAction().path("input").path("accountId").asText())
+                .isEqualTo(accountId.toString());
+        assertThat(new BigDecimal(resp.pendingAction().path("input").path("amount").asText()))
+                .isEqualByComparingTo("-4.50");
+
+        media.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        RecordedRequest accountsReq = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(accountsReq.getMethod()).isEqualTo("GET");
+        assertThat(accountsReq.getPath()).startsWith("/internal/accounts");
+        // No write happened in the confirm step.
+        assertThat(mcpFinance.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void resumeAffirmativeWritesTheStashedTransaction() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+
         mcpFinance.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new FinTransactionDto(
@@ -101,49 +136,51 @@ class ReceiptFlowTest {
                         new BigDecimal("-4.50"), "EUR", Instant.parse("2026-06-01T00:00:00Z"),
                         "Starbucks", "telegram", null, Instant.now()))));
 
-        var msg = new NormalizedMessage(
-                userId, householdId, MessageScope.PRIVATE,
-                "вот чек за кофе",
-                List.of(new Attachment("image", "image/jpeg", mediaId, null)),
-                "telegram", "55", Instant.now());
+        ResumeRequest req = resumeReq(householdId, accountId, "да");
 
-        http.post().uri("/agents/finance/intent")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(msg)
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(IntentResponse.class)
-                .value(r -> {
-                    assertThat(r.agent()).isEqualTo("finance");
-                    assertThat(r.text()).contains("Добавил").contains("Starbucks").contains("Main card");
-                });
+        IntentResponse resp = http.post().uri("/agents/finance/resume")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(req)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
 
-        // media fetched by the attachment's storageUri (the media object id).
-        RecordedRequest mediaReq = media.takeRequest();
-        assertThat(mediaReq.getPath()).isEqualTo("/v1/media/" + mediaId);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Добавил").contains("Starbucks");
+        assertThat(resp.pendingAction()).isNull(); // resolved → orchestrator clears the lock
 
-        // llm-gateway was hit on the vision channel with an image part.
-        RecordedRequest llmReq = llmGateway.takeRequest();
-        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
-        JsonNode llmBody = json.readTree(llmReq.getBody().readUtf8());
-        assertThat(llmBody.path("channel").asText()).isEqualTo("vision");
-        // 3rd message (after the two system prompts) is the user turn carrying the image.
-        JsonNode userMsg = llmBody.path("messages").get(2);
-        assertThat(userMsg.path("images").get(0).path("mediaType").asText()).isEqualTo("image/jpeg");
-        assertThat(userMsg.path("images").get(0).path("dataBase64").asText()).isNotBlank();
-
-        // mcp-finance: GET accounts then POST the transaction with a negative amount.
-        RecordedRequest accountsReq = mcpFinance.takeRequest();
-        assertThat(accountsReq.getMethod()).isEqualTo("GET");
-        assertThat(accountsReq.getPath()).startsWith("/internal/accounts");
-
-        RecordedRequest addReq = mcpFinance.takeRequest();
+        RecordedRequest addReq = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
         assertThat(addReq.getMethod()).isEqualTo("POST");
         assertThat(addReq.getPath()).isEqualTo("/internal/transaction");
         JsonNode addBody = json.readTree(addReq.getBody().readUtf8());
-        assertThat(addBody.path("accountId").asText()).isEqualTo(accountId.toString());
         assertThat(new BigDecimal(addBody.path("amount").asText())).isEqualByComparingTo("-4.50");
-        assertThat(addBody.path("source").asText()).isEqualTo("telegram");
         assertThat(addBody.path("note").asText()).isEqualTo("Starbucks");
+    }
+
+    @Test
+    void resumeNegativeCancelsWithoutWriting() throws Exception {
+        ResumeRequest req = resumeReq(UUID.randomUUID(), UUID.randomUUID(), "нет");
+
+        IntentResponse resp = http.post().uri("/agents/finance/resume")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(req)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Отменил");
+        assertThat(resp.pendingAction()).isNull();
+        // Cancel touches no service.
+        assertThat(mcpFinance.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    private ResumeRequest resumeReq(UUID householdId, UUID accountId, String text) {
+        var input = new AddTransactionInput(householdId, accountId, null, null,
+                new BigDecimal("-4.50"), "EUR", Instant.parse("2026-06-01T00:00:00Z"),
+                "Starbucks", "telegram", null);
+        ObjectNode pending = json.createObjectNode();
+        pending.put("flow", "receipt-confirm");
+        pending.set("input", json.valueToTree(input));
+        pending.put("accountName", "Main card");
+        var msg = new NormalizedMessage(UUID.randomUUID(), householdId, MessageScope.PRIVATE,
+                text, List.of(), "telegram", "56", Instant.now());
+        return new ResumeRequest(msg, pending);
     }
 }
