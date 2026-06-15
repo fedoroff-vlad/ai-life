@@ -5,8 +5,9 @@ Shared **async event bus** over Postgres `LISTEN/NOTIFY` + a transactional outbo
 consumer — the locked inter-agent async transport (architecture.md §Decisions: agents
 talk only via the orchestrator (sync) or this bus (async); no new broker infra).
 
-Stage 4, Track B. **B1 (this lib): the adapter + table.** B2 adds the Spring-bean
-producer/consumer API and wires the first real producer/consumer (scheduler/notifier).
+Stage 4, Track B. **B1: the adapter + table. B2: the Spring-bean API + first producer
+(scheduler-service emits `schedule.fired`).** The consumer side (a real service running a
+listener) lands with the first async chain, Track C2.
 
 ## Model
 
@@ -28,6 +29,18 @@ producer/consumer API and wires the first real producer/consumer (scheduler/noti
 | `EventBusMessage` | Envelope record `(id, topic, householdId, payload, occurredAt)`; `payload` is a raw JSON string, `householdId` nullable for system-wide events. |
 | `OutboxPublisher` | `publish(topic, householdId, payloadJson)` — INSERT row + `pg_notify`, runs on the caller's `JdbcTemplate` (caller's transaction). |
 | `PostgresEventBusListener` | `AutoCloseable` LISTEN/NOTIFY adapter: `start()` spins a daemon thread that drains PENDING rows to a `Consumer<EventBusMessage>` handler; `close()` stops it. |
+| `EventBusConfig` | `@Configuration` a service `@Import`s — provides the `OutboxPublisher` bean (producer). |
+| `EventBusProperties` | `event-bus.{enabled, channel, poll-millis}`. `enabled` gates the listener only; the producer is always available. |
+| `EventBusListenerContainer` | `SmartLifecycle` wrapper a **consumer** service registers as a `@Bean` (with its handler) — starts/stops the listener with the context. |
+
+## Spring wiring
+
+`@Import(EventBusConfig.class)` from the service's application class (the config lives
+outside any service's component-scan root). That gives the `OutboxPublisher` producer
+bean automatically. A consumer additionally declares an `EventBusListenerContainer`
+`@Bean` with its own handler. Reference producer: `scheduler-service` `ScheduleTick`
+publishes `schedule.fired` after each agent wake (best-effort — a bus failure never rolls
+back the wake).
 
 ## Schema
 

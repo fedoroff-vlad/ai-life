@@ -22,6 +22,10 @@ scheduler:
   tick-millis: ${SCHEDULER_TICK_MILLIS:30000}
   batch-size: ${SCHEDULER_BATCH_SIZE:50}
 
+# Producer-only here: scheduler emits schedule.fired to bus.outbox on each wake.
+event-bus:
+  channel: ${EVENT_BUS_CHANNEL:ailife_events}
+
 management:
   endpoints:
     web:

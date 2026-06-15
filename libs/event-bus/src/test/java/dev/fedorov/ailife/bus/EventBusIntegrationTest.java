@@ -108,4 +108,32 @@ class EventBusIntegrationTest {
         await().atMost(Duration.ofSeconds(10)).until(() -> attempts.get() >= 2);
         assertThat(status(published.id())).isEqualTo("PENDING");
     }
+
+    @Test
+    void listenerContainerStartStopDrivesDelivery() {
+        var props = new EventBusProperties();
+        props.setPollMillis(500);
+        List<EventBusMessage> received = new CopyOnWriteArrayList<>();
+        var container = new EventBusListenerContainer(ds, props, received::add);
+
+        assertThat(container.isRunning()).isFalse();
+        container.start();
+        assertThat(container.isRunning()).isTrue();
+
+        EventBusMessage published = new OutboxPublisher(jdbc).publish("tasks.created", null, "{}");
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(received).extracting(EventBusMessage::id).contains(published.id()));
+
+        container.stop();
+        assertThat(container.isRunning()).isFalse();
+    }
+
+    @Test
+    void disabledListenerContainerDoesNotStart() {
+        var props = new EventBusProperties();
+        props.setEnabled(false);
+        var container = new EventBusListenerContainer(ds, props, msg -> { });
+        container.start();
+        assertThat(container.isRunning()).isFalse();
+    }
 }

@@ -4,6 +4,11 @@ Owns `core.schedules`. Reads due rows on a fixed-delay tick (ShedLock-coordinate
 only one instance fires per tick) and POSTs `POST /v1/agents/wake` on orchestrator with
 the schedule's payload. Does **not** think or format — strictly a trigger.
 
+After each successful wake it also publishes a `schedule.fired` event to the event bus
+(`bus.outbox`) via `libs/event-bus` — **best-effort**: the wake already happened and the
+row already advanced, so a bus failure is logged and swallowed, never rolled back.
+First reference producer for Stage-4 Track B.
+
 ## REST API
 
 | method | path                          | purpose                                |
@@ -33,6 +38,7 @@ SCHEDULER_DB_PASSWORD=ailife
 ORCHESTRATOR_URL=http://orchestrator:8083
 SCHEDULER_TICK_MILLIS=30000
 SCHEDULER_BATCH_SIZE=50
+EVENT_BUS_CHANNEL=ailife_events   # Postgres NOTIFY channel for schedule.fired
 ```
 
 ## Tests
@@ -50,7 +56,7 @@ SCHEDULER_BATCH_SIZE=50
 - `domain/NextRunCalculator` — cron → next `Instant` (Spring `CronExpression`, UTC). One-shot rows clear `cron` and have `run_at` only.
 - `domain/ScheduleService` — CRUD + lifecycle (pause/resume/delete).
 - `orchestrator/OrchestratorClient` — POST `/v1/agents/wake`.
-- `tick/ScheduleTick` — pure tickable: read due rows in a per-row tx, POST, recompute next or `enabled=false` for one-shots. **Test-friendly: invoke directly.**
+- `tick/ScheduleTick` — pure tickable: read due rows in a per-row tx, POST, recompute next or `enabled=false` for one-shots, then publish `schedule.fired` (best-effort). **Test-friendly: invoke directly.**
 - `tick/TickRunner` — `@Scheduled(fixedDelay)` wrapper, `@SchedulerLock("scheduler-tick")`.
 - `web/ScheduleController` — REST endpoints from the table above.
 

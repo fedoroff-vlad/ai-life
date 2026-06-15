@@ -1,6 +1,9 @@
 package dev.fedorov.ailife.scheduler.tick;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
+import dev.fedorov.ailife.contracts.schedule.ScheduleFiredEvent;
 import dev.fedorov.ailife.scheduler.config.SchedulerProperties;
 import dev.fedorov.ailife.scheduler.domain.NextRunCalculator;
 import dev.fedorov.ailife.scheduler.domain.Schedule;
@@ -30,17 +33,23 @@ public class ScheduleTick {
     private final NextRunCalculator next;
     private final SchedulerProperties props;
     private final TransactionTemplate tx;
+    private final OutboxPublisher events;
+    private final ObjectMapper json;
 
     public ScheduleTick(ScheduleRepository repo,
                         OrchestratorClient orchestrator,
                         NextRunCalculator next,
                         SchedulerProperties props,
-                        TransactionTemplate tx) {
+                        TransactionTemplate tx,
+                        OutboxPublisher events,
+                        ObjectMapper json) {
         this.repo = repo;
         this.orchestrator = orchestrator;
         this.next = next;
         this.props = props;
         this.tx = tx;
+        this.events = events;
+        this.json = json;
     }
 
     public void tick() {
@@ -56,9 +65,26 @@ public class ScheduleTick {
                         s.getId(), s.getHouseholdId(),
                         s.getOwnerAgent(), s.getKind(), s.getPayload()));
                 advance(s.getId(), now);
+                publishFired(s, now);
             } catch (RuntimeException e) {
                 log.warn("wake failed for schedule {} — left in due state", s.getId(), e);
             }
+        }
+    }
+
+    /**
+     * Best-effort {@code schedule.fired} event. The wake side-effect already happened
+     * and {@link #advance} already committed, so a bus hiccup must not roll either back
+     * (it would duplicate the wake) — failures are logged and swallowed.
+     */
+    private void publishFired(Schedule s, Instant firedAt) {
+        try {
+            var event = new ScheduleFiredEvent(
+                    s.getId(), s.getHouseholdId(), s.getOwnerAgent(), s.getKind(), firedAt);
+            events.publish("schedule.fired", s.getHouseholdId(), json.writeValueAsString(event));
+        } catch (Exception e) {
+            log.warn("schedule.fired publish failed for {} — wake already happened, continuing",
+                    s.getId(), e);
         }
     }
 
