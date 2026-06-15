@@ -1,0 +1,75 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 007-bus
+      author: ai-life
+      comment: |
+        bus schema — the transactional outbox backing the async event bus
+        (Stage 4, Track B). A producer INSERTs an outbox row inside its own
+        business transaction and fires pg_notify on the same connection, so the
+        durable record and the wake-up commit atomically. A listener LISTENs on
+        the notify channel and drains PENDING rows (at-least-once): NOTIFY is a
+        best-effort wake, the outbox row is the source of truth, so a listener
+        that was down replays everything still PENDING on the next poll.
+
+        household_id is a plain nullable column with NO foreign key on purpose:
+        events are an append-only log that may be system-wide (household_id null)
+        and must never be blocked by a household row mid-delete. status is a small
+        PENDING/PUBLISHED enum kept as varchar — single logical relay marks rows
+        PUBLISHED after fan-out; per-consumer offsets are out of scope for B1.
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS bus;
+            stripComments: false
+
+        - createTable:
+            schemaName: bus
+            tableName: outbox
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: topic
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+              - column:
+                  name: payload
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: published_at
+                  type: timestamptz
+
+        # The listener's drain query: oldest PENDING first.
+        - createIndex:
+            schemaName: bus
+            tableName: outbox
+            indexName: ix_outbox_pending
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: created_at
