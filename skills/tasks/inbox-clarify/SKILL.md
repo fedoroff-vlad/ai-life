@@ -1,7 +1,7 @@
 ---
 name: inbox-clarify
-description: Proposes a GTD clarification for the household's un-clarified inbox items — for each captured item, whether it is actionable, which project it belongs to, the next physical action, and a context tag. Reactive (user-invoked, e.g. "разбери инбокс" / "help me clarify my inbox"); presents proposals only and never applies them.
-version: 0.1.0
+description: Proposes a GTD clarification for the household's un-clarified inbox items — for each captured item, whether it is actionable, which project it belongs to, the next physical action, and a context tag. Reactive (user-invoked, e.g. "разбери инбокс" / "help me clarify my inbox"); emits a structured set of proposals the agent applies only after the user confirms.
+version: 0.2.0
 domain: tasks
 triggers: []
 languages:
@@ -14,36 +14,37 @@ inputs:
     description: The user's original request, for any extra hint (e.g. "только покупки").
 ---
 
-You help the user run a GTD clarification pass over their captured inbox items. You propose how to
-organize each item — you do NOT change anything (applying the clarification is a separate confirmed
-step the user takes afterwards).
+You run a GTD clarification pass over the household's captured inbox items and emit a STRUCTURED set
+of proposed clarifications. You do not apply anything — the agent applies your proposals only after
+the user confirms.
 
-Read the input payload: `inbox` is a list of captured items (each has a `title` and maybe a `note`);
+Read the input payload: `inbox` is a list of captured items (each has `id`, `title`, maybe a `note`);
 `userText` is the user's original request.
 
-For EACH inbox item, propose a GTD clarification:
+For EACH inbox item you choose to clarify, decide:
 
-- Is it actionable? If not, suggest dropping it (`dropped`) or parking it as someday/maybe.
-- If actionable, what is the concrete next physical action, and what status fits:
-  `next` (a single next-action), `waiting` (delegated — note who/what), or `scheduled` (has a hard
-  date or should be deferred).
-- A context tag for next-actions: `@home`, `@work`, `@errand`, `@calls`, `@computer`, etc. — pick the
-  most natural one; invent a sensible tag if none fits.
-- Whether it plausibly belongs to a multi-step project (name it if obvious) or stands alone.
+- Is it actionable? If not, propose `dropped` (not actionable) — keep these rare.
+- If actionable, the status that fits: `next` (a single next-action), `waiting` (delegated), or
+  `scheduled` (has a hard date / should be deferred).
+- A context tag for next-actions: `@home`, `@work`, `@errand`, `@calls`, `@computer`, … — pick the
+  most natural one. Omit context for non-`next` statuses.
 
-Output rules:
+Output contract — reply with **strict JSON only**, no markdown fences, no prose:
 
-- Reply with a short, scannable proposal — one line per item, naming the item's title and your
-  suggested status + context (+ project / next action when useful). No JSON, no markdown tables.
-- Keep it concise: a phrase per item, not a paragraph. Group obvious duplicates.
-- End with one sentence inviting the user to confirm so the changes can be applied (you do not apply
-  them yourself in this step).
-- Reply language follows the user's (Russian for this deployment); internal reasoning stays English.
+```
+{"proposals":[
+  {"taskId":"<the item's id, verbatim>","title":"<the item's title>","status":"next","context":"@errand"}
+]}
+```
 
-Edge cases:
+Rules:
 
-- The `inbox` list is empty → reply that the inbox is already clear, nothing to clarify.
-- An item is too vague to clarify → say so and ask the user for the one detail you need, rather than
-  guessing wildly.
-- `userText` narrows the scope (e.g. "только звонки") → clarify only the matching items and say you
-  skipped the rest.
+- `taskId` MUST be copied verbatim from the matching inbox item's `id` — never invent one. Skip an
+  item rather than guess its id.
+- Include `context` only for `status":"next"`; omit it otherwise. Omit `projectId` unless you are
+  given a concrete project id.
+- If `userText` narrows the scope (e.g. "только звонки"), include only the matching items.
+- If there is nothing sensible to clarify, reply `{"proposals":[]}`.
+
+The agent renders your proposals into a human-readable confirmation for the user and applies them
+(via `clarify_task`) only after an affirmative reply.

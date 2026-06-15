@@ -43,10 +43,14 @@ in dev/degraded environments.
   an intent skill's flow (e.g. `InboxClarifier`) when the router picks one.
 - `web/TriggerController` — `POST /agents/tasks/triggers/{kind}`; resolves a skill from the
   `SkillRegistry`, enriches, runs it, fans out to the household (unknown kinds 404).
+- `web/ResumeController` — `POST /agents/tasks/resume`; hit when the user replies to an open tasks
+  question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`; today only
+  `inbox-clarify-apply` → `InboxClarifier.resume`.
 - `intent/IntentRouter` — single LLM classifier turn → tool / intent-skill / chat.
-- `intent/InboxClarifier` — runs the `inbox-clarify` flow: fetch the inbox via `TaskReviewClient`
-  (`/internal/review`) → LLM with AGENT.md + SKILL.md → proposal text. Proposal-only (apply-on-
-  confirm deferred with the conversation-state layer).
+- `intent/InboxClarifier` — runs the `inbox-clarify` flow **apply-on-confirm**: fetch the inbox via
+  `TaskReviewClient` (`/internal/review`) → LLM returns structured proposals → render a confirm +
+  stash them as a `pendingAction`. On `resume` an affirmative reply applies each via `ClarifyClient`
+  (`/internal/clarify`); anything else cancels.
 - `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via
   `NextActionClient` (`/internal/tasks?status=next`) → LLM ranks by due/priority/context. Read-only
   (suggests, doesn't change tasks).
@@ -57,8 +61,8 @@ Skills live at the repo root under `skills/tasks/<name>/SKILL.md`.
 - `weekly-review` — proactive GTD nudge (inbox/waiting counts + stuck projects), driven by a
   scheduler `weekly.review` cron; enriched via mcp-tasks `/internal/review`. Emits `SKIP` on a
   clean week.
-- `inbox-clarify` — reactive (user-invoked, e.g. "разбери инбокс"): the router routes to it, the
-  agent fetches the un-clarified inbox and proposes a GTD clarification per item. Proposal-only —
-  applying the `clarify_task` calls is deferred (needs the conversation-state confirm layer).
+- `inbox-clarify` — reactive (user-invoked, e.g. "разбери инбокс"): fetches the un-clarified inbox,
+  the LLM returns structured proposals, the agent shows a confirm and **applies the `clarify_task`
+  calls only after the user says "да"** (via the conversation route-lock / resume mechanism).
 - `next-action-suggester` — reactive (user-invoked, e.g. "что мне сейчас сделать"): fetches the open
   next-actions and ranks them by due date / priority / context. Read-only suggestion.

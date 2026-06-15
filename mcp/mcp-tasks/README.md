@@ -54,6 +54,10 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   `List<TaskItemDto>` — a filtered task list (same filters as the `list_tasks`
   tool, delegates straight to it). Used by tasks-agent's `next-action-suggester`
   skill to fetch open next-actions (`status=next`).
+- `POST /internal/clarify` (body `ClarifyTaskInput`) → `TaskItemDto` | 400 —
+  applies a GTD clarification, delegating to the `clarify_task` tool (status
+  whitelist + cross-household project guard apply). Used by tasks-agent's
+  `inbox-clarify` confirm flow to apply each proposal once the user says "да".
 
 ## Env
 
@@ -92,6 +96,8 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `web/InternalReviewController` — `GET /internal/review` over `ReviewService`.
 - `web/InternalTaskController` — `GET /internal/tasks` filtered list, delegates to
   `TasksMcpTools.listTasks` (the `list_tasks` tool).
+- `web/InternalClarifyController` — `POST /internal/clarify`, delegates to
+  `TasksMcpTools.clarifyTask` (validation failures → 400).
 
 ## Schema
 
