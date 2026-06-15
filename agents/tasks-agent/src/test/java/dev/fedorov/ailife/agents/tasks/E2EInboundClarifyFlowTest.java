@@ -74,20 +74,22 @@ class E2EInboundClarifyFlowTest {
     @Autowired ObjectMapper json;
 
     @Test
-    void userMessageRoutesToInboxClarifySkillAndReturnsProposal() throws Exception {
+    void userMessageRoutesToInboxClarifySkillAndReturnsConfirmWithPendingAction() throws Exception {
         UUID household = UUID.randomUUID();
         UUID user = UUID.randomUUID();
+        UUID milkId = UUID.randomUUID();
 
         // LLM turn 1 = the IntentRouter classifier → route to the inbox-clarify intent skill.
         llmGateway.enqueue(jsonBody(chatResponse("mock-fast",
                 "{\"action\":\"skill\",\"name\":\"inbox-clarify\"}")));
         // mcp-tasks /internal/review → the inbox the skill clarifies.
         var review = new WeeklyReviewResult(household, 1, 0, 0,
-                List.of(inboxItem(household, "купить молоко")), List.of(), List.of());
+                List.of(inboxItem(milkId, household, "купить молоко")), List.of(), List.of());
         mcpTasks.enqueue(jsonBody(json.writeValueAsString(review)));
-        // LLM turn 2 = the inbox-clarify skill composing the proposal.
+        // LLM turn 2 = the inbox-clarify skill returning STRUCTURED proposals.
         llmGateway.enqueue(jsonBody(chatResponse("mock-large",
-                "«купить молоко» → next-action, контекст @errand. Подтвердите — применю.")));
+                "{\"proposals\":[{\"taskId\":\"" + milkId
+                        + "\",\"title\":\"купить молоко\",\"status\":\"next\",\"context\":\"@errand\"}]}")));
 
         var msg = new NormalizedMessage(user, household, MessageScope.PRIVATE,
                 "разбери мой инбокс", List.of(), "telegram", "99", Instant.now());
@@ -102,8 +104,12 @@ class E2EInboundClarifyFlowTest {
 
         assertThat(response).isNotNull();
         assertThat(response.agent()).isEqualTo("tasks");
-        assertThat(response.text()).contains("купить молоко").contains("@errand");
-        assertThat(response.llmModel()).isEqualTo("mock-large"); // the skill turn's model
+        assertThat(response.text()).contains("купить молоко").contains("@errand").contains("Применить");
+        // The confirm carries a pendingAction so the orchestrator locks the conversation to tasks.
+        assertThat(response.pendingAction()).isNotNull();
+        assertThat(response.pendingAction().path("flow").asText()).isEqualTo("inbox-clarify-apply");
+        assertThat(response.pendingAction().path("proposals").get(0).path("taskId").asText())
+                .isEqualTo(milkId.toString());
 
         // Hop A: classifier turn carried the user's text.
         RecordedRequest classify = llmGateway.takeRequest(2, TimeUnit.SECONDS);
@@ -122,8 +128,8 @@ class E2EInboundClarifyFlowTest {
         assertThat(skillCall.getBody().readUtf8()).contains("купить молоко");
     }
 
-    private static TaskItemDto inboxItem(UUID household, String title) {
-        return new TaskItemDto(UUID.randomUUID(), household, null, null, title, "inbox",
+    private static TaskItemDto inboxItem(UUID id, UUID household, String title) {
+        return new TaskItemDto(id, household, null, null, title, "inbox",
                 null, null, null, null, null, "manual", null, null, null, Instant.now(), null);
     }
 

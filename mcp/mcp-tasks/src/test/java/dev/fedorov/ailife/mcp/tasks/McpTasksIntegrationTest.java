@@ -449,6 +449,35 @@ class McpTasksIntegrationTest {
         });
     }
 
+    @Test
+    void internalClarifyEndpointAppliesClarification() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        TaskItemDto captured = tools.addTask(new AddTaskInput(h, null, "купить молоко", null, null));
+
+        org.springframework.test.web.reactive.server.WebTestClient client =
+                org.springframework.test.web.reactive.server.WebTestClient.bindToServer()
+                        .baseUrl("http://localhost:" + port).build();
+
+        TaskItemDto clarified = client.post()
+                .uri("/internal/clarify")
+                .bodyValue(new ClarifyTaskInput(captured.id(), "next", "@errand", null, null, null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TaskItemDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(clarified).isNotNull();
+        assertThat(clarified.status()).isEqualTo("next");
+        assertThat(clarified.context()).isEqualTo("@errand");
+        // A bad status → 400 (the tool's validation surfaces through the passthrough).
+        client.post()
+                .uri("/internal/clarify")
+                .bodyValue(new ClarifyTaskInput(captured.id(), "bogus", null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
 
     /**
