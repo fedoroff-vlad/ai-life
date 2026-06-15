@@ -38,10 +38,19 @@ deterministic fallbacks (LLM error, un-parseable output, no remote agents) alway
 |--------|-----------------------|------------------------------------------------|
 | POST   | `/v1/intent`          | route a `NormalizedMessage` to an agent        |
 | POST   | `/v1/agents/wake`     | dispatch a scheduler wake to an agent          |
+| POST   | `/v1/agents/invoke`   | one agent asks another to perform an action    |
 | GET    | `/actuator/health`    | liveness                                       |
 
 `/v1/intent` request: `NormalizedMessage` (`libs/contracts/agent`); response: `IntentResponse` `{ agent, text, llmModel }`.
 `/v1/agents/wake` request: `AgentWakeRequest` (`libs/contracts/schedule`); response: 202 on accept, 404 if agent unknown.
+`/v1/agents/invoke` request: `AgentActionRequest` (`libs/contracts/agent`); response: `AgentActionResult` (200), 404 if `targetAgent` unknown.
+
+**Inter-agent sync (Stage 4 / C1):** agents never call each other directly — the
+orchestrator is the single sync hub. `/v1/agents/invoke` looks up `targetAgent` and
+forwards to its `POST /agents/<name>/actions/<action>`, relaying the `AgentActionResult`
+verbatim. First use: tasks-agent → calendar-agent `create_event` (turn a hard-deadline
+task into a calendar event). A local agent with no actions returns an "unsupported" error
+result (`ok=false`) via the default `Agent.invoke`.
 
 ## Configuration
 
@@ -96,3 +105,4 @@ chosen agent, and returns the LLM content with the right `agent` / `llmModel`.
 - `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty. Lenient parsing + echo fallback.
 - `web/IntentController` — `POST /v1/intent`.
 - `web/AgentWakeController` — `POST /v1/agents/wake`.
+- `web/AgentInvokeController` — `POST /v1/agents/invoke`; inter-agent sync, forwards to the target agent's `/actions/<action>` (`Agent.invoke` / `RemoteAgent.invoke`).

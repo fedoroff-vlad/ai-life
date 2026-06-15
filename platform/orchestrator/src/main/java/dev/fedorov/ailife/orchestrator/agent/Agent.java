@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.orchestrator.agent;
 
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
@@ -35,5 +37,15 @@ public interface Agent {
 
     default Mono<Void> wake(AgentWakeRequest request) {
         return Mono.empty();
+    }
+
+    /**
+     * Perform a structured action requested by another agent (Stage 4 / C1 inter-agent
+     * sync). Local agents that expose no actions return an error result by default;
+     * {@link RemoteAgent} forwards to the agent's {@code /actions/<action>} endpoint.
+     */
+    default Mono<AgentActionResult> invoke(AgentActionRequest request) {
+        return Mono.just(AgentActionResult.error(
+                "agent '" + id() + "' does not support action '" + request.action() + "'"));
     }
 }

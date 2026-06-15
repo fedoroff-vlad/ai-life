@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.orchestrator.agent;
 
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
@@ -59,5 +61,15 @@ public class RemoteAgent implements Agent {
                 .retrieve()
                 .toBodilessEntity()
                 .then();
+    }
+
+    @Override
+    public Mono<AgentActionResult> invoke(AgentActionRequest request) {
+        return http.post()
+                .uri("/agents/" + name + "/actions/" + request.action())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToMono(AgentActionResult.class);
     }
 }
