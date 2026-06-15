@@ -24,6 +24,7 @@ in dev/degraded environments.
 | GET  | `/agents/tasks/manifest`        | parsed AGENT.md (orchestrator scrapes at startup) |
 | POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify`), or a chat reply (`IntentRouter`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
+| POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
 | GET  | `/actuator/health`              | liveness |
 
 ## Config (env vars)
@@ -33,6 +34,7 @@ in dev/degraded environments.
 | `TASKS_AGENT_PORT` | `8096` | HTTP port |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway base URL |
 | `TASKS_AGENT_MEMORY_RECALL_K` | `5` | top-k memory recall (used once skills wire memory) |
+| `ORCHESTRATOR_URL` | `http://orchestrator:8083` | orchestrator sync hub for inter-agent calls (task-to-event) |
 
 ## Key classes
 
@@ -54,6 +56,13 @@ in dev/degraded environments.
 - `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via
   `NextActionClient` (`/internal/tasks?status=next`) → LLM ranks by due/priority/context. Read-only
   (suggests, doesn't change tasks).
+- `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
+  (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
+  `/internal/link-event` via `LinkEventClient`. Always returns an `AgentActionResult`; calendar
+  errors propagate (`ok=false`, no link).
+- `web/InternalTaskToEventController` — `POST /agents/tasks/internal/task-to-event` (body
+  `TaskToEventRequest`); drives `TaskToEventService`. Internal/admin; the user-facing trigger
+  (auto-offer on a hard-deadline clarify) is a follow-up.
 
 ## Skills
 

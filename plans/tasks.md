@@ -68,7 +68,7 @@ Deferred in STATUS.
   due/priority.
 - `weekly-review` — proactive via scheduler (weekly cron): surface stale inbox items, waiting-fors, and
   projects with no next action (the GTD weekly review).
-- (later) `task-to-event` (hard-deadline item → calendar event via orchestrator), `delegation-tracker`.
+- `task-to-event` (hard-deadline item → calendar event via orchestrator) — **DONE (C1, see Calendar link below)**; (later) `delegation-tracker`.
 
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers
@@ -76,7 +76,11 @@ No own tick. On a `due_at`/`defer_until`, tasks-agent registers
 orchestrator on the date → agent formats + notifier→telegram. `weekly-review` is a recurring cron the
 agent registers once per household.
 
-## Calendar link (roadmap "turn task into event")
-tasks-agent, on a hard-deadline item, asks calendar-agent (via orchestrator) to `create_event`, then
-calls mcp-tasks `link_task_to_event(id, returnedUid)`. One direction for the MVP (task → event); a
-two-way sync (event done → task done) is a later cross-agent PR.
+## Calendar link (roadmap "turn task into event") — DONE (Stage 4 / C1, PR72–PR76)
+tasks-agent, on a hard-deadline item, asks calendar-agent (via orchestrator's `/v1/agents/invoke`) to
+`create_event`, then calls mcp-tasks `link_task_to_event(id, returnedUid)`. **Implemented end-to-end:**
+`flow/TaskToEventService` → `OrchestratorInvokeClient` → calendar-agent `actions/create_event` →
+mcp-caldav `/internal/event`; the returned `eventUid` is stored via mcp-tasks `/internal/link-event`.
+Entry point: internal `POST /agents/tasks/internal/task-to-event` (the user-facing auto-offer on a
+hard-deadline clarify is a follow-up). One direction (task → event); two-way sync (event done → task
+done) is still a later cross-agent PR.

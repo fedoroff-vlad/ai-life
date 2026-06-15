@@ -26,6 +26,7 @@ tasks-agent:
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   mcp-tasks-url: ${MCP_TASKS_URL:http://mcp-tasks:8095}
+  orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
 
 ailife:
   llm-client:

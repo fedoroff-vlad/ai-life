@@ -33,4 +33,10 @@ public class OutboundHttpConfig {
     public WebClient mcpTasksWebClient(WebClient.Builder builder, TasksAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpTasksUrl()).build();
     }
+
+    /** To the orchestrator for inter-agent sync calls (/v1/agents/invoke) — the task-to-event chain. */
+    @Bean
+    public WebClient orchestratorWebClient(WebClient.Builder builder, TasksAgentProperties props) {
+        return builder.clone().baseUrl(props.getOrchestratorUrl()).build();
+    }
 }
