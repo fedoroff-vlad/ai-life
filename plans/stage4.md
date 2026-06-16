@@ -59,16 +59,54 @@ to go.
   roadmap's `→ creator.draft_greeting → notifier` (creator agent doesn't exist yet — either simplify
   to notifier now or bring creator in Stage 6).
 
-### Track D — Multi-agent orchestration
-- **D1** — orchestrator can route to / sequence **more than one** agent per request (classifier →
-  a small multi-step plan). The "smartest" piece; do after A + C, once both dialog state and a proven
-  agent→agent path exist.
+### Track D — Coordinator substrate (agent-led multi-source flows)
+**Doctrine update (2026-06-16, owner-aligned):** coordination is **agent-led**, not
+orchestrator-planned. A domain agent owns a flow and reaches other specialists through the
+hub (`/v1/agents/invoke`, C1) or the bus; the orchestrator stays a thin router
+(architecture.md §routing doctrine). So the original "orchestrator routes to many agents"
+framing is **replaced** — the smarts live in a reusable agent-side coordinator + per-flow
+gather steps. This is the **reusable infrastructure** the owner asked to build before
+features; every scenario (gift / picnic-menu / outfit / 3D-print) is the same gather→synthesize
+shape, so we build the substrate once on the cheapest vertical, then "new domain = add a specialist".
+
+- **D1 — Coordinator scaffold** ✅ **DONE (PR91).** `libs/agent-runtime` `Coordinator.coordinate(
+  systemPrompts, payload, gather, channel)`: named async gather steps (memory recall, inter-agent
+  `/v1/agents/invoke`, tool call) run in parallel → folded into a `context` object → LLM synthesis
+  from `[systemPrompts] + {payload, context}` → `CoordinationResult(text, gathered, llmModel)`.
+  Per-step soft-fail. Registered as a bean every agent gets on `@Import(AgentRuntimeConfig)`.
+- **D2 — first real flow: budget-aware `gift-recommender`** (calendar→finance). Proves the
+  scaffold end-to-end on the cheapest vertical (both agents exist; needs no new infra beyond the
+  finance action). Slices mirror C1's a→e shape:
+  - **D2a** — mcp-finance deterministic **gift-budget read passthrough**: `GET /internal/gift-budget?
+    householdId=…` → `{amount, currency, remaining?}` (reuse the existing `get_budget`/budget-status
+    read; the "gifts" category budget is the envelope for the MVP). Mirror C1b (PR73).
+  - **D2b** — finance-agent **`POST /agents/finance/actions/get_gift_budget`** — first finance
+    `/actions/*` endpoint (consumer side of the invoke primitive, like calendar's `create_event`).
+    Forces `householdId` from the envelope, calls D2a, returns an `AgentActionResult` with the
+    budget (never an HTTP error). Mirror C1c (PR74).
+  - **D2c** — calendar-agent **`gift.recommend` flow rebuilt on `Coordinator`**: gather
+    `{ interests: memory recall(person) , budget: finance invoke get_gift_budget }` →
+    synthesize budget-aware gift ideas (upgrade the `gift-recommender` SKILL.md to consume the
+    budget) → notify. **First real Coordinator flow**; clears the "finance integration deferred"
+    note in gift-recommender. Mirror C1e (PR76).
+- **D3 (later)** — relationship-tiered budget **rules as editable preferences** (structured store,
+  set from chat: "родителям 20к на НГ" — NOT skill prose, per the routing-doctrine "editable rules =
+  data" rule) + the birthday **"reminder + gift" two-notification** wiring (one trigger → two outputs).
+  Stacks on D2.
+
+## Parallel foundation — memory-from-chat (the fuel)
+Every coordinator flow is empty without facts ("Маша=друг, любит мемы"; "у меня диета"). The memory
+half shipped **recall** (PR14–17); **auto-capture of facts about people/self from ordinary dialogue**
+into memory-service (+ relations) is the missing fuel. Foundational, runnable in parallel with D2.
+Owner-chosen next after D2 proves the coordinator end-to-end (don't build more on an unproven scaffold).
 
 ## Dependency order & recommendation
-A and B are independent and foundational. C1 needs nothing new (sync, no bus). C2 needs B. D needs A + C.
+A and B are independent and foundational. C1 needs nothing new (sync, no bus). C2 needs B.
+D1 (scaffold) needs nothing new; D2 needs C1's invoke primitive (have it). 
 
-**Recommended order: A → C1 → B → C2 → D.** A delivers the most assistant-ness and clears two debts;
-C1 is the first visible inter-agent feature on agents that already exist.
+**Order so far: A ✅ → C1 ✅ → B ✅ → C2a ✅ → D1 ✅ → D2 (now) → memory-from-chat → D3.**
+A/B/C1/C2a/D1 are merged; **D2 (budget-aware gift-recommender) is the active line** — it validates
+the coordinator infrastructure on a real, cheap vertical before more is stacked on it.
 
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
