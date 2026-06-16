@@ -49,6 +49,30 @@ pattern; mcp-caldav is older and slightly less aligned).
      `docker-compose.dev.yml` entry for app services (`dev.yml` is infra-only by
      convention — see infra/README §"Two compose files").
 
+## Recipe: add a capability-MCP (shared, schema-less tool)
+A *capability-MCP* is a narrow MCP server that wraps an external surface (weather, web
+search/fetch, …) with **no DB schema** — the shared toolbox any agent binds. It is the
+"new MCP server" recipe above **minus the persistence layer**, plus a binding step.
+
+Differences from a domain-MCP:
+1. **No JPA / no datasource / no Liquibase feature** — it owns no data. `pom.xml` drops
+   `spring-boot-starter-data-jpa` + `postgresql`; there is no `domain/` package and no
+   `test-schema.sql`. (If you find yourself adding a table, it's a domain-MCP, not a
+   capability-MCP — stop and reclassify.)
+2. `tools/<Name>McpTools.java` calls the **external API** (via a `WebClient` from
+   `config/HttpConfig`), not a repository. Cache/rate-limit at this layer if the upstream
+   needs it. **Tool descriptions in English.**
+3. Config holds the upstream base URL + API key (key via env, never committed), e.g.
+   `weather.api-base-url` / `WEATHER_API_KEY`.
+4. **Binding:** a capability-MCP has no caller until an agent wires it. An agent binds it
+   by adding an `spring.ai.mcp.client.sse.connections.<name>` block (mirror finance-agent ↔
+   mcp-money-pro-import, STATUS PR33) — **multiple agents may bind the same capability-MCP**;
+   that is the point. Add the agent-side env (`MCP_<NAME>_URL`) too.
+5. Test with a `MockWebServer` standing in for the upstream API (no Testcontainers — there
+   is no DB). Assert the tool maps a request → the upstream call → the parsed result.
+6. Deploy surface: compose service block + `.env.example` block + infra/README port row,
+   same as any MCP — but **no `depends_on: postgres/liquibase`** (it has no DB).
+
 ## Recipe: add a new agent (`agents/<name>`)
 Canonical example: [calendar-agent](../agents/calendar-agent), [finance-agent](../agents/finance-agent).
 

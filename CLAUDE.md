@@ -51,3 +51,4 @@ Every module has a `README.md` at its root. Every PR that changes a module's **p
 - Skill: `skills/<domain>/<name>/SKILL.md` (frontmatter + EN body) + optional `SKILL.ru.md`. Agent: `agents/<name>/AGENT.md` (read at startup, registers skills/MCP).
 - DB schemas split by domain (`core, memory, audit, bus, media, calendar, finance, tasks`), not by service. One shared changelog.
 - Shared libs in `libs/*`. Inter-service: HTTP/SSE sync, Postgres LISTEN/NOTIFY async. LLM only via `libs/llm-client` → `llm-gateway`. MCP only via `libs/mcp-client`.
+- Two kinds of MCP: **domain-MCP** (owns a schema) vs **capability-MCP** (schema-less shared tool: weather, web-fetch — any agent binds it). Raw external capability → capability-MCP; reasoning over it → a specialist agent. Coordination is **agent-led via the hub** (orchestrator stays a thin router); outbound external actions need user confirm. Full model + routing doctrine + brain inputs: `plans/architecture.md`.

@@ -26,7 +26,9 @@ Calendar   Finance   ... Chef, Nutri, Creator, Search, Stylist, Tasks
    │         │
    ▼         ▼
 MCP servers (narrow, one external surface each)
-  caldav · finance · tasks · media-proc · embeddings · web-fetch · ics-import · lenta · ...
+  domain-MCP   (owns a schema):     caldav · finance · tasks · ics-import
+  capability-MCP (stateless tool):  media-proc · embeddings · web-fetch · weather · lenta
+  └─ a capability-MCP has NO schema; any agent binds it (shared toolbox)
         │
         ▼
 Shared services: memory-service · profile · scheduler · notifier · llm-gateway · vault · audit · observability
@@ -35,6 +37,29 @@ Shared services: memory-service · profile · scheduler · notifier · llm-gatew
 Postgres: relational + JSONB + pgvector + AGE
 ```
 
+## Brain inputs
+Everything enters the orchestrator ("brain") through one of a small, extensible set of inputs:
+- **Telegram** (via gateway-telegram) — a user *request*, an *event registration* ("запиши ДР Маши 5 авг"), *media* (already normalised to text/`storageUri`), or a *command*. Reactive.
+- **Timer event** — scheduler-service fires a due `core.schedules` row → `/v1/agents/wake`. Proactive.
+- *(future, extensible)* other sources — additional channels/event producers slot in here later. Add an input, not a new brain.
+
+## Orchestrator routing doctrine
+The brain stays intuitive **because the rules are data-driven** (the LLM classifier reads agent manifests; adding an agent extends routing with no code change) and the precedence is fixed:
+
+**Reactive — a message arrived:**
+1. **Active `route-lock`** (an open confirmation owns the conversation) → `resume` the locked agent, **bypass classification** (Track A / A2).
+2. Else **classify intent** (FAST channel, few-shot from manifests + memory-service recall as context):
+   - single clear domain → route to that one agent;
+   - complex / multi-domain → **agent-led coordination**: route to a coordinator agent that gathers the rest through the hub (`/v1/agents/invoke`) or the bus (Track D);
+   - small-talk / unmatched-but-actionable → catch-all (`tasks` inbox); pure small-talk → echo.
+3. An agent may return a `pendingAction` → the orchestrator **locks** the conversation for confirmation.
+
+**Proactive — an event arrived:**
+1. **Scheduler wake** (`kind`) → the owning agent's `trigger`.
+2. *(later)* a **domain event** on the bus → a consumer agent/service reacts; it may start a coordinator flow.
+
+**Autonomy rule (applies to both):** propose autonomously, but perform any **outbound** external action only after user confirmation (conversation-state).
+
 ## Principles
 - **Monorepo ≠ monolith.** Each service = own Spring Boot app, own Dockerfile, own application.yml, own liquibase changelog. Depends only on `libs/*`. Deploys independently.
 - **All prompts, skill descriptions, system messages, tool descriptions — English** (token economy + better model behaviour). User-facing replies in the user's language (auto-detected). Internal reasoning in English.
@@ -42,6 +67,9 @@ Postgres: relational + JSONB + pgvector + AGE
 - **Memory/Librarian** is a cross-cutting service with one API, not tied to any agent.
 - **Media-processing happens at the gateway** — voice/image/video become text before the orchestrator, so the orchestrator always sees a unified `NormalizedMessage`.
 - Agents never call each other directly — only via orchestrator (sync) or the event bus (async background chains).
+- **Two kinds of MCP server.** A *domain-MCP* owns a bounded-context schema (`mcp-finance` → `finance.*`); one per domain. A *capability-MCP* is a stateless wrapper over an external surface with **no schema** (weather, web search/fetch, embeddings) — the shared toolbox that **any** agent binds. Rule of thumb: a raw external *capability* → capability-MCP; *reasoning/multi-step* over the external world → a specialist agent (e.g. `search`/`researcher`) that binds those capability-MCPs. Don't make a "thinking" agent for what is just a tool (keep simple things tools).
+- **The orchestrator is a thin router, not the thinking.** Routing is data-driven (the LLM classifier reads agent manifests), so adding an agent extends routing with no orchestrator edit. The *reasoning* happens in the LLM, invoked by both the orchestrator and the agents. Complex/multi-domain requests are **agent-led**: a domain agent coordinates the flow and reaches other specialists through the hub (`/v1/agents/invoke`) or the bus — the orchestrator does not become a monolithic planner.
+- **Propose freely, act outward only on confirm.** The assistant may *propose* autonomously (gift ideas, an outfit, a menu). Any **outbound** action with external effect (messaging other people, a purchase, booking) requires explicit user confirmation, reusing the conversation-state confirm mechanism (Track A).
 
 ## Monorepo structure
 ```
@@ -123,3 +151,6 @@ Mac Studio candidates: default Qwen2.5-72B / Llama-3.3-70B; fast Qwen2.5-7B; vis
 - Inter-agent on start: Postgres LISTEN/NOTIFY (no new infra).
 - Dev LLM: mock provider first; build/test everything without a live model.
 - Transport: MCP over HTTP/SSE (each MCP a container); Java↔Java over REST; orchestration via docker-compose + healthcheck + restart + Resilience4j retry. No k8s.
+- **Shared agent-less tools live in capability-MCP servers** (no schema, stateless external-surface wrapper), bound by whichever agents need them — NOT shared skills (a skill is a prompt, it can't fetch). Reasoning-heavy external work = a specialist agent (`search`/`researcher`) that binds capability-MCPs. See PATTERNS.md "Recipe: add a capability-MCP".
+- **Multi-agent coordination is agent-led.** A domain agent coordinates its own flow and reaches other specialists only through the orchestrator (`/v1/agents/invoke`) or the bus. The orchestrator stays a thin, data-driven router (the LLM does the thinking) — it does not become a monolithic planner.
+- **Outbound external actions require confirmation.** The assistant proposes autonomously but acts outward (messaging others, purchase, booking) only on explicit user confirm (conversation-state, Track A).
