@@ -14,7 +14,12 @@ pattern; mcp-caldav is older and slightly less aligned). For a schema-less share
    - `pom.xml` (parent = `ai-life-parent`, `<artifactId>` = `<name>`, depends on
      `contracts` + `platform-common` + `spring-ai-starter-mcp-server-webflux` + JPA +
      `ical4j`/whatever).
-   - `Dockerfile` (mirror mcp-caldav's two-stage Temurin 21 build).
+   - `Dockerfile` (mirror mcp-caldav's two-stage Temurin 21 build). It does `COPY . .`
+     (the **full reactor**) then `mvn -B -ntp -pl <module> -am -DskipTests package` — the root
+     aggregator pom lists every module, so Maven needs them all present. Do NOT "optimise" it
+     back to copying just `libs/` + the one module: Maven then fails on the missing siblings
+     ("child module does not exist"). The `.dockerignore` keeps the context lean; the `-am`
+     build only compiles this module + its libs.
    - `README.md` (purpose, port, MCP tools, env vars, key classes — one line each).
 2. New module reference in root `pom.xml` `<modules>` list.
 3. Java package `dev.fedorov.ailife.mcp.<name>`:
@@ -80,7 +85,9 @@ Canonical example: [calendar-agent](../domains/calendar/calendar-agent), [financ
 A cross-domain specialist (search/stylist) gets its own `domains/<name>/` folder.
 
 1. New module dir `domains/<domain>/<name>-agent/` with `pom.xml`, `AGENT.md` (frontmatter + EN body),
-   `README.md`, `Dockerfile` (mirror calendar-agent's two-stage Temurin 21 build).
+   `README.md`, `Dockerfile` (mirror calendar-agent's two-stage Temurin 21 build — `COPY . .`
+   then `mvn -pl <module> -am`; see the domain-MCP recipe's Dockerfile note for why the full
+   reactor is copied).
 2. `pom.xml`:
    - depends on `contracts` + `llm-client` + `agent-runtime` + `spring-boot-starter-webflux`.
      **Do NOT re-implement the AGENT.md / SKILL.md loaders or `Profile`/`Notifier`/`Memory`

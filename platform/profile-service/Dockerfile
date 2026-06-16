@@ -1,12 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# Build context expected: repo root.
+# Build context: repo root. Builds this module + its libs from the full reactor.
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /src
-COPY pom.xml ./
-COPY libs/ libs/
-COPY platform/profile-service/ platform/profile-service/
-RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -ntp -pl platform/profile-service -am -DskipTests package
+COPY . .
+RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl platform/profile-service -am -DskipTests package
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
