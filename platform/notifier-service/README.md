@@ -60,6 +60,6 @@ EVENT_BUS_CHANNEL=ailife_events
 
 ## Failure mode
 Per-user notifier failures are caller-swallowed by upstream fan-outs (one bad user
-doesn't block the rest). See `TriggerController` in [calendar-agent](../../agents/calendar-agent)
+doesn't block the rest). See `TriggerController` in [calendar-agent](../../domains/calendar/calendar-agent)
 for the loop that exploits this — it logs + continues when a single member's notify
 POST fails.

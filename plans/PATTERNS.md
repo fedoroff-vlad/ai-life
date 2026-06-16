@@ -5,11 +5,12 @@ layout when scaffolding something new. Each recipe is a checklist + a pointer to
 canonical example. If the canonical example has drifted from the recipe, fix the
 recipe — it is the source of truth for "how we do this here".
 
-## Recipe: add a new MCP server (`mcp/<name>`)
-Canonical example: [mcp-ics-import](../mcp/mcp-ics-import) (Stage-1 closer of the
-pattern; mcp-caldav is older and slightly less aligned).
+## Recipe: add a new domain-MCP (`domains/<domain>/mcp-<name>`)
+Canonical example: [mcp-ics-import](../domains/calendar/mcp-ics-import) (Stage-1 closer of the
+pattern; mcp-caldav is older and slightly less aligned). For a schema-less shared tool, see
+"add a capability-MCP" below — it goes in `shared/mcp/<name>`, not a domain folder.
 
-1. New module dir `mcp/<name>/` with:
+1. New module dir `domains/<domain>/mcp-<name>/` with:
    - `pom.xml` (parent = `ai-life-parent`, `<artifactId>` = `<name>`, depends on
      `contracts` + `platform-common` + `spring-ai-starter-mcp-server-webflux` + JPA +
      `ical4j`/whatever).
@@ -49,10 +50,11 @@ pattern; mcp-caldav is older and slightly less aligned).
      `docker-compose.dev.yml` entry for app services (`dev.yml` is infra-only by
      convention — see infra/README §"Two compose files").
 
-## Recipe: add a capability-MCP (shared, schema-less tool)
+## Recipe: add a capability-MCP (`shared/mcp/<name>`)
 A *capability-MCP* is a narrow MCP server that wraps an external surface (weather, web
-search/fetch, …) with **no DB schema** — the shared toolbox any agent binds. It is the
-"new MCP server" recipe above **minus the persistence layer**, plus a binding step.
+search/fetch, …) with **no DB schema** — the shared toolbox any agent binds. It lives in
+`shared/mcp/<name>` (NOT a domain folder — it belongs to no single domain). It is the
+domain-MCP recipe above **minus the persistence layer**, plus a binding step.
 
 Differences from a domain-MCP:
 1. **No JPA / no datasource / no Liquibase feature** — it owns no data. `pom.xml` drops
@@ -73,10 +75,11 @@ Differences from a domain-MCP:
 6. Deploy surface: compose service block + `.env.example` block + infra/README port row,
    same as any MCP — but **no `depends_on: postgres/liquibase`** (it has no DB).
 
-## Recipe: add a new agent (`agents/<name>`)
-Canonical example: [calendar-agent](../agents/calendar-agent), [finance-agent](../agents/finance-agent).
+## Recipe: add a new agent (`domains/<domain>/<name>-agent`)
+Canonical example: [calendar-agent](../domains/calendar/calendar-agent), [finance-agent](../domains/finance/finance-agent).
+A cross-domain specialist (search/stylist) gets its own `domains/<name>/` folder.
 
-1. New module dir `agents/<name>/` with `pom.xml`, `AGENT.md` (frontmatter + EN body),
+1. New module dir `domains/<domain>/<name>-agent/` with `pom.xml`, `AGENT.md` (frontmatter + EN body),
    `README.md`, `Dockerfile` (mirror calendar-agent's two-stage Temurin 21 build).
 2. `pom.xml`:
    - depends on `contracts` + `llm-client` + `agent-runtime` + `spring-boot-starter-webflux`.
@@ -86,7 +89,9 @@ Canonical example: [calendar-agent](../agents/calendar-agent), [finance-agent](.
    - `<resources>` block copies `AGENT.md` from the module root + the relevant skills
      directory onto the classpath:
      `<include>AGENT.md</include>` and a second `<resource>` for
-     `<directory>../../skills/<domain></directory>` → `<targetPath>skills/<domain></targetPath>`.
+     `<directory>../skills</directory>` → `<targetPath>skills/<domain></targetPath>` (skills sit
+     beside the agent at `domains/<domain>/skills/`; the targetPath keeps the `skills/<domain>`
+     classpath layout the loader scans).
 3. Java package `dev.fedorov.ailife.agents.<name>`:
    - `<Name>AgentApplication.java` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig.class)`
      (the runtime sits outside the auto-scan root). Optionally
@@ -109,9 +114,9 @@ Canonical example: [calendar-agent](../agents/calendar-agent), [finance-agent](.
    `<name>-agent.*` base URLs.
 5. Register the agent in orchestrator config (`AgentRegistryProperties` →
    `{name, baseUrl}` + env var `<NAME>_AGENT_URL`).
-6. Skills live in repo root under `skills/<domain>/<name>/SKILL.md` (NOT inside the
-   agent module) — `pom.xml` `<resources>` copies them in. First skill in a new domain
-   creates the directory; subsequent skills just drop a folder beside.
+6. Skills live beside the agent under `domains/<domain>/skills/<name>/SKILL.md` (NOT inside the
+   agent module) — `pom.xml` `<resources>` copies them onto the classpath. First skill in a new
+   domain creates the `skills/` directory; subsequent skills just drop a folder beside.
 7. **Wire into the deploy surface — same checklist as a new MCP module:**
    - [infra/docker-compose.yml](../infra/docker-compose.yml) — new service block
      mirroring `finance-agent` (build context `..`, healthcheck on `/actuator/health`,

@@ -367,7 +367,7 @@ services:
     container_name: ai-life-mcp-caldav
     build:
       context: ..
-      dockerfile: mcp/mcp-caldav/Dockerfile
+      dockerfile: domains/calendar/mcp-caldav/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -397,7 +397,7 @@ services:
     container_name: ai-life-mcp-ics-import
     build:
       context: ..
-      dockerfile: mcp/mcp-ics-import/Dockerfile
+      dockerfile: domains/calendar/mcp-ics-import/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -431,7 +431,7 @@ services:
     container_name: ai-life-mcp-finance
     build:
       context: ..
-      dockerfile: mcp/mcp-finance/Dockerfile
+      dockerfile: domains/finance/mcp-finance/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -465,7 +465,7 @@ services:
     container_name: ai-life-mcp-money-pro-import
     build:
       context: ..
-      dockerfile: mcp/mcp-money-pro-import/Dockerfile
+      dockerfile: domains/finance/mcp-money-pro-import/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -489,7 +489,7 @@ services:
     container_name: ai-life-mcp-tasks
     build:
       context: ..
-      dockerfile: mcp/mcp-tasks/Dockerfile
+      dockerfile: domains/tasks/mcp-tasks/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -521,7 +521,7 @@ services:
     container_name: ai-life-calendar-agent
     build:
       context: ..
-      dockerfile: agents/calendar-agent/Dockerfile
+      dockerfile: domains/calendar/calendar-agent/Dockerfile
     restart: unless-stopped
     depends_on:
       llm-gateway:
@@ -554,7 +554,7 @@ services:
     container_name: ai-life-finance-agent
     build:
       context: ..
-      dockerfile: agents/finance-agent/Dockerfile
+      dockerfile: domains/finance/finance-agent/Dockerfile
     restart: unless-stopped
     depends_on:
       llm-gateway:
@@ -594,7 +594,7 @@ services:
     container_name: ai-life-tasks-agent
     build:
       context: ..
-      dockerfile: agents/tasks-agent/Dockerfile
+      dockerfile: domains/tasks/tasks-agent/Dockerfile
     restart: unless-stopped
     depends_on:
       llm-gateway:

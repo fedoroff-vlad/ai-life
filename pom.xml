@@ -49,14 +49,14 @@
         <module>platform/memory-service</module>
         <module>platform/media-service</module>
         <module>platform/conversation-service</module>
-        <module>mcp/mcp-caldav</module>
-        <module>mcp/mcp-ics-import</module>
-        <module>mcp/mcp-finance</module>
-        <module>mcp/mcp-money-pro-import</module>
-        <module>mcp/mcp-tasks</module>
-        <module>agents/calendar-agent</module>
-        <module>agents/finance-agent</module>
-        <module>agents/tasks-agent</module>
+        <module>domains/calendar/calendar-agent</module>
+        <module>domains/calendar/mcp-caldav</module>
+        <module>domains/calendar/mcp-ics-import</module>
+        <module>domains/finance/finance-agent</module>
+        <module>domains/finance/mcp-finance</module>
+        <module>domains/finance/mcp-money-pro-import</module>
+        <module>domains/tasks/tasks-agent</module>
+        <module>domains/tasks/mcp-tasks</module>
     </modules>
 
     <dependencyManagement>
