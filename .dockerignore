@@ -1,0 +1,13 @@
+# Build context is the repo root (each service Dockerfile builds its module + libs
+# from the full reactor). Keep the context lean — but DO NOT exclude *.md:
+# AGENT.md / SKILL.md are build inputs (copied onto the classpath as resources).
+
+**/target/
+.git/
+.gitignore
+.github/
+.idea/
+**/*.iml
+logs/
+**/*.log
+plans/
