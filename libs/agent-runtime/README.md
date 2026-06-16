@@ -24,6 +24,20 @@ package sits outside their `@SpringBootApplication` scan root.
   can verify the registry from outside the JVM (the quiet observability lane
   complementing PR32's loud-at-startup fail-fast). Appears only when the agent
   exposes the `info` endpoint — both agents do.
+- `Coordinator` — the reusable **gather → synthesize** scaffold for agent-led
+  multi-source flows. Needs the agent's `LlmClient` + the default `ObjectMapper`
+  (every agent has both), so it wires for free on `@Import`.
+
+## Coordinator (the agent-led multi-source pattern)
+`coordinate(systemPrompts, payload, gather, channel)` runs a `Map<String, Mono<JsonNode>>`
+of named **gather steps** in parallel (a memory recall, an inter-agent
+`/v1/agents/invoke`, a tool call), folds the successful ones into a `context` object,
+then asks the LLM to synthesize one answer from `[systemPrompts…] + {payload, context}`.
+Returns `CoordinationResult(text, gathered, llmModel)`. **Per-step soft-fail**: a step that
+errors or returns empty is logged and omitted — one broken source never sinks the
+synthesis (generalises the by-hand memory-recall enrichment in `TriggerController`).
+Coordination is **agent-led** (architecture.md routing doctrine): the agent owns the flow
+and reaches specialists via the hub; the orchestrator stays a thin router.
 
 ## Configuration (`agent.*`)
 | Property | Default | Purpose |
@@ -43,6 +57,7 @@ package sits outside their `@SpringBootApplication` scan root.
 - `http/NotifierClient` — `notify(userId, text)`.
 - `http/MemoryClient` — `recall(query, scope, k)` with 500ms timeout + no-throw downgrade to empty list (memory downtime must not block the trigger path).
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
+- `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
 
 ## Tests
 `libs/agent-runtime/src/test/resources/test-skills/{good,bad}/SKILL.md` drive
