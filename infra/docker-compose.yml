@@ -274,10 +274,20 @@ services:
       context: ..
       dockerfile: platform/notifier-service/Dockerfile
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
     environment:
       NOTIFIER_PORT: 8084
+      NOTIFIER_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      NOTIFIER_DB_USER: ${POSTGRES_USER:-ailife}
+      NOTIFIER_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      PROFILE_SERVICE_URL: http://profile-service:8082
       GATEWAY_TELEGRAM_URL: http://gateway-telegram:8080
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      EVENT_BUS_CHANNEL: ${EVENT_BUS_CHANNEL:-ailife_events}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
       interval: 10s
