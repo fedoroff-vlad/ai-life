@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.agentruntime.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.actuate.SkillInfoContributor;
+import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
@@ -9,6 +11,7 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillParser;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
+import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -61,6 +64,16 @@ public class AgentRuntimeConfig {
                 manifest.name(), manifest.version(), manifest.mcp(),
                 manifest.triggers() == null ? 0 : manifest.triggers().size());
         return manifest;
+    }
+
+    /**
+     * The reusable gather→synthesize coordinator (agent-led multi-source flows). Every
+     * agent has an {@link LlmClient} bean (they all call llm-gateway) and the default
+     * {@code ObjectMapper}, so this wires for free on {@code @Import(AgentRuntimeConfig)}.
+     */
+    @Bean
+    public Coordinator coordinator(LlmClient llm, ObjectMapper json) {
+        return new Coordinator(llm, json);
     }
 
     @Bean

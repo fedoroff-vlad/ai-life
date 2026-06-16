@@ -20,6 +20,13 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>contracts</artifactId>
         </dependency>
+        <!-- The Coordinator scaffold synthesizes via llm-gateway. Every agent already
+             pulls llm-client directly; declared here so the runtime owns the dep its
+             Coordinator bean needs. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>llm-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
