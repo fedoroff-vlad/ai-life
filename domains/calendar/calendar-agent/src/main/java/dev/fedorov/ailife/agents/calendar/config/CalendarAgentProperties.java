@@ -14,6 +14,7 @@ public class CalendarAgentProperties {
     private String icsImportUrl = "http://mcp-ics-import:8091";
     private String memoryServiceUrl = "http://memory-service:8087";
     private String mcpCaldavUrl = "http://mcp-caldav:8090";
+    private String orchestratorUrl = "http://orchestrator:8083";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -30,4 +31,7 @@ public class CalendarAgentProperties {
 
     public String getMcpCaldavUrl() { return mcpCaldavUrl; }
     public void setMcpCaldavUrl(String mcpCaldavUrl) { this.mcpCaldavUrl = mcpCaldavUrl; }
+
+    public String getOrchestratorUrl() { return orchestratorUrl; }
+    public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }
 }

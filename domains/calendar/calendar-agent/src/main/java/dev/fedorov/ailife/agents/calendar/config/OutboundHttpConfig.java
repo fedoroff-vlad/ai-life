@@ -37,4 +37,9 @@ public class OutboundHttpConfig {
     public WebClient mcpCaldavWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpCaldavUrl()).build();
     }
+
+    @Bean
+    public WebClient orchestratorWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
+        return builder.clone().baseUrl(props.getOrchestratorUrl()).build();
+    }
 }

@@ -18,6 +18,7 @@ calendar-agent:
   ics-import-url: ${MCP_ICS_IMPORT_URL:http://mcp-ics-import:8091}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   mcp-caldav-url: ${MCP_CALDAV_URL:http://mcp-caldav:8090}
+  orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
 
 ailife:
   llm-client:

@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.calendar;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
@@ -51,6 +52,7 @@ class TriggerControllerTest {
     static MockWebServer notifier;
     static MockWebServer icsImport;
     static MockWebServer memoryService;
+    static MockWebServer orchestrator;
 
     static ProfileDispatcher profileDispatcher;
     static MemoryDispatcher memoryDispatcher;
@@ -77,6 +79,8 @@ class TriggerControllerTest {
         memoryDispatcher = new MemoryDispatcher();
         memoryService.setDispatcher(memoryDispatcher);
         memoryService.start();
+        orchestrator = new MockWebServer();
+        orchestrator.start();
     }
 
     @AfterAll
@@ -86,6 +90,7 @@ class TriggerControllerTest {
         notifier.shutdown();
         icsImport.shutdown();
         memoryService.shutdown();
+        orchestrator.shutdown();
     }
 
     @DynamicPropertySource
@@ -100,6 +105,8 @@ class TriggerControllerTest {
                 () -> "http://localhost:" + icsImport.getPort());
         r.add("calendar-agent.memory-service-url",
                 () -> "http://localhost:" + memoryService.getPort());
+        r.add("calendar-agent.orchestrator-url",
+                () -> "http://localhost:" + orchestrator.getPort());
     }
 
     @BeforeEach
@@ -187,7 +194,7 @@ class TriggerControllerTest {
     }
 
     @Test
-    void giftRecommendWakeRoutesToGiftRecommenderSkill() throws Exception {
+    void giftRecommendWakeCoordinatesBudgetAndMemoryThenFansOut() throws Exception {
         UUID householdId = UUID.randomUUID();
         UUID personId = UUID.randomUUID();
         UUID vladId = UUID.randomUUID();
@@ -211,6 +218,17 @@ class TriggerControllerTest {
                         "label", null, "Hoka Speedgoat 5", 1.0f, "chat", null, Instant.now())),
                 List.of());
 
+        // D2c: the coordinator invokes finance's get_gift_budget through the
+        // orchestrator hub. Stub the envelope the invoke returns.
+        var budget = json.createObjectNode()
+                .put("hasGiftBudget", true)
+                .put("amount", 5000)
+                .put("currency", "RUB")
+                .put("remaining", 3000);
+        orchestrator.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(AgentActionResult.ok(budget))));
+
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse(
@@ -228,15 +246,29 @@ class TriggerControllerTest {
                 .exchange()
                 .expectStatus().isAccepted();
 
+        // The coordinator asked finance for the gift budget through the hub.
+        RecordedRequest invoke = orchestrator.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(invoke).isNotNull();
+        assertThat(invoke.getPath()).isEqualTo("/v1/agents/invoke");
+        String invokeBody = invoke.getBody().readUtf8();
+        assertThat(invokeBody)
+                .contains("\"action\":\"get_gift_budget\"")
+                .contains("\"targetAgent\":\"finance\"")
+                .contains(householdId.toString());
+
+        // The LLM saw the skill body, the person fields, the recall hit, the
+        // relation AND the gathered budget envelope.
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq).isNotNull();
         String body = llmReq.getBody().readUtf8();
         assertThat(body)
                 .contains("suggest gift ideas")             // gift-recommender SKILL.md body
-                .contains("hiking")                         // person.interests
+                .contains("hiking")                         // person.interests (payload.person)
                 .contains("trail running")                  // person.notes
-                .contains("Lake District ultra in October") // memory recall hit
-                .contains("Hoka Speedgoat 5");              // relation object_label
+                .contains("Lake District ultra in October") // memory recall hit (context)
+                .contains("Hoka Speedgoat 5")               // relation object_label (context)
+                .contains("hasGiftBudget")                  // gathered budget (context.budget)
+                .contains("RUB");
 
         RecordedRequest notify = notifier.takeRequest(2, TimeUnit.SECONDS);
         assertThat(notify).isNotNull();
