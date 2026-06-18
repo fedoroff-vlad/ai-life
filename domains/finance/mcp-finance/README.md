@@ -156,6 +156,14 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   name). Delegates to the `list_accounts` tool. Used by finance-agent's
   `receipt-parser` flow to resolve a target account for a parsed transaction
   without an LLM-driven MCP tool call.
+- `GET /internal/gift-budget?householdId=<uuid>` → `GiftBudgetResult`
+  (`{amount, currency, remaining?}`) (200) | 404 when no gift budget exists.
+  The MVP gift-spending envelope = the active **monthly** budget on the
+  household's `Gifts` expense category (matched case-insensitively); `amount` is
+  the limit, `remaining` = limit − spent this month (may be negative). Composes
+  the `get_budget_status` read — no new persistence. Used by finance-agent's
+  `get_gift_budget` action (Stage 4 / Track D) for the budget-aware
+  gift-recommender flow.
 - `POST /internal/transaction` (body `AddTransactionInput`) → `FinTransactionDto`
   (200) | 400. Delegates to the `add_transaction` tool verbatim (same
   cross-household guard, currency default, and uncategorised one-shot trigger),

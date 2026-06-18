@@ -10,6 +10,7 @@ import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
 import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
@@ -71,6 +72,15 @@ public class FinanceMcpTools {
     /** export_csv reads more than the interactive list cap, but stays bounded. */
     private static final int EXPORT_HARD_CAP = 10_000;
     private static final Set<String> SUPPORTED_PERIODS = Set.of("month", "week", "year");
+
+    /**
+     * D2 gift-recommender envelope (Stage 4 / Track D): the household's gift
+     * budget is the active monthly budget on the "Gifts" expense category. MVP
+     * convention — the category name is a fixed constant matched
+     * case-insensitively; D3 turns gift-budget rules into editable data.
+     */
+    private static final String GIFT_CATEGORY_NAME = "Gifts";
+    private static final String GIFT_BUDGET_PERIOD = "month";
 
     /** Reporting matviews owned by 024-finance-matviews.yml, in refresh order. */
     private static final List<String> MATVIEWS = List.of(
@@ -462,6 +472,30 @@ public class FinanceMcpTools {
         return new BudgetStatusResult(householdId, categoryId, category.getName(), p,
                 budget.getLimitAmount(), spent, budget.getCurrency(),
                 window[0], window[1], ratio);
+    }
+
+    /**
+     * The household's gift-spending envelope for the budget-aware
+     * gift-recommender flow (Stage 4 / Track D). Composes the existing
+     * category lookup + {@link #getBudgetStatus} read over the household's
+     * "Gifts" expense category for the current month — no new persistence and
+     * not an MCP tool (this is an internal read for the coordinator, exposed
+     * via {@code GET /internal/gift-budget}). Throws
+     * {@link IllegalArgumentException} when there is no Gifts category or no
+     * active monthly budget on it, which the passthrough maps to 404.
+     */
+    @Transactional(readOnly = true)
+    public GiftBudgetResult getGiftBudget(UUID householdId) {
+        requireField(householdId, "householdId");
+        FinCategory gifts = categories.findByHouseholdIdOrderByName(householdId).stream()
+                .filter(c -> GIFT_CATEGORY_NAME.equalsIgnoreCase(c.getName())
+                        && "expense".equalsIgnoreCase(c.getKind()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No '" + GIFT_CATEGORY_NAME + "' expense category for household " + householdId));
+        BudgetStatusResult status = getBudgetStatus(householdId, gifts.getId(), GIFT_BUDGET_PERIOD);
+        BigDecimal remaining = status.limitAmount().subtract(status.spent());
+        return new GiftBudgetResult(status.limitAmount(), status.currency(), remaining);
     }
 
     @Tool(description = """

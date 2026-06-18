@@ -11,6 +11,7 @@ import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
 import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
@@ -884,6 +885,54 @@ class McpFinanceIntegrationTest {
                         new BigDecimal("-1.00"), "EUR", Instant.now(), "bad", "telegram", null))
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void internalGiftBudgetReturnsMonthlyEnvelopeOver404WhenUnset() {
+        // Fresh household keeps the Gifts-category lookup deterministic against
+        // the shared test DB.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "gift hh");
+
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, hh, null, "Gift-budget-acc", "card", "EUR", BigDecimal.ZERO, null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // No Gifts category yet → 404.
+        client.get().uri(uri -> uri.path("/internal/gift-budget")
+                        .queryParam("householdId", hh).build())
+                .exchange()
+                .expectStatus().isNotFound();
+
+        // Gifts category exists (lowercase — exercises the case-insensitive
+        // match) but still no budget → 404.
+        FinCategoryDto gifts = tools.upsertCategory(new UpsertCategoryInput(
+                null, hh, null, "gifts", "expense", null));
+        client.get().uri(uri -> uri.path("/internal/gift-budget")
+                        .queryParam("householdId", hh).build())
+                .exchange()
+                .expectStatus().isNotFound();
+
+        // Set a monthly gift budget + one in-window expense → envelope snapshot.
+        tools.setBudget(new SetBudgetInput(
+                hh, gifts.id(), "month", new BigDecimal("200.00"), "EUR"));
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), gifts.id(), null,
+                new BigDecimal("-50.00"), null, Instant.now(), "present", null, null));
+
+        client.get().uri(uri -> uri.path("/internal/gift-budget")
+                        .queryParam("householdId", hh).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(GiftBudgetResult.class)
+                .value(r -> {
+                    assertThat(r.amount()).isEqualByComparingTo("200.00");
+                    assertThat(r.currency()).isEqualTo("EUR");
+                    // remaining = limit (200) − spent (50) this month.
+                    assertThat(r.remaining()).isEqualByComparingTo("150.00");
+                });
     }
 
     @Test
