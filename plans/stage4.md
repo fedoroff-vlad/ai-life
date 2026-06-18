@@ -84,11 +84,12 @@ shape, so we build the substrate once on the cheapest vertical, then "new domain
     `/actions/*` endpoint (consumer side of the invoke primitive, like calendar's `create_event`).
     Forces `householdId` from the envelope, calls D2a, returns an `AgentActionResult` with the
     budget (never an HTTP error). Mirror C1c (PR74).
-  - **D2c** — calendar-agent **`gift.recommend` flow rebuilt on `Coordinator`**: gather
-    `{ interests: memory recall(person) , budget: finance invoke get_gift_budget }` →
-    synthesize budget-aware gift ideas (upgrade the `gift-recommender` SKILL.md to consume the
-    budget) → notify. **First real Coordinator flow**; clears the "finance integration deferred"
-    note in gift-recommender. Mirror C1e (PR76).
+  - **D2c** ✅ **DONE (PR95)** — calendar-agent **`gift.recommend` flow rebuilt on `Coordinator`**:
+    `flow/GiftRecommender` gathers `{ budget: finance invoke get_gift_budget via the orchestrator
+    hub, memories: recall(person), relations }` in parallel → synthesizes budget-aware gift ideas →
+    fans out to the household. Per-step soft-fail. `gift-recommender` SKILL.md upgraded to consume
+    `context.budget` — **the "finance integration deferred" note is cleared.** First real Coordinator
+    flow; mirrored C1e (PR76).
 - **D3 (later)** — relationship-tiered budget **rules as editable preferences** (structured store,
   set from chat: "родителям 20к на НГ" — NOT skill prose, per the routing-doctrine "editable rules =
   data" rule) + the birthday **"reminder + gift" two-notification** wiring (one trigger → two outputs).
@@ -104,9 +105,10 @@ Owner-chosen next after D2 proves the coordinator end-to-end (don't build more o
 A and B are independent and foundational. C1 needs nothing new (sync, no bus). C2 needs B.
 D1 (scaffold) needs nothing new; D2 needs C1's invoke primitive (have it). 
 
-**Order so far: A ✅ → C1 ✅ → B ✅ → C2a ✅ → D1 ✅ → D2 (now) → memory-from-chat → D3.**
-A/B/C1/C2a/D1 are merged; **D2 (budget-aware gift-recommender) is the active line** — it validates
-the coordinator infrastructure on a real, cheap vertical before more is stacked on it.
+**Order so far: A ✅ → C1 ✅ → B ✅ → C2a ✅ → D1 ✅ → D2 ✅ → memory-from-chat (now) → D3.**
+A/B/C1/C2a/D1/**D2** are merged (D2a PR93 + D2b PR94 + D2c PR95). D2 validated the coordinator
+substrate end-to-end on the cheapest vertical (calendar → finance → memory). **The active line is
+now memory-from-chat** (the fuel — see §"Parallel foundation" above), then D3.
 
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).

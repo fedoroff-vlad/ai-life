@@ -39,6 +39,15 @@ text is then **fanned out to every member of the household** via notifier-servic
 (per the explicit recipient policy — no role filter). Per-user notifier failures are
 logged + swallowed; the trigger still returns 202.
 
+**`gift.recommend` is the exception (Stage 4 / Track D, D2c):** instead of the generic
+recall→LLM path it runs the budget-aware `GiftRecommender`, which uses the shared
+`Coordinator` (`libs/agent-runtime`) to gather, in parallel, the household's gift
+**budget** (finance-agent's `get_gift_budget` via the orchestrator invoke hub),
+**memories** (recall), and **relations**, then synthesizes budget-aware ideas from
+`[AGENT.md, SKILL.md]` + `{payload(person), context}`. Each gather step soft-fails
+independently — a finance outage just drops the budget constraint. Delivery (household
+fan-out via notifier) is unchanged.
+
 ## Env
 | Var | Default | Purpose |
 |---|---|---|
@@ -49,6 +58,7 @@ logged + swallowed; the trigger still returns 202.
 | `calendar-agent.ics-import-url` / `MCP_ICS_IMPORT_URL` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
 | `calendar-agent.memory-service-url` / `MEMORY_SERVICE_URL` | `http://memory-service:8087` | Pre-skill recall + relations enrichment. |
 | `calendar-agent.mcp-caldav-url` / `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | Target for the `create_event` action (`POST /internal/event`). |
+| `calendar-agent.orchestrator-url` / `ORCHESTRATOR_URL` | `http://orchestrator:8083` | Inter-agent invoke hub (`POST /v1/agents/invoke`) — used by `GiftRecommender` to call finance's `get_gift_budget`. |
 | `calendar-agent.memory-recall-k` / `CALENDAR_AGENT_MEMORY_RECALL_K` | `5` | Top-k for the recall call. |
 
 ## AGENT.md convention
@@ -79,6 +89,8 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them with `@Qualifier`-driven `WebClient` injection, so the per-agent `OutboundHttpConfig` only owns the URL binding.
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
 - `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`. Used by the `create_event` action.
+- `http/OrchestratorInvokeClient` — `invoke(AgentActionRequest)` POSTs the orchestrator's `/v1/agents/invoke` hub (5s timeout). The locked inter-agent path (agents never call each other directly). Mirrors tasks-agent's client (C1e).
+- `flow/GiftRecommender` — the first real `Coordinator` flow (D2c). On `gift.recommend` it gathers `{budget: finance get_gift_budget via the hub, memories: recall, relations}` in parallel, synthesizes budget-aware gift ideas, and fans the result out to the household. Per-step soft-fail (a dropped budget just removes the price constraint).
 - `web/ActionController` — `POST /agents/calendar/actions/{action}`; inter-agent action endpoint. `create_event` maps the invoke `args` → `CreateEventInput`, calls mcp-caldav, returns `{eventUid}`. Always replies an `AgentActionResult` (structured `ok=false` on bad input, never an HTTP error).
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
@@ -86,14 +98,14 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - AGENT.md / SKILL.md loaders + `SkillRegistry` live in shared `libs/agent-runtime` as of PR25a. Agent opts in with `@Import(AgentRuntimeConfig.class)` on `CalendarAgentApplication`; scan paths come from `agent.{manifest-classpath, skills-classpath}` in `application.yml`.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt.
-- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution + **memory enrichment (recall + relations zipped)** + household fan-out via notifier. `buildRecallQuery` anchors the recall query on the person's display name when available.
+- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution. `gift.recommend` is routed to `GiftRecommender` (Coordinator flow); every other kind takes the generic **memory enrichment (recall + relations zipped)** + LLM + household fan-out path. `buildRecallQuery` anchors the recall query on the person's display name when available.
 
 ## Tests
 
-`mvn -B -pl domains/calendar/calendar-agent -am test` — 10 tests:
+`mvn -B -pl domains/calendar/calendar-agent -am test` — 13 tests:
 - Manifest endpoint returns frontmatter + body.
 - Skill loader discovers both `birthday-greeter` and `gift-recommender`.
-- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service) covers `birthday.greet` and `gift.recommend` end-to-end, asserting (a) both household members receive the notify POST, (b) the LLM body contains the resolved person's `interests`/`notes`, **(c) the recalled memory text + relation `object_label` are present**.
+- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service + orchestrator) covers `birthday.greet` (generic path) and `gift.recommend` (Coordinator path) end-to-end, asserting (a) household members receive the notify POST, (b) the LLM body contains the resolved person's `interests`/`notes`, (c) the recalled memory text + relation `object_label` are present, **(d) for `gift.recommend`, the coordinator calls finance's `get_gift_budget` through `/v1/agents/invoke` and the gathered budget envelope reaches the LLM**.
 - New: memory-service returns 500 → skill still runs, LLM body has **no** `memories` or `relations` block (soft-fail).
 - `ics.pull` system trigger forwards to mcp-ics-import without touching LLM or notifier; downstream 500 still returns 202.
 - Unknown trigger kind → 404 (no skill, no system handler).

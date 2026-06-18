@@ -8,6 +8,7 @@ import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.calendar.flow.GiftRecommender;
 import dev.fedorov.ailife.agents.calendar.system.SystemTriggerHandler;
 import dev.fedorov.ailife.agents.calendar.system.SystemTriggerRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -50,6 +51,9 @@ public class TriggerController {
 
     private static final Logger log = LoggerFactory.getLogger(TriggerController.class);
 
+    /** Trigger routed through the budget-aware {@link GiftRecommender} coordinator (D2c). */
+    private static final String GIFT_RECOMMEND = "gift.recommend";
+
     private final LlmClient llm;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
@@ -57,6 +61,7 @@ public class TriggerController {
     private final ProfileClient profile;
     private final NotifierClient notifier;
     private final MemoryClient memory;
+    private final GiftRecommender giftRecommender;
     private final ObjectMapper json;
 
     public TriggerController(LlmClient llm,
@@ -66,6 +71,7 @@ public class TriggerController {
                              ProfileClient profile,
                              NotifierClient notifier,
                              MemoryClient memory,
+                             GiftRecommender giftRecommender,
                              ObjectMapper json) {
         this.llm = llm;
         this.manifest = manifest;
@@ -74,6 +80,7 @@ public class TriggerController {
         this.profile = profile;
         this.notifier = notifier;
         this.memory = memory;
+        this.giftRecommender = giftRecommender;
         this.json = json;
     }
 
@@ -100,7 +107,17 @@ public class TriggerController {
         return resolvePerson(req.payload())
                 .map(Optional::of)
                 .defaultIfEmpty(Optional.empty())
-                .flatMap(personOpt -> runSkill(kind, skill, req, personOpt.orElse(null)))
+                .flatMap(personOpt -> {
+                    PersonDto person = personOpt.orElse(null);
+                    // gift.recommend is the first Coordinator flow (D2c): it gathers
+                    // the finance budget + memory in parallel and synthesizes a
+                    // budget-aware suggestion. Every other skill stays on the
+                    // generic recall→LLM→notify path.
+                    if (GIFT_RECOMMEND.equals(kind)) {
+                        return giftRecommender.recommend(skill, req, person);
+                    }
+                    return runSkill(kind, skill, req, person);
+                })
                 .then(Mono.just(ResponseEntity.<Void>accepted().build()));
     }
 
