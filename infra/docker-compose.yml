@@ -473,9 +473,12 @@ services:
     depends_on:
       media-service:
         condition: service_healthy
+      llm-gateway:
+        condition: service_healthy
     environment:
       MCP_MEDIA_PROCESSING_PORT: 8097
       MEDIA_SERVICE_URL: http://media-service:8088
+      LLM_GATEWAY_URL: http://llm-gateway:8081
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8097/actuator/health"]
       interval: 10s

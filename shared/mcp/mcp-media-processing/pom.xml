@@ -24,6 +24,11 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>platform-common</artifactId>
         </dependency>
+        <!-- llm-gateway client for the centralised vision (caption) tool. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>llm-client</artifactId>
+        </dependency>
 
         <!-- Reactive web only: the MCP server is webflux-based and WebClient pulls
              media bytes from media-service. No servlet stack, no JPA, no datasource
