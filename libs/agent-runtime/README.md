@@ -55,7 +55,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `skill/SkillRegistry` — `byTrigger(kind) → Optional<Skill>`, fail-fast on declared-but-not-loaded skills.
 - `http/ProfileClient` — `usersByHousehold`, `personById`.
 - `http/NotifierClient` — `notify(userId, text)`.
-- `http/MemoryClient` — `recall(query, scope, k)` with 500ms timeout + no-throw downgrade to empty list (memory downtime must not block the trigger path).
+- `http/MemoryClient` — `recall(query, scope, k)` with 500ms timeout + no-throw downgrade to empty list (memory downtime must not block the trigger path). Also `observe(householdId, userId, text, source)` — fire-and-forget drop at memory-service `/v1/observations` so an agent feeds durable facts it saw into memory-from-chat (MFC-c); off the response path, soft-fail, no-op on blank text.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
 

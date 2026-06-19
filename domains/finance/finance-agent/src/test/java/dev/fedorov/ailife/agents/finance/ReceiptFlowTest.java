@@ -47,15 +47,18 @@ class ReceiptFlowTest {
     static MockWebServer llmGateway;
     static MockWebServer media;
     static MockWebServer mcpFinance;
+    static MockWebServer memory;
 
     @BeforeAll
     static void start() throws Exception {
         llmGateway = new MockWebServer();
         media = new MockWebServer();
         mcpFinance = new MockWebServer();
+        memory = new MockWebServer();
         llmGateway.start();
         media.start();
         mcpFinance.start();
+        memory.start();
     }
 
     @AfterAll
@@ -63,6 +66,7 @@ class ReceiptFlowTest {
         llmGateway.shutdown();
         media.shutdown();
         mcpFinance.shutdown();
+        memory.shutdown();
     }
 
     @DynamicPropertySource
@@ -70,6 +74,7 @@ class ReceiptFlowTest {
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
         r.add("finance-agent.media-service-url", () -> "http://localhost:" + media.getPort());
         r.add("finance-agent.mcp-finance-url", () -> "http://localhost:" + mcpFinance.getPort());
+        r.add("finance-agent.memory-service-url", () -> "http://localhost:" + memory.getPort());
     }
 
     @Autowired WebTestClient http;
@@ -94,6 +99,8 @@ class ReceiptFlowTest {
                 .setBody(json.writeValueAsString(List.of(new FinAccountDto(
                         accountId, householdId, null, "Main card", "card", "EUR",
                         BigDecimal.ZERO, false, Instant.now())))));
+        // memory-from-chat: the receipt caption is dropped at /v1/observations (MFC-c).
+        memory.enqueue(new MockResponse().setResponseCode(202));
 
         var msg = new NormalizedMessage(
                 UUID.randomUUID(), householdId, MessageScope.PRIVATE, "вот чек за кофе",
@@ -122,6 +129,53 @@ class ReceiptFlowTest {
         assertThat(accountsReq.getPath()).startsWith("/internal/accounts");
         // No write happened in the confirm step.
         assertThat(mcpFinance.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+
+        // The caption (+ parsed merchant) was dropped at memory-service for fact extraction.
+        RecordedRequest observeReq = memory.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(observeReq).isNotNull();
+        assertThat(observeReq.getMethod()).isEqualTo("POST");
+        assertThat(observeReq.getPath()).isEqualTo("/v1/observations");
+        JsonNode observeBody = json.readTree(observeReq.getBody().readUtf8());
+        assertThat(observeBody.path("text").asText())
+                .contains("вот чек за кофе").contains("Starbucks");
+        assertThat(observeBody.path("householdId").asText()).isEqualTo(householdId.toString());
+    }
+
+    @Test
+    void captionlessReceiptEmitsNoObservation() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        String mediaId = UUID.randomUUID().toString();
+
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "image/jpeg").setBody("fake-jpeg-bytes"));
+        var draftJson = "{\"amount\": 4.50, \"currency\": \"EUR\", \"merchant\": \"Starbucks\", \"date\": \"2026-06-01\"}";
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-vision", draftJson, "stop", new LlmUsage(30, 10, 40)))));
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(List.of(new FinAccountDto(
+                        accountId, householdId, null, "Main card", "card", "EUR",
+                        BigDecimal.ZERO, false, Instant.now())))));
+
+        // No caption → a bare transaction with no durable personal fact → emit nothing.
+        var msg = new NormalizedMessage(
+                UUID.randomUUID(), householdId, MessageScope.PRIVATE, null,
+                List.of(new Attachment("image", "image/jpeg", mediaId, null)),
+                "telegram", "57", Instant.now());
+
+        http.post().uri("/agents/finance/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk();
+
+        // Drain the flow's requests so they don't leak into the shared static servers.
+        media.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+        // No caption → nothing dropped at memory-service.
+        assertThat(memory.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
     @Test
