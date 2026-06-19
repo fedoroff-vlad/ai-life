@@ -24,5 +24,10 @@ jobs:
           java-version: '21'
           cache: maven
 
+      # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
+      # MP-b). Without it that test self-skips; installing it here proves the real path.
+      - name: install tesseract (OCR)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus
+
       - name: maven verify
         run: mvn -B -ntp verify

@@ -28,20 +28,15 @@ domain decision).
   finance-agent ↔ mcp-money-pro-import, PR33) + agent-side env `MCP_MEDIA_PROCESSING_URL`.
   **Multiple agents bind the same server — that is the point.**
 
-## Open decision — OCR engine integration (LOCK before MP-b, not needed for MP-a)
-How the `ocr` tool reaches Tesseract. Behind an `OcrEngine` interface either way, so MP-a's
-tests don't care.
-- **(rec) Tess4J in-image** — bundle `tesseract-ocr` + lang data in the module's Docker
-  image, call via the Tess4J JNI wrapper. Lean (no extra container), free, fits "simple to
-  configure/scale". Cost: a native dep in one image; dev on Windows runs it via the
-  container, not bare-metal.
-- **(alt) OCR sidecar** — a small OSS OCR HTTP service (e.g. a PaddleOCR/docTR container) the
-  MCP calls over `WebClient` (the textbook capability-MCP shape — wraps an HTTP surface).
-  Cleaner JVM, cross-platform; cost: one more container to run/maintain.
-
-Recommendation: **Tess4J in-image** for the first engine (fewest moving parts); revisit the
-sidecar only if a second engine (Paddle/docTR) or scaling pushes us off-JVM. Confirm with
-owner at MP-b.
+## Decision — OCR engine integration: **Tess4J in-image** (LOCKED, owner 2026-06-19)
+The `ocr` tool reaches Tesseract via the **Tess4J JNI wrapper** with native `tesseract-ocr`
++ language data bundled in the module's Docker image (fewest moving parts, free, fits
+"simple to configure/scale"). Behind the `OcrEngine` interface, so the wiring test stays
+native-free. The OCR-sidecar alternative (an OSS OCR HTTP service over `WebClient`) was
+considered and deferred — revisit only if a second engine (PaddleOCR/docTR) or scaling
+pushes us off-JVM. **Operational notes:** `tessdata` is resolved at startup from
+`TESSDATA_PREFIX` → a probe of common distro paths (works across tesseract 4/5 layouts);
+CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a bare box).
 
 ## PR-sized slices
 - **MP-a — scaffold + `ocr` tool on a stub engine (end-to-end, no native dep).** New
@@ -54,10 +49,11 @@ owner at MP-b.
   infra/README port row (8097), README. Test = `MockWebServer` for media-service + stub
   engine (assert id → media fetch → OcrResult). **No native dep, no DB, no agent binding
   yet** — the capability stands alone and is fully testable.
-- **MP-b — real OCR engine (Tesseract OSS).** Swap `StubOcrEngine` for the chosen
-  integration (per the decision above) behind the same `OcrEngine` interface, so MP-a's
-  tests stay green. Docker image gains the engine (in-image) or compose gains a sidecar.
-  Test the mapping bytes → extracted text against a tiny fixture image.
+- **MP-b — real OCR engine (Tesseract OSS).** ✅ **DONE.** `TesseractOcrEngine` (Tess4J)
+  is the deployed default behind the same `OcrEngine` interface; `StubOcrEngine` is selected
+  only by `mediaprocessing.ocr-engine=stub` (the wiring test, degraded boxes). Docker image
+  installs `tesseract-ocr` + eng/rus + sets `TESSDATA_PREFIX`; CI installs tesseract so the
+  real-OCR test (render → extract → assert) runs. `tessdata` path resolved via env-then-probe.
 - **MP-c — bind to finance-agent + migrate `receipt-parser` off in-agent vision.** Add the
   `mcp-media-processing` SSE connection + `MCP_MEDIA_PROCESSING_URL` to finance-agent;
   `receipt-parser` calls the capability instead of running the `vision` channel inline, then
