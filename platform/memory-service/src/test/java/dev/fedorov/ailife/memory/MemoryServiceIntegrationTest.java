@@ -1,8 +1,10 @@
 package dev.fedorov.ailife.memory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
@@ -73,6 +75,19 @@ class MemoryServiceIntegrationTest {
             @Override
             public MockResponse dispatch(RecordedRequest req) {
                 try {
+                    String path = req.getPath() == null ? "" : req.getPath();
+                    if (path.startsWith("/v1/chat")) {
+                        // memory-from-chat extraction: return two durable facts so
+                        // the capture flow has deterministic output to store.
+                        LlmChatResponse chat = new LlmChatResponse(
+                                "mock-chat",
+                                "{\"facts\":[\"Maria is allergic to nuts.\","
+                                        + "\"Vlad's wife likes tartare.\"]}",
+                                "stop", new LlmUsage(0, 0, 0));
+                        return new MockResponse()
+                                .setHeader("content-type", "application/json")
+                                .setBody(json.writeValueAsString(chat));
+                    }
                     var node = json.readTree(req.getBody().readUtf8());
                     String input = node.get("inputs").get(0).asText();
                     LlmEmbedResponse body = new LlmEmbedResponse(
@@ -202,6 +217,57 @@ class MemoryServiceIntegrationTest {
         assertThat(hits).extracting(h -> h.memory().text())
                 .doesNotContain("Vlad prefers cycling.")
                 .contains("Maria likes hiking and books.");
+    }
+
+    @Test
+    void captureExtractsFactsFromChatAndStoresRecallableMemories() {
+        // A fresh household keeps the assertions deterministic against the shared DB.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "capture hh");
+
+        var req = new CaptureRequest(hh, null, null,
+                "Поужинали с женой в ресторане, ей очень понравился тартар. "
+                        + "Кстати у Маши аллергия на орехи.");
+
+        List<MemoryDto> written = client().post().uri("/v1/capture")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(MemoryDto.class)
+                .returnResult().getResponseBody();
+
+        // The mock LLM extracted two durable facts → two stored memories.
+        assertThat(written).isNotNull().hasSize(2);
+        assertThat(written).allMatch(m -> "chat-capture".equals(m.source()));
+
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM memory.memories WHERE household_id = ? AND source = 'chat-capture'",
+                Integer.class, hh);
+        assertThat(rows).isEqualTo(2);
+
+        // End-to-end: a captured fact is now recallable (exact-text query → distance ~0).
+        var recall = new RecallMemoryRequest(hh, null, null, "Maria is allergic to nuts.", 5);
+        List<RecallMemoryHit> hits = client().post().uri("/v1/memories/recall")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(recall)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(RecallMemoryHit.class)
+                .returnResult().getResponseBody();
+        assertThat(hits).isNotNull();
+        assertThat(hits.get(0).memory().text()).isEqualTo("Maria is allergic to nuts.");
+        assertThat(hits.get(0).distance()).isLessThan(0.01);
+    }
+
+    @Test
+    void captureWithBlankTextIsRejected() {
+        var req = new CaptureRequest(household, null, null, "   ");
+        client().post().uri("/v1/capture")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     private void write(String text, UUID household, UUID userId, UUID personId) {
