@@ -1,10 +1,12 @@
 package dev.fedorov.ailife.agents.finance.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,12 +24,16 @@ import java.util.UUID;
  * calendar-agent gathers the household's gift budget via {@code get_gift_budget}.
  *
  * <p>The action forces {@code householdId} from the envelope (never trusts an
- * args-supplied household) and reads mcp-finance's {@code /internal/gift-budget}
- * (PR93). Always replies with an {@link AgentActionResult} (never an HTTP
- * error): a present budget → {@code {hasGiftBudget:true, amount, currency,
- * remaining?}}; no budget set → {@code {hasGiftBudget:false}}; mcp-finance
- * down → {@code ok=false}. Mirrors calendar-agent's {@code create_event}
- * action (C1c / PR74).
+ * args-supplied household). When {@code args.relationship} is supplied (Track D3 /
+ * D3c) it first reads the relationship-tiered rule via mcp-finance's
+ * {@code /internal/gift-budget-rule} (PR105) — a present rule wins
+ * ({@code source:"rule"}); no rule for the tier falls back to the household
+ * "Gifts" envelope ({@code /internal/gift-budget}, PR93, {@code source:"envelope"}).
+ * With no {@code relationship} it goes straight to the envelope. Always replies
+ * with an {@link AgentActionResult} (never an HTTP error): a present budget →
+ * {@code {hasGiftBudget:true, amount, currency, remaining?, source}}; no budget
+ * set → {@code {hasGiftBudget:false}}; mcp-finance down → {@code ok=false}.
+ * Mirrors calendar-agent's {@code create_event} action (C1c / PR74).
  */
 @RestController
 public class ActionController {
@@ -56,6 +62,21 @@ public class ActionController {
         if (household == null) {
             return Mono.just(AgentActionResult.error("get_gift_budget requires householdId"));
         }
+        String relationship = relationshipArg(request);
+        Mono<AgentActionResult> result = (relationship == null)
+                ? envelope(household)
+                : giftBudget.fetchRule(household, relationship)
+                        .flatMap(opt -> opt.isPresent()
+                                ? Mono.just(ruleResult(opt.get(), relationship))
+                                : envelope(household));
+        return result.onErrorResume(e -> {
+            log.warn("get_gift_budget failed (requestedBy={})", request.requestingAgent(), e);
+            return Mono.just(AgentActionResult.error("get_gift_budget failed: " + e.getMessage()));
+        });
+    }
+
+    /** The household "Gifts" envelope read (D2b), used directly or as the D3c tier fallback. */
+    private Mono<AgentActionResult> envelope(UUID household) {
         return giftBudget.fetch(household)
                 .map(opt -> {
                     ObjectNode node = json.createObjectNode();
@@ -65,6 +86,7 @@ public class ActionController {
                         node.put("amount", b.amount());
                         node.put("currency", b.currency());
                         if (b.remaining() != null) node.put("remaining", b.remaining());
+                        node.put("source", "envelope");
                     } else {
                         // No Gifts category / no active monthly budget — a valid
                         // state, not an error. The coordinator can still propose
@@ -72,10 +94,26 @@ public class ActionController {
                         node.put("hasGiftBudget", false);
                     }
                     return AgentActionResult.ok(node);
-                })
-                .onErrorResume(e -> {
-                    log.warn("get_gift_budget failed (requestedBy={})", request.requestingAgent(), e);
-                    return Mono.just(AgentActionResult.error("get_gift_budget failed: " + e.getMessage()));
                 });
+    }
+
+    /** A matched relationship-tiered rule (D3c). A preference amount has no spend window → no {@code remaining}. */
+    private AgentActionResult ruleResult(GiftBudgetRuleDto rule, String relationship) {
+        ObjectNode node = json.createObjectNode();
+        node.put("hasGiftBudget", true);
+        node.put("amount", rule.amount());
+        node.put("currency", rule.currency());
+        node.put("relationship", relationship);
+        node.put("source", "rule");
+        return AgentActionResult.ok(node);
+    }
+
+    private String relationshipArg(AgentActionRequest request) {
+        JsonNode args = request.args();
+        if (args == null) return null;
+        JsonNode rel = args.get("relationship");
+        if (rel == null || rel.isNull()) return null;
+        String s = rel.asText().trim();
+        return s.isEmpty() ? null : s;
     }
 }

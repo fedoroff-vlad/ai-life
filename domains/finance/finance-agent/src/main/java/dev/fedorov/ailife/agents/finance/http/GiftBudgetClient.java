@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.finance.http;
 
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -42,6 +43,27 @@ public class GiftBudgetClient {
                         .build())
                 .retrieve()
                 .bodyToMono(GiftBudgetResult.class)
+                .timeout(Duration.ofSeconds(2))
+                .map(Optional::of)
+                .onErrorResume(WebClientResponseException.NotFound.class,
+                        e -> Mono.just(Optional.empty()));
+    }
+
+    /**
+     * Reads a relationship-tiered gift-budget rule from mcp-finance's
+     * {@code GET /internal/gift-budget-rule} passthrough (PR105 / D3b). Same
+     * per-status policy as {@link #fetch}: 200 → present; 404 → empty (no rule
+     * for this tier — the caller falls back to the "Gifts" envelope); 5xx /
+     * timeout → propagated.
+     */
+    public Mono<Optional<GiftBudgetRuleDto>> fetchRule(UUID householdId, String relationship) {
+        return http.get()
+                .uri(uri -> uri.path("/internal/gift-budget-rule")
+                        .queryParam("householdId", householdId)
+                        .queryParam("relationship", relationship)
+                        .build())
+                .retrieve()
+                .bodyToMono(GiftBudgetRuleDto.class)
                 .timeout(Duration.ofSeconds(2))
                 .map(Optional::of)
                 .onErrorResume(WebClientResponseException.NotFound.class,

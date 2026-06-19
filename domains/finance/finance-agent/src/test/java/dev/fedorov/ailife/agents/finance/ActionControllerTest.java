@@ -1,9 +1,11 @@
 package dev.fedorov.ailife.agents.finance;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -19,6 +21,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -90,6 +93,77 @@ class ActionControllerTest {
 
         RecordedRequest sent = mcpFinance.takeRequest();
         assertThat(sent.getPath()).isEqualTo("/internal/gift-budget?householdId=" + household);
+    }
+
+    @Test
+    void relationshipTierRuleWinsOverEnvelope() throws Exception {
+        UUID household = UUID.randomUUID();
+        // A tier rule exists for "parent" → mcp-finance answers the rule read; the
+        // envelope is never consulted (no second response enqueued).
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new GiftBudgetRuleDto(
+                        UUID.randomUUID(), household, "parent",
+                        new BigDecimal("20000.00"), "RUB", Instant.now(), Instant.now()))));
+
+        ObjectNode args = json.createObjectNode();
+        args.put("relationship", "parent");
+        var req = new AgentActionRequest("finance", "get_gift_budget", household, null, "calendar", args);
+
+        http.post().uri("/agents/finance/actions/get_gift_budget")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("hasGiftBudget").asBoolean()).isTrue();
+                    assertThat(res.result().get("amount").decimalValue()).isEqualByComparingTo("20000.00");
+                    assertThat(res.result().get("currency").asText()).isEqualTo("RUB");
+                    assertThat(res.result().get("relationship").asText()).isEqualTo("parent");
+                    assertThat(res.result().get("source").asText()).isEqualTo("rule");
+                    // No spend window on a preference rule.
+                    assertThat(res.result().has("remaining")).isFalse();
+                });
+
+        RecordedRequest sent = mcpFinance.takeRequest();
+        assertThat(sent.getPath())
+                .isEqualTo("/internal/gift-budget-rule?householdId=" + household + "&relationship=parent");
+    }
+
+    @Test
+    void noTierRuleFallsBackToEnvelope() throws Exception {
+        UUID household = UUID.randomUUID();
+        // No "friend" tier rule → 404, then the action falls back to the Gifts envelope.
+        mcpFinance.enqueue(new MockResponse().setResponseCode(404));
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new GiftBudgetResult(
+                        new BigDecimal("200.00"), "EUR", new BigDecimal("150.00")))));
+
+        ObjectNode args = json.createObjectNode();
+        args.put("relationship", "friend");
+        var req = new AgentActionRequest("finance", "get_gift_budget", household, null, "calendar", args);
+
+        http.post().uri("/agents/finance/actions/get_gift_budget")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("hasGiftBudget").asBoolean()).isTrue();
+                    assertThat(res.result().get("amount").decimalValue()).isEqualByComparingTo("200.00");
+                    assertThat(res.result().get("source").asText()).isEqualTo("envelope");
+                });
+
+        // First the rule read, then the envelope read.
+        RecordedRequest rule = mcpFinance.takeRequest();
+        assertThat(rule.getPath()).startsWith("/internal/gift-budget-rule?");
+        RecordedRequest env = mcpFinance.takeRequest();
+        assertThat(env.getPath()).isEqualTo("/internal/gift-budget?householdId=" + household);
     }
 
     @Test
