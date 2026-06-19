@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: mcp-media-processing
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-media-processing
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared media-understanding capability. Pass a media-service object id;
+          the server fetches the bytes and returns extracted text/structure. ocr:
+          recognise text in an image. (transcribe / caption land later.)
+
+server:
+  port: ${MCP_MEDIA_PROCESSING_PORT:8097}
+
+mediaprocessing:
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
