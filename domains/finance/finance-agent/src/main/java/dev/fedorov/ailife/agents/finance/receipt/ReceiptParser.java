@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.receipt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
@@ -54,6 +55,8 @@ public class ReceiptParser {
     private static final String SKILL_NAME = "receipt-parser";
     /** pendingAction discriminator the finance ResumeController dispatches on. */
     public static final String FLOW = "receipt-confirm";
+    /** Provenance for receipt-derived observations dropped at memory-service (MFC-c). */
+    private static final String OBSERVE_SOURCE = "telegram-receipt";
     private static final java.util.Set<String> AFFIRMATIVE = java.util.Set.of(
             "да", "ага", "верно", "сохрани", "сохранить", "ок", "окей", "давай", "+",
             "yes", "y", "ok", "save", "confirm");
@@ -65,6 +68,7 @@ public class ReceiptParser {
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
+    private final MemoryClient memory;
 
     public ReceiptParser(MediaClient media,
                          AccountClient accounts,
@@ -72,7 +76,8 @@ public class ReceiptParser {
                          LlmClient llm,
                          SkillRegistry skills,
                          AgentManifest manifest,
-                         ObjectMapper json) {
+                         ObjectMapper json,
+                         MemoryClient memory) {
         this.media = media;
         this.accounts = accounts;
         this.transactions = transactions;
@@ -80,6 +85,7 @@ public class ReceiptParser {
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
+        this.memory = memory;
     }
 
     public Mono<IntentResponse> parse(NormalizedMessage msg, String mediaId) {
@@ -106,6 +112,7 @@ public class ReceiptParser {
     /** Parse the draft, resolve an account, and ask the user to confirm — stash the write as a pendingAction. */
     private Mono<IntentResponse> confirm(NormalizedMessage msg, String llmContent, String model) {
         Draft draft = parseDraft(llmContent);
+        captureReceiptObservation(msg, draft);
         if (draft == null || draft.amount() == null) {
             return Mono.just(reply(
                     "Не удалось распознать сумму на чеке. Пришлите фото почётче или запишите вручную.",
@@ -157,6 +164,24 @@ public class ReceiptParser {
                     return Mono.just(reply(
                             "Не смог записать транзакцию. Попробуйте позже.", null));
                 });
+    }
+
+    /**
+     * Feed durable facts from the receipt to memory-from-chat. The user's caption is the
+     * fact-bearing part — and it arrives as an attachment-only message, which the orchestrator's
+     * text capture skips by design, so the agent processing the attachment must emit it. We ground
+     * the caption with the parsed merchant when we have one. A captionless receipt carries no durable
+     * personal fact (it's a pure transaction, already in the finance DB), so we emit nothing.
+     * Fire-and-forget + soft-fail inside {@link MemoryClient#observe}.
+     */
+    private void captureReceiptObservation(NormalizedMessage msg, Draft draft) {
+        String caption = blankToNull(msg.text());
+        if (caption == null) {
+            return;
+        }
+        String merchant = draft == null ? null : blankToNull(draft.merchant());
+        String observation = merchant == null ? caption : caption + " (чек: " + merchant + ")";
+        memory.observe(msg.householdId(), msg.userId(), observation, OBSERVE_SOURCE);
     }
 
     private JsonNode pendingAction(AddTransactionInput input, String accountName) {

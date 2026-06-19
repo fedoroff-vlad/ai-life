@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.config.AgentRuntimeProperties;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
+import dev.fedorov.ailife.contracts.message.MessageReceivedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -81,6 +82,36 @@ public class MemoryClient {
                             householdId, personId, e.toString());
                     return Mono.just(emptyRelations(personId));
                 });
+    }
+
+    /**
+     * Fire-and-forget: drop an observation at memory-service's durable
+     * {@code POST /v1/observations} so it can learn durable facts from what this
+     * agent saw (memory-from-chat / MFC-c). An agent is a capture producer for the
+     * surfaces the orchestrator can't see — e.g. finance-agent emits a receipt
+     * caption that arrives as an attachment-only message (which the orchestrator's
+     * text capture skips by design).
+     *
+     * <p>Off the response path: never awaited, never affects the reply, any failure
+     * swallowed (best-effort passive capture, same posture as {@link #recall}).
+     * No-op on missing household or blank text.
+     */
+    public void observe(UUID householdId, UUID userId, String text, String source) {
+        if (householdId == null || text == null || text.isBlank()) {
+            return;
+        }
+        http.post()
+                .uri("/v1/observations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new MessageReceivedEvent(householdId, userId, text, source))
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("memory observe failed for household={}: {}", householdId, e.toString());
+                    return Mono.empty();
+                })
+                .subscribe();
     }
 
     private static PersonRelationsResponse emptyRelations(UUID personId) {
