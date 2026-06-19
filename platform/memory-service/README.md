@@ -5,7 +5,9 @@ writes a piece of text + metadata after embedding it via llm-gateway; `POST
 /v1/memories/recall` returns top-k cosine-nearest hits within a scope filter;
 `DELETE /v1/memories/{id}` forgets. `POST /v1/relations` writes one structured
 edge ("Maria likes books"); `GET /v1/graph/person/{id}/relations?householdId=…`
-returns the person's outgoing + incoming edges.
+returns the person's outgoing + incoming edges. `POST /v1/capture` is the
+memory-from-chat path: it runs the LLM over a message to extract durable facts
+and stores them as memories.
 
 ## Port: `8087` (`MEMORY_PORT`)
 
@@ -15,6 +17,9 @@ returns the person's outgoing + incoming edges.
 - `POST /v1/memories` — body: [WriteMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteMemoryRequest.java). Returns `MemoryDto`.
 - `POST /v1/memories/recall` — body: [RecallMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/RecallMemoryRequest.java) (`householdId` required, `userId`/`personId` narrow, `k` defaults to 5, capped at 50). Returns `RecallMemoryHit[]` ordered by ascending cosine distance.
 - `DELETE /v1/memories/{id}` — 204 on success, 404 on unknown.
+
+### Capture (memory-from-chat)
+- `POST /v1/capture` — body [CaptureRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/CaptureRequest.java) (`householdId` + `text` required; `userId`/`personId` scope the stored memories). Runs the LLM `FactExtractor` over the message, writes each extracted durable fact as a memory (`source = "chat-capture"`), and returns the written `MemoryDto[]` (empty list when nothing durable was found). 400 on missing householdId / blank text. **Best-effort:** a malformed LLM reply or parse failure yields zero facts, never an error. This is the testable core; an async producer (orchestrator emits a message event on the bus → memory-service consumes it) is a follow-up so capture happens off the user's request path. Relation/graph extraction (subject→edge→object) is a later slice — this slice captures free-text memories only.
 
 ### Relations (single-hop graph)
 - `POST /v1/relations` — body: [WriteRelationRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteRelationRequest.java) (`householdId`, `subjectType` + `subjectId`, `edge`, `objectType` + optional `objectId` + `objectLabel`, optional `confidence`, `source`, `metadata`). Returns `RelationDto`.
@@ -36,6 +41,9 @@ returns the person's outgoing + incoming edges.
 - `MemoryServiceApplication`.
 - `config/MemoryServiceProperties` — `memory.{default-k, max-k, dim}`.
 - `embed/EmbeddingClient` — wraps `LlmClient.embed`, returns `float[]` for one text.
+- `capture/FactExtractor` — wraps `LlmClient.chat` (DEFAULT channel) to pull durable facts out of a message; lenient JSON parsing (strips markdown fences / leading prose) and best-effort (bad reply → empty list, never throws).
+- `service/CaptureService` — memory-from-chat: extract facts via `FactExtractor`, write each via `MemoryService` with `source = "chat-capture"`.
+- `web/CaptureController` — `POST /v1/capture`.
 - `domain/Vectors` — `float[] → "[v1,v2,…]"` literal for the `::vector` cast (pgvector wire format).
 - `domain/MemoryRow` — read model; `toDto()` for the API surface.
 - `domain/MemoryRepository` — JdbcTemplate over `memory.memories`. **JPA was deliberately skipped** — pgvector mapping in JPA requires a custom Hibernate type and we don't need ORM features here.
