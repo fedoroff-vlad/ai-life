@@ -57,6 +57,7 @@
         <module>domains/finance/mcp-money-pro-import</module>
         <module>domains/tasks/tasks-agent</module>
         <module>domains/tasks/mcp-tasks</module>
+        <module>shared/mcp/mcp-media-processing</module>
     </modules>
 
     <dependencyManagement>
