@@ -10,11 +10,17 @@ spring:
         type: ASYNC
         instructions: >
           Shared media-understanding capability. Pass a media-service object id;
-          the server fetches the bytes and returns extracted text/structure. ocr:
-          recognise text in an image. (transcribe / caption land later.)
+          the server fetches the bytes and returns text. ocr: recognise text in an
+          image (local engine). caption: ask an LLM vision model about an image
+          given an instruction. (transcribe / STT lands later.)
 
 server:
   port: ${MCP_MEDIA_PROCESSING_PORT:8097}
+
+# llm-gateway client for the caption (vision) tool.
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
 
 mediaprocessing:
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}

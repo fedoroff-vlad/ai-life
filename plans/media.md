@@ -54,16 +54,22 @@ CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a b
   only by `mediaprocessing.ocr-engine=stub` (the wiring test, degraded boxes). Docker image
   installs `tesseract-ocr` + eng/rus + sets `TESSDATA_PREFIX`; CI installs tesseract so the
   real-OCR test (render → extract → assert) runs. `tessdata` path resolved via env-then-probe.
+- **Reorder (owner 2026-06-19):** the `caption` vision tool comes **before** the
+  receipt-parser migration — vision-on-the-image is more accurate than parsing noisy OCR
+  text, so receipt-parser migrates onto `caption`, not `ocr`. New order: MP-d1 (caption) →
+  MP-c (bind + migrate) → MP-d2 (STT).
+- **MP-d1 — `caption` vision tool (centralised).** ✅ **DONE.** `caption(mediaId, instruction)`
+  fetches bytes from media-service and calls llm-gateway's `vision` channel (via `libs/llm-client`),
+  returning the model's text. Centralises the vision call so no agent re-embeds it. Generic:
+  the caller supplies the instruction (e.g. "extract amount/currency/merchant/date as JSON")
+  and parses the result — reasoning stays in the caller's skill.
 - **MP-c — bind to finance-agent + migrate `receipt-parser` off in-agent vision.** Add the
   `mcp-media-processing` SSE connection + `MCP_MEDIA_PROCESSING_URL` to finance-agent;
-  `receipt-parser` calls the capability instead of running the `vision` channel inline, then
-  parses the returned text/structure with its existing skill. **Clears the STATUS Deferred
-  anti-pattern item.** (Decision to lock here: receipt parsing on **OCR text + skill** vs a
-  `caption` vision tool — see MP-d.)
-- **MP-d (later) — expand the toolbox.** `caption` (vision-caption via llm-gateway's
-  `vision` channel, centralised here so no agent re-embeds it) and `transcribe` (STT, whisper
-  OSS) tools, bound by future Stage-6 agents (docs, stylist, …). Slice each like MP-a/b
-  (stub → real engine).
+  `receipt-parser` calls the capability's `caption` (instruction = its current SKILL.md extract
+  prompt) instead of running the `vision` channel inline. **Clears the STATUS Deferred
+  anti-pattern item.**
+- **MP-d2 (later) — `transcribe` (STT, whisper OSS)**, bound by future Stage-6 agents
+  (docs, stylist, …). Slice like MP-a/b (stub → real engine).
 
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.

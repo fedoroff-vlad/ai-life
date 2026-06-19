@@ -5,11 +5,12 @@ media bytes into text/structure so any agent can reuse it — a receipt→financ
 sick-note→docs, an outfit→stylist. Bound by agents over MCP/SSE; it owns no data and
 never stores blobs (it reads them from media-service by object id). Plan: [media.md](../../../plans/media.md).
 
-**Status (MP-b):** the `ocr` tool runs **real OCR** via Tess4J + native tesseract
-(deployed default); the native-free `StubOcrEngine` remains for the wiring test and
-degraded boxes (`mediaprocessing.ocr-engine=stub`). Next: MP-c binds it to finance-agent
-and migrates `receipt-parser` off its in-agent vision shortcut; MP-d adds `caption`
-(vision) + `transcribe` (STT).
+**Status (MP-d1):** `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
+default; native-free `StubOcrEngine` via `mediaprocessing.ocr-engine=stub`). `caption`
+asks llm-gateway's **vision** channel about an image with a caller-supplied instruction —
+the centralised vision call (no agent re-embeds it). Next: MP-c binds the server to
+finance-agent and migrates `receipt-parser` off its in-agent vision shortcut onto
+`caption`; `transcribe` (STT) lands later.
 
 ## Port: `8097` (`MCP_MEDIA_PROCESSING_PORT`)
 
@@ -17,7 +18,8 @@ and migrates `receipt-parser` off its in-agent vision shortcut; MP-d adds `capti
 
 | tool | args | returns | purpose |
 |------|------|---------|---------|
-| `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR, return recognised text (empty when none). Interpreting the text is the caller's job. |
+| `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). |
+| `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
 
 ## Env
 
@@ -28,6 +30,7 @@ and migrates `receipt-parser` off its in-agent vision shortcut; MP-d adds `capti
 | `MCP_MEDIA_PROCESSING_OCR_ENGINE` | `tesseract` | `tesseract` (real, needs the native lib) or `stub` (native-free marker). |
 | `MCP_MEDIA_PROCESSING_TESS_LANG` | `rus+eng` | Tesseract languages ('+'-joined). |
 | `TESSDATA_PREFIX` | `/usr/share/tesseract-ocr/5/tessdata` (image) | tessdata dir; blank → resolved by a path probe. |
+| `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway base URL for the `caption` vision call (via `libs/llm-client`). |
 
 No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
 `spring.ai.mcp.client.sse.connections.mcp-media-processing` block + `MCP_MEDIA_PROCESSING_URL`
@@ -47,6 +50,7 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   a genuine native failure → `IllegalStateException`.
 - `engine/StubOcrEngine` — native-free marker (`[stub-ocr] <N> bytes`); selected only by
   `mediaprocessing.ocr-engine=stub` (wiring test / degraded boxes).
-- `tools/MediaProcessingMcpTools` — `@Tool ocr(mediaId)`: fetch (blocking `.block()`, the
-  MCP `@Tool` convention here) → `OcrEngine.extract` → `OcrResult`.
+- `tools/MediaProcessingMcpTools` — `@Tool`s (blocking `.block()`, the MCP `@Tool`
+  convention here): `ocr(mediaId)` → `OcrEngine.extract` → `OcrResult`; `caption(mediaId,
+  instruction)` → fetch → llm-gateway `vision` channel (`LlmClient`) → `CaptionResult`.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider` exposing the `@Tool`s.
