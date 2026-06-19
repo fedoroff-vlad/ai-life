@@ -17,6 +17,7 @@ memory:
   default-k: ${MEMORY_DEFAULT_K:5}
   max-k: ${MEMORY_MAX_K:50}
   dim: ${MEMORY_EMBED_DIM:384}
+  profile-base-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
 
 management:
   endpoints:

@@ -169,12 +169,15 @@ services:
         condition: service_completed_successfully
       llm-gateway:
         condition: service_healthy
+      profile-service:
+        condition: service_healthy
     environment:
       MEMORY_PORT: 8087
       MEMORY_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MEMORY_DB_USER: ${POSTGRES_USER:-ailife}
       MEMORY_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
       LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
       MEMORY_DEFAULT_K: ${MEMORY_DEFAULT_K:-5}
       MEMORY_MAX_K: ${MEMORY_MAX_K:-50}
       MEMORY_EMBED_DIM: ${MEMORY_EMBED_DIM:-384}

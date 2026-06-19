@@ -19,10 +19,18 @@ public class MemoryServiceProperties {
      */
     private int dim = 384;
 
+    /**
+     * Base URL of profile-service, used by relation capture to resolve a person's
+     * name to a {@code core.people} UUID (memory-from-chat / MFC-c).
+     */
+    private String profileBaseUrl = "http://profile-service:8082";
+
     public int getDefaultK() { return defaultK; }
     public void setDefaultK(int defaultK) { this.defaultK = defaultK; }
     public int getMaxK() { return maxK; }
     public void setMaxK(int maxK) { this.maxK = maxK; }
     public int getDim() { return dim; }
     public void setDim(int dim) { this.dim = dim; }
+    public String getProfileBaseUrl() { return profileBaseUrl; }
+    public void setProfileBaseUrl(String profileBaseUrl) { this.profileBaseUrl = profileBaseUrl; }
 }
