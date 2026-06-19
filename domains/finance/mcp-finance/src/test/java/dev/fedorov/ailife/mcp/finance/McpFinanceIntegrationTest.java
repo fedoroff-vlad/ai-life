@@ -969,6 +969,36 @@ class McpFinanceIntegrationTest {
     }
 
     @Test
+    void internalGiftBudgetRuleReturnsTierRuleOr404() {
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "gift-rule hh");
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // No rule for the tier → 404 (agent falls back to the Gifts envelope).
+        client.get().uri(uri -> uri.path("/internal/gift-budget-rule")
+                        .queryParam("householdId", hh).queryParam("relationship", "parent").build())
+                .exchange()
+                .expectStatus().isNotFound();
+
+        tools.setGiftBudgetRule(new SetGiftBudgetRuleInput(
+                hh, "parent", new BigDecimal("20000.00"), "RUB"));
+
+        // Case-insensitive lookup returns the tier rule.
+        client.get().uri(uri -> uri.path("/internal/gift-budget-rule")
+                        .queryParam("householdId", hh).queryParam("relationship", "Parent").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(GiftBudgetRuleDto.class)
+                .value(r -> {
+                    assertThat(r.relationship()).isEqualTo("parent");
+                    assertThat(r.amount()).isEqualByComparingTo("20000.00");
+                    assertThat(r.currency()).isEqualTo("RUB");
+                });
+    }
+
+    @Test
     void internalAccountsListReturnsHouseholdAccountsOnly() {
         FinAccountDto mine = tools.upsertAccount(new UpsertAccountInput(
                 null, householdId, null, "Zeta-receipt-acc", "card", "EUR",

@@ -177,6 +177,11 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   the `get_budget_status` read — no new persistence. Used by finance-agent's
   `get_gift_budget` action (Stage 4 / Track D) for the budget-aware
   gift-recommender flow.
+- `GET /internal/gift-budget-rule?householdId=<uuid>&relationship=<tier>` →
+  `GiftBudgetRuleDto` (200) | 404 when no rule for that relationship tier.
+  Reads the editable relationship-tiered gift budget (Stage 4 / Track D3);
+  finance-agent's `get_gift_budget` action prefers this tier amount and falls
+  back to the household `Gifts` envelope (`/internal/gift-budget`) on 404.
 - `POST /internal/transaction` (body `AddTransactionInput`) → `FinTransactionDto`
   (200) | 400. Delegates to the `add_transaction` tool verbatim (same
   cross-household guard, currency default, and uncategorised one-shot trigger),

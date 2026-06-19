@@ -547,6 +547,26 @@ public class FinanceMcpTools {
                 .toList();
     }
 
+    /**
+     * The gift-budget rule for one relationship tier (Stage 4 / Track D3) — the
+     * tier-aware budget the gift-recommender reads for a specific person. Not an
+     * MCP tool: an internal read for the coordinator, exposed via
+     * {@code GET /internal/gift-budget-rule}. Throws {@link IllegalArgumentException}
+     * when there is no rule for the tier, which the passthrough maps to 404 (the
+     * agent then falls back to the household "Gifts" envelope).
+     */
+    @Transactional(readOnly = true)
+    public GiftBudgetRuleDto getGiftBudgetRule(UUID householdId, String relationship) {
+        requireField(householdId, "householdId");
+        requireField(relationship, "relationship");
+        return giftBudgetRules
+                .findByHouseholdIdAndRelationshipIgnoreCase(householdId, relationship.trim())
+                .map(FinGiftBudgetRule::toDto)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No gift-budget rule for relationship '" + relationship
+                                + "' in household " + householdId));
+    }
+
     @Tool(description = """
             Aggregate spending grouped by category over [from, to). `kind`
             filters categories (default `expense`); pass null to include every
