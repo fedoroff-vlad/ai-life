@@ -1,11 +1,25 @@
--- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations}.yml just enough to run
--- memory-service integration tests. Kept minimal so drift surfaces as a failing test.
+-- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations, 007-bus}.yml just
+-- enough to run memory-service integration tests. Kept minimal so drift surfaces as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE SCHEMA IF NOT EXISTS core;
 CREATE SCHEMA IF NOT EXISTS memory;
+CREATE SCHEMA IF NOT EXISTS bus;
+
+-- The bus.outbox the message.received consumer (MFC-b) drains.
+CREATE TABLE IF NOT EXISTS bus.outbox (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    topic         varchar(128) NOT NULL,
+    household_id  uuid,
+    payload       jsonb NOT NULL DEFAULT '{}'::jsonb,
+    status        varchar(16) NOT NULL DEFAULT 'PENDING',
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    published_at  timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS ix_outbox_pending ON bus.outbox (status, created_at);
 
 CREATE TABLE IF NOT EXISTS core.households (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
