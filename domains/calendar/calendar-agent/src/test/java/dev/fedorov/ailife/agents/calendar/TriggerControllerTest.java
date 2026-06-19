@@ -273,9 +273,21 @@ class TriggerControllerTest {
                 .contains("hasGiftBudget")                  // gathered budget (context.budget)
                 .contains("RUB");
 
-        RecordedRequest notify = notifier.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(notify).isNotNull();
-        assertThat(notify.getBody().readUtf8()).contains(vladId.toString());
+        // D3e: one gift.recommend wake fans out TWO messages per member — the
+        // birthday reminder first, then the gift ideas.
+        RecordedRequest reminder = notifier.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(reminder).isNotNull();
+        String reminderBody = reminder.getBody().readUtf8();
+        assertThat(reminderBody)
+                .contains(vladId.toString())
+                .contains("день рождения")   // deterministic reminder
+                .contains("Maria");          // person.displayName
+
+        RecordedRequest gifts = notifier.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(gifts).isNotNull();
+        assertThat(gifts.getBody().readUtf8())
+                .contains(vladId.toString())
+                .contains("Trail running shoes"); // LLM-synthesized gift ideas
     }
 
     @Test
