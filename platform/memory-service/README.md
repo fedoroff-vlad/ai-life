@@ -44,6 +44,7 @@ and stores them as memories.
 - `config/MemoryServiceProperties` — `memory.{default-k, max-k, dim}`.
 - `embed/EmbeddingClient` — wraps `LlmClient.embed`, returns `float[]` for one text.
 - `capture/FactExtractor` — wraps `LlmClient.chat` (DEFAULT channel) to pull durable facts out of a message; lenient JSON parsing (strips markdown fences / leading prose) and best-effort (bad reply → empty list, never throws).
+- `capture/RelationExtractor` — relation counterpart of `FactExtractor`: pulls structured edges (`subject —edge→ object`) for the person graph. Same DEFAULT channel + lenient/best-effort parsing; subject `"self"` marks a statement about the speaker. Returns `capture/ExtractedRelation` triples. **Latent (MFC-c1):** label→`core.people` resolution and the `memory.relations` write land in a later slice.
 - `service/CaptureService` — memory-from-chat: extract facts via `FactExtractor`, write each via `MemoryService` with `source = "chat-capture"`.
 - `web/CaptureController` — `POST /v1/capture` (sync extract+write) and `POST /v1/observations` (durable async drop-point → publishes `message.received` to the bus via `OutboxPublisher`, 202).
 - `bus/MessageCaptureHandler` — bus consumer for `message.received` → `CaptureService` (MFC-b); transient-failure-throws / permanent-failure-accepts retry policy.
