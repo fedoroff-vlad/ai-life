@@ -18,6 +18,8 @@
 ## Open-source reuse (don't rebuild what exists)
 Caldav: Radicale, ical4j, (CalDAV4j only if PROPFIND/REPORT needed). Telegram: TelegramBots Java + spring-boot-starter. Scheduling: ShedLock. MCP catalogs: modelcontextprotocol/servers (official: filesystem, github, postgres, fetch, brave-search, memory), punkpeye/awesome-mcp-servers, smithery.ai, mcp.so. Reusable per agent: mcp-youtube-transcript (calendar video), official postgres MCP (finance base), mcp-fetch/brave/tavily/perplexity (search), mcp-rss/reddit, mcp-pinterest (stylist), mcp-ffmpeg / imagemagick (creator), mcp-whisper + Tesseract (gateway media). Finance alt considered & rejected: Firefly III / Actual / maybe-finance. Memory refs: official memory-server, mem0, Letta. Observability: Langfuse, OpenTelemetry.
 
+**Owner principle (2026-06-19):** reuse free OSS libs over rebuilding, and make broadly-useful capabilities **shared** (a capability-MCP any agent binds), not embedded in one agent — because a photo/audio/video can belong to any domain. **Next shared capability (after D3): `mcp-media-processing`** — OCR (Tesseract/PaddleOCR/docTR) + STT (whisper) + vision-caption over media-service bytes, applied around routing so any agent (finance receipts, docs sick-notes, stylist outfits…) reuses it. Migrate the interim `receipt-parser` vision-in-agent shortcut onto it. See STATUS Deferred work.
+
 ## Risks
 - Spring AI MCP young — may need own client; keep behind interface in libs/mcp-client.
 - Apache AGE Docker build sometimes unstable — plan B: Neo4j Community.
