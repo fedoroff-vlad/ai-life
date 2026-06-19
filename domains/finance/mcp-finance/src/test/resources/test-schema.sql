@@ -1,4 +1,4 @@
--- Mirrors infra/liquibase/features/{001-core, 020-finance, 024-finance-matviews}.yml —
+-- Mirrors infra/liquibase/features/{001-core, 020-finance, 024-finance-matviews, 025-fin-gift-budget-rule}.yml —
 -- just enough to run mcp-finance integration tests. Kept minimal so drift surfaces
 -- as a failing test.
 
@@ -95,6 +95,22 @@ CREATE INDEX IF NOT EXISTS ix_fin_budget_household ON finance.fin_budget (househ
 CREATE UNIQUE INDEX IF NOT EXISTS uq_fin_budget_active
     ON finance.fin_budget (household_id, category_id, period)
     WHERE valid_to IS NULL;
+
+CREATE TABLE IF NOT EXISTS finance.fin_gift_budget_rule (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id    uuid NOT NULL REFERENCES core.households(id),
+    relationship    varchar(64)   NOT NULL,
+    amount          numeric(18,2) NOT NULL,
+    currency        varchar(8)    NOT NULL,
+    metadata        jsonb         NOT NULL DEFAULT '{}'::jsonb,
+    created_at      timestamptz   NOT NULL DEFAULT now(),
+    updated_at      timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_fin_gift_budget_rule_household
+    ON finance.fin_gift_budget_rule (household_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fin_gift_budget_rule
+    ON finance.fin_gift_budget_rule (household_id, lower(relationship));
 
 CREATE TABLE IF NOT EXISTS finance.fin_recurring (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),

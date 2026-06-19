@@ -11,9 +11,11 @@ import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
 import dev.fedorov.ailife.contracts.finance.MatviewRefreshResult;
 import dev.fedorov.ailife.contracts.finance.SetBudgetInput;
+import dev.fedorov.ailife.contracts.finance.SetGiftBudgetRuleInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryInput;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
@@ -26,6 +28,8 @@ import dev.fedorov.ailife.mcp.finance.domain.FinBudget;
 import dev.fedorov.ailife.mcp.finance.domain.FinBudgetRepository;
 import dev.fedorov.ailife.mcp.finance.domain.FinCategory;
 import dev.fedorov.ailife.mcp.finance.domain.FinCategoryRepository;
+import dev.fedorov.ailife.mcp.finance.domain.FinGiftBudgetRule;
+import dev.fedorov.ailife.mcp.finance.domain.FinGiftBudgetRuleRepository;
 import dev.fedorov.ailife.mcp.finance.domain.FinRecurring;
 import dev.fedorov.ailife.mcp.finance.domain.FinRecurringRepository;
 import dev.fedorov.ailife.mcp.finance.domain.FinTransaction;
@@ -91,6 +95,7 @@ public class FinanceMcpTools {
     private final FinCategoryRepository categories;
     private final FinTransactionRepository transactions;
     private final FinBudgetRepository budgets;
+    private final FinGiftBudgetRuleRepository giftBudgetRules;
     private final FinRecurringRepository recurring;
     private final SchedulerClient scheduler;
     private final JdbcTemplate jdbc;
@@ -99,6 +104,7 @@ public class FinanceMcpTools {
                            FinCategoryRepository categories,
                            FinTransactionRepository transactions,
                            FinBudgetRepository budgets,
+                           FinGiftBudgetRuleRepository giftBudgetRules,
                            FinRecurringRepository recurring,
                            SchedulerClient scheduler,
                            JdbcTemplate jdbc) {
@@ -106,6 +112,7 @@ public class FinanceMcpTools {
         this.categories = categories;
         this.transactions = transactions;
         this.budgets = budgets;
+        this.giftBudgetRules = giftBudgetRules;
         this.recurring = recurring;
         this.scheduler = scheduler;
         this.jdbc = jdbc;
@@ -496,6 +503,48 @@ public class FinanceMcpTools {
         BudgetStatusResult status = getBudgetStatus(householdId, gifts.getId(), GIFT_BUDGET_PERIOD);
         BigDecimal remaining = status.limitAmount().subtract(status.spent());
         return new GiftBudgetResult(status.limitAmount(), status.currency(), remaining);
+    }
+
+    @Tool(description = """
+            Set (upsert) how much the household budgets for a gift to someone of a
+            given relationship tier — e.g. "родителям 20000 на подарок" →
+            relationship "parent", amount 20000. `relationship` is a free-text tier
+            label matching a person's relationship (parent, friend, sibling,
+            colleague, …); the rule is keyed by (household, relationship)
+            case-insensitively, so setting the same tier again updates it in place.
+            These are editable preferences the gift-recommender reads to size a
+            person's gift budget by their relationship tier.
+            """)
+    @Transactional
+    public GiftBudgetRuleDto setGiftBudgetRule(SetGiftBudgetRuleInput input) {
+        requireField(input.householdId(), "householdId");
+        requireField(input.relationship(), "relationship");
+        requireField(input.amount(), "amount");
+        requireField(input.currency(), "currency");
+        String relationship = input.relationship().trim();
+        // Tier identity is case-insensitive; on update we keep the originally
+        // stored label casing and only change the amount/currency (deterministic,
+        // independent of the DB's ORDER BY collation).
+        FinGiftBudgetRule rule = giftBudgetRules
+                .findByHouseholdIdAndRelationshipIgnoreCase(input.householdId(), relationship)
+                .orElseGet(() -> new FinGiftBudgetRule(UUID.randomUUID(),
+                        input.householdId(), relationship, input.amount(), input.currency()));
+        rule.setAmount(input.amount());
+        rule.setCurrency(input.currency());
+        return giftBudgetRules.save(rule).toDto();
+    }
+
+    @Tool(description = """
+            List the household's relationship-tiered gift-budget rules, ordered by
+            relationship. Each rule is the budget for a gift to someone of that
+            relationship tier.
+            """)
+    @Transactional(readOnly = true)
+    public List<GiftBudgetRuleDto> listGiftBudgetRules(UUID householdId) {
+        requireField(householdId, "householdId");
+        return giftBudgetRules.findByHouseholdIdOrderByRelationship(householdId).stream()
+                .map(FinGiftBudgetRule::toDto)
+                .toList();
     }
 
     @Tool(description = """

@@ -55,6 +55,15 @@ PR).
   value of net spending — refunds reduce it), `[periodFrom, periodTo)`, and
   `ratio = spent / limit` (null when limit is 0). Throws if no active budget
   exists. Used by the scheduler-driven `budget.alert` trigger.
+- `set_gift_budget_rule(householdId, relationship, amount, currency)` — upsert a
+  relationship-tiered gift-budget rule (Stage 4 / Track D3): how much the
+  household budgets for a gift to someone of a given `relationship` tier (e.g.
+  "parent" → 20000 RUB). Keyed by `(household, relationship)` case-insensitively
+  (functional unique index on `lower(relationship)`); re-setting the same tier
+  updates amount/currency in place and keeps the originally stored label casing.
+  Editable preferences the gift-recommender reads to size a gift by tier.
+- `list_gift_budget_rules(householdId)` — list the household's gift-budget rules,
+  ordered by relationship.
 - `spending_by_category(householdId, from, to, kind?)` — aggregate spend
   grouped by `(category, currency)`. `kind` defaults to `expense`; empty
   string includes every kind. Ordered by absolute spend descending.
@@ -115,7 +124,11 @@ layer's job — this MCP is intentionally low-level.
 - `domain/FinRecurring` + `FinRecurringRepository` — JPA over
   `finance.fin_recurring`; `filter()` is the parameterised list ordered by
   `next_due ASC NULLS LAST`.
-- `tools/FinanceMcpTools` — sixteen `@Tool` methods. Cross-household guards on
+- `domain/FinGiftBudgetRule` + `FinGiftBudgetRuleRepository` — JPA over
+  `finance.fin_gift_budget_rule`; `findByHouseholdIdAndRelationshipIgnoreCase`
+  backs the case-insensitive upsert (aligns with the `lower(relationship)`
+  functional unique index).
+- `tools/FinanceMcpTools` — eighteen `@Tool` methods. Cross-household guards on
   `add_transaction` / `update_transaction` (account) and `set_budget` (category)
   are the only invariants enforced here; everything else relies on DB
   constraints. `update_transaction` is a partial (non-null-only) update;
@@ -194,6 +207,13 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   `fin_mv_account_balance` (opening + sign-aware Σ amount per account). The BI
   read surface — dashboards query these directly; `refresh_matviews` keeps them
   current. Plain (non-unique) `household_id` indices for dashboard filtering.
+- [025-fin-gift-budget-rule.yml](../../infra/liquibase/features/025-fin-gift-budget-rule.yml) —
+  `finance.fin_gift_budget_rule` (id, household, relationship, amount, currency,
+  metadata, created_at, updated_at) — relationship-tiered gift-budget rules
+  (Stage 4 / Track D3). Functional unique index `uq_fin_gift_budget_rule` on
+  `(household_id, lower(relationship))` so there's one rule per tier,
+  case-insensitively. Upserted in place (no time-versioning — a preference has
+  no audit need).
 
 ## Sign / scope notes
 
