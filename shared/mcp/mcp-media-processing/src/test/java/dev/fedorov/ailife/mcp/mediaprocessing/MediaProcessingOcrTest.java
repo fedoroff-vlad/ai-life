@@ -40,6 +40,9 @@ class MediaProcessingOcrTest {
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
         r.add("mediaprocessing.media-service-url", () -> "http://localhost:" + mediaService.getPort());
+        // Hermetic wiring test: use the native-free stub engine so it proves the
+        // fetch → engine → tool path without depending on tesseract being installed.
+        r.add("mediaprocessing.ocr-engine", () -> "stub");
     }
 
     @Autowired

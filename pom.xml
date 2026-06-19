@@ -27,6 +27,7 @@
         <ical4j.version>4.2.5</ical4j.version>
         <shedlock.version>5.16.0</shedlock.version>
         <minio.version>8.5.14</minio.version>
+        <tess4j.version>5.13.0</tess4j.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -107,6 +108,11 @@
                 <groupId>io.minio</groupId>
                 <artifactId>minio</artifactId>
                 <version>${minio.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.sourceforge.tess4j</groupId>
+                <artifactId>tess4j</artifactId>
+                <version>${tess4j.version}</version>
             </dependency>
 
             <!-- internal libs -->
