@@ -10,6 +10,8 @@ import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinBudgetDto;
 import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
+import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
+import dev.fedorov.ailife.contracts.finance.SetGiftBudgetRuleInput;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
 import dev.fedorov.ailife.contracts.finance.ListTransactionsInput;
@@ -306,6 +308,37 @@ class McpFinanceIntegrationTest {
         assertThat(attempted).isNotNull();
         assertThat(attempted.getMethod()).isEqualTo("POST");
         assertThat(attempted.getPath()).isEqualTo("/v1/schedules");
+    }
+
+    @Test
+    void setGiftBudgetRuleUpsertsCaseInsensitiveAndListsOrdered() {
+        GiftBudgetRuleDto parent = tools.setGiftBudgetRule(new SetGiftBudgetRuleInput(
+                householdId, "parent", new BigDecimal("20000.00"), "RUB"));
+        assertThat(parent.id()).isNotNull();
+        assertThat(parent.amount()).isEqualByComparingTo("20000.00");
+
+        tools.setGiftBudgetRule(new SetGiftBudgetRuleInput(
+                householdId, "friend", new BigDecimal("5000.00"), "RUB"));
+
+        // Same tier, different case → updates in place (one row per tier).
+        GiftBudgetRuleDto parentUpdated = tools.setGiftBudgetRule(new SetGiftBudgetRuleInput(
+                householdId, "Parent", new BigDecimal("25000.00"), "RUB"));
+        assertThat(parentUpdated.id()).isEqualTo(parent.id());
+        assertThat(parentUpdated.amount()).isEqualByComparingTo("25000.00");
+
+        List<GiftBudgetRuleDto> rules = tools.listGiftBudgetRules(householdId);
+        assertThat(rules).extracting(GiftBudgetRuleDto::relationship)
+                .containsExactly("friend", "parent");
+        assertThat(rules).filteredOn(r -> r.relationship().equals("parent"))
+                .singleElement()
+                .satisfies(r -> assertThat(r.amount()).isEqualByComparingTo("25000.00"));
+
+        // Functional unique index guarantees one row per (household, tier).
+        Long parentRows = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM finance.fin_gift_budget_rule
+                WHERE household_id = ? AND lower(relationship) = 'parent'
+                """, Long.class, householdId);
+        assertThat(parentRows).isEqualTo(1L);
     }
 
     @Test

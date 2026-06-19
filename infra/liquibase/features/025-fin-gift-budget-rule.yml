@@ -1,0 +1,91 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 025-fin-gift-budget-rule
+      author: ai-life
+      comment: |
+        Relationship-tiered gift-budget rules as editable data (Stage 4 / Track D3).
+        One rule per (household, relationship tier): "parent → 20000 RUB",
+        "friend → 5000 RUB". The gift-recommender resolves a person's
+        `relationship` (from core.people) to the tier amount; falls back to the
+        household "Gifts" category envelope (D2) when no tier rule exists.
+
+        Editable rules = DATA, not skill prose (routing doctrine) — set from chat
+        via set_gift_budget_rule, read via list_gift_budget_rules /
+        GET /internal/gift-budget-rule.
+
+        `relationship` is a free-text tier label matching core.people.relationship;
+        not enforced against an enum at the DB so a new tier is cheap. Upsert in
+        place (no time-versioning — a budget preference has no audit need like
+        fin_budget): a functional unique index on (household_id, lower(relationship))
+        keeps one rule per tier, case-insensitively.
+      changes:
+        - createTable:
+            schemaName: finance
+            tableName: fin_gift_budget_rule
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_fin_gift_budget_rule_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: relationship
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: finance
+            tableName: fin_gift_budget_rule
+            indexName: ix_fin_gift_budget_rule_household
+            columns:
+              - column:
+                  name: household_id
+
+        - sql:
+            comment: |
+              One rule per (household, relationship tier), case-insensitive — the
+              upsert matches relationship ignoring case (findBy...IgnoreCase).
+            sql: |
+              CREATE UNIQUE INDEX uq_fin_gift_budget_rule
+                ON finance.fin_gift_budget_rule (household_id, lower(relationship));
