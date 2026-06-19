@@ -40,8 +40,9 @@ import java.util.UUID;
  * asks the LLM to synthesize budget-aware gift ideas from {@code [AGENT.md, SKILL.md]} +
  * {@code {payload(person), context}}. Each gather step soft-fails independently, so a
  * finance outage just drops the budget constraint rather than sinking the suggestion.
- * The synthesized text is fanned out to every household member via notifier-service —
- * same delivery path as the generic trigger flow.
+ * The single wake produces <b>two outputs</b> (D3e): a short deterministic birthday
+ * reminder followed by the synthesized gift ideas, both fanned out to every household
+ * member via notifier-service.
  */
 @Component
 public class GiftRecommender {
@@ -92,7 +93,7 @@ public class GiftRecommender {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .flatMap(result -> notifyHousehold(household, result));
+                .flatMap(result -> notifyHousehold(household, person, req, result));
     }
 
     /**
@@ -135,17 +136,60 @@ public class GiftRecommender {
                         : Mono.just((JsonNode) json.valueToTree(rel)));
     }
 
-    private Mono<Void> notifyHousehold(UUID household, CoordinationResult result) {
-        String text = result.text();
-        log.info("gift.recommend coordinated: budget={} produced {} chars",
-                result.gathered().has("budget"), text == null ? 0 : text.length());
-        if (text == null || text.isBlank() || household == null) {
+    /**
+     * Fan two outputs out of the single {@code gift.recommend} wake (D3e): a short
+     * deterministic birthday <b>reminder</b> followed by the LLM-synthesized
+     * <b>gift ideas</b>. Each household member receives both, reminder first. The
+     * reminder is skipped when no person could be resolved (nobody to name); the
+     * gift message is skipped when the synthesis came back empty — so a degraded
+     * run still delivers whatever it has.
+     */
+    private Mono<Void> notifyHousehold(UUID household, PersonDto person,
+                                       AgentWakeRequest req, CoordinationResult result) {
+        String gifts = result.text();
+        String reminder = buildReminder(person, req);
+        log.info("gift.recommend coordinated: budget={} reminder={} gifts={} chars",
+                result.gathered().has("budget"), reminder != null,
+                gifts == null ? 0 : gifts.length());
+        if (household == null
+                || (reminder == null && (gifts == null || gifts.isBlank()))) {
             return Mono.empty();
         }
         return profile.usersByHousehold(household)
-                .flatMap(u -> notifier.notify(u.id(), text)
-                        .doOnError(e -> log.warn("notify failed for user={}: {}", u.id(), e.toString()))
-                        .onErrorResume(e -> Mono.empty()))
+                .flatMap(u -> deliver(u.id(), reminder).then(deliver(u.id(), gifts)))
                 .then();
+    }
+
+    /** One soft-failed notify; a blank message is a no-op so the chain stays simple. */
+    private Mono<Void> deliver(UUID userId, String text) {
+        if (text == null || text.isBlank()) return Mono.empty();
+        return notifier.notify(userId, text)
+                .doOnError(e -> log.warn("notify failed for user={}: {}", userId, e.toString()))
+                .onErrorResume(e -> Mono.empty())
+                .then();
+    }
+
+    /**
+     * The deterministic birthday reminder (D3e). Names the person and, when the
+     * wake payload carries a {@code daysUntil} count, how soon it is. Returns
+     * {@code null} when there's no person to name — then only the gift ideas go out.
+     */
+    private String buildReminder(PersonDto person, AgentWakeRequest req) {
+        if (person == null || person.displayName() == null || person.displayName().isBlank()) {
+            return null;
+        }
+        String who = person.displayName();
+        Integer days = daysUntil(req == null ? null : req.payload());
+        if (days != null && days > 0) {
+            return "🎂 Напоминание: через " + days + " дн. день рождения у " + who + ".";
+        }
+        return "🎂 Напоминание: скоро день рождения у " + who + ".";
+    }
+
+    /** Optional {@code payload.daysUntil} (lead time the scheduler fired on); absent → null. */
+    private static Integer daysUntil(JsonNode payload) {
+        if (payload == null) return null;
+        JsonNode d = payload.get("daysUntil");
+        return (d != null && d.isInt()) ? d.asInt() : null;
     }
 }

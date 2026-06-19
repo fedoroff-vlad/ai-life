@@ -47,8 +47,8 @@ person's `relationship`, when set, is forwarded so finance returns the
 relationship-tiered rule, else the "Gifts" envelope, D3d),
 **memories** (recall), and **relations**, then synthesizes budget-aware ideas from
 `[AGENT.md, SKILL.md]` + `{payload(person), context}`. Each gather step soft-fails
-independently — a finance outage just drops the budget constraint. Delivery (household
-fan-out via notifier) is unchanged.
+independently — a finance outage just drops the budget constraint. **Delivery is two
+notifications per member (D3e): a deterministic birthday reminder, then the gift ideas.**
 
 ## Env
 | Var | Default | Purpose |
@@ -92,7 +92,7 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
 - `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`. Used by the `create_event` action.
 - `http/OrchestratorInvokeClient` — `invoke(AgentActionRequest)` POSTs the orchestrator's `/v1/agents/invoke` hub (5s timeout). The locked inter-agent path (agents never call each other directly). Mirrors tasks-agent's client (C1e).
-- `flow/GiftRecommender` — the first real `Coordinator` flow (D2c). On `gift.recommend` it gathers `{budget: finance get_gift_budget via the hub, memories: recall, relations}` in parallel, synthesizes budget-aware gift ideas, and fans the result out to the household. Per-step soft-fail (a dropped budget just removes the price constraint). The budget gather forwards the person's `relationship` (when set) so finance can return the relationship-tiered rule (D3d).
+- `flow/GiftRecommender` — the first real `Coordinator` flow (D2c). On `gift.recommend` it gathers `{budget: finance get_gift_budget via the hub, memories: recall, relations}` in parallel, synthesizes budget-aware gift ideas, and fans the result out to the household. Per-step soft-fail (a dropped budget just removes the price constraint). The budget gather forwards the person's `relationship` (when set) so finance can return the relationship-tiered rule (D3d). **Two outputs (D3e):** the single wake delivers each member a short deterministic birthday **reminder** (names the person; `payload.daysUntil` adds "через N дн." when present) followed by the **gift ideas** — reminder skipped when no person resolved, gift message skipped when synthesis is empty.
 - `web/ActionController` — `POST /agents/calendar/actions/{action}`; inter-agent action endpoint. `create_event` maps the invoke `args` → `CreateEventInput`, calls mcp-caldav, returns `{eventUid}`. Always replies an `AgentActionResult` (structured `ok=false` on bad input, never an HTTP error).
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
