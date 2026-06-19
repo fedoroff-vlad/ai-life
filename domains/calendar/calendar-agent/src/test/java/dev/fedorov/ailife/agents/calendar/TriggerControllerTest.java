@@ -254,7 +254,10 @@ class TriggerControllerTest {
         assertThat(invokeBody)
                 .contains("\"action\":\"get_gift_budget\"")
                 .contains("\"targetAgent\":\"finance\"")
-                .contains(householdId.toString());
+                .contains(householdId.toString())
+                // D3d: the person's relationship is forwarded so finance can
+                // return the relationship-tiered budget rule.
+                .contains("\"relationship\":\"sister\"");
 
         // The LLM saw the skill body, the person fields, the recall hit, the
         // relation AND the gathered budget envelope.

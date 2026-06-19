@@ -30,7 +30,9 @@ import java.util.UUID;
  * gift recommendation. On a {@code gift.recommend} wake it gathers, in parallel:
  * <ul>
  *   <li><b>budget</b> — finance-agent's {@code get_gift_budget} via the orchestrator
- *       invoke hub (the household's "Gifts" envelope);</li>
+ *       invoke hub; the person's {@code relationship} (when set) is passed so finance
+ *       returns the relationship-tiered rule, falling back to the household "Gifts"
+ *       envelope (D3d);</li>
  *   <li><b>memories</b> — long-term recall about the person from memory-service;</li>
  *   <li><b>relations</b> — the person's graph relations (when any exist).</li>
  * </ul>
@@ -75,7 +77,7 @@ public class GiftRecommender {
         UUID personId = person == null ? null : person.id();
 
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
-        gather.put("budget", fetchGiftBudget(household));
+        gather.put("budget", fetchGiftBudget(household, person));
         gather.put("memories", fetchMemories(household, personId, person));
         gather.put("relations", fetchRelations(household, personId));
 
@@ -93,11 +95,21 @@ public class GiftRecommender {
                 .flatMap(result -> notifyHousehold(household, result));
     }
 
-    /** Ask finance for the household's gift budget through the orchestrator hub. */
-    private Mono<JsonNode> fetchGiftBudget(UUID household) {
+    /**
+     * Ask finance for the household's gift budget through the orchestrator hub.
+     * When the person carries a {@code relationship} (D3d) it is passed as
+     * {@code args.relationship} so finance can return the relationship-tiered
+     * rule (e.g. parent → 20000 RUB), falling back to the household "Gifts"
+     * envelope when no tier rule is set.
+     */
+    private Mono<JsonNode> fetchGiftBudget(UUID household, PersonDto person) {
         if (household == null) return Mono.empty();
+        JsonNode args = null;
+        if (person != null && person.relationship() != null && !person.relationship().isBlank()) {
+            args = json.createObjectNode().put("relationship", person.relationship());
+        }
         var request = new AgentActionRequest(
-                "finance", "get_gift_budget", household, null, "calendar", null);
+                "finance", "get_gift_budget", household, null, "calendar", args);
         return orchestrator.invoke(request)
                 .filter(AgentActionResult::ok)
                 .map(AgentActionResult::result);
