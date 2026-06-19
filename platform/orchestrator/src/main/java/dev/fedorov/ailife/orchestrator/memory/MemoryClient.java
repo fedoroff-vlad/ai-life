@@ -2,6 +2,7 @@ package dev.fedorov.ailife.orchestrator.memory;
 
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
+import dev.fedorov.ailife.contracts.message.MessageReceivedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
@@ -62,5 +63,32 @@ public class MemoryClient {
                     log.warn("memory recall failed for household={}: {}", householdId, e.toString());
                     return Mono.just(List.of());
                 });
+    }
+
+    /**
+     * Fire-and-forget: drop an inbound message at memory-service's durable
+     * {@code POST /v1/observations} so it can learn durable facts from it
+     * (memory-from-chat, MFC-b). Off the response path — we never await it or let
+     * it affect routing, and any failure is swallowed (best-effort passive capture,
+     * same posture as {@link #recall}). No-op when disabled, no household, or blank
+     * text (e.g. an attachment-only message — those facts are captured by the
+     * agent that processes the attachment).
+     */
+    public void observe(UUID householdId, UUID userId, String text, String source) {
+        if (!props.isEnabled() || householdId == null || text == null || text.isBlank()) {
+            return;
+        }
+        http.post()
+                .uri("/v1/observations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new MessageReceivedEvent(householdId, userId, text, source))
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("memory observe failed for household={}: {}", householdId, e.toString());
+                    return Mono.empty();
+                })
+                .subscribe();
     }
 }

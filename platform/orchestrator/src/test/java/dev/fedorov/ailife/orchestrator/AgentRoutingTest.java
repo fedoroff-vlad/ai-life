@@ -53,6 +53,7 @@ class AgentRoutingTest {
         calendarAgent.setDispatcher(new CalendarDispatcher());
         calendarAgent.start();
         memoryService = new MockWebServer();
+        memoryService.setDispatcher(memoryDispatcher);
         memoryService.start();
     }
 
@@ -79,9 +80,51 @@ class AgentRoutingTest {
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
 
+    static final MemoryDispatcher memoryDispatcher = new MemoryDispatcher();
+
     @BeforeEach
-    void resetCalendarHits() {
+    void resetCalendarHits() throws InterruptedException {
         CalendarDispatcher.intentHits.set(0);
+        memoryDispatcher.recallBody = "[]";
+        // Shared static MockWebServer — drain leftover recorded requests (incl. the
+        // fire-and-forget observe drops) so each test's assertions see only its own.
+        //noinspection StatementWithEmptyBody
+        while (memoryService.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
+    }
+
+    /**
+     * Serves both memory-service paths the orchestrator now hits: {@code recall}
+     * (per-test {@link #recallBody}) and the fire-and-forget {@code observe} drop
+     * ({@code /v1/observations} → 202). The orchestrator captures every inbound
+     * message, so both requests land on this server in any order.
+     */
+    static final class MemoryDispatcher extends Dispatcher {
+        volatile String recallBody = "[]";
+
+        @Override
+        public MockResponse dispatch(RecordedRequest req) {
+            String path = req.getPath() == null ? "" : req.getPath();
+            if (path.startsWith("/v1/observations")) {
+                return new MockResponse().setResponseCode(202);
+            }
+            return new MockResponse()
+                    .setHeader("content-type", "application/json")
+                    .setBody(recallBody);
+        }
+    }
+
+    /** Take memory-service requests until the recall one shows up (skips the observe drop). */
+    private RecordedRequest takeRecall() throws InterruptedException {
+        for (int i = 0; i < 10; i++) {
+            RecordedRequest req = memoryService.takeRequest(2, TimeUnit.SECONDS);
+            if (req == null) {
+                return null;
+            }
+            if (req.getPath() != null && req.getPath().startsWith("/v1/memories/recall")) {
+                return req;
+            }
+        }
+        return null;
     }
 
     @Test
@@ -97,9 +140,7 @@ class AgentRoutingTest {
                 new RecallMemoryHit(new MemoryDto(
                         UUID.randomUUID(), household, user, null, "chat",
                         "Maria loves earl grey tea.", null, Instant.now()), 0.18));
-        memoryService.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(memories)));
+        memoryDispatcher.recallBody = json.writeValueAsString(memories);
 
         // LLM call = classification. Reply must match a known agent name.
         var classifyResp = new LlmChatResponse(
@@ -125,7 +166,7 @@ class AgentRoutingTest {
                 });
 
         // memory-service was hit with the right scope + query.
-        RecordedRequest recall = memoryService.takeRequest(2, TimeUnit.SECONDS);
+        RecordedRequest recall = takeRecall();
         assertThat(recall).isNotNull();
         assertThat(recall.getPath()).isEqualTo("/v1/memories/recall");
         String recallBody = recall.getBody().readUtf8();
@@ -150,11 +191,7 @@ class AgentRoutingTest {
 
     @Test
     void classifierStillWorksWhenMemoryReturnsEmpty() throws Exception {
-        // memory returns []
-        memoryService.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody("[]"));
-
+        // memory returns [] (the dispatcher's default recallBody).
         var classifyResp = new LlmChatResponse(
                 "mock-fast", "calendar", "stop", new LlmUsage(20, 1, 21));
         llmGateway.enqueue(new MockResponse()

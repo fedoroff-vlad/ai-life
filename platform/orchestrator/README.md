@@ -12,6 +12,14 @@ Memory recall is **strict no-throw**: any error (disabled, no household on the
 message, network, 5xx, 500 ms timeout) collapses to "no memories" and classification
 proceeds without the second system message. Routing never blocks on memory.
 
+**memory-from-chat (MFC-b producer):** on every inbound `/v1/intent`, the orchestrator
+**fire-and-forgets** the message text to memory-service's durable `POST /v1/observations`
+drop-point (`MemoryClient.observe`) so durable facts get learned passively. Off the
+response path (`.subscribe()`), never affects routing, soft-fail — same posture as recall.
+Skipped when memory is disabled, no household, or the text is blank (an attachment-only
+message — those facts are captured by the agent that processes the attachment; capture is
+distributed by design).
+
 **Route-lock lifecycle (Stage 4 / A2+A3):** before classifying, the orchestrator asks
 conversation-service (`GET /v1/conversation-state`) whether this `(household, user, channel)` has an
 active route-lock. If it does and names a known agent, the message is a reply to that agent's open
@@ -100,7 +108,7 @@ chosen agent, and returns the LLM content with the right `agent` / `llmModel`.
 - `agent/AgentDiscovery` — startup manifest fetch.
 - `agent/AgentRegistry` — name → `Agent` map; backs both routing and wake dispatch.
 - `memory/MemoryProperties` — `orchestrator.memory.{enabled, url, recall-k}`.
-- `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`).
+- `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`). Also `observe(...)` — fire-and-forget POST `/v1/observations` (memory-from-chat producer), soft-fail, off the response path.
 - `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision.
 - `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty. Lenient parsing + echo fallback.
 - `web/IntentController` — `POST /v1/intent`.
