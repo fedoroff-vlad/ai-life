@@ -14,7 +14,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -102,6 +105,7 @@ class MessageCaptureConsumerIntegrationTest {
     @Autowired OutboxPublisher publisher;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+    @LocalServerPort int port;
 
     @Test
     void messageReceivedEventIsCapturedAndRowMarkedPublished() throws Exception {
@@ -134,6 +138,46 @@ class MessageCaptureConsumerIntegrationTest {
                 "SELECT count(*) FROM memory.memories WHERE household_id = ?",
                 Integer.class, household);
         assertThat(rows).isZero();
+    }
+
+    @Test
+    void observationDropPointEnqueuesToBusAndConsumerCaptures() throws Exception {
+        UUID household = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", household, "droppoint hh");
+
+        // A DB-less producer drops an observation over HTTP; it must return 202
+        // immediately (durable enqueue, no inline LLM work).
+        WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build()
+                .post().uri("/v1/observations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new MessageReceivedEvent(household, null,
+                        "Маша терпеть не может орехи.", "telegram"))
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // The consumer then drains it and stores the captured memory.
+        for (int i = 0; i < 50; i++) {
+            Integer rows = jdbc.queryForObject(
+                    "SELECT count(*) FROM memory.memories WHERE household_id = ? AND source = 'chat-capture'",
+                    Integer.class, household);
+            if (rows != null && rows == 1) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM memory.memories WHERE household_id = ? AND source = 'chat-capture'",
+                Integer.class, household)).isEqualTo(1);
+    }
+
+    @Test
+    void observationDropPointRejectsBlankText() {
+        WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build()
+                .post().uri("/v1/observations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new MessageReceivedEvent(UUID.randomUUID(), null, "  ", "telegram"))
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     private void awaitStatus(UUID eventId, String expected) throws InterruptedException {
