@@ -28,6 +28,7 @@
         <shedlock.version>5.16.0</shedlock.version>
         <minio.version>8.5.14</minio.version>
         <tess4j.version>5.13.0</tess4j.version>
+        <jsoup.version>1.18.3</jsoup.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -114,6 +115,11 @@
                 <groupId>net.sourceforge.tess4j</groupId>
                 <artifactId>tess4j</artifactId>
                 <version>${tess4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>${jsoup.version}</version>
             </dependency>
 
             <!-- internal libs -->
