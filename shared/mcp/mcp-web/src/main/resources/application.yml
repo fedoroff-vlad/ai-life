@@ -24,6 +24,9 @@ mcp-web:
   # Default / max number of hits web_search returns.
   default-limit: ${MCP_WEB_DEFAULT_LIMIT:8}
   max-limit: ${MCP_WEB_MAX_LIMIT:20}
+  # fetch_url (jsoup) page-read tuning.
+  fetch-timeout-ms: ${MCP_WEB_FETCH_TIMEOUT_MS:8000}
+  fetch-max-chars: ${MCP_WEB_FETCH_MAX_CHARS:8000}
 
 management:
   endpoints:

@@ -21,6 +21,12 @@ public class McpWebProperties {
     /** Hard cap on hits, so a caller can't ask the engine for an unbounded page. */
     private int maxLimit = 20;
 
+    /** {@code fetch_url} connect/read timeout (ms). */
+    private int fetchTimeoutMs = 8000;
+
+    /** {@code fetch_url} max extracted characters; longer text is truncated (flag set). */
+    private int fetchMaxChars = 8000;
+
     public String getSearxngUrl() { return searxngUrl; }
     public void setSearxngUrl(String searxngUrl) { this.searxngUrl = searxngUrl; }
     public String getSearchEngine() { return searchEngine; }
@@ -29,4 +35,8 @@ public class McpWebProperties {
     public void setDefaultLimit(int defaultLimit) { this.defaultLimit = defaultLimit; }
     public int getMaxLimit() { return maxLimit; }
     public void setMaxLimit(int maxLimit) { this.maxLimit = maxLimit; }
+    public int getFetchTimeoutMs() { return fetchTimeoutMs; }
+    public void setFetchTimeoutMs(int fetchTimeoutMs) { this.fetchTimeoutMs = fetchTimeoutMs; }
+    public int getFetchMaxChars() { return fetchMaxChars; }
+    public void setFetchMaxChars(int fetchMaxChars) { this.fetchMaxChars = fetchMaxChars; }
 }

@@ -4,10 +4,10 @@ Shared **web capability-MCP** (`shared/mcp/`, no schema). Cheap web retrieval an
 reuse — a `researcher` query, chef recipe search, briefing news, finance market reads. Bound by
 agents over MCP/SSE; it owns no data. Plan: [research.md](../../../plans/research.md).
 
-**Status (R-a):** `web_search` runs against a self-hosted **SearXNG** backing service (free, no
-key/quota, private) behind a swappable `SearchEngine` interface. Returns ranked title/url/snippet
-hits — **cheap retrieval, no LLM**; the calling agent does the synthesis. Next: R-b adds
-`fetch_url` (read a page → readable text); R-c binds the `researcher` agent.
+**Status (R-b):** `web_search` runs against a self-hosted **SearXNG** backing service (free, no
+key/quota, private) behind a swappable `SearchEngine` interface; `fetch_url` reads a page (jsoup,
+behind a `PageFetcher` interface) → readable text with boilerplate stripped. **Cheap retrieval, no
+LLM** — the calling agent does the synthesis. Next: R-c binds the `researcher` agent.
 
 ## Port: `8098` (`MCP_WEB_PORT`)
 
@@ -15,13 +15,15 @@ hits — **cheap retrieval, no LLM**; the calling agent does the synthesis. Next
 
 | tool | args | returns | purpose |
 |------|------|---------|---------|
-| `web_search` | `query`, `limit?` | `WebSearchResult{query, hits[]}` | search the web (SearXNG) → ranked `WebSearchHit{title, url, snippet}`. Links + snippets only; read a page with `fetch_url` (R-b). |
+| `web_search` | `query`, `limit?` | `WebSearchResult{query, hits[]}` | search the web (SearXNG) → ranked `WebSearchHit{title, url, snippet}`. Links + snippets only; read a page with `fetch_url`. |
+| `fetch_url` | `url` | `PageContent{url, title, text, truncated}` | fetch a page (jsoup) → readable text, boilerplate stripped. Empty text if unreachable; `truncated` set when capped. |
 
-## HTTP passthrough
+## HTTP passthroughs
 
 | method | path | body | returns | purpose |
 |--------|------|------|---------|---------|
 | POST | `/internal/search` | `WebSearchInput{query, limit?}` | `WebSearchResult` | non-MCP passthrough to `web_search`. The MockWebServer-testable, deterministic path an agent calls (MCP/SSE can't be mocked). Delegates straight to the tool. |
+| POST | `/internal/fetch` | `FetchUrlInput{url}` | `PageContent` | non-MCP passthrough to `fetch_url` (blocking jsoup on `boundedElastic`). |
 
 ## Env
 
@@ -32,6 +34,8 @@ hits — **cheap retrieval, no LLM**; the calling agent does the synthesis. Next
 | `MCP_WEB_SEARCH_ENGINE` | `searxng` | Which `SearchEngine` to wire. Swappable later (tavily/brave) via env. |
 | `MCP_WEB_DEFAULT_LIMIT` | `8` | Hits returned when the caller omits `limit`. |
 | `MCP_WEB_MAX_LIMIT` | `20` | Hard cap on hits per query. |
+| `MCP_WEB_FETCH_TIMEOUT_MS` | `8000` | `fetch_url` connect/read timeout (ms). |
+| `MCP_WEB_FETCH_MAX_CHARS` | `8000` | `fetch_url` max extracted chars; longer → truncated. |
 
 No DB / no Liquibase feature (capability-MCP). Backing service: a **SearXNG** container
 (`infra/docker-compose.yml` + `docker-compose.dev.yml`), configured with the JSON format enabled
@@ -46,8 +50,11 @@ No DB / no Liquibase feature (capability-MCP). Backing service: a **SearXNG** co
 - `engine/SearchEngine` — pluggable search backend interface (mirrors `OcrEngine`).
 - `engine/SearxngSearchEngine` — default (`mcp-web.search-engine=searxng`); GET SearXNG
   `/search?format=json`, maps `results[]` → `WebSearchHit`s (drops URL-less hits), trims to `limit`.
-- `tools/WebMcpTools` — `web_search(query, limit?)` `@Tool` (blocking `.block()` per the MCP
-  convention) → `WebSearchResult`.
+- `engine/PageFetcher` — pluggable page-reader interface (mirrors `SearchEngine`).
+- `engine/JsoupPageFetcher` — default; jsoup fetch+parse, strips boilerplate, prefers
+  `<article>`/`<main>`, caps length. Best-effort: failure → empty text (not an error).
+- `tools/WebMcpTools` — `web_search(query, limit?)` + `fetch_url(url)` `@Tool`s (blocking per the
+  MCP convention) → `WebSearchResult` / `PageContent`.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider` exposing the `@Tool`s.
-- `web/InternalSearchController` — `POST /internal/search` passthrough (delegates to the tool on
-  `Schedulers.boundedElastic()`).
+- `web/InternalSearchController` + `web/InternalFetchController` — `POST /internal/search` and
+  `/internal/fetch` passthroughs (delegate to the tools on `Schedulers.boundedElastic()`).

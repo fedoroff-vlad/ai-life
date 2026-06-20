@@ -1,8 +1,10 @@
 package dev.fedorov.ailife.mcp.web.tools;
 
+import dev.fedorov.ailife.contracts.web.PageContent;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
 import dev.fedorov.ailife.mcp.web.config.McpWebProperties;
+import dev.fedorov.ailife.mcp.web.engine.PageFetcher;
 import dev.fedorov.ailife.mcp.web.engine.SearchEngine;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
@@ -20,10 +22,12 @@ import java.util.List;
 public class WebMcpTools {
 
     private final SearchEngine engine;
+    private final PageFetcher fetcher;
     private final McpWebProperties props;
 
-    public WebMcpTools(SearchEngine engine, McpWebProperties props) {
+    public WebMcpTools(SearchEngine engine, PageFetcher fetcher, McpWebProperties props) {
         this.engine = engine;
+        this.fetcher = fetcher;
         this.props = props;
     }
 
@@ -41,6 +45,20 @@ public class WebMcpTools {
         int n = resolveLimit(limit);
         List<WebSearchHit> hits = engine.search(query, n).block();
         return new WebSearchResult(query, hits == null ? List.of() : hits);
+    }
+
+    @Tool(description = """
+            Fetch a single web page by URL and return its readable text (boilerplate like
+            navigation, scripts and footers removed), plus the page title. Use this after
+            'web_search' to read a promising result in full before summarising it. Returns
+            empty text if the page can't be fetched. The text may be truncated for very long
+            pages (a flag indicates this). You do the summarising — this returns raw text only.
+            """)
+    public PageContent fetch_url(String url) {
+        if (url == null || url.isBlank()) {
+            return new PageContent(url, null, "", false);
+        }
+        return fetcher.fetch(url);
     }
 
     private int resolveLimit(Integer limit) {
