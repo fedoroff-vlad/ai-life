@@ -27,6 +27,11 @@ mcp-web:
   # fetch_url (jsoup) page-read tuning.
   fetch-timeout-ms: ${MCP_WEB_FETCH_TIMEOUT_MS:8000}
   fetch-max-chars: ${MCP_WEB_FETCH_MAX_CHARS:8000}
+  # transcribe_video (yt-dlp) tuning. Engine: yt-dlp (real, binary in image) | stub.
+  transcript-engine: ${MCP_WEB_TRANSCRIPT_ENGINE:yt-dlp}
+  transcript-langs: ${MCP_WEB_TRANSCRIPT_LANGS:en.*,ru.*}
+  transcript-timeout-sec: ${MCP_WEB_TRANSCRIPT_TIMEOUT_SEC:60}
+  transcript-max-chars: ${MCP_WEB_TRANSCRIPT_MAX_CHARS:12000}
 
 management:
   endpoints:
