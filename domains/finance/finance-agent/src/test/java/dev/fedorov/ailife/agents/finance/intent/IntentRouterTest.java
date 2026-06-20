@@ -1,8 +1,11 @@
 package dev.fedorov.ailife.agents.finance.intent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
+import dev.fedorov.ailife.contracts.agent.MessageScope;
+import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -14,8 +17,10 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,12 +44,15 @@ import static org.mockito.Mockito.when;
  *   <li>LLM returns non-JSON → treated as raw chat reply (lenient parsing).</li>
  *   <li>Tool dispatch failure → user-facing Russian-locale error, not
  *   propagated as an exception.</li>
+ *   <li>LLM picks {@code advice} → hands off to {@link FinancialAdvisor} and
+ *   returns its synthesized analysis.</li>
  * </ul>
  */
 class IntentRouterTest {
 
     private final LlmClient llm = mock(LlmClient.class);
     private final ToolDispatcher dispatcher = mock(ToolDispatcher.class);
+    private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -52,7 +60,13 @@ class IntentRouterTest {
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             "You are the finance agent for the ai-life system.");
 
-    private final IntentRouter router = new IntentRouter(llm, dispatcher, manifest, json);
+    private final IntentRouter router = new IntentRouter(llm, dispatcher, advisor, manifest, json);
+
+    /** A minimal text message — what the orchestrator forwards on a user intent. */
+    private static NormalizedMessage msg(String text) {
+        return new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                text, List.of(), "telegram", "1", Instant.now());
+    }
 
     @Test
     void noToolsWiredFallsBackToPlainChatNoRoutingPrompt() {
@@ -63,7 +77,7 @@ class IntentRouterTest {
             return Mono.just(reply("mock-large", "Конечно, помогу."));
         });
 
-        StepVerifier.create(router.route("Привет"))
+        StepVerifier.create(router.route(msg("Привет")))
                 .assertNext(r -> {
                     assertThat(r.text()).isEqualTo("Конечно, помогу.");
                     assertThat(r.invokedTool()).isNull();
@@ -89,7 +103,7 @@ class IntentRouterTest {
                 eq("{\"dryRun\":true,\"householdId\":\"abc\"}")))
                 .thenReturn("{\"created\":0,\"skipped\":0}");
 
-        StepVerifier.create(router.route("импортируй CSV из Money Pro, dry-run"))
+        StepVerifier.create(router.route(msg("импортируй CSV из Money Pro, dry-run")))
                 .assertNext(r -> {
                     assertThat(r.text()).isEqualTo("{\"created\":0,\"skipped\":0}");
                     assertThat(r.invokedTool()).isEqualTo("import_moneypro_csv");
@@ -104,7 +118,7 @@ class IntentRouterTest {
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "{\"action\":\"chat\",\"text\":\"Прикрепи CSV-файл и скажи как мапить счета.\"}")));
 
-        StepVerifier.create(router.route("импортируй csv"))
+        StepVerifier.create(router.route(msg("импортируй csv")))
                 .assertNext(r -> {
                     assertThat(r.text()).isEqualTo("Прикрепи CSV-файл и скажи как мапить счета.");
                     assertThat(r.invokedTool()).isNull();
@@ -121,7 +135,7 @@ class IntentRouterTest {
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "Извини, не понял запрос."))); // not JSON at all
 
-        StepVerifier.create(router.route("???"))
+        StepVerifier.create(router.route(msg("???")))
                 .assertNext(r -> {
                     assertThat(r.text()).isEqualTo("Извини, не понял запрос.");
                     assertThat(r.invokedTool()).isNull();
@@ -139,7 +153,7 @@ class IntentRouterTest {
         doThrow(new IllegalArgumentException("Missing required field: householdId"))
                 .when(dispatcher).dispatch(eq("import_moneypro_csv"), eq("{}"));
 
-        StepVerifier.create(router.route("импортируй"))
+        StepVerifier.create(router.route(msg("импортируй")))
                 .assertNext(r -> {
                     // The user gets a friendly error mentioning the tool name
                     // and the dispatcher's own message — no exception is
@@ -149,6 +163,26 @@ class IntentRouterTest {
                     assertThat(r.invokedTool()).isEqualTo("import_moneypro_csv");
                 })
                 .verifyComplete();
+    }
+
+    @Test
+    void llmPicksAdviceHandsOffToFinancialAdvisor() {
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"advice\"}")));
+        when(advisor.advise(any(NormalizedMessage.class))).thenReturn(Mono.just(
+                new FinancialAdvisor.AdviceResult("Больше всего ушло на еду: 300 EUR.", "mock-large")));
+
+        StepVerifier.create(router.route(msg("проанализируй мои траты")))
+                .assertNext(r -> {
+                    assertThat(r.text()).isEqualTo("Больше всего ушло на еду: 300 EUR.");
+                    assertThat(r.invokedTool()).isEqualTo("advice");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // The analysis path does NOT touch the tool dispatcher.
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 
     private static LlmChatResponse reply(String model, String text) {
