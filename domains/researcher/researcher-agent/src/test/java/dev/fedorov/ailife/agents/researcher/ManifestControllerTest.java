@@ -32,8 +32,7 @@ class ManifestControllerTest {
         assertThat(manifest).isNotNull();
         assertThat(manifest.name()).isEqualTo("researcher");
         assertThat(manifest.mcp()).contains("mcp-web");
-        // The research skill ships in R-d; the registry is empty for now (no declared skills).
-        assertThat(manifest.skills()).isEmpty();
+        assertThat(manifest.skills()).contains("research");
         assertThat(manifest.body()).contains("cheap-first");
     }
 }

@@ -30,6 +30,8 @@ researcher-agent:
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  search-limit: ${RESEARCHER_AGENT_SEARCH_LIMIT:6}
+  fetch-top-n: ${RESEARCHER_AGENT_FETCH_TOP_N:3}
 
 ailife:
   llm-client:

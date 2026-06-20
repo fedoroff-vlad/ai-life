@@ -16,8 +16,20 @@ public class ResearcherAgentProperties {
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
 
+    /** How many search hits to request from mcp-web. */
+    private int searchLimit = 6;
+
+    /** How many of the top hits to fetch in full before synthesis (cheap-first depth). */
+    private int fetchTopN = 3;
+
     public String getMcpWebUrl() { return mcpWebUrl; }
     public void setMcpWebUrl(String mcpWebUrl) { this.mcpWebUrl = mcpWebUrl; }
+
+    public int getSearchLimit() { return searchLimit; }
+    public void setSearchLimit(int searchLimit) { this.searchLimit = searchLimit; }
+
+    public int getFetchTopN() { return fetchTopN; }
+    public void setFetchTopN(int fetchTopN) { this.fetchTopN = fetchTopN; }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
