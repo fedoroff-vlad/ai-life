@@ -188,6 +188,13 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   so an agent that already holds a concrete `AddTransactionInput` can persist it
   without an LLM-driven MCP tool call. Used by the `receipt-parser` flow once it
   has parsed a draft from a photo. Validation failures → `{"error": "..."}` 400.
+- `GET /internal/spending-by-category?householdId=<uuid>&from=<iso-instant>&to=<iso-instant>&kind=<opt>`
+  → `List<SpendingByCategoryRow>` (200) | 400 on a bad window. Delegates to the
+  `spending_by_category` tool (same `[from, to)` window + `kind` default of
+  `expense`, empty string = all kinds; rows ordered by absolute spend
+  descending). The deterministic gather path finance-agent's `financial-advisor`
+  flow calls to build a spending snapshot before the LLM synthesis. The MCP tool
+  stays the entry point for an LLM-driven question.
 
 ## Schema
 
