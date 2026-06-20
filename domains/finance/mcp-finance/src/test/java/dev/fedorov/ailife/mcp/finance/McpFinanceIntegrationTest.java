@@ -1209,4 +1209,53 @@ class McpFinanceIntegrationTest {
                 otherHouseholdId, null, null, null, null, null));
         assertThat(other).noneMatch(t -> "scoped".equals(t.note()));
     }
+
+    @Test
+    void internalSpendingByCategoryReturnsAggregateAnd400OnBadWindow() {
+        // Fresh household keeps the aggregate deterministic against the shared DB.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "spending hh");
+
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, hh, null, "Spend-acc", "card", "EUR", BigDecimal.ZERO, null));
+        FinCategoryDto food = tools.upsertCategory(new UpsertCategoryInput(
+                null, hh, null, "Food", "expense", null));
+        FinCategoryDto coffee = tools.upsertCategory(new UpsertCategoryInput(
+                null, hh, null, "Coffee", "expense", null));
+        Instant t = Instant.parse("2026-03-10T10:00:00Z");
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), food.id(), null, new BigDecimal("-30.00"), null, t, "groceries", "manual", null));
+        tools.addTransaction(new AddTransactionInput(
+                hh, acc.id(), coffee.id(), null, new BigDecimal("-5.00"), null, t, "latte", "manual", null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        List<SpendingByCategoryRow> rows = client.get()
+                .uri(uri -> uri.path("/internal/spending-by-category")
+                        .queryParam("householdId", hh)
+                        .queryParam("from", "2026-03-01T00:00:00Z")
+                        .queryParam("to", "2026-04-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(SpendingByCategoryRow.class)
+                .returnResult().getResponseBody();
+
+        assertThat(rows).isNotNull();
+        // Ordered by absolute spend descending → Food (30) before Coffee (5).
+        assertThat(rows).extracting(SpendingByCategoryRow::categoryName)
+                .containsExactly("Food", "Coffee");
+        assertThat(rows.get(0).spent()).isEqualByComparingTo("30.00");
+
+        // to <= from → the tool's guard surfaces as 400.
+        client.get()
+                .uri(uri -> uri.path("/internal/spending-by-category")
+                        .queryParam("householdId", hh)
+                        .queryParam("from", "2026-04-01T00:00:00Z")
+                        .queryParam("to", "2026-03-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
 }
