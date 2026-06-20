@@ -597,6 +597,8 @@ services:
         condition: service_healthy
       mcp-money-pro-import:
         condition: service_healthy
+      mcp-media-processing:
+        condition: service_healthy
     environment:
       FINANCE_AGENT_PORT: 8093
       LLM_GATEWAY_URL: http://llm-gateway:8081
@@ -607,6 +609,7 @@ services:
       FINANCE_AGENT_MEMORY_RECALL_K: ${FINANCE_AGENT_MEMORY_RECALL_K:-5}
       MCP_FINANCE_URL: http://mcp-finance:8092
       MCP_MONEY_PRO_IMPORT_URL: http://mcp-money-pro-import:8094
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
       FINANCE_AGENT_MCP_CLIENT_ENABLED: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:-true}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8093/actuator/health"]

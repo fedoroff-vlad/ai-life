@@ -11,8 +11,7 @@ import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
-import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
-import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.media.CaptionResult;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -38,41 +37,40 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Exercises the receipt-parser confirm-before-write flow (Stage 4 / A4) through the agent's HTTP
  * surface. The photo intent ({@code POST /agents/finance/intent}) parses a draft and replies with a
  * confirmation + a {@code pendingAction} — it does NOT write. The user's reply
- * ({@code POST /agents/finance/resume}) writes on "да" and cancels otherwise. Three MockWebServers
- * stand in for media / llm-gateway / mcp-finance.
+ * ({@code POST /agents/finance/resume}) writes on "да" and cancels otherwise.
+ *
+ * <p>As of MP-c the vision call lives in the shared {@code mcp-media-processing} capability — the
+ * receipt flow no longer fetches bytes or hits llm-gateway directly; it calls the capability's
+ * {@code POST /internal/caption} passthrough. MockWebServers stand in for mcp-media-processing /
+ * mcp-finance / memory-service.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ReceiptFlowTest {
 
-    static MockWebServer llmGateway;
-    static MockWebServer media;
+    static MockWebServer mediaProcessing;
     static MockWebServer mcpFinance;
     static MockWebServer memory;
 
     @BeforeAll
     static void start() throws Exception {
-        llmGateway = new MockWebServer();
-        media = new MockWebServer();
+        mediaProcessing = new MockWebServer();
         mcpFinance = new MockWebServer();
         memory = new MockWebServer();
-        llmGateway.start();
-        media.start();
+        mediaProcessing.start();
         mcpFinance.start();
         memory.start();
     }
 
     @AfterAll
     static void stop() throws Exception {
-        llmGateway.shutdown();
-        media.shutdown();
+        mediaProcessing.shutdown();
         mcpFinance.shutdown();
         memory.shutdown();
     }
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
-        r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
-        r.add("finance-agent.media-service-url", () -> "http://localhost:" + media.getPort());
+        r.add("finance-agent.mcp-media-processing-url", () -> "http://localhost:" + mediaProcessing.getPort());
         r.add("finance-agent.mcp-finance-url", () -> "http://localhost:" + mcpFinance.getPort());
         r.add("finance-agent.memory-service-url", () -> "http://localhost:" + memory.getPort());
     }
@@ -86,13 +84,11 @@ class ReceiptFlowTest {
         UUID accountId = UUID.randomUUID();
         String mediaId = UUID.randomUUID().toString();
 
-        media.enqueue(new MockResponse()
-                .setHeader("content-type", "image/jpeg").setBody("fake-jpeg-bytes"));
         var draftJson = "{\"amount\": 4.50, \"currency\": \"EUR\", \"merchant\": \"Starbucks\", \"date\": \"2026-06-01\"}";
-        llmGateway.enqueue(new MockResponse()
+        // mcp-media-processing caption passthrough returns the extracted draft.
+        mediaProcessing.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(new LlmChatResponse(
-                        "mock-vision", draftJson, "stop", new LlmUsage(30, 10, 40)))));
+                .setBody(json.writeValueAsString(new CaptionResult(draftJson, "mock-vision"))));
         // mcp-finance: only the account list — NO transaction POST in the confirm step.
         mcpFinance.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
@@ -122,8 +118,16 @@ class ReceiptFlowTest {
         assertThat(new BigDecimal(resp.pendingAction().path("input").path("amount").asText()))
                 .isEqualByComparingTo("-4.50");
 
-        media.takeRequest(2, TimeUnit.SECONDS);
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        // The capability's caption passthrough was called with the media id + the SKILL instruction.
+        RecordedRequest captionReq = mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(captionReq.getMethod()).isEqualTo("POST");
+        assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
+        JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
+        assertThat(captionBody.path("mediaId").asText()).isEqualTo(mediaId);
+        assertThat(captionBody.path("instruction").asText())
+                .contains("strict JSON")            // the receipt-parser SKILL.md prompt
+                .contains("вот чек за кофе");        // the user's caption folded in as a hint
+
         RecordedRequest accountsReq = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
         assertThat(accountsReq.getMethod()).isEqualTo("GET");
         assertThat(accountsReq.getPath()).startsWith("/internal/accounts");
@@ -147,13 +151,10 @@ class ReceiptFlowTest {
         UUID accountId = UUID.randomUUID();
         String mediaId = UUID.randomUUID().toString();
 
-        media.enqueue(new MockResponse()
-                .setHeader("content-type", "image/jpeg").setBody("fake-jpeg-bytes"));
         var draftJson = "{\"amount\": 4.50, \"currency\": \"EUR\", \"merchant\": \"Starbucks\", \"date\": \"2026-06-01\"}";
-        llmGateway.enqueue(new MockResponse()
+        mediaProcessing.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(new LlmChatResponse(
-                        "mock-vision", draftJson, "stop", new LlmUsage(30, 10, 40)))));
+                .setBody(json.writeValueAsString(new CaptionResult(draftJson, "mock-vision"))));
         mcpFinance.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(List.of(new FinAccountDto(
@@ -171,8 +172,7 @@ class ReceiptFlowTest {
                 .exchange().expectStatus().isOk();
 
         // Drain the flow's requests so they don't leak into the shared static servers.
-        media.takeRequest(2, TimeUnit.SECONDS);
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         mcpFinance.takeRequest(2, TimeUnit.SECONDS);
         // No caption → nothing dropped at memory-service.
         assertThat(memory.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();

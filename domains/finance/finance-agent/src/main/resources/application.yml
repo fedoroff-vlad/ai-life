@@ -25,6 +25,12 @@ spring:
             # passthroughs until an agent-side @Tool call shape needs it.
             mcp-money-pro-import:
               url: ${MCP_MONEY_PRO_IMPORT_URL:http://mcp-money-pro-import:8094}
+            # Shared media-understanding capability (MP-c). Bound here so a future
+            # LLM-driven flow can pick its tools; the deterministic receipt-parser
+            # call goes over the HTTP /internal/caption passthrough (CaptionClient),
+            # which — unlike MCP/SSE — is MockWebServer-testable.
+            mcp-media-processing:
+              url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
 
 server:
   port: ${FINANCE_AGENT_PORT:8093}
@@ -41,6 +47,7 @@ finance-agent:
   mcp-finance-url: ${MCP_FINANCE_URL:http://mcp-finance:8092}
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
   mcp-money-pro-import-url: ${MCP_MONEY_PRO_IMPORT_URL:http://mcp-money-pro-import:8094}
+  mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
 
 ailife:
   llm-client:
