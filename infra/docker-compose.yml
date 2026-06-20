@@ -138,7 +138,7 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_ANTHROPIC_VERSION: ${LLM_ANTHROPIC_VERSION:-}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
     ports:
       - "${LLM_GATEWAY_PORT:-8081}:8081"
     healthcheck:

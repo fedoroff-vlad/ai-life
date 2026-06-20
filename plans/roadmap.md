@@ -33,6 +33,25 @@ Caldav: Radicale, ical4j, (CalDAV4j only if PROPFIND/REPORT needed). Telegram: T
 
 **Owner principle (2026-06-19):** reuse free OSS libs over rebuilding, and make broadly-useful capabilities **shared** (a capability-MCP any agent binds), not embedded in one agent — because a photo/audio/video can belong to any domain. **Next shared capability (after D3): `mcp-media-processing`** — OCR (Tesseract/PaddleOCR/docTR) + STT (whisper) + vision-caption over media-service bytes, applied around routing so any agent (finance receipts, docs sick-notes, stylist outfits…) reuses it. Migrate the interim `receipt-parser` vision-in-agent shortcut onto it. **PR-sliced in [media.md](media.md)** (MP-a scaffold+ocr-stub → MP-b real Tesseract → MP-c bind finance-agent + migrate receipt-parser → MP-d caption/STT). See also STATUS Deferred work.
 
+## Evaluated tools (owner-shared 2026-06-20) — integrate over HTTP/MCP, do not rewrite
+Per the **polyglot-by-design** doctrine ([architecture.md](architecture.md) §Principles): run each
+as its own service and bind a thin capability-MCP. Language of the upstream project doesn't matter.
+
+| Tool | Verdict | Fit | Note |
+|---|---|---|---|
+| [Agent-Reach](https://github.com/Panniantong/Agent-Reach) | 🟢 strong (35.5k★, MIT, active) | researcher **extension** | Python CLI "capability layer" w/ fallbacks: YouTube/Twitter/Reddit/Bilibili/**RSS** + **video transcripts**. Closes the deferred video/social slice. But CLI-oriented, pulls external svcs (Jina/Exa) + cookie auth. Take its *tools* (yt-dlp, RSS) as a follow-up `mcp-web` extension — don't replace the clean self-hosted SearXNG core. |
+| [Whisper](https://github.com/openai/whisper) | 🟢 adopt | MP-d2 (STT) | Already planned. Use faster-whisper/whisper.cpp for speed; run as a service behind `mcp-media-processing`'s `transcribe`. |
+| [CatVTON](https://github.com/Zheng-Chong/CatVTON) | 🟢 good | stylist (virtual try-on) | Python/diffusers, ICLR 2025, <8GB VRAM, self-host (Gradio/ComfyUI). **License CC-BY-NC-SA (non-commercial)** — fine for family. ⚠️ CUDA → on Apple-Silicon Mac Studio runs via MPS, not turnkey. |
+| [Fooocus](https://github.com/lllyasviel/Fooocus) | 🟢 good | stylist (image-gen) | SDXL gen by the ControlNet author, free/local. Needs API mode / ComfyUI for programmatic calls (Fooocus itself is a UI). Same Apple-Silicon GPU caveat. |
+| [Grafana](https://github.com/grafana/grafana) | 🟢 adopt | finance dashboards | Already in architecture (over `finance.*` + matviews). Run it, zero code. |
+| [pinterest-mcp-server](https://github.com/Fydel-Tools/pinterest-mcp-server) | 🔴 skip for now | stylist (inspiration) | TS, official Pinterest API — but **0★, 1 commit**, immature; and it's about *managing* your account (posting pins), not harvesting inspiration. Official-API search is weak. Find inspiration-harvesting another way. |
+| [AppFlowy](https://github.com/AppFlowy-IO/AppFlowy) | 🟡 caution | "visual digest" | Full Notion-alt (Rust+Flutter); programmatic doc-gen immature → overkill for a digest. Prefer Grafana / generated HTML-PDF. Adopt only for a full personal-wiki workspace. |
+
+**Live-verified (2026-06-20):** `docker compose up searxng mcp-web` → real SearXNG returns live hits
+(incl. YouTube links) and `fetch_url` extracts real article text; the full researcher chain runs to
+a (mock-LLM) synthesis. **Finding:** JS-rendered pages (YouTube) yield only boilerplate via jsoup —
+confirms the **video-transcript follow-up** (yt-dlp / Agent-Reach) is genuinely needed for video content.
+
 ## Risks
 - Spring AI MCP young — may need own client; keep behind interface in libs/mcp-client.
 - Apache AGE Docker build sometimes unstable — plan B: Neo4j Community.
