@@ -51,6 +51,9 @@ in [orchestrator/application.yml](../../../platform/orchestrator/src/main/resour
   treats every routed message as a research request).
 - `flow/Researcher` — the cheap-first flow on the shared `Coordinator`: search → fetch top N
   (parallel, soft-fail) → fold the corpus into `context` → one LLM synthesis → summary + links.
+  **Video hits are skipped at the fetch step** (their pages are boilerplate); the search snippet
+  supplies the 1–2 sentence description + the link. Reading a video's actual content is a future
+  "summarise this video" use of `mcp-web`'s `transcribe_video` — not the default research path.
 - `http/WebSearchClient` (`POST /internal/search`) + `http/PageFetchClient` (`POST /internal/fetch`)
   — the deterministic mcp-web calls (MockWebServer-testable; not the SSE transport).
 
