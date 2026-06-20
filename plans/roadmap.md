@@ -12,6 +12,19 @@
 ## Candidate future agents (priority)
 - tasks-agent (GTD) — high. health-agent (Apple Health) — med. docs-agent (receipts/contracts, OCR+search) — med. briefing-agent (morning digest: weather+calendar+finance+news) — high (wow). family-memory-agent — med. travel-agent — low. email-agent — low. smart-home-agent — if Home Assistant present.
 
+## Candidate shared capability-MCPs (built when the first consumer needs them)
+- **`chart-render`** — data → PNG/SVG for Telegram. First consumer: finance year-analysis charts; reused by briefing. Shared, not finance-specific.
+- **`web/market-data` + `web-fetch/search`** — quotes (stocks/funds/metals/crypto) + news/article/video fetch with a cheap-first (API/scrape) → LLM-only-on-summary posture (token economy). First consumers: `researcher`, finance investment-advisory, chef recipe search, briefing news.
+- **`mcp-media-processing` STT** (whisper, MP-d2) — voice → text for any agent (finance voice capture, docs, …). Engine slice like OCR.
+
+## Finance vision beyond MVP (owner 2026-06-20 — detail in [finance.md](finance.md))
+MVP now = receipt→capture + confirm + spending **analysis**. Recorded-but-later, each on an existing
+substrate (no new layer): year analysis **with chart** (→ `chart-render`), a designed **report template**,
+chat-driven **category grouping**, **big-purchase deliberation** (Coordinator + conversation-state),
+**voice capture** (STT), and **investment advisory** (stocks/funds/metals/crypto → ideas only).
+**Investment advisory is advisory-only — it never executes trades or moves money**, and waits on the
+shared `web/market-data` capability (so it rides in with the `researcher`).
+
 ## n8n variant (parallel from Stage 1)
 `n8n/workflows/<agent>/*.json` — same logic without Java, for prototyping/sharing/lightweight integrations (e.g. RSS→LLM filter→Telegram). Each scenario in two variants (Java + n8n) to compare.
 
