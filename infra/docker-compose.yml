@@ -336,6 +336,7 @@ services:
       CALENDAR_AGENT_URL: http://calendar-agent:8086
       FINANCE_AGENT_URL: http://finance-agent:8093
       TASKS_AGENT_URL: http://tasks-agent:8096
+      RESEARCHER_AGENT_URL: http://researcher-agent:8099
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -684,6 +685,34 @@ services:
       TASKS_AGENT_MEMORY_RECALL_K: ${TASKS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8096/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  researcher-agent:
+    image: ai-life/researcher-agent:local
+    container_name: ai-life-researcher-agent
+    build:
+      context: ..
+      dockerfile: domains/researcher/researcher-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      mcp-web:
+        condition: service_healthy
+    environment:
+      RESEARCHER_AGENT_PORT: 8099
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_WEB_URL: http://mcp-web:8098
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      RESEARCHER_AGENT_MCP_CLIENT_ENABLED: ${RESEARCHER_AGENT_MCP_CLIENT_ENABLED:-true}
+      RESEARCHER_AGENT_MEMORY_RECALL_K: ${RESEARCHER_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8099/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
