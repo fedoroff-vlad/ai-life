@@ -63,11 +63,15 @@ CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a b
   returning the model's text. Centralises the vision call so no agent re-embeds it. Generic:
   the caller supplies the instruction (e.g. "extract amount/currency/merchant/date as JSON")
   and parses the result — reasoning stays in the caller's skill.
-- **MP-c — bind to finance-agent + migrate `receipt-parser` off in-agent vision.** Add the
-  `mcp-media-processing` SSE connection + `MCP_MEDIA_PROCESSING_URL` to finance-agent;
-  `receipt-parser` calls the capability's `caption` (instruction = its current SKILL.md extract
-  prompt) instead of running the `vision` channel inline. **Clears the STATUS Deferred
-  anti-pattern item.**
+- **MP-c — bind to finance-agent + migrate `receipt-parser` off in-agent vision.** ✅ **DONE**
+  (split c1/c2, mirrors money-pro PR44→PR45 — the deterministic agent→capability call goes over an
+  HTTP `/internal/*` passthrough, NOT MCP/SSE, which can't be MockWebServer'd). **MP-c1 (PR113):**
+  mcp-media-processing `POST /internal/caption` passthrough → the `caption` tool (new
+  `web/InternalCaptionController` + `contracts/media/CaptionInput`). **MP-c2 (PR114):** finance-agent
+  binds the `mcp-media-processing` SSE connection + `MCP_MEDIA_PROCESSING_URL` and a `http/CaptionClient`
+  on `/internal/caption`; `receipt-parser` calls `caption` (instruction = the `receipt-parser` SKILL.md
+  + the user's caption as a hint) instead of running the `vision` channel inline — `MediaClient`/`LlmClient`
+  dropped from the receipt path. **Cleared the STATUS Deferred anti-pattern item.**
 - **MP-d2 (later) — `transcribe` (STT, whisper OSS)**, bound by future Stage-6 agents
   (docs, stylist, …). Slice like MP-a/b (stub → real engine).
 

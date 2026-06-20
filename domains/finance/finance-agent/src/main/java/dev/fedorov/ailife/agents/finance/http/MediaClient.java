@@ -10,9 +10,10 @@ import java.time.Duration;
 
 /**
  * Fetches raw media bytes from media-service by object id (the {@code storageUri} an inbound
- * attachment carries). Used by {@code ReceiptParser} to pull a receipt photo back before the
- * vision call. The body is read fully into memory — receipts are small and media-service caps
- * upload size, so this is bounded.
+ * attachment carries). Used by {@code MoneyProCsvImporter} to pull an uploaded CSV back before
+ * the import (the receipt flow no longer fetches bytes here — the {@code mcp-media-processing}
+ * capability does that for the {@code caption} call, MP-c). The body is read fully into memory —
+ * uploads are size-capped by media-service, so this is bounded.
  */
 @Component
 public class MediaClient {

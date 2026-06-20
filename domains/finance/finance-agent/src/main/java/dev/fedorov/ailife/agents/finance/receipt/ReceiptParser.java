@@ -7,7 +7,7 @@ import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
-import dev.fedorov.ailife.agents.finance.http.MediaClient;
+import dev.fedorov.ailife.agents.finance.http.CaptionClient;
 import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -15,11 +15,6 @@ import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
-import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
-import dev.fedorov.ailife.contracts.llm.LlmImage;
-import dev.fedorov.ailife.contracts.llm.LlmMessage;
-import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,17 +24,17 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Base64;
-import java.util.List;
 import java.util.Optional;
 
 /**
  * Turns an inbound receipt photo into a finance transaction, <b>confirm-before-write</b>
  * (Stage 4 / A4 — closes the owner-flagged deferred debt).
  *
- * <p>Pipeline: fetch the image bytes from media-service → ask the {@code vision} channel to
- * extract a structured draft (amount / currency / merchant / date) using the {@code receipt-parser}
- * SKILL.md → resolve a target account (first non-archived) → reply with the parsed draft plus a
+ * <p>Pipeline: ask the shared {@code mcp-media-processing} capability's {@code caption} tool (over
+ * its {@code POST /internal/caption} passthrough) to extract a structured draft
+ * (amount / currency / merchant / date) — the instruction is the {@code receipt-parser} SKILL.md, so
+ * the vision call itself lives once in the capability-MCP (MP-c) rather than being embedded here →
+ * resolve a target account (first non-archived) → reply with the parsed draft plus a
  * {@code pendingAction}, so the orchestrator locks the conversation to finance. On the user's reply
  * the orchestrator calls {@link #resume} with that pendingAction: an affirmative ("да") writes the
  * transaction via mcp-finance's {@code POST /internal/transaction}; anything else cancels.
@@ -61,27 +56,24 @@ public class ReceiptParser {
             "да", "ага", "верно", "сохрани", "сохранить", "ок", "окей", "давай", "+",
             "yes", "y", "ok", "save", "confirm");
 
-    private final MediaClient media;
+    private final CaptionClient caption;
     private final AccountClient accounts;
     private final TransactionClient transactions;
-    private final LlmClient llm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
     private final MemoryClient memory;
 
-    public ReceiptParser(MediaClient media,
+    public ReceiptParser(CaptionClient caption,
                          AccountClient accounts,
                          TransactionClient transactions,
-                         LlmClient llm,
                          SkillRegistry skills,
                          AgentManifest manifest,
                          ObjectMapper json,
                          MemoryClient memory) {
-        this.media = media;
+        this.caption = caption;
         this.accounts = accounts;
         this.transactions = transactions;
-        this.llm = llm;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -89,18 +81,8 @@ public class ReceiptParser {
     }
 
     public Mono<IntentResponse> parse(NormalizedMessage msg, String mediaId) {
-        String skillBody = skillBody();
-        return media.fetch(mediaId)
-                .flatMap(img -> {
-                    String base64 = Base64.getEncoder().encodeToString(img.bytes());
-                    LlmChatRequest req = LlmChatRequest.of(LlmChannel.VISION, List.of(
-                            LlmMessage.system(manifest.body()),
-                            LlmMessage.system(skillBody),
-                            LlmMessage.userWithImages(
-                                    captionOr(msg.text()),
-                                    List.of(new LlmImage(img.mimeType(), base64)))));
-                    return llm.chat(req).flatMap(resp -> confirm(msg, resp.content(), resp.model()));
-                })
+        return caption.caption(mediaId, captionInstruction(msg.text()))
+                .flatMap(result -> confirm(msg, result.text(), result.model()))
                 .onErrorResume(e -> {
                     log.warn("receipt parse failed for media {}: {}", mediaId, e.toString());
                     return Mono.just(reply(
@@ -281,8 +263,14 @@ public class ReceiptParser {
                 + " (счёт «" + accountName + "»). Категорию предложу отдельно — поправьте, если неверно.";
     }
 
-    private static String captionOr(String text) {
-        return (text == null || text.isBlank()) ? "Receipt photo — extract the transaction." : text;
+    /**
+     * The instruction handed to the capability's {@code caption} tool: the {@code receipt-parser}
+     * SKILL.md (the self-contained strict-JSON extract prompt), plus the user's own caption as a
+     * trailing hint when present (e.g. "вот чек за кофе").
+     */
+    private String captionInstruction(String userText) {
+        String note = blankToNull(userText);
+        return note == null ? skillBody() : skillBody() + "\n\nUser note: " + note;
     }
 
     private static String blankToNull(String s) {
