@@ -20,6 +20,8 @@ orchestrator:
       base-url: ${FINANCE_AGENT_URL:http://finance-agent:8093}
     - name: tasks
       base-url: ${TASKS_AGENT_URL:http://tasks-agent:8096}
+    - name: researcher
+      base-url: ${RESEARCHER_AGENT_URL:http://researcher-agent:8099}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
