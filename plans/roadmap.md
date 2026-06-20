@@ -14,7 +14,7 @@
 
 ## Candidate shared capability-MCPs (built when the first consumer needs them)
 - **`chart-render`** — data → PNG/SVG for Telegram. First consumer: finance year-analysis charts; reused by briefing. Shared, not finance-specific.
-- **`web/market-data` + `web-fetch/search`** — quotes (stocks/funds/metals/crypto) + news/article/video fetch with a cheap-first (API/scrape) → LLM-only-on-summary posture (token economy). First consumers: `researcher`, finance investment-advisory, chef recipe search, briefing news.
+- **`web-fetch/search`** (`mcp-web`) — `web_search` + `fetch_url` over **SearXNG** (self-hosted, free), cheap-first (HTTP retrieval → LLM-only-on-summary) for token economy. **In progress** (owner-chosen after finance MVP, 2026-06-20) — PR-sliced in [research.md](research.md), built alongside the `researcher` agent (its first consumer). Later bound by chef recipe search + briefing news. **`market-data`** (stocks/funds/metals/crypto quotes) is a **sibling** capability that rides in with finance investment-advisory — not part of `mcp-web` MVP.
 - **`mcp-media-processing` STT** (whisper, MP-d2) — voice → text for any agent (finance voice capture, docs, …). Engine slice like OCR.
 
 ## Finance vision beyond MVP (owner 2026-06-20 — detail in [finance.md](finance.md))
