@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: mcp-web
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-web
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared web capability. web_search: search the web (SearXNG) and return
+          ranked title/url/snippet hits. fetch_url: fetch a page and return its
+          readable text. Cheap retrieval — the caller's agent synthesizes the answer.
+
+server:
+  port: ${MCP_WEB_PORT:8098}
+
+mcp-web:
+  # SearXNG backing service (self-hosted meta-search; JSON format enabled in its settings).
+  searxng-url: ${SEARXNG_URL:http://searxng:8080}
+  # Which search engine to wire: searxng (default). Swappable later (tavily/brave) via env.
+  search-engine: ${MCP_WEB_SEARCH_ENGINE:searxng}
+  # Default / max number of hits web_search returns.
+  default-limit: ${MCP_WEB_DEFAULT_LIMIT:8}
+  max-limit: ${MCP_WEB_MAX_LIMIT:20}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
