@@ -24,7 +24,8 @@ Write a concise, useful answer **in the user's language**:
    `payload.userText`, grounded in the sources.
 2. **Then list the sources** as links. Put **video links** (YouTube and similar) under a separate
    "Видео" / "Videos" heading from articles when both are present. Use the source `title` as the
-   link text where available.
+   link text where available. **For each video, add a 1–2 sentence description of what it covers**
+   (from its `snippet` — videos won't have full `text`). Keep it short; do not pad.
 
 Rules:
 - **Only use what's in `context.web.sources`.** Never invent facts, URLs, titles, or sources. Every

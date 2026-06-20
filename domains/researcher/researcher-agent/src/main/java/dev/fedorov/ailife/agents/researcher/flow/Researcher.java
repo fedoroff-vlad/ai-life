@@ -24,13 +24,16 @@ import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The cheap-first research flow (R-d): the researcher's reason for existing. On a research intent
  * it (1) <b>searches</b> the web via {@code mcp-web} {@code /internal/search}, (2) <b>reads</b> the
- * top hits in full via {@code /internal/fetch} (in parallel, soft-failing per page), then (3) folds
- * the gathered corpus into a {@code context} and runs <b>one</b> LLM synthesis on the shared
+ * top non-video hits in full via {@code /internal/fetch} (in parallel, soft-failing per page; video
+ * hits are skipped — their pages are boilerplate, so the search snippet describes them), then (3)
+ * folds the gathered corpus into a {@code context} and runs <b>one</b> LLM synthesis on the shared
  * {@link Coordinator} from {@code [AGENT.md, research SKILL.md] + {payload(userText), context}}.
  *
  * <p><b>Token economy is structural:</b> steps 1–2 are plain HTTP (no model cost); only step 3 hits
@@ -43,6 +46,15 @@ public class Researcher {
 
     private static final Logger log = LoggerFactory.getLogger(Researcher.class);
     private static final String SKILL_NAME = "research";
+    /**
+     * Video hosts whose pages return only boilerplate via {@code fetch_url} (JS-rendered) — we skip
+     * fetching them and let the search snippet supply the short description + the link. (Reading a
+     * video's actual content is {@code mcp-web}'s {@code transcribe_video} tool, used by a future
+     * "summarise this video" flow, not the default research path.)
+     */
+    private static final Set<String> VIDEO_HOSTS = Set.of(
+            "youtube.com", "youtu.be", "vimeo.com", "tiktok.com",
+            "rutube.ru", "dailymotion.com", "instagram.com/reel");
 
     private final Coordinator coordinator;
     private final WebSearchClient search;
@@ -90,9 +102,15 @@ public class Researcher {
                 });
     }
 
-    /** Fetch the top hits in parallel; a page that errors or comes back blank is dropped. */
+    /**
+     * Fetch the top non-video hits in parallel; a page that errors or comes back blank is dropped.
+     * Video hits are skipped — their pages are boilerplate-only, so the snippet (kept in the corpus
+     * by {@link #synthesize}) is what describes them. The user wants a link + 1–2 sentences for a
+     * video, not its full transcript.
+     */
     private Mono<Map<String, String>> fetchPages(List<WebSearchHit> top) {
         return Flux.fromIterable(top)
+                .filter(hit -> !isVideoUrl(hit.url()))
                 .flatMap(hit -> fetcher.fetch(hit.url())
                         .map(PageContent::text)
                         .onErrorResume(e -> {
@@ -135,6 +153,12 @@ public class Researcher {
                     return Mono.just(new ResearchResult(
                             "Нашёл источники, но не смог собрать выжимку. Попробуйте позже.", null));
                 });
+    }
+
+    private static boolean isVideoUrl(String url) {
+        if (url == null) return false;
+        String u = url.toLowerCase(Locale.ROOT);
+        return VIDEO_HOSTS.stream().anyMatch(u::contains);
     }
 
     private String skillBody() {

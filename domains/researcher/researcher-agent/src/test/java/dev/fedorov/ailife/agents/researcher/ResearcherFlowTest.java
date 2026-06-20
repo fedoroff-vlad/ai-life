@@ -115,6 +115,40 @@ class ResearcherFlowTest {
         assertThat(llmGateway.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
+    @Test
+    void videoTopHitIsNotFetchedSnippetCarriesIt() throws Exception {
+        // The single top hit is a video — its page is boilerplate, so the flow must NOT fetch it;
+        // the search snippet is what describes it (the user wants a link + short description).
+        var hits = List.of(new WebSearchHit(
+                "Bed Leveling Video", "https://www.youtube.com/watch?v=abc",
+                "Level the bed cold in three steps."));
+        mcpWeb.enqueue(jsonResponse(new WebSearchResult("bed leveling video", hits)));
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "Видео по калибровке стола — ссылка ниже.",
+                        "stop", new LlmUsage(20, 10, 30)))));
+
+        var msg = new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                "find a video about bed leveling", List.of(), "telegram", "2", Instant.now());
+
+        http.post().uri("/agents/researcher/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk();
+
+        // mcp-web got the search — but NO /internal/fetch for the video page.
+        RecordedRequest searchReq = mcpWeb.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(searchReq.getPath()).isEqualTo("/internal/search");
+        assertThat(mcpWeb.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+
+        // The corpus still carries the video link + its snippet (the description source).
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body)
+                .contains("youtube.com/watch?v=abc")
+                .contains("Level the bed cold in three steps");
+    }
+
     private MockResponse jsonResponse(Object body) throws Exception {
         return new MockResponse()
                 .setHeader("content-type", "application/json")
