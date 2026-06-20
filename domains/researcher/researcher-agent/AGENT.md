@@ -5,7 +5,8 @@ version: 0.1.0
 port: 8099
 mcp:
   - mcp-web
-skills: []
+skills:
+  - research
 intents:
   - example: Find how to calibrate a 3D printer bed and send me a couple of videos
     description: Research a topic on the web and return a summary plus article/video links.
