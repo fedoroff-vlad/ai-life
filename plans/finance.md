@@ -21,10 +21,34 @@ Tools: mcp-finance, mcp-money-pro-import. Cross-cutting: chart-render (charts to
 Principles: money is sensitive — respect owner/scope, don't show private accounts in household scope; amounts always with currency; expense negative; suggest category from text/history, ask if ambiguous; receipt photo → media OCR → show parsed → confirm → add; spending/trend questions → data + chart image; budget overflow warns, doesn't block; confirm before delete/bulk.
 
 ## Skills (skills/finance/)
-- `transaction-categorizer` — rules + LLM fallback.
-- `receipt-parser` — photo → amount/date/merchant/items → draft tx → confirm (LLM-vision at start, later mcp-ocr).
-- `budget-alerts` — proactive via scheduler.
-- (later) `spending-report`, `budget-check`, `chart-spec`.
+- `transaction-categorizer` — rules + LLM fallback. ✅
+- `receipt-parser` — photo → amount/date/merchant → draft tx → confirm. ✅ (now via the shared `mcp-media-processing` `caption` capability, MP-c).
+- `budget-alerts` — proactive via scheduler. ✅
+- `recurring-due` — proactive reminder before a recurring line's `next_due`. ✅
+- `financial-advisor` — reactive spending **analysis** on request (summary + category trends + why a category grew + optimisation hints), text-first. **MVP now** — Coordinator gather (`spending_by_category` + balances) → LLM synthesis. (Chart image is a later add — see Vision below.)
+
+## MVP boundary & recorded vision (owner, 2026-06-20)
+The owner's full finance vision is recorded here so it is not lost. **Build now = MVP only:**
+1. **Receipt → capture** income/expense (OCR/vision draft → confirm → write). ✅ shipped (`receipt-parser`).
+2. **Согласование трат** — confirm-before-write on the draft. ✅ shipped (conversation-state route-lock / resume).
+3. **Анализ трат** — on-request spending analysis. ← the one missing MVP piece (`financial-advisor`, in progress).
+
+Everything below is **deliberately deferred** (recorded, not now). Each maps to an existing
+architectural home — none needs a new layer:
+
+| Vision item | Architectural home | Why deferred |
+|---|---|---|
+| **Year analysis with chart + %s** | `financial-advisor` skill + a shared **`chart-render` capability-MCP** (data → PNG for Telegram; reused by briefing) | chart rendering is a cross-domain capability, not finance-specific — build it once, shared. The text analysis ships first. |
+| **Report template** (periods, breakdowns, benchmarks, anomaly rules) | a finance `report` skill once the template is **designed** | owner flagged it needs a design discussion first — structure TBD. |
+| **Create / group spending categories from chat** | `upsert_category` (+ `parent_id` for groups) already exists; needs a thin agent skill | tool is ready; the chat-driven UX is a small follow-up. |
+| **Optimisation suggestions** | folded into `financial-advisor` synthesis | part of the analysis MVP (hints), deepened later. |
+| **Voice capture → transaction** | `mcp-media-processing` STT (MP-d2) → categorizer | STT engine (whisper) not built yet (MP-d2); receipts (OCR) cover the MVP. |
+| **Big-purchase deliberation** ("хочу 3D-принтер" → agent weighs budget + current spend → recommends, multi-turn) | a `purchase-advisor` skill on the **Coordinator** + **conversation-state** (both built) | substrate is ready; a focused follow-up skill. |
+| **Investment advisory** (stocks / funds / metals / crypto → ideas, user decides) | a finance skill + a shared **`web/market-data` capability-MCP** (same web-fetch the `researcher` needs) | **advisory only — never executes trades or moves money.** Waits on the researcher's web capability. |
+
+Doctrine reminder (architecture.md): the orchestrator only **routes**; all finance reasoning lives
+in **finance-agent**; cross-domain mechanics (charts, OCR/STT, market data) are **capability-MCPs** the
+agent binds. Data/maths = `mcp-finance`; reasoning = agent skills; presentation = capability + skill.
 
 ## Reminders → scheduler-service
 `fin_recurring.auto_remind=true` → agent registers `mcp-scheduler.schedule_recurring(target=finance, payload=pay X)`. Scheduler wakes finance-agent via orchestrator on due date.
