@@ -25,8 +25,10 @@ import java.util.Optional;
  *   <li>Otherwise the router falls back to a plain LLM chat (the pre-PR35
  *   behaviour preserved verbatim).</li>
  * </ul>
- * The controller stays thin — it only translates {@link NormalizedMessage}
- * to text and wraps the router's result back into an {@link IntentResponse}.
+ * The controller stays thin — it hands the {@link NormalizedMessage} to the
+ * router and wraps the result back into an {@link IntentResponse}. (The router
+ * needs the whole message, not just the text: the {@code advice} branch reads
+ * {@code householdId} to gather the spending snapshot.)
  *
  * <p>The {@code llmModel} field of the response carries the model id from
  * the routing turn — preserves the pre-PR35 contract the orchestrator's
@@ -63,7 +65,7 @@ public class IntentController {
         if (file.isPresent()) {
             return csvImporter.importCsv(message, file.get().storageUri());
         }
-        return router.route(message.text())
+        return router.route(message)
                 .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel()));
     }
 

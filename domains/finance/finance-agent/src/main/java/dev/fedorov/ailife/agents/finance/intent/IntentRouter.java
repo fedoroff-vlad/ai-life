@@ -2,8 +2,10 @@ package dev.fedorov.ailife.agents.finance.intent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
+import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -50,24 +52,29 @@ public class IntentRouter {
 
     private final LlmClient llm;
     private final ToolDispatcher dispatcher;
+    private final FinancialAdvisor advisor;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public IntentRouter(LlmClient llm,
                         ToolDispatcher dispatcher,
+                        FinancialAdvisor advisor,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.llm = llm;
         this.dispatcher = dispatcher;
+        this.advisor = advisor;
         this.manifest = manifest;
         this.json = json;
     }
 
-    public Mono<RouterResult> route(String userText) {
+    public Mono<RouterResult> route(NormalizedMessage msg) {
+        String userText = msg == null || msg.text() == null ? "" : msg.text();
         List<ToolDefinition> tools = dispatcher.availableToolDefinitions();
         if (tools.isEmpty()) {
             // No MCP tools wired — straight chat, no routing prompt
-            // overhead, no JSON-parse surprises.
+            // overhead, no JSON-parse surprises. (Production finance-agent
+            // always has MCP wired, so the advice branch below is reachable.)
             return chatOnly(userText);
         }
 
@@ -87,6 +94,13 @@ public class IntentRouter {
             String action = node.get("action").asText();
             if ("tool".equals(action)) {
                 return invokeTool(node, model);
+            }
+            if ("advice".equals(action)) {
+                // Spending analysis is multi-source synthesis, not a single tool
+                // — hand off to the Coordinator-backed FinancialAdvisor, which
+                // does its own gather + LLM synthesis and returns the analysis.
+                return advisor.advise(msg)
+                        .map(a -> new RouterResult(a.text(), "advice", a.model()));
             }
             // action=chat (or anything else we don't recognise): prefer the
             // structured 'text' field, else fall back to the raw body.
@@ -148,10 +162,15 @@ public class IntentRouter {
             sb.append('\n');
         }
         sb.append('\n');
-        sb.append("Decide: does the user want to run a tool, or just talk?\n\n");
+        sb.append("There is also a built-in spending ANALYSIS flow (not a tool): use it when the ");
+        sb.append("user asks to analyse / summarise / review their own spending or wants ");
+        sb.append("recommendations over their finances (e.g. \"проанализируй траты\", \"сводка за месяц\", ");
+        sb.append("\"куда уходят деньги\", \"где можно сэкономить\"). It gathers the data itself.\n\n");
+        sb.append("Decide: run a tool, run the analysis, or just talk?\n\n");
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
-        sb.append("Use ONE of these two shapes:\n");
+        sb.append("Use ONE of these shapes:\n");
         sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
+        sb.append("  {\"action\":\"advice\"}\n");
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
         sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
