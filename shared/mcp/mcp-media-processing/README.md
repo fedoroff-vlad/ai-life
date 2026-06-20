@@ -10,7 +10,9 @@ default; native-free `StubOcrEngine` via `mediaprocessing.ocr-engine=stub`). `ca
 asks llm-gateway's **vision** channel about an image with a caller-supplied instruction —
 the centralised vision call (no agent re-embeds it). Next: MP-c binds the server to
 finance-agent and migrates `receipt-parser` off its in-agent vision shortcut onto
-`caption`; `transcribe` (STT) lands later.
+`caption`; `transcribe` (STT) lands later. **MP-c1** added the `POST /internal/caption`
+HTTP passthrough (below) — the MockWebServer-testable transport finance-agent calls
+deterministically (MP-c2 wires it).
 
 ## Port: `8097` (`MCP_MEDIA_PROCESSING_PORT`)
 
@@ -20,6 +22,12 @@ finance-agent and migrates `receipt-parser` off its in-agent vision shortcut ont
 |------|------|---------|---------|
 | `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). |
 | `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
+
+## HTTP passthrough
+
+| method | path | body | returns | purpose |
+|--------|------|------|---------|---------|
+| POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 
 ## Env
 
@@ -54,3 +62,6 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   convention here): `ocr(mediaId)` → `OcrEngine.extract` → `OcrResult`; `caption(mediaId,
   instruction)` → fetch → llm-gateway `vision` channel (`LlmClient`) → `CaptionResult`.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider` exposing the `@Tool`s.
+- `web/InternalCaptionController` — `POST /internal/caption` passthrough (MP-c1); delegates to
+  the `caption` tool on `Schedulers.boundedElastic()` (the tool blocks). The MockWebServer-testable
+  transport finance-agent's `receipt-parser` calls instead of the un-mockable MCP/SSE binding.
