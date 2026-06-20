@@ -1,0 +1,16 @@
+# Minimal SearXNG settings for ai-life. Merges with the image defaults
+# (use_default_settings: true) and only overrides what mcp-web needs:
+#   - the JSON output format (mcp-web calls /search?format=json)
+#   - the bot limiter disabled (mcp-web is a trusted internal caller, not a public instance)
+# Override the secret in your .env / a real deployment (SEARXNG_SECRET).
+use_default_settings: true
+
+server:
+  secret_key: "${SEARXNG_SECRET:-ailife-dev-secret-change-me}"
+  limiter: false
+  image_proxy: false
+
+search:
+  formats:
+    - html
+    - json

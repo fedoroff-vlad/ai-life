@@ -101,6 +101,23 @@ services:
       timeout: 5s
       retries: 5
 
+  searxng:
+    image: searxng/searxng:latest
+    container_name: ai-life-searxng
+    restart: unless-stopped
+    ports:
+      - "${SEARXNG_PORT:-8888}:8080"
+    environment:
+      SEARXNG_BASE_URL: http://localhost:${SEARXNG_PORT:-8888}/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-ailife-dev-secret-change-me}
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
   # ---------- platform services ----------
 
   llm-gateway:
@@ -481,6 +498,26 @@ services:
       LLM_GATEWAY_URL: http://llm-gateway:8081
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8097/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  mcp-web:
+    image: ai-life/mcp-web:local
+    container_name: ai-life-mcp-web
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      searxng:
+        condition: service_healthy
+    environment:
+      MCP_WEB_PORT: 8098
+      SEARXNG_URL: http://searxng:8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8098/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
