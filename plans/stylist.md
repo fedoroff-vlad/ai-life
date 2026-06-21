@@ -148,8 +148,10 @@ copyrighted text. Boards build in this order:
   one-line reason per item, hero pieces, systemic-pattern diagnosis, power palette → render the audit
   board (verdict grid with garment photos matched by name, gold hero, palette, "Системная ошибка").
   Routed by an audit cue ("ревизия / разбор гардероба"). Empty wardrobe → invite to catalogue.
-- **ST-i — Capsule board (editorial).** Re-render the ST-e capsule on the editorial template (looks +
-  garment gallery); richer `capsule-advisor`.
+- **ST-i — Capsule board (editorial). DONE (PR141).** The ST-e capsule already renders on the editorial
+  template (since ST-f); ST-i gives it the board chrome — `StylistAdvisor.store` builds the doc via the
+  `StylistDoc` builder with a kicker ("Curated · Strategic · Aligned") + a season/occasion subtitle +
+  an "Образы" section + the garment-photo gallery, so it's consistent with the analysis/audit boards.
 - **ST-j — Wardrobe Gap Analysis board.** New flow + `gap-analyst` skill: gather wardrobe + profile →
   missing items + why + priority (ESSENTIAL/STRONG ADD/NICE TO HAVE) + price tier + a "do not buy"
   row + coverage before/after. **Marketplace buy-links stay deferred** (the separate marketplace line).

@@ -117,7 +117,7 @@ public class StylistAdvisor {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .flatMap(result -> store(msg, items, result.text())
+                .flatMap(result -> store(msg, items, season, result.text())
                         .map(link -> reply(summary(result.text()) + "\n\nКапсула: " + link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("capsule render/store failed: {}", e.toString());
@@ -126,12 +126,14 @@ public class StylistAdvisor {
                         }));
     }
 
-    /** Render the capsule HTML (synthesis text + a gallery of the garment photos), store it, return the link. */
-    private Mono<String> store(NormalizedMessage msg, List<WardrobeItemDto> items, String capsuleText) {
-        List<StylistDoc.Section> sections = List.of(
-                new StylistDoc.Section("Капсула", splitParagraphs(capsuleText)));
-        StylistDoc doc = new StylistDoc("Ваша капсула", null, sections, galleryUrls(items));
-        RenderedDoc rendered = renderer.render(doc);
+    /** Render the capsule board (editorial chrome + the looks + a garment-photo gallery), store, link. */
+    private Mono<String> store(NormalizedMessage msg, List<WardrobeItemDto> items, String season, String capsuleText) {
+        StylistDoc.Builder b = StylistDoc.builder("Капсула")
+                .kicker("Curated · Strategic · Aligned")
+                .subtitle(subtitle(season, msg.text()))
+                .section("Образы", splitParagraphs(capsuleText));
+        for (String url : galleryUrls(items)) b.galleryImage(url);
+        RenderedDoc rendered = renderer.render(b.build());
         return media.upload(msg.householdId(), msg.userId(),
                         rendered.filename(), rendered.mimeType(), rendered.content())
                 .map(this::link);
@@ -159,6 +161,13 @@ public class StylistAdvisor {
     private static String trendQuery(String season, String request) {
         String r = (request == null || request.isBlank()) ? "" : " " + request;
         return "модные тренды одежда " + season + r;
+    }
+
+    /** Board subtitle: the season plus the user's occasion/request when they gave one. */
+    private static String subtitle(String season, String request) {
+        StringBuilder sb = new StringBuilder("Сезон: ").append(season);
+        if (request != null && !request.isBlank()) sb.append(" · ").append(request.strip());
+        return sb.toString();
     }
 
     /** Northern-hemisphere season by month (RU label) — a deterministic payload hint, no model needed. */
