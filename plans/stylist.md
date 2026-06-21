@@ -116,6 +116,35 @@ capability (reused, not rebuilt — a photo can belong to any domain).
   invite to catalogue. Routed via a capsule-cue heuristic in `IntentController`. Added `mcp-wardrobe` read
   passthroughs `GET /internal/items` + `GET /internal/profile`.
 
+## Phase 2 — luxury-editorial deliverable boards (owner refs 2026-06-21)
+The owner sent reference boards (luxury fashion-magazine aesthetic — The Row / Toteme / Dior:
+ivory/beige ground, serif display caps, grid composition, KEEP/QUESTION/REMOVE verdict tags,
+HERO PIECES with a gold accent, palette swatches, Kibbe type + colour season + Jungian archetype,
+silhouette/fabric strategies, "what not to wear", gap analysis with priority + price tier,
+coverage before/after). **Aesthetic LOCKED = luxury editorial** (this replaces the MVP's plain
+default template). **Build now = editorial HTML on the owner's REAL uploaded photos + rich LLM
+analysis; the reference boards' photorealistic renders (garment-on-body, "you in different looks"
+model shots, palette-on-face) stay on the deferred GPU image-gen line** (owner 2026-06-21: editorial
+first, renders later). Menswear knowledge frames the skills' prompts (Kibbe; Найденская/Трубецкова
+"Библия стиля"; Alan Flusser "Dressing the Man") — apply the methodology, never reproduce the
+copyrighted text. Boards build in this order:
+- **ST-f — editorial render foundation.** Extend the `StylistDoc` model (palette swatches, verdict
+  tiles, hero row, keyed sections) + rewrite `HtmlStylistRenderer` to the locked luxury-editorial
+  template (ivory/serif/grid/gold-hero, responsive, dark-mode aware). Pure-unit-tested. The existing
+  analyse/capsule pages immediately render in the new style (back-compat constructors).
+- **ST-g — Body & Style Analysis board.** Upgrade the `style-analyst` skill (Kibbe type + subtype,
+  colour season + undertone/contrast, archetype, silhouette/neckline/waist strategies, fabric logic,
+  "what not to wear", final direction) + `AnalyseMe` to populate the rich board.
+- **ST-h — Wardrobe Audit board.** New flow + `wardrobe-auditor` skill: gather catalogued items →
+  LLM verdict KEEP/QUESTION/REMOVE + one-line reason per item, hero pieces, systemic-pattern
+  diagnosis, colour-harmony check → render the audit board. Routed by an audit cue ("разбор/ревизия
+  гардероба").
+- **ST-i — Capsule board (editorial).** Re-render the ST-e capsule on the editorial template (looks +
+  garment gallery); richer `capsule-advisor`.
+- **ST-j — Wardrobe Gap Analysis board.** New flow + `gap-analyst` skill: gather wardrobe + profile →
+  missing items + why + priority (ESSENTIAL/STRONG ADD/NICE TO HAVE) + price tier + a "do not buy"
+  row + coverage before/after. **Marketplace buy-links stay deferred** (the separate marketplace line).
+
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and
   the final template designs — all deferred (recorded above); each is its own later line with its own
