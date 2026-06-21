@@ -80,6 +80,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `flow/WardrobeAuditor` — the audit flow on the `Coordinator`: gather wardrobe + profile → one LLM
   synthesis → a verdict JSON → render the **audit board** (KEEP/QUESTION/REMOVE grid with garment
   photos matched by name, gold hero row, palette, "Системная ошибка" diagnosis) → store → link.
+- `flow/GapAnalyst` — the gap-analysis flow on the `Coordinator`: gather wardrobe + profile → one LLM
+  synthesis → a gap JSON → render the **gap board** (what-to-buy with priority/price tier, "Не
+  покупать", coverage before/after, palette) → store → link. Marketplace buy-links deferred.
 - `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (**luxury-editorial** responsive
   HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21) + `render/StylistDoc` (board model: keyed
   sections, palette swatches, KEEP/QUESTION/REMOVE verdict grid, hero row, image gallery — fluent
@@ -107,3 +110,6 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `capsule-advisor` (synthesis) — assembles an outfit capsule from the catalogued wardrobe, grounded
   in the style profile, occasion, season and trends; consumes the `Coordinator` `context`. Lives at
   [skills/stylist/capsule-advisor/SKILL.md](../skills/capsule-advisor/SKILL.md).
+- `gap-analyst` (synthesis) — finds wardrobe gaps vs the profile & lifestyle: what to buy + the gap it
+  fills + priority + price tier, a "do not buy" list, and a coverage before/after. Lives at
+  [skills/stylist/gap-analyst/SKILL.md](../skills/gap-analyst/SKILL.md).
