@@ -26,6 +26,7 @@ Principles: money is sensitive — respect owner/scope, don't show private accou
 - `budget-alerts` — proactive via scheduler. ✅
 - `recurring-due` — proactive reminder before a recurring line's `next_due`. ✅
 - `financial-advisor` — reactive spending **analysis** on request (summary + category trends + why a category grew + optimisation hints), text-first. **MVP now** — Coordinator gather (`spending_by_category` + balances) → LLM synthesis. (Chart image is a later add — see Vision below.)
+- `investment-advisor` — reactive **advisory** on request over the named symbols (stocks/funds/metals/crypto), **advisory-only — never trades**. Coordinator gather (`quote` per symbol via the sibling `mcp-market-data` capability) → LLM synthesis of considerations. **In progress** — see [market-data.md](market-data.md).
 
 ## MVP boundary & recorded vision (owner, 2026-06-20)
 The owner's full finance vision is recorded here so it is not lost. **Build now = MVP only:**
@@ -44,7 +45,7 @@ architectural home — none needs a new layer:
 | **Optimisation suggestions** | folded into `financial-advisor` synthesis | part of the analysis MVP (hints), deepened later. |
 | **Voice capture → transaction** | `mcp-media-processing` STT (MP-d2) → categorizer | STT engine (whisper) not built yet (MP-d2); receipts (OCR) cover the MVP. |
 | **Big-purchase deliberation** ("хочу 3D-принтер" → agent weighs budget + current spend → recommends, multi-turn) | a `purchase-advisor` skill on the **Coordinator** + **conversation-state** (both built) | substrate is ready; a focused follow-up skill. |
-| **Investment advisory** (stocks / funds / metals / crypto → ideas, user decides) | a finance skill + a shared **`web/market-data` capability-MCP** (same web-fetch the `researcher` needs) | **advisory only — never executes trades or moves money.** Waits on the researcher's web capability. |
+| **Investment advisory** (stocks / funds / metals / crypto → ideas, user decides) | an `investment-advisor` finance skill + a sibling shared **`mcp-market-data` capability-MCP** (`quote` over **Stooq**, source LOCKED) | **advisory only — never executes trades or moves money.** **In progress** (owner-chosen 2026-06-21) — PR-sliced in [market-data.md](market-data.md). |
 
 Doctrine reminder (architecture.md): the orchestrator only **routes**; all finance reasoning lives
 in **finance-agent**; cross-domain mechanics (charts, OCR/STT, market data) are **capability-MCPs** the
