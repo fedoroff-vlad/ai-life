@@ -101,10 +101,13 @@ capability (reused, not rebuilt — a photo can belong to any domain).
   add-passthrough → `add_item`. **ST-c2 DONE (PR135)** — stylist-agent `catalogue/WardrobeCataloguer`
   (photo → `caption` extract via the `wardrobe-cataloguer` SKILL → `/internal/item`, write-immediately).
   **ST-c COMPLETE.**
-- **ST-d — "analyse me" flow + analysis HTML.** Self-photo(s) + typed params → `caption` analysis
-  (person/style type, colour type, suitable fabrics/textures, body shape) → `set_style_profile`; render the
-  **fabric/colour/texture analysis** as an **HTML** deliverable (default template) with examples grounded in
-  the profile.
+- **ST-d — "analyse me" flow + analysis HTML. DONE (PR136).** Self-photo(s) + typed params → `caption` analysis
+  (person/style type, colour type, suitable fabrics/textures, body shape; the `style-analyst` SKILL also copies
+  through any height/weight/measurements the user typed in the note → params from BOTH sources) →
+  `set_style_profile` (via `mcp-wardrobe` `POST /internal/profile`); render the **fabric/colour/texture analysis**
+  as a **responsive HTML** deliverable through the **render seam** (`StylistRenderer` interface +
+  `HtmlStylistRenderer`), store it in media-service, reply summary + link. Concrete-examples LLM prose pass
+  deferred (MVP page grounded in the structured profile).
 - **ST-e — capsule advisor + capsule HTML.** `flow/StylistAdvisor` on the shared `Coordinator` (copy
   `InvestmentAdvisor`/`FinancialAdvisor`): gather `{wardrobe items, style_profile, trends (mcp-web), season}`
   → one LLM synthesis from `[AGENT.md, capsule-advisor SKILL.md] + {payload(occasion/request), context}` →

@@ -805,6 +805,8 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
+      media-service:
+        condition: service_healthy
       mcp-wardrobe:
         condition: service_healthy
       mcp-media-processing:
@@ -817,6 +819,8 @@ services:
       MCP_WARDROBE_URL: http://mcp-wardrobe:8101
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
       MCP_WEB_URL: http://mcp-web:8098
+      MEDIA_SERVICE_URL: http://media-service:8088
+      STYLIST_PUBLIC_MEDIA_BASE_URL: ${STYLIST_PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
