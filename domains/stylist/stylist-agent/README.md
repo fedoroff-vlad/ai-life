@@ -77,6 +77,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `flow/StylistAdvisor` — the capsule flow on the shared `Coordinator`: gather wardrobe items +
   style profile + trends (mcp-web) + season (computed) → one LLM synthesis → render capsule HTML
   with a garment-photo gallery → store → reply with a link. Empty wardrobe → invite to catalogue.
+- `flow/WardrobeAuditor` — the audit flow on the `Coordinator`: gather wardrobe + profile → one LLM
+  synthesis → a verdict JSON → render the **audit board** (KEEP/QUESTION/REMOVE grid with garment
+  photos matched by name, gold hero row, palette, "Системная ошибка" diagnosis) → store → link.
 - `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (**luxury-editorial** responsive
   HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21) + `render/StylistDoc` (board model: keyed
   sections, palette swatches, KEEP/QUESTION/REMOVE verdict grid, hero row, image gallery — fluent
@@ -98,6 +101,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   & texture logic, what-not-to-wear, styling principles, style-codes, final direction. The analyse-me
   flow persists the schema fields and renders the whole board. Lives at
   [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).
+- `wardrobe-auditor` (synthesis) — a KEEP/QUESTION/REMOVE verdict per catalogued garment + hero
+  pieces + a one-sentence systemic-pattern diagnosis + power palette, judged against the profile.
+  Lives at [skills/stylist/wardrobe-auditor/SKILL.md](../skills/wardrobe-auditor/SKILL.md).
 - `capsule-advisor` (synthesis) — assembles an outfit capsule from the catalogued wardrobe, grounded
   in the style profile, occasion, season and trends; consumes the `Coordinator` `context`. Lives at
   [skills/stylist/capsule-advisor/SKILL.md](../skills/capsule-advisor/SKILL.md).

@@ -143,10 +143,11 @@ copyrighted text. Boards build in this order:
   display font **Oranienbaum** + body **Manrope** (both Cyrillic — Cormorant/Jost lacked it and fell
   back). **Follow-up polish (owner-suggested):** lift theme (colours + fonts) into env vars on
   `StylistAgentProperties` so a redeploy can re-skin without a code change — do after the content boards.
-- **ST-h — Wardrobe Audit board.** New flow + `wardrobe-auditor` skill: gather catalogued items →
-  LLM verdict KEEP/QUESTION/REMOVE + one-line reason per item, hero pieces, systemic-pattern
-  diagnosis, colour-harmony check → render the audit board. Routed by an audit cue ("разбор/ревизия
-  гардероба").
+- **ST-h — Wardrobe Audit board. DONE (PR140).** New `flow/WardrobeAuditor` on the `Coordinator` +
+  `wardrobe-auditor` skill: gather catalogued items + profile → LLM verdict KEEP/QUESTION/REMOVE +
+  one-line reason per item, hero pieces, systemic-pattern diagnosis, power palette → render the audit
+  board (verdict grid with garment photos matched by name, gold hero, palette, "Системная ошибка").
+  Routed by an audit cue ("ревизия / разбор гардероба"). Empty wardrobe → invite to catalogue.
 - **ST-i — Capsule board (editorial).** Re-render the ST-e capsule on the editorial template (looks +
   garment gallery); richer `capsule-advisor`.
 - **ST-j — Wardrobe Gap Analysis board.** New flow + `gap-analyst` skill: gather wardrobe + profile →
