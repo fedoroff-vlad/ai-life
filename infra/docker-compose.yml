@@ -548,6 +548,25 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-market-data:
+    image: ai-life/mcp-market-data:local
+    container_name: ai-life-mcp-market-data
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-market-data/Dockerfile
+    restart: unless-stopped
+    # No backing container — quotes come from Stooq over public HTTPS.
+    environment:
+      MCP_MARKET_DATA_PORT: 8100
+      MARKETDATA_STOOQ_URL: https://stooq.com
+      MARKETDATA_SOURCE: stooq
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8100/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-money-pro-import:
     image: ai-life/mcp-money-pro-import:local
     container_name: ai-life-mcp-money-pro-import
