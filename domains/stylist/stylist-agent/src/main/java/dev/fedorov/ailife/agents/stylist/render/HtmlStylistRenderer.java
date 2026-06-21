@@ -25,7 +25,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
           .append("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n")
           .append("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n")
           .append("<link href=\"https://fonts.googleapis.com/css2?")
-          .append("family=Cormorant+Garamond:wght@500;600&family=Jost:wght@300;400;500&display=swap\" ")
+          .append("family=Oranienbaum&family=Manrope:wght@300;400;500&display=swap\" ")
           .append("rel=\"stylesheet\">\n")
           .append("<style>").append(CSS).append("</style>\n")
           .append("</head>\n<body>\n<div class=\"board\">\n");
@@ -134,17 +134,20 @@ public class HtmlStylistRenderer implements StylistRenderer {
         };
     }
 
-    /** The locked luxury-editorial styling — ivory ground, serif caps, grid, gold hero, dark-mode aware. */
+    /**
+     * The locked luxury-editorial styling — a warm "noble beige" ground, serif display caps, grid,
+     * gold hero accent (owner 2026-06-21: light beige always, like the reference boards — NO
+     * dark-mode flip; {@code color-scheme: light} keeps form controls/scrollbars light too).
+     */
     private static final String CSS = """
-            :root{ --paper:#f4efe6; --panel:#fbf8f2; --line:#e2dac9; --ink:#2a2722; --muted:#8c8475; \
-            --keep:#5a6b4f; --question:#b8893b; --remove:#9b4a3a; --gold:#b08d4f; \
-            --serif:"Cormorant Garamond",Georgia,serif; --sans:"Jost",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-            @media (prefers-color-scheme: dark){ :root{ --paper:#201d18; --panel:#262219; --line:#3a3326; --ink:#ece5d6; --muted:#a59a85; } }
+            :root{ color-scheme: light; --paper:#efe8da; --panel:#f7f2e8; --line:#e0d6c2; --ink:#34302a; --muted:#8c8275; \
+            --keep:#5a6b4f; --question:#b0823a; --remove:#9b4a3a; --gold:#a98a4e; \
+            --serif:"Oranienbaum",Georgia,"Times New Roman",serif; --sans:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
             *{ box-sizing:border-box; }
-            body{ margin:0; padding:1.25rem; background:var(--paper); color:var(--ink); font-family:var(--sans); font-weight:300; line-height:1.55; }
+            body{ margin:0; padding:1.25rem; background:var(--paper); color:var(--ink); font-family:var(--sans); font-weight:300; line-height:1.6; }
             .board{ max-width:880px; margin:0 auto; }
             header{ text-align:center; padding:1rem 0 .75rem; border-bottom:1px solid var(--line); margin-bottom:.5rem; }
-            h1{ font-family:var(--serif); font-weight:600; letter-spacing:.16em; text-transform:uppercase; font-size:clamp(1.8rem,6vw,2.8rem); margin:0; }
+            h1{ font-family:var(--serif); font-weight:400; letter-spacing:.14em; text-transform:uppercase; font-size:clamp(2rem,6.5vw,3rem); margin:0; }
             .kicker{ font-size:.7rem; letter-spacing:.4em; color:var(--muted); text-transform:uppercase; margin:.5rem 0 0; }
             .sub{ color:var(--muted); margin:.5rem 0 0; }
             section{ margin:1.5rem 0; }

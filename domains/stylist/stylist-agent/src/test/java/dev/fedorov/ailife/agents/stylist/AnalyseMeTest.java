@@ -77,8 +77,15 @@ class AnalyseMeTest {
         String mediaId = UUID.randomUUID().toString();
         UUID docId = UUID.randomUUID();
 
-        var profileJson = "{\"personType\": \"classic\", \"bodyShape\": \"hourglass\", "
-                + "\"colourType\": \"winter\", \"suitableFabrics\": [\"wool\", \"silk\"], "
+        var profileJson = "{\"kibbe\": \"soft natural\", \"archetype\": \"explorer\", "
+                + "\"personType\": \"classic\", \"bodyShape\": \"hourglass\", \"bodyType\": \"slight hourglass\", "
+                + "\"colourType\": \"winter\", \"undertone\": \"cool\", \"contrast\": \"high\", "
+                + "\"palette\": [{\"hex\": \"#042C53\", \"name\": \"deep blue\"}], "
+                + "\"silhouettes\": [{\"name\": \"relaxed\", \"note\": \"balanced waist\", \"harmony\": \"high\"}], "
+                + "\"suitableFabrics\": [\"wool\", \"silk\"], \"avoid\": [\"low-rise bottoms\"], "
+                + "\"stylingPrinciples\": [\"keep waist visible\"], "
+                + "\"styleCodes\": [{\"code\": \"Business\", \"look\": \"tailored blazer\"}], "
+                + "\"finalDirection\": \"Emphasise the waist, keep clean lines.\", "
                 + "\"heightCm\": 180, \"weightKg\": 72, \"measurements\": {\"chest\": 100, \"waist\": 80}}";
         mediaProcessing.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
@@ -136,6 +143,14 @@ class AnalyseMeTest {
         assertThat(uploadReq.getPath()).isEqualTo("/v1/media");
         String uploadBody = uploadReq.getBody().readUtf8();
         assertThat(uploadBody).contains("text/html").contains("<!DOCTYPE html>");
+        // The rich board rendered the analysis sections + palette from the draft.
+        assertThat(uploadBody)
+                .contains("Кибби: soft natural")          // subtitle
+                .contains("Силуэты, что работают")
+                .contains("#042C53")                        // palette swatch
+                .contains("Чего избегать")
+                .contains("Стиль-коды")
+                .contains("Emphasise the waist");           // final direction
     }
 
     @Test
