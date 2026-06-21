@@ -31,6 +31,11 @@ spring:
             # which — unlike MCP/SSE — is MockWebServer-testable.
             mcp-media-processing:
               url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+            # Shared market-data capability (MD-c). Bound here so a future LLM-driven flow
+            # can pick its tools; the deterministic investment-advisor call goes over the
+            # HTTP /internal/quote passthrough (MarketDataClient), MockWebServer-testable.
+            mcp-market-data:
+              url: ${MARKET_DATA_URL:http://mcp-market-data:8100}
 
 server:
   port: ${FINANCE_AGENT_PORT:8093}
@@ -48,6 +53,7 @@ finance-agent:
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
   mcp-money-pro-import-url: ${MCP_MONEY_PRO_IMPORT_URL:http://mcp-money-pro-import:8094}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+  mcp-market-data-url: ${MARKET_DATA_URL:http://mcp-market-data:8100}
 
 ailife:
   llm-client:

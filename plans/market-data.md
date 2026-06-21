@@ -62,13 +62,20 @@ interface later. Symbol mapping (a ticker → a Stooq symbol like `aapl.us` / `^
 - **MD-b (optional, later) — `history(symbol, range?)`.** Stooq's daily-series CSV
   (`/q/d/l/?s={symbol}&i=d`) → a compact series for trend/% change. Add only when the advisor needs
   more than a spot quote.
-- **MD-c — finance-agent binds `mcp-market-data` + `investment-advisor` skill.** `flow/InvestmentAdvisor`
-  on the `Coordinator` (copy `FinancialAdvisor`): gather a `quote` per symbol the user named (parallel,
-  soft-fail per symbol) → one LLM synthesis from `[AGENT.md, investment-advisor SKILL.md] +
-  {payload(userText, symbols), context(quotes)}` → considerations, **advisory-only** (the SKILL.md
-  states the no-trade rule loudly). New `http/MarketDataClient` (`/internal/quote`) + the SSE binding +
-  `MARKET_DATA_URL`. Routed via a new advisory action in `IntentRouter`; `skills/finance/investment-advisor/SKILL.md`.
-  `InvestmentAdvisorTest` (MockWebServers for `/internal/quote` + llm-gateway).
+- **MD-c — finance-agent binds `mcp-market-data` + `investment-advisor` skill.** ✅ **DONE (PR127).**
+  `advisor/InvestmentAdvisor` on the shared `Coordinator` (copy `FinancialAdvisor`): gathers a `quote`
+  per symbol the user named (parallel, soft-fail per symbol; fan-out capped at 12) → one LLM synthesis
+  from `[AGENT.md, investment-advisor SKILL.md] + {payload(userText, symbols), context(quotes)}` →
+  considerations, **advisory-only** (the SKILL.md states the no-trade rule loudly; empty symbols → a
+  friendly invite, no call). New `http/MarketDataClient` (`POST /internal/quote`, 8s timeout) +
+  `mcpMarketDataWebClient` bean + `finance-agent.mcp-market-data-url` (`MARKET_DATA_URL`) + the
+  `spring.ai.mcp.client.sse.connections.mcp-market-data` binding. Routed via a new `invest` action in
+  `IntentRouter` — the classifier maps tickers → source-native symbols (`aapl.us`/`^spx`/`xauusd`/
+  `btcusd`) and passes them in `symbols`. New `skills/finance/investment-advisor/SKILL.md`; AGENT.md +
+  finance-agent README + compose (`depends_on: mcp-market-data` + `MARKET_DATA_URL`) updated. Tested
+  (`InvestmentAdvisorTest`: gather a quote per symbol → synth, MockWebServers; `IntentRouterTest` invest
+  case). Full finance-agent suite green (45). **MD line COMPLETE** (MD-b `history` left as an optional
+  later add).
 
 ## Out of scope (recorded, later)
 - **Holdings/portfolio storage** — MVP reads symbols the user names in the message (or a future thin

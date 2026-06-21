@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.intent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
+import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -53,17 +54,20 @@ public class IntentRouter {
     private final LlmClient llm;
     private final ToolDispatcher dispatcher;
     private final FinancialAdvisor advisor;
+    private final InvestmentAdvisor investmentAdvisor;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public IntentRouter(LlmClient llm,
                         ToolDispatcher dispatcher,
                         FinancialAdvisor advisor,
+                        InvestmentAdvisor investmentAdvisor,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.llm = llm;
         this.dispatcher = dispatcher;
         this.advisor = advisor;
+        this.investmentAdvisor = investmentAdvisor;
         this.manifest = manifest;
         this.json = json;
     }
@@ -102,6 +106,13 @@ public class IntentRouter {
                 return advisor.advise(msg)
                         .map(a -> new RouterResult(a.text(), "advice", a.model()));
             }
+            if ("invest".equals(action)) {
+                // Investment advisory (advisory-only): the classifier already mapped the
+                // user's tickers to source-native symbols — gather a quote per symbol and
+                // let the Coordinator-backed InvestmentAdvisor synthesize considerations.
+                return investmentAdvisor.advise(msg, readSymbols(node))
+                        .map(a -> new RouterResult(a.text(), "invest", a.model()));
+            }
             // action=chat (or anything else we don't recognise): prefer the
             // structured 'text' field, else fall back to the raw body.
             String text = node.has("text") ? node.get("text").asText() : raw;
@@ -132,6 +143,21 @@ public class IntentRouter {
                             "Не удалось вызвать инструмент «" + name + "»: " + e.getMessage(),
                             name, llmModel));
                 });
+    }
+
+    /** Pull the {@code symbols} string array out of an {@code action=invest} routing node. */
+    private List<String> readSymbols(JsonNode node) {
+        JsonNode arr = node.get("symbols");
+        if (arr == null || !arr.isArray()) {
+            return List.of();
+        }
+        List<String> symbols = new java.util.ArrayList<>();
+        for (JsonNode s : arr) {
+            if (s != null && s.isTextual() && !s.asText().isBlank()) {
+                symbols.add(s.asText());
+            }
+        }
+        return symbols;
     }
 
     private JsonNode tryParse(String raw) {
@@ -166,11 +192,19 @@ public class IntentRouter {
         sb.append("user asks to analyse / summarise / review their own spending or wants ");
         sb.append("recommendations over their finances (e.g. \"проанализируй траты\", \"сводка за месяц\", ");
         sb.append("\"куда уходят деньги\", \"где можно сэкономить\"). It gathers the data itself.\n\n");
-        sb.append("Decide: run a tool, run the analysis, or just talk?\n\n");
+        sb.append("There is also a built-in INVESTMENT ADVISORY flow (not a tool): use it when the user ");
+        sb.append("asks for an opinion / outlook on stocks, funds/ETFs, metals, forex or crypto (e.g. ");
+        sb.append("\"что думаешь про Apple и золото?\", \"стоит ли смотреть на биткоин?\"). It is ");
+        sb.append("ADVISORY ONLY — it never trades. Map each asset the user named to its source-native ");
+        sb.append("symbol and pass them in 'symbols': US stocks use a '.us' suffix (Apple→aapl.us), ");
+        sb.append("indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, bitcoin→btcusd, ");
+        sb.append("ether→ethusd. Include only assets the user actually named.\n\n");
+        sb.append("Decide: run a tool, run the spending analysis, run the investment advisory, or just talk?\n\n");
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
         sb.append("Use ONE of these shapes:\n");
         sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
         sb.append("  {\"action\":\"advice\"}\n");
+        sb.append("  {\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}\n");
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
         sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
