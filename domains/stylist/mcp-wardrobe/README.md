@@ -30,6 +30,16 @@ Scope rule: every tool takes a `householdId` and reads/writes only within that h
 Per-user privacy (private items filtered by `owner_id`) is the agent layer's job — this MCP
 is intentionally low-level.
 
+## Internal REST passthroughs
+
+Non-MCP, no LLM tax — for an agent that already has a concrete input and just needs to persist
+it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use HTTP).
+
+- `POST /internal/item` (body `AddItemInput`) → `WardrobeItemDto` | 400 — adds a garment,
+  delegating to the `add_item` tool (required-field guards apply). Used by stylist-agent's
+  wardrobe-catalogue flow after it extracts the garment from a photo caption (ST-c). Mirrors
+  mcp-finance's `/internal/transaction`.
+
 ## Env
 
 | Var | Default | Purpose |
@@ -52,6 +62,7 @@ is intentionally low-level.
   `get_style_profile`). The only invariants enforced here are the household scope and
   required-field checks; everything else relies on DB constraints.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
+- `web/InternalItemController` — `POST /internal/item`, delegates to `add_item` (400 on bad input).
 
 ## Schema
 

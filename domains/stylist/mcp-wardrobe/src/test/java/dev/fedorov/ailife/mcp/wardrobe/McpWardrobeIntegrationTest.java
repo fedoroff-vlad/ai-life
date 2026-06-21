@@ -56,6 +56,7 @@ class McpWardrobeIntegrationTest {
 
     @Autowired WardrobeMcpTools tools;
     @Autowired JdbcTemplate jdbc;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
@@ -177,6 +178,34 @@ class McpWardrobeIntegrationTest {
         StyleProfileDto got = tools.getStyleProfile(h, null);
         assertThat(got).isNotNull();
         assertThat(got.colourType()).isEqualTo("summer");
+    }
+
+    @Test
+    void internalItemEndpointAddsAnd400OnMissingName() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        WardrobeItemDto added = client.post().uri("/internal/item")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new AddItemInput(h, null, "linen blazer", "outerwear",
+                        "beige", "linen", null, "summer", "smart", null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(WardrobeItemDto.class)
+                .returnResult().getResponseBody();
+        assertThat(added).isNotNull();
+        assertThat(added.name()).isEqualTo("linen blazer");
+        assertThat(added.category()).isEqualTo("outerwear");
+
+        // Missing name → the tool's required-field guard surfaces as 400.
+        client.post().uri("/internal/item")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new AddItemInput(h, null, null, null, null, null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     private void seedHousehold(UUID id) {
