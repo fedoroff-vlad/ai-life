@@ -22,8 +22,8 @@ domain decision).
   (capability-MCP: no JPA / datasource / Liquibase feature). Reads blob bytes from
   **media-service** (`GET /v1/media/{id}` → bytes + content-type, port 8088, PR37) by media
   id — callers pass an id, never raw bytes.
-- Tools are schema-less and engine-backed: `ocr` first; `transcribe` (STT) + `caption`
-  (vision) later. Tool descriptions in English.
+- Tools are schema-less and engine-backed: `ocr` (Tesseract), `caption` (vision channel),
+  `transcribe` (whisper sidecar). Tool descriptions in English.
 - Bound by agents via `spring.ai.mcp.client.sse.connections.mcp-media-processing` (mirror
   finance-agent ↔ mcp-money-pro-import, PR33) + agent-side env `MCP_MEDIA_PROCESSING_URL`.
   **Multiple agents bind the same server — that is the point.**
@@ -37,6 +37,21 @@ considered and deferred — revisit only if a second engine (PaddleOCR/docTR) or
 pushes us off-JVM. **Operational notes:** `tessdata` is resolved at startup from
 `TESSDATA_PREFIX` → a probe of common distro paths (works across tesseract 4/5 layouts);
 CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a bare box).
+
+## Decision — STT engine integration: **whisper sidecar service** (LOCKED, owner 2026-06-21)
+The `transcribe` tool reaches whisper as a **separate self-hosted container** (an OSS whisper
+ASR webservice, faster-whisper engine) over plain HTTP, behind the `SttEngine` interface. Chosen
+over the in-JVM JNI option (whisper.cpp/whisper-jni in-image, the OCR-style "in-image" shape)
+because: (1) `architecture.md` §Principles **polyglot-by-design** — "run each as its own service,
+bind a thin capability-MCP"; (2) the roadmap's recorded Whisper verdict is literally "run as a
+service"; (3) Java whisper bindings are immature vs a mature OSS HTTP service, and the model
+(~150 MB+) would bloat/brittle the JVM image. **Trade-off accepted:** +1 container in compose, but
+the JVM image stays slim and the engine is a pure HTTP client → fully MockWebServer-testable in CI
+(no native dep at all — strictly better than MP-b's self-skipping native test). **Operational:**
+whisper pulls its model on first boot (slow), so mcp-media-processing depends on it `service_started`,
+not `service_healthy` — `ocr`/`caption` must not block on the STT sidecar; `transcribe` is lazy +
+best-effort. Note this differs from OCR (Tess4J in-image) on purpose: OCR's native lib is small and
+JNI-mature; whisper's isn't.
 
 ## PR-sized slices
 - **MP-a — scaffold + `ocr` tool on a stub engine (end-to-end, no native dep).** New
@@ -78,10 +93,18 @@ CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a b
   → new contract `media/TranscriptResult(text, lang?, durationSeconds?)`. Default
   `StubSttEngine` returns a deterministic byte-count marker (`[stub-stt] <N> bytes`), so the
   fetch→engine→tool wiring is provable native-free (`MediaProcessingTranscribeTest`). **MP-d2b
-  (next) — real whisper engine** (faster-whisper/whisper.cpp, owner verdict 🟢 in roadmap)
-  behind the same `SttEngine` interface as the deployed default, demoting the stub to
-  `mediaprocessing.stt-engine=stub` — mirror of how `TesseractOcrEngine` demoted `StubOcrEngine`
-  in MP-b (engine in-image + CI install + self-skip where the native dep is absent).
+  ✅ DONE — real whisper engine via an ASR sidecar over HTTP.** `WhisperSttEngine`
+  (`@ConditionalOnProperty mediaprocessing.stt-engine=whisper`, matchIfMissing) is the deployed
+  default behind the same `SttEngine` interface; `StubSttEngine` is now `=stub`-only. It POSTs the
+  audio bytes as multipart `audio_file` to the whisper webservice (`POST /asr?output=json`) and
+  reads `text`/`language` (+ duration from the last segment). No-speech → empty text; sidecar
+  5xx/timeout/unparseable → `IllegalStateException` (mirrors `OcrEngine`). Because the engine is
+  now just an HTTP client, it's **fully MockWebServer-testable, no native/model dep** —
+  `WhisperSttEngineTest` runs everywhere (incl. CI), unlike MP-b's self-skipping native test; the
+  live whisper container is exercised via `docker compose up` (the SearXNG/mcp-web live-verify way).
+  compose + dev.yml gain a `whisper` service (`onerahmet/openai-whisper-asr-webservice`, faster_whisper,
+  host 9100); mcp-media-processing depends on it `service_started` (not healthy — ocr/caption mustn't
+  block on whisper's first-boot model pull) + env `MCP_MEDIA_PROCESSING_STT_ENGINE`/`WHISPER_ASR_URL`.
 
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.

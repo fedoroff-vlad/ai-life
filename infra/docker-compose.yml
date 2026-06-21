@@ -118,6 +118,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Whisper ASR sidecar — the real STT engine behind mcp-media-processing's `transcribe`
+  # (engine decision LOCKED = sidecar service, polyglot-by-design). Self-hosted OSS, free.
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: ai-life-whisper
+    restart: unless-stopped
+    environment:
+      ASR_ENGINE: ${WHISPER_ASR_ENGINE:-faster_whisper}
+      ASR_MODEL: ${WHISPER_ASR_MODEL:-base}
+    ports:
+      - "${WHISPER_PORT:-9100}:9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/docs')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
   # ---------- platform services ----------
 
   llm-gateway:
@@ -493,10 +511,16 @@ services:
         condition: service_healthy
       llm-gateway:
         condition: service_healthy
+      # Not service_healthy: whisper pulls its model on first boot (slow), but ocr/caption
+      # must work regardless — transcribe is lazy + best-effort, so don't block on it.
+      whisper:
+        condition: service_started
     environment:
       MCP_MEDIA_PROCESSING_PORT: 8097
       MEDIA_SERVICE_URL: http://media-service:8088
       LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_MEDIA_PROCESSING_STT_ENGINE: whisper
+      WHISPER_ASR_URL: http://whisper:9000
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8097/actuator/health"]
       interval: 10s

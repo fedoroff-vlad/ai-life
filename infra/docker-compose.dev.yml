@@ -79,6 +79,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # Whisper ASR sidecar — real STT engine for an IDE-run mcp-media-processing
+  # (point WHISPER_ASR_URL at http://localhost:${WHISPER_PORT}).
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: ai-life-whisper
+    restart: unless-stopped
+    environment:
+      ASR_ENGINE: ${WHISPER_ASR_ENGINE:-faster_whisper}
+      ASR_MODEL: ${WHISPER_ASR_MODEL:-base}
+    ports:
+      - "${WHISPER_PORT:-9100}:9000"
+
   minio:
     image: minio/minio:latest
     container_name: ai-life-minio

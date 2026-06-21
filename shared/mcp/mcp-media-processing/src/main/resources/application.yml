@@ -25,6 +25,12 @@ ailife:
 
 mediaprocessing:
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  # OCR engine: tesseract (real, native lib in image) | stub (native-free marker).
+  ocr-engine: ${MCP_MEDIA_PROCESSING_OCR_ENGINE:tesseract}
+  tess-lang: ${MCP_MEDIA_PROCESSING_TESS_LANG:rus+eng}
+  # STT engine: whisper (real, calls the ASR sidecar over HTTP) | stub (native-free marker).
+  stt-engine: ${MCP_MEDIA_PROCESSING_STT_ENGINE:whisper}
+  whisper-url: ${WHISPER_ASR_URL:http://whisper:9000}
 
 management:
   endpoints:

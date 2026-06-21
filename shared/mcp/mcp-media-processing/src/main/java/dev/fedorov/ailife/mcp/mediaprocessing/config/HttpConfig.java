@@ -16,4 +16,13 @@ public class HttpConfig {
                 .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-media-processing 0.0.1")
                 .build();
     }
+
+    /** Calls the whisper ASR sidecar for {@code transcribe} (STT). Unused in stub mode. */
+    @Bean
+    public WebClient whisperWebClient(McpMediaProcessingProperties props, WebClient.Builder builder) {
+        return builder.clone()
+                .baseUrl(props.getWhisperUrl())
+                .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-media-processing 0.0.1")
+                .build();
+    }
 }

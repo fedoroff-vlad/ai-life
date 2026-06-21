@@ -23,6 +23,17 @@ public class McpMediaProcessingProperties {
      */
     private String tessDataPath = "";
 
+    /**
+     * Which STT engine to wire: {@code whisper} (default, real, calls the whisper ASR
+     * sidecar over HTTP) or {@code stub} (native-free marker, for the wiring test /
+     * degraded environments). Engine decision LOCKED = whisper sidecar service (owner
+     * 2026-06-21) — see {@code plans/media.md}.
+     */
+    private String sttEngine = "whisper";
+
+    /** Whisper ASR sidecar base URL — where {@code transcribe} POSTs the audio bytes. */
+    private String whisperUrl = "http://whisper:9000";
+
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
     public String getOcrEngine() { return ocrEngine; }
@@ -31,4 +42,8 @@ public class McpMediaProcessingProperties {
     public void setTessLang(String tessLang) { this.tessLang = tessLang; }
     public String getTessDataPath() { return tessDataPath; }
     public void setTessDataPath(String tessDataPath) { this.tessDataPath = tessDataPath; }
+    public String getSttEngine() { return sttEngine; }
+    public void setSttEngine(String sttEngine) { this.sttEngine = sttEngine; }
+    public String getWhisperUrl() { return whisperUrl; }
+    public void setWhisperUrl(String whisperUrl) { this.whisperUrl = whisperUrl; }
 }
