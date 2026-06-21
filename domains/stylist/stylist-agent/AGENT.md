@@ -10,6 +10,7 @@ mcp:
 skills:
   - wardrobe-cataloguer
   - style-analyst
+  - wardrobe-auditor
   - capsule-advisor
 intents:
   - example: Add this shirt to my wardrobe

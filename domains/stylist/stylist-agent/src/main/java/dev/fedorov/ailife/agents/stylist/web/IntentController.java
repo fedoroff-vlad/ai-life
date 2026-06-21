@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agents.stylist.analyse.AnalyseMe;
 import dev.fedorov.ailife.agents.stylist.catalogue.WardrobeCataloguer;
 import dev.fedorov.ailife.agents.stylist.chat.StylistChat;
 import dev.fedorov.ailife.agents.stylist.flow.StylistAdvisor;
+import dev.fedorov.ailife.agents.stylist.flow.WardrobeAuditor;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -42,19 +43,25 @@ public class IntentController {
             "analyse me", "analyze me", "my style", "colour type", "color type",
             "body shape", "height", "weight");
 
+    private static final Set<String> AUDIT_CUES = Set.of(
+            "ревизи", "разбор гардероб", "разбери гардероб", "разбери мой гардероб",
+            "что оставить", "что убрать", "что выбросить", "почисти гардероб", "audit");
+
     private static final Set<String> CAPSULE_CUES = Set.of(
             "капсул", "что надеть", "что мне надеть", "собери", "собрать", "образ", "лук",
             "наряд", "во что одеться", "outfit", "what to wear", "capsule", "look");
 
     private final WardrobeCataloguer cataloguer;
     private final AnalyseMe analyseMe;
+    private final WardrobeAuditor auditor;
     private final StylistAdvisor advisor;
     private final StylistChat chat;
 
     public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe,
-                            StylistAdvisor advisor, StylistChat chat) {
+                            WardrobeAuditor auditor, StylistAdvisor advisor, StylistChat chat) {
         this.cataloguer = cataloguer;
         this.analyseMe = analyseMe;
+        this.auditor = auditor;
         this.advisor = advisor;
         this.chat = chat;
     }
@@ -67,6 +74,9 @@ public class IntentController {
             return isMatch(message.text(), ANALYSE_CUES)
                     ? analyseMe.analyse(message, mediaId)
                     : cataloguer.catalogue(message, mediaId);
+        }
+        if (isMatch(message.text(), AUDIT_CUES)) {
+            return auditor.audit(message);
         }
         if (isMatch(message.text(), CAPSULE_CUES)) {
             return advisor.advise(message);
