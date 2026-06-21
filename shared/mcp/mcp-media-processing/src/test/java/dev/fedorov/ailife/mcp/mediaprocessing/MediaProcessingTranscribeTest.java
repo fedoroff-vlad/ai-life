@@ -40,8 +40,10 @@ class MediaProcessingTranscribeTest {
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
         r.add("mediaprocessing.media-service-url", () -> "http://localhost:" + mediaService.getPort());
-        // Pin the OCR engine to the native-free stub so the context boots without tesseract.
+        // Pin both engines to the native-free stubs so the context boots without tesseract
+        // or the whisper sidecar, and this asserts the deterministic stub marker.
         r.add("mediaprocessing.ocr-engine", () -> "stub");
+        r.add("mediaprocessing.stt-engine", () -> "stub");
     }
 
     @Autowired

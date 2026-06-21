@@ -6,7 +6,7 @@ Local development infrastructure + full-system compose for ai-life.
 
 | file | covers | when |
 |---|---|---|
-| `docker-compose.dev.yml` | postgres + liquibase + radicale + minio (one-shot liquibase, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
+| `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
 | `docker-compose.yml` | everything in `dev.yml` (minus MinIO) **plus** all 7 platform services + 2 agents + 4 MCP servers | End-to-end smoke testing, Mac Studio deployment, validating a release. |
 
 Both files share `.env` and the same Postgres volume — they don't conflict, but
@@ -73,10 +73,11 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-money-pro-import | 8094 | Money Pro CSV importer                                        |
 | mcp-tasks            | 8095 | Tasks/GTD CRUD MCP                                            |
 | tasks-agent          | 8096 | Tasks/GTD domain agent                                        |
-| mcp-media-processing | 8097 | Media-understanding capability-MCP (OCR + vision caption; STT later) |
+| mcp-media-processing | 8097 | Media-understanding capability-MCP (OCR + vision caption + STT)  |
 | mcp-web              | 8098 | Web capability-MCP (web_search + fetch_url) over SearXNG         |
 | researcher-agent     | 8099 | Web research specialist (binds mcp-web)                          |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
+| whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
 Default credentials are in `.env.example`. Replace them in your `.env` before
 exposing anything to a network.
