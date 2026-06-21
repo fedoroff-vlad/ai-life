@@ -12,7 +12,8 @@ spring:
           Shared media-understanding capability. Pass a media-service object id;
           the server fetches the bytes and returns text. ocr: recognise text in an
           image (local engine). caption: ask an LLM vision model about an image
-          given an instruction. (transcribe / STT lands later.)
+          given an instruction. transcribe: speech-to-text on an audio/video clip
+          (local engine).
 
 server:
   port: ${MCP_MEDIA_PROCESSING_PORT:8097}

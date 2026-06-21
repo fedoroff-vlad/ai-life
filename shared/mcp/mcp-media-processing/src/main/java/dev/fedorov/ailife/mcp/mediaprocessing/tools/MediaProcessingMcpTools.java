@@ -7,8 +7,10 @@ import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
 import dev.fedorov.ailife.contracts.media.OcrResult;
+import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.llm.LlmClient;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.OcrEngine;
+import dev.fedorov.ailife.mcp.mediaprocessing.engine.SttEngine;
 import dev.fedorov.ailife.mcp.mediaprocessing.http.MediaClient;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
@@ -19,10 +21,11 @@ import java.util.List;
 /**
  * The shared media-understanding toolbox. {@code ocr} (MP-a/b) reads text off an image
  * with a local engine; {@code caption} (MP-d1) asks an LLM vision model about an image
- * via the centralised {@code vision} channel — so no agent re-embeds the vision call.
- * {@code transcribe} (STT) lands later. Any agent binds this server over MCP/SSE and passes
- * a media-service object id; the capability fetches the bytes and returns text only (no
- * domain reasoning — the caller's skill interprets it).
+ * via the centralised {@code vision} channel — so no agent re-embeds the vision call;
+ * {@code transcribe} (MP-d2) turns a stored audio/video clip into text with a local STT
+ * engine. Any agent binds this server over MCP/SSE and passes a media-service object id;
+ * the capability fetches the bytes and returns text only (no domain reasoning — the
+ * caller's skill interprets it).
  */
 @Component
 public class MediaProcessingMcpTools {
@@ -31,11 +34,13 @@ public class MediaProcessingMcpTools {
 
     private final MediaClient media;
     private final OcrEngine ocr;
+    private final SttEngine stt;
     private final LlmClient llm;
 
-    public MediaProcessingMcpTools(MediaClient media, OcrEngine ocr, LlmClient llm) {
+    public MediaProcessingMcpTools(MediaClient media, OcrEngine ocr, SttEngine stt, LlmClient llm) {
         this.media = media;
         this.ocr = ocr;
+        this.stt = stt;
         this.llm = llm;
     }
 
@@ -53,6 +58,22 @@ public class MediaProcessingMcpTools {
             return new OcrResult("", null, null);
         }
         return ocr.extract(fetched.bytes(), fetched.mimeType());
+    }
+
+    @Tool(description = """
+            Transcribe speech from a stored audio or video clip by its media-service object
+            id (the storageUri an attachment carries). Fetches the bytes from media-service
+            and runs speech-to-text. Returns the recognised text plus optional detected
+            language and source duration. Returns empty text when no speech is recognised.
+            Use this for voice notes and dictated messages — anything where you need the
+            words spoken in a clip; interpreting them is the caller's job.
+            """)
+    public TranscriptResult transcribe(String mediaId) {
+        MediaClient.FetchedMedia fetched = media.fetch(mediaId).block();
+        if (fetched == null) {
+            return new TranscriptResult("", null, null);
+        }
+        return stt.transcribe(fetched.bytes(), fetched.mimeType());
     }
 
     @Tool(description = """
