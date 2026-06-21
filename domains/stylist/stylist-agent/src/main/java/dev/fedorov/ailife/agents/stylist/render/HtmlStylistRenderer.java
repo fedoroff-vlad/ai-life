@@ -39,8 +39,16 @@ public class HtmlStylistRenderer implements StylistRenderer {
                 sb.append("</section>\n");
             }
         }
+        if (doc.imageUrls() != null && !doc.imageUrls().isEmpty()) {
+            sb.append("<section>\n<h2>Из вашего гардероба</h2>\n<div class=\"gallery\">\n");
+            for (String url : doc.imageUrls()) {
+                if (url == null || url.isBlank()) continue;
+                sb.append("<img loading=\"lazy\" src=\"").append(esc(url)).append("\" alt=\"\">\n");
+            }
+            sb.append("</div>\n</section>\n");
+        }
         sb.append("</main>\n</body>\n</html>\n");
-        return new RenderedDoc(sb.toString().getBytes(StandardCharsets.UTF_8), "text/html", "analysis.html");
+        return new RenderedDoc(sb.toString().getBytes(StandardCharsets.UTF_8), "text/html", "stylist.html");
     }
 
     /** Minimal, dependency-free responsive styling — readable on a phone and a desktop alike. */
@@ -57,6 +65,10 @@ public class HtmlStylistRenderer implements StylistRenderer {
             h2 { font-size: clamp(1.1rem, 4vw, 1.3rem); margin: 1.75rem 0 .5rem; \
             border-bottom: 2px solid #ececef; padding-bottom: .3rem; }
             p { margin: .5rem 0; }
+            .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); \
+            gap: .75rem; margin-top: .5rem; }
+            .gallery img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; \
+            background: #ececef; }
             @media (prefers-color-scheme: dark) { \
             body { background: #18181b; color: #e4e4e7; } \
             .card { background: #232327; box-shadow: none; } \

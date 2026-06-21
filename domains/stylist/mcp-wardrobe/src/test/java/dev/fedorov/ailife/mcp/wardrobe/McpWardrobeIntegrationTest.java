@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.MountableFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -241,6 +242,42 @@ class McpWardrobeIntegrationTest {
                 "SELECT count(*) FROM wardrobe.style_profile WHERE household_id = ? AND owner_id = ?",
                 Integer.class, h, ownerId);
         assertThat(rows).isEqualTo(1);
+    }
+
+    @Test
+    void internalReadPassthroughsListItemsAndGetProfile() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        tools.addItem(new AddItemInput(h, null, "tee", "top", null, null, null, null, null, null));
+        tools.addItem(new AddItemInput(h, null, "jeans", "bottom", null, null, null, null, null, null));
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        // GET /internal/items — all, then category-filtered.
+        List<WardrobeItemDto> all = client.get()
+                .uri(b -> b.path("/internal/items").queryParam("householdId", h).build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(WardrobeItemDto.class).returnResult().getResponseBody();
+        assertThat(all).hasSize(2);
+        List<WardrobeItemDto> tops = client.get()
+                .uri(b -> b.path("/internal/items").queryParam("householdId", h)
+                        .queryParam("category", "top").build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(WardrobeItemDto.class).returnResult().getResponseBody();
+        assertThat(tops).singleElement().satisfies(i -> assertThat(i.name()).isEqualTo("tee"));
+
+        // GET /internal/profile — 404 when unset, then 200 after a set.
+        client.get().uri(b -> b.path("/internal/profile").queryParam("householdId", h).build())
+                .exchange().expectStatus().isNotFound();
+        tools.setStyleProfile(new SetStyleProfileInput(
+                h, null, "natural", null, "summer", null, null, null, null, null, null));
+        StyleProfileDto got = client.get()
+                .uri(b -> b.path("/internal/profile").queryParam("householdId", h).build())
+                .exchange().expectStatus().isOk()
+                .expectBody(StyleProfileDto.class).returnResult().getResponseBody();
+        assertThat(got).isNotNull();
+        assertThat(got.colourType()).isEqualTo("summer");
     }
 
     private void seedHousehold(UUID id) {

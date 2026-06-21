@@ -108,11 +108,13 @@ capability (reused, not rebuilt — a photo can belong to any domain).
   as a **responsive HTML** deliverable through the **render seam** (`StylistRenderer` interface +
   `HtmlStylistRenderer`), store it in media-service, reply summary + link. Concrete-examples LLM prose pass
   deferred (MVP page grounded in the structured profile).
-- **ST-e — capsule advisor + capsule HTML.** `flow/StylistAdvisor` on the shared `Coordinator` (copy
-  `InvestmentAdvisor`/`FinancialAdvisor`): gather `{wardrobe items, style_profile, trends (mcp-web), season}`
-  → one LLM synthesis from `[AGENT.md, capsule-advisor SKILL.md] + {payload(occasion/request), context}` →
-  a capsule, rendered as a **beautiful HTML page** (embeds garment photos) on the template. Routed via the
-  stylist intent classifier.
+- **ST-e — capsule advisor + capsule HTML. DONE (PR137) — MVP COMPLETE.** `flow/StylistAdvisor` on the
+  shared `Coordinator` (copy `InvestmentAdvisor`/`FinancialAdvisor`): gather `{wardrobe items, style_profile,
+  trends (mcp-web), season}` → one LLM synthesis from `[AGENT.md, capsule-advisor SKILL.md] +
+  {payload(request, season), context}` → a capsule, rendered as a responsive **HTML page** (embeds garment
+  photos via the render-seam gallery) → stored in media-service → reply summary + link. Empty wardrobe →
+  invite to catalogue. Routed via a capsule-cue heuristic in `IntentController`. Added `mcp-wardrobe` read
+  passthroughs `GET /internal/items` + `GET /internal/profile`.
 
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and

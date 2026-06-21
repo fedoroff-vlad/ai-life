@@ -20,10 +20,13 @@ routes a **photo attachment** by the caption text:
   `mcp-wardrobe` (`/internal/item`), storing the photo's media id (the default, since the owner
   bulk-loads the wardrobe).
 
-Non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE for
-future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
-passthroughs. The capsule flow lands in ST-e. **Render-format seam** (`StylistRenderer`): HTML now,
-a PDF renderer drops in behind the same interface later.
+A non-photo message with a **capsule cue** ("собери капсулу", "что надеть") → `flow/StylistAdvisor`
+(ST-e): gather the wardrobe + style profile + trends (mcp-web) + season on the shared `Coordinator`
+→ one LLM synthesis → render a capsule HTML page (embedding the garment photos) → store → link.
+Other non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE
+for future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
+passthroughs. **Render-format seam** (`StylistRenderer`): HTML now, a PDF renderer drops in behind
+the same interface later. **Stylist MVP complete (ST-a..e).**
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
 
@@ -62,7 +65,7 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   ST-c..e flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
 - `web/ManifestController` — `GET /agents/stylist/manifest`.
 - `web/IntentController` — `POST /agents/stylist/intent`; routes a photo to analyse-me (caption
-  cues / body params) or the catalogue flow, else the chat fallback.
+  cues / body params) or the catalogue flow, a capsule-cue text to the advisor, else the chat fallback.
 - `chat/StylistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt) for non-photo
   messages; replaced branch-by-branch as the real flows land.
 - `catalogue/WardrobeCataloguer` — the wardrobe-catalogue flow: garment photo → `caption` extract
@@ -71,11 +74,15 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `analyse/AnalyseMe` — the "analyse me" flow: self-photo + typed params → `caption` analysis
   (instruction = the `style-analyst` SKILL.md) → `set_style_profile` via `/internal/profile` →
   render the analysis HTML → store in media-service → reply with a link.
-- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (responsive HTML) +
-  `render/StylistDoc` / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
+- `flow/StylistAdvisor` — the capsule flow on the shared `Coordinator`: gather wardrobe items +
+  style profile + trends (mcp-web) + season (computed) → one LLM synthesis → render capsule HTML
+  with a garment-photo gallery → store → reply with a link. Empty wardrobe → invite to catalogue.
+- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (responsive HTML, optional image
+  gallery) + `render/StylistDoc` / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
-  `http/StyleProfileClient` (`/internal/profile`) + `http/MediaStoreClient` (`POST /v1/media`) —
-  the deterministic capability/media calls (MockWebServer-testable; not the SSE transport).
+  `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
+  `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/MediaStoreClient`
+  (`POST /v1/media`) — the deterministic capability/media calls (MockWebServer-testable; not SSE).
 
 ## Skills
 
@@ -87,3 +94,6 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   (person/colour type, body shape, suitable fabrics, measurements) as strict JSON; the analyse-me
   flow parses it, persists the profile, and renders the HTML analysis. Lives at
   [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).
+- `capsule-advisor` (synthesis) — assembles an outfit capsule from the catalogued wardrobe, grounded
+  in the style profile, occasion, season and trends; consumes the `Coordinator` `context`. Lives at
+  [skills/stylist/capsule-advisor/SKILL.md](../skills/capsule-advisor/SKILL.md).
