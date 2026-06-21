@@ -9,14 +9,21 @@ A cross-domain specialist (its own `domains/stylist/` folder). It owns the `mcp-
 domain-MCP (its persistent data) and binds two shared capabilities: `mcp-media-processing`
 (vision `caption` — understand garment / self photos) and `mcp-web` (`web_search` — trends).
 
-**Status (ST-c):** the wardrobe-catalogue flow is live. `IntentController` routes a **photo
-attachment** → `catalogue/WardrobeCataloguer`: ask `mcp-media-processing` `caption`
-(`/internal/caption`) for a structured garment extract (instruction = the `wardrobe-cataloguer`
-SKILL.md) → write the item via `mcp-wardrobe` (`/internal/item`), storing the photo's media id on
-the item. **Write-immediately** (the owner bulk-loads the wardrobe; edits go through `update_item`
-later). Non-photo messages fall back to chat (`chat/StylistChat`). The three capabilities are bound
-over SSE for future LLM-driven tool selection; the deterministic flows call them over their HTTP
-`/internal/*` passthroughs. The analyse-me / capsule flows land in ST-d..e.
+**Status (ST-d):** the wardrobe-catalogue **and** "analyse me" flows are live. `IntentController`
+routes a **photo attachment** by the caption text:
+- analyse-me cues / stated body params → `analyse/AnalyseMe` (ST-d) — `caption` analysis (instruction
+  = the `style-analyst` SKILL.md, with the user's note folded in so it also picks up typed
+  height/weight/measurements) → `set_style_profile` via `mcp-wardrobe` (`/internal/profile`) → render
+  the analysis as a **responsive HTML page** through the `render/StylistRenderer` seam → store it in
+  media-service → reply with a summary + a link the user opens on any device;
+- otherwise → `catalogue/WardrobeCataloguer` (ST-c) — structured garment extract → write the item via
+  `mcp-wardrobe` (`/internal/item`), storing the photo's media id (the default, since the owner
+  bulk-loads the wardrobe).
+
+Non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE for
+future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
+passthroughs. The capsule flow lands in ST-e. **Render-format seam** (`StylistRenderer`): HTML now,
+a PDF renderer drops in behind the same interface later.
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
 
@@ -37,6 +44,8 @@ over SSE for future LLM-driven tool selection; the deterministic flows call them
 | `MCP_WARDROBE_URL` | `http://mcp-wardrobe:8101` | Its data: SSE binding + the future HTTP base URL for the catalogue flow. |
 | `MCP_MEDIA_PROCESSING_URL` | `http://mcp-media-processing:8097` | Shared vision capability: SSE binding + `/internal/caption`. |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | Shared web capability: SSE binding + `/internal/search` (trends). |
+| `MEDIA_SERVICE_URL` | `http://media-service:8088` | Stores the rendered HTML deliverables (analyse-me / capsule). |
+| `STYLIST_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | Public base the deliverable link is built from (`<base>/v1/media/{id}`); set to a reachable gateway in deployment. |
 | `STYLIST_AGENT_MCP_CLIENT_ENABLED` | `true` | Toggle the Spring AI MCP client. Tests default to `false`. |
 | `STYLIST_AGENT_MEMORY_RECALL_K` | `5` | Memory recall depth for the runtime clients. |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | service defaults | Back the shared `agent-runtime` clients. |
@@ -52,15 +61,21 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `config/OutboundHttpConfig` — `mcpWardrobe/mcpMediaProcessing/mcpWeb` WebClients (for the
   ST-c..e flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
 - `web/ManifestController` — `GET /agents/stylist/manifest`.
-- `web/IntentController` — `POST /agents/stylist/intent`; routes a photo attachment to the
-  catalogue flow, else the chat fallback.
+- `web/IntentController` — `POST /agents/stylist/intent`; routes a photo to analyse-me (caption
+  cues / body params) or the catalogue flow, else the chat fallback.
 - `chat/StylistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt) for non-photo
   messages; replaced branch-by-branch as the real flows land.
 - `catalogue/WardrobeCataloguer` — the wardrobe-catalogue flow: garment photo → `caption` extract
   (instruction = the `wardrobe-cataloguer` SKILL.md) → write via `mcp-wardrobe` `/internal/item`,
   write-immediately. Soft-fails to a friendly message at any stage.
-- `http/CaptionClient` (`POST /internal/caption`) + `http/WardrobeClient` (`POST /internal/item`) —
-  the deterministic capability calls (MockWebServer-testable; not the SSE transport).
+- `analyse/AnalyseMe` — the "analyse me" flow: self-photo + typed params → `caption` analysis
+  (instruction = the `style-analyst` SKILL.md) → `set_style_profile` via `/internal/profile` →
+  render the analysis HTML → store in media-service → reply with a link.
+- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (responsive HTML) +
+  `render/StylistDoc` / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
+- `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
+  `http/StyleProfileClient` (`/internal/profile`) + `http/MediaStoreClient` (`POST /v1/media`) —
+  the deterministic capability/media calls (MockWebServer-testable; not the SSE transport).
 
 ## Skills
 
@@ -68,3 +83,7 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   (category/colour/material/pattern/season/formality) as strict JSON; the cataloguer flow parses it
   and writes the item. Lives at
   [skills/stylist/wardrobe-cataloguer/SKILL.md](../skills/wardrobe-cataloguer/SKILL.md).
+- `style-analyst` (vision analysis) — analyses a self-photo + typed body params into a style profile
+  (person/colour type, body shape, suitable fabrics, measurements) as strict JSON; the analyse-me
+  flow parses it, persists the profile, and renders the HTML analysis. Lives at
+  [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).

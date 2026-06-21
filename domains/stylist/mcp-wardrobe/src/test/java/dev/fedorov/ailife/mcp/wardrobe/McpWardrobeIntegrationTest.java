@@ -208,6 +208,41 @@ class McpWardrobeIntegrationTest {
                 .expectStatus().isBadRequest();
     }
 
+    @Test
+    void internalProfileEndpointUpsertsForOwner() throws Exception {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID ownerId = seedUser(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        StyleProfileDto saved = client.post().uri("/internal/profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetStyleProfileInput(h, ownerId, "classic", "rectangle", "winter",
+                        MAPPER.readTree("[\"wool\"]"), 180, null,
+                        MAPPER.readTree("{\"chest\":100}"), null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(StyleProfileDto.class)
+                .returnResult().getResponseBody();
+        assertThat(saved).isNotNull();
+        assertThat(saved.colourType()).isEqualTo("winter");
+        assertThat(saved.heightCm()).isEqualTo(180);
+
+        // Second post for the same (household, owner) updates in place — still one row.
+        client.post().uri("/internal/profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetStyleProfileInput(h, ownerId, "dramatic", null, "autumn",
+                        null, null, null, null, null, null))
+                .exchange()
+                .expectStatus().isOk();
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM wardrobe.style_profile WHERE household_id = ? AND owner_id = ?",
+                Integer.class, h, ownerId);
+        assertThat(rows).isEqualTo(1);
+    }
+
     private void seedHousehold(UUID id) {
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", id, "h-" + id);
     }

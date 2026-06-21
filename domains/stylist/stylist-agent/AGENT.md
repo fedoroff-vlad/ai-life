@@ -9,6 +9,7 @@ mcp:
   - mcp-web
 skills:
   - wardrobe-cataloguer
+  - style-analyst
 intents:
   - example: Add this shirt to my wardrobe
     description: Catalogue a garment from a photo into the wardrobe.

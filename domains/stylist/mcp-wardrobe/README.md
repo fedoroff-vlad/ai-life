@@ -39,6 +39,9 @@ it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use H
   delegating to the `add_item` tool (required-field guards apply). Used by stylist-agent's
   wardrobe-catalogue flow after it extracts the garment from a photo caption (ST-c). Mirrors
   mcp-finance's `/internal/transaction`.
+- `POST /internal/profile` (body `SetStyleProfileInput`) → `StyleProfileDto` | 400 — upserts the
+  person's style profile, delegating to the `set_style_profile` tool ((household,owner) keying
+  applies). Used by stylist-agent's "analyse me" flow (ST-d).
 
 ## Env
 
@@ -63,6 +66,7 @@ it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use H
   required-field checks; everything else relies on DB constraints.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 - `web/InternalItemController` — `POST /internal/item`, delegates to `add_item` (400 on bad input).
+- `web/InternalProfileController` — `POST /internal/profile`, delegates to `set_style_profile` (400 on bad input).
 
 ## Schema
 
