@@ -152,9 +152,11 @@ copyrighted text. Boards build in this order:
   template (since ST-f); ST-i gives it the board chrome — `StylistAdvisor.store` builds the doc via the
   `StylistDoc` builder with a kicker ("Curated · Strategic · Aligned") + a season/occasion subtitle +
   an "Образы" section + the garment-photo gallery, so it's consistent with the analysis/audit boards.
-- **ST-j — Wardrobe Gap Analysis board.** New flow + `gap-analyst` skill: gather wardrobe + profile →
-  missing items + why + priority (ESSENTIAL/STRONG ADD/NICE TO HAVE) + price tier + a "do not buy"
-  row + coverage before/after. **Marketplace buy-links stay deferred** (the separate marketplace line).
+- **ST-j — Wardrobe Gap Analysis board. DONE (PR142) — Phase 2 COMPLETE.** New `flow/GapAnalyst` on the
+  `Coordinator` + `gap-analyst` skill: gather wardrobe + profile → missing items + why + priority
+  (ESSENTIAL/STRONG ADD/NICE TO HAVE) + price tier + a "do not buy" row + coverage before/after →
+  render the gap board ("Что докупить" / "Не покупать" / "Фокус" + coverage subtitle + palette).
+  Routed by a gap cue ("что докупить / список покупок"). **Marketplace buy-links stay deferred.**
 
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and

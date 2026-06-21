@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.stylist.web;
 import dev.fedorov.ailife.agents.stylist.analyse.AnalyseMe;
 import dev.fedorov.ailife.agents.stylist.catalogue.WardrobeCataloguer;
 import dev.fedorov.ailife.agents.stylist.chat.StylistChat;
+import dev.fedorov.ailife.agents.stylist.flow.GapAnalyst;
 import dev.fedorov.ailife.agents.stylist.flow.StylistAdvisor;
 import dev.fedorov.ailife.agents.stylist.flow.WardrobeAuditor;
 import dev.fedorov.ailife.contracts.agent.Attachment;
@@ -47,6 +48,10 @@ public class IntentController {
             "ревизи", "разбор гардероб", "разбери гардероб", "разбери мой гардероб",
             "что оставить", "что убрать", "что выбросить", "почисти гардероб", "audit");
 
+    private static final Set<String> GAP_CUES = Set.of(
+            "что докупить", "что купить", "чего не хватает", "что добавить", "список покупок",
+            "пробел", "докупить", "gap", "what to buy", "shopping list");
+
     private static final Set<String> CAPSULE_CUES = Set.of(
             "капсул", "что надеть", "что мне надеть", "собери", "собрать", "образ", "лук",
             "наряд", "во что одеться", "outfit", "what to wear", "capsule", "look");
@@ -54,14 +59,17 @@ public class IntentController {
     private final WardrobeCataloguer cataloguer;
     private final AnalyseMe analyseMe;
     private final WardrobeAuditor auditor;
+    private final GapAnalyst gapAnalyst;
     private final StylistAdvisor advisor;
     private final StylistChat chat;
 
     public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe,
-                            WardrobeAuditor auditor, StylistAdvisor advisor, StylistChat chat) {
+                            WardrobeAuditor auditor, GapAnalyst gapAnalyst,
+                            StylistAdvisor advisor, StylistChat chat) {
         this.cataloguer = cataloguer;
         this.analyseMe = analyseMe;
         this.auditor = auditor;
+        this.gapAnalyst = gapAnalyst;
         this.advisor = advisor;
         this.chat = chat;
     }
@@ -77,6 +85,9 @@ public class IntentController {
         }
         if (isMatch(message.text(), AUDIT_CUES)) {
             return auditor.audit(message);
+        }
+        if (isMatch(message.text(), GAP_CUES)) {
+            return gapAnalyst.analyse(message);
         }
         if (isMatch(message.text(), CAPSULE_CUES)) {
             return advisor.advise(message);
