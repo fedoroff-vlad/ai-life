@@ -1,0 +1,176 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 040-wardrobe
+      author: ai-life
+      comment: |
+        Stylist domain opener: source-of-truth wardrobe tables for mcp-wardrobe
+        (plans/stylist.md). Two tables — wardrobe_item (one row per catalogued
+        garment) + style_profile (one row per person's "analyse me" result).
+
+        category/colour/material/pattern/season/formality are free-text varchars,
+        NOT lookup tables (small, personal, evolving sets — same call finance.md's
+        varchar period and tasks.md's context tag made). image_media_id points at a
+        media-service object (the garment / self photo) with no cross-schema FK:
+        media is a different domain and media-service owns blob lifecycle, same
+        no-FK reasoning as task_item.calendar_event_uid. style_profile is keyed
+        (household_id, owner_id) so a person has at most one profile; suitable_fabrics
+        and measurements are jsonb (free-form vision/typed structure).
+      changes:
+        - createTable:
+            schemaName: wardrobe
+            tableName: wardrobe_item
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_wardrobe_item_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_wardrobe_item_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category
+                  type: varchar(32)
+              - column:
+                  name: colour
+                  type: varchar(64)
+              - column:
+                  name: material
+                  type: varchar(64)
+              - column:
+                  name: pattern
+                  type: varchar(64)
+              - column:
+                  name: season
+                  type: varchar(32)
+              - column:
+                  name: formality
+                  type: varchar(32)
+              - column:
+                  name: image_media_id
+                  type: uuid
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: wardrobe
+            tableName: wardrobe_item
+            indexName: ix_wardrobe_item_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createIndex:
+            schemaName: wardrobe
+            tableName: wardrobe_item
+            indexName: ix_wardrobe_item_household_category
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: category
+
+        - createTable:
+            schemaName: wardrobe
+            tableName: style_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_style_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_style_profile_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: person_type
+                  type: varchar(64)
+              - column:
+                  name: body_shape
+                  type: varchar(64)
+              - column:
+                  name: colour_type
+                  type: varchar(64)
+              - column:
+                  name: suitable_fabrics
+                  type: jsonb
+              - column:
+                  name: height_cm
+                  type: integer
+              - column:
+                  name: weight_kg
+                  type: numeric(5,2)
+              - column:
+                  name: measurements
+                  type: jsonb
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: image_media_id
+                  type: uuid
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: wardrobe
+            tableName: style_profile
+            indexName: ux_style_profile_household_owner
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: owner_id
