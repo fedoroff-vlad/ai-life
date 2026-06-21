@@ -72,8 +72,16 @@ CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a b
   on `/internal/caption`; `receipt-parser` calls `caption` (instruction = the `receipt-parser` SKILL.md
   + the user's caption as a hint) instead of running the `vision` channel inline — `MediaClient`/`LlmClient`
   dropped from the receipt path. **Cleared the STATUS Deferred anti-pattern item.**
-- **MP-d2 (later) — `transcribe` (STT, whisper OSS)**, bound by future Stage-6 agents
-  (docs, stylist, …). Slice like MP-a/b (stub → real engine).
+- **MP-d2 — `transcribe` (STT, whisper OSS)**, bound by future Stage-6 agents (docs,
+  stylist, …). Slice like MP-a/b (stub → real engine). **MP-d2a ✅ DONE:** `transcribe(mediaId)`
+  `@Tool` fetches audio/video bytes from media-service → runs a pluggable `engine/SttEngine`
+  → new contract `media/TranscriptResult(text, lang?, durationSeconds?)`. Default
+  `StubSttEngine` returns a deterministic byte-count marker (`[stub-stt] <N> bytes`), so the
+  fetch→engine→tool wiring is provable native-free (`MediaProcessingTranscribeTest`). **MP-d2b
+  (next) — real whisper engine** (faster-whisper/whisper.cpp, owner verdict 🟢 in roadmap)
+  behind the same `SttEngine` interface as the deployed default, demoting the stub to
+  `mediaprocessing.stt-engine=stub` — mirror of how `TesseractOcrEngine` demoted `StubOcrEngine`
+  in MP-b (engine in-image + CI install + self-skip where the native dep is absent).
 
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.
