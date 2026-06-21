@@ -10,6 +10,7 @@ mcp:
 skills:
   - wardrobe-cataloguer
   - style-analyst
+  - capsule-advisor
 intents:
   - example: Add this shirt to my wardrobe
     description: Catalogue a garment from a photo into the wardrobe.

@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.stylist.web;
 import dev.fedorov.ailife.agents.stylist.analyse.AnalyseMe;
 import dev.fedorov.ailife.agents.stylist.catalogue.WardrobeCataloguer;
 import dev.fedorov.ailife.agents.stylist.chat.StylistChat;
+import dev.fedorov.ailife.agents.stylist.flow.StylistAdvisor;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -24,11 +25,12 @@ import java.util.Set;
  *   <li>otherwise → {@link WardrobeCataloguer} (ST-c) — catalogue the garment (the default, since the
  *       owner bulk-uploads the wardrobe).</li>
  * </ul>
- * Non-photo messages fall back to chat ({@link StylistChat}). The capsule flow lands in ST-e.
+ * A non-photo message with a capsule cue → the {@link StylistAdvisor} capsule flow (ST-e);
+ * otherwise it falls back to chat ({@link StylistChat}).
  *
- * <p>The analyse-vs-catalogue split is a deterministic keyword heuristic on the caption — good
- * enough for the MVP (a self-photo almost always comes with "проанализируй меня" / body params),
- * MockWebServer-testable, and replaceable by an LLM classifier later.
+ * <p>The route splits are deterministic keyword heuristics on the text — good enough for the MVP
+ * (a self-photo almost always comes with "проанализируй меня" / body params; a capsule ask says
+ * "что надеть" / "собери капсулу"), MockWebServer-testable, and replaceable by an LLM classifier later.
  */
 @RestController
 @RequestMapping("/agents/stylist")
@@ -40,13 +42,20 @@ public class IntentController {
             "analyse me", "analyze me", "my style", "colour type", "color type",
             "body shape", "height", "weight");
 
+    private static final Set<String> CAPSULE_CUES = Set.of(
+            "капсул", "что надеть", "что мне надеть", "собери", "собрать", "образ", "лук",
+            "наряд", "во что одеться", "outfit", "what to wear", "capsule", "look");
+
     private final WardrobeCataloguer cataloguer;
     private final AnalyseMe analyseMe;
+    private final StylistAdvisor advisor;
     private final StylistChat chat;
 
-    public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe, StylistChat chat) {
+    public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe,
+                            StylistAdvisor advisor, StylistChat chat) {
         this.cataloguer = cataloguer;
         this.analyseMe = analyseMe;
+        this.advisor = advisor;
         this.chat = chat;
     }
 
@@ -55,19 +64,22 @@ public class IntentController {
         Optional<Attachment> image = attachment(message, "image");
         if (image.isPresent()) {
             String mediaId = image.get().storageUri();
-            return isAnalyseRequest(message.text())
+            return isMatch(message.text(), ANALYSE_CUES)
                     ? analyseMe.analyse(message, mediaId)
                     : cataloguer.catalogue(message, mediaId);
+        }
+        if (isMatch(message.text(), CAPSULE_CUES)) {
+            return advisor.advise(message);
         }
         return chat.reply(message);
     }
 
-    private static boolean isAnalyseRequest(String text) {
+    private static boolean isMatch(String text, Set<String> cues) {
         if (text == null || text.isBlank()) {
             return false;
         }
         String t = text.toLowerCase(Locale.ROOT);
-        return ANALYSE_CUES.stream().anyMatch(t::contains);
+        return cues.stream().anyMatch(t::contains);
     }
 
     private static Optional<Attachment> attachment(NormalizedMessage message, String kind) {

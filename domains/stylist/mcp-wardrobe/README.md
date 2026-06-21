@@ -42,6 +42,11 @@ it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use H
 - `POST /internal/profile` (body `SetStyleProfileInput`) → `StyleProfileDto` | 400 — upserts the
   person's style profile, delegating to the `set_style_profile` tool ((household,owner) keying
   applies). Used by stylist-agent's "analyse me" flow (ST-d).
+- `GET /internal/profile?householdId=&ownerId=` → `StyleProfileDto` | 404 — reads the person's
+  profile (null ownerId = household-default); 404 when unset. Used by the capsule flow's gather (ST-e).
+- `GET /internal/items?householdId=&category=` → `List<WardrobeItemDto>` — the household's garments
+  (same filters as `list_items`); used by the capsule flow's gather (ST-e). Mirrors mcp-tasks'
+  `/internal/tasks`.
 
 ## Env
 
@@ -66,7 +71,9 @@ it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use H
   required-field checks; everything else relies on DB constraints.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 - `web/InternalItemController` — `POST /internal/item`, delegates to `add_item` (400 on bad input).
-- `web/InternalProfileController` — `POST /internal/profile`, delegates to `set_style_profile` (400 on bad input).
+- `web/InternalProfileController` — `POST /internal/profile` (set, 400 on bad input) +
+  `GET /internal/profile` (read, 404 when unset), over `set_style_profile` / `get_style_profile`.
+- `web/InternalItemsController` — `GET /internal/items`, delegates to `list_items` (the capsule gather).
 
 ## Schema
 
