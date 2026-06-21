@@ -38,7 +38,8 @@ class HtmlStylistRendererTest {
         String html = new String(out.content(), StandardCharsets.UTF_8);
 
         assertThat(html).startsWith("<!DOCTYPE html>");
-        assertThat(html).contains("Cormorant+Garamond");          // serif display loaded
+        assertThat(html).contains("Oranienbaum");                  // serif display loaded (Cyrillic)
+        assertThat(html).contains("color-scheme: light");          // noble beige, no dark flip
         assertThat(html).contains("Wardrobe Audit Board")
                 .contains("Edited · Strategic · Aligned")
                 .contains("Natural archetype");

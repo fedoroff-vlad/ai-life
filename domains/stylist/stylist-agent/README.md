@@ -92,9 +92,11 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   (category/colour/material/pattern/season/formality) as strict JSON; the cataloguer flow parses it
   and writes the item. Lives at
   [skills/stylist/wardrobe-cataloguer/SKILL.md](../skills/wardrobe-cataloguer/SKILL.md).
-- `style-analyst` (vision analysis) — analyses a self-photo + typed body params into a style profile
-  (person/colour type, body shape, suitable fabrics, measurements) as strict JSON; the analyse-me
-  flow parses it, persists the profile, and renders the HTML analysis. Lives at
+- `style-analyst` (vision analysis) — analyses a self-photo + typed body params into a **full
+  style-analysis board** as strict JSON: Kibbe type, colour season + undertone/contrast + palette,
+  archetype, body analysis (type/proportions/bone/posture), silhouette strategies + harmony, fabric
+  & texture logic, what-not-to-wear, styling principles, style-codes, final direction. The analyse-me
+  flow persists the schema fields and renders the whole board. Lives at
   [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).
 - `capsule-advisor` (synthesis) — assembles an outfit capsule from the catalogued wardrobe, grounded
   in the style profile, occasion, season and trends; consumes the `Coordinator` `context`. Lives at

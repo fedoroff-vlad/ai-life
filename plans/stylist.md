@@ -55,6 +55,7 @@ by briefing) once a second consumer needs it — the repo's "lift on the second 
 | **Marketplace search + buy links** (Ozon / Yandex Market / Lamoda / store sites) | a sibling **marketplace-search capability-MCP** (or an `mcp-web` extension) — source/engine to be LOCKED | each marketplace is its own integration; needs a source decision like Stooq/SearXNG were. |
 | **"Saw it on the street" composite** (photo of an external garment → suits-me? → me-in-it + similar-item links + capsule) | the composite flow stitching `caption` (analyse the external garment) + `style_profile` + GPU try-on + marketplace links + a wardrobe capsule | lands once the GPU + marketplace capabilities exist; pure orchestration of the pieces. |
 | **Final template designs** (capsule / analysis layouts) | the stylist render templates once the owner sends examples | owner will provide example layouts; MVP ships sensible defaults. |
+| **"Fits"-like wardrobe app** (owner ref 2026-06-21): browsable catalogue split **by person** (me / wife / daughter), each with an item list **and saved outfits** | per-person split is **data-ready** — `wardrobe_item.owner_id` + `style_profile.owner_id` key by `core.users` within the household (today's flows write household-shared; just need owner-aware flows/views). **Saved outfits** = a new `wardrobe.outfit` table (household, owner, name, item ids) + CRUD — a future slice. The browsable **app UI** = a web front-end over `mcp-wardrobe` (beyond the Telegram + HTML-deliverable surface). | natural extension once the MVP boards land; no MVP work. |
 
 Doctrine reminder (architecture.md): the orchestrator only **routes**; all stylist reasoning lives in
 **stylist-agent**; cross-domain mechanics (vision understanding, web trends, later image-gen, marketplace,
@@ -134,7 +135,14 @@ copyrighted text. Boards build in this order:
   analyse/capsule pages immediately render in the new style (back-compat constructors).
 - **ST-g — Body & Style Analysis board.** Upgrade the `style-analyst` skill (Kibbe type + subtype,
   colour season + undertone/contrast, archetype, silhouette/neckline/waist strategies, fabric logic,
-  "what not to wear", final direction) + `AnalyseMe` to populate the rich board.
+  "what not to wear", styling principles, style-codes, final direction) + `AnalyseMe` to populate the
+  rich board — modelled on the owner's favourite reference ("Body Shape & Styling Analysis Board":
+  body analysis · geometry · clothing architecture · fabric & texture logic · colour strategy ·
+  styling principles · you-in-different-looks · final direction).
+- **Theme LOCKED (owner 2026-06-21):** noble warm-beige ground, **light only** (no dark-mode flip),
+  display font **Oranienbaum** + body **Manrope** (both Cyrillic — Cormorant/Jost lacked it and fell
+  back). **Follow-up polish (owner-suggested):** lift theme (colours + fonts) into env vars on
+  `StylistAgentProperties` so a redeploy can re-skin without a code change — do after the content boards.
 - **ST-h — Wardrobe Audit board.** New flow + `wardrobe-auditor` skill: gather catalogued items →
   LLM verdict KEEP/QUESTION/REMOVE + one-line reason per item, hero pieces, systemic-pattern
   diagnosis, colour-harmony check → render the audit board. Routed by an audit cue ("разбор/ревизия
