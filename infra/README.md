@@ -77,6 +77,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-web              | 8098 | Web capability-MCP (web_search + fetch_url) over SearXNG         |
 | researcher-agent     | 8099 | Web research specialist (binds mcp-web)                          |
 | mcp-market-data      | 8100 | Market-data capability-MCP (read-only `quote` over Stooq)        |
+| mcp-wardrobe         | 8101 | Wardrobe CRUD MCP (garments + style profile)                     |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
@@ -97,6 +98,7 @@ Schemas split by **bounded context**, not by service:
 | calendar | mcp-caldav, calendar-agent, scheduler-service              |
 | finance  | mcp-finance, finance-agent, mcp-money-pro-import           |
 | tasks    | mcp-tasks, tasks-agent                                     |
+| wardrobe | mcp-wardrobe, stylist-agent                                |
 
 All Liquibase changesets are applied by one job; ordering is controlled by
 `db.changelog-master.xml`.
