@@ -77,8 +77,10 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `flow/StylistAdvisor` — the capsule flow on the shared `Coordinator`: gather wardrobe items +
   style profile + trends (mcp-web) + season (computed) → one LLM synthesis → render capsule HTML
   with a garment-photo gallery → store → reply with a link. Empty wardrobe → invite to catalogue.
-- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (responsive HTML, optional image
-  gallery) + `render/StylistDoc` / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
+- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (**luxury-editorial** responsive
+  HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21) + `render/StylistDoc` (board model: keyed
+  sections, palette swatches, KEEP/QUESTION/REMOVE verdict grid, hero row, image gallery — fluent
+  `builder`) / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
   `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
   `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/MediaStoreClient`
