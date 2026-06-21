@@ -47,4 +47,9 @@ public class OutboundHttpConfig {
     public WebClient mcpMediaProcessingWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpMediaProcessingUrl()).build();
     }
+
+    @Bean
+    public WebClient mcpMarketDataWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpMarketDataUrl()).build();
+    }
 }

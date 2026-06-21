@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.intent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
+import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -53,6 +54,7 @@ class IntentRouterTest {
     private final LlmClient llm = mock(LlmClient.class);
     private final ToolDispatcher dispatcher = mock(ToolDispatcher.class);
     private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
+    private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -60,7 +62,8 @@ class IntentRouterTest {
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             "You are the finance agent for the ai-life system.");
 
-    private final IntentRouter router = new IntentRouter(llm, dispatcher, advisor, manifest, json);
+    private final IntentRouter router =
+            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, manifest, json);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
@@ -182,6 +185,27 @@ class IntentRouterTest {
                 .verifyComplete();
 
         // The analysis path does NOT touch the tool dispatcher.
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void llmPicksInvestHandsOffToInvestmentAdvisorWithMappedSymbols() {
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("add_transaction", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}")));
+        when(investmentAdvisor.advise(any(NormalizedMessage.class), eq(List.of("aapl.us", "xauusd"))))
+                .thenReturn(Mono.just(new InvestmentAdvisor.AdviceResult(
+                        "Apple ~201 USD; золото ~2300. Это к размышлению, решать вам.", "mock-large")));
+
+        StepVerifier.create(router.route(msg("что думаешь про Apple и золото?")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("Apple").contains("решать вам");
+                    assertThat(r.invokedTool()).isEqualTo("invest");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // Advisory is its own gather+synthesis flow — no tool dispatch.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 
