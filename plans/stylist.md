@@ -98,7 +98,9 @@ capability (reused, not rebuilt — a photo can belong to any domain).
   garment extract via a `wardrobe-cataloguer` SKILL.md instruction — mirror `receipt-parser`) → write the
   item via `mcp-wardrobe`. Write-immediately for bulk upload (owner loads the whole wardrobe at once); edit
   later. **Split c1/c2 (mirror MP-c): ST-c1 DONE (PR134)** — `mcp-wardrobe` `POST /internal/item`
-  add-passthrough → `add_item`. **ST-c2** — stylist-agent flow (caption extract → `/internal/item`).
+  add-passthrough → `add_item`. **ST-c2 DONE (PR135)** — stylist-agent `catalogue/WardrobeCataloguer`
+  (photo → `caption` extract via the `wardrobe-cataloguer` SKILL → `/internal/item`, write-immediately).
+  **ST-c COMPLETE.**
 - **ST-d — "analyse me" flow + analysis HTML.** Self-photo(s) + typed params → `caption` analysis
   (person/style type, colour type, suitable fabrics/textures, body shape) → `set_style_profile`; render the
   **fabric/colour/texture analysis** as an **HTML** deliverable (default template) with examples grounded in

@@ -9,11 +9,14 @@ A cross-domain specialist (its own `domains/stylist/` folder). It owns the `mcp-
 domain-MCP (its persistent data) and binds two shared capabilities: `mcp-media-processing`
 (vision `caption` — understand garment / self photos) and `mcp-web` (`web_search` — trends).
 
-**Status (ST-b):** scaffold only. `IntentController` ships a **chat fallback**
-(`chat/StylistChat` — one LLM turn with AGENT.md as the system prompt). The three capabilities are
-bound over SSE (so a future LLM-driven flow can pick their tools); the deterministic catalogue /
-analyse / capsule flows land in ST-c..e and call the capabilities over their HTTP `/internal/*`
-passthroughs.
+**Status (ST-c):** the wardrobe-catalogue flow is live. `IntentController` routes a **photo
+attachment** → `catalogue/WardrobeCataloguer`: ask `mcp-media-processing` `caption`
+(`/internal/caption`) for a structured garment extract (instruction = the `wardrobe-cataloguer`
+SKILL.md) → write the item via `mcp-wardrobe` (`/internal/item`), storing the photo's media id on
+the item. **Write-immediately** (the owner bulk-loads the wardrobe; edits go through `update_item`
+later). Non-photo messages fall back to chat (`chat/StylistChat`). The three capabilities are bound
+over SSE for future LLM-driven tool selection; the deterministic flows call them over their HTTP
+`/internal/*` passthroughs. The analyse-me / capsule flows land in ST-d..e.
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
 
@@ -49,11 +52,19 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `config/OutboundHttpConfig` — `mcpWardrobe/mcpMediaProcessing/mcpWeb` WebClients (for the
   ST-c..e flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
 - `web/ManifestController` — `GET /agents/stylist/manifest`.
-- `web/IntentController` — `POST /agents/stylist/intent`; delegates to the chat fallback.
-- `chat/StylistChat` — the scaffold chat fallback (one LLM turn, AGENT.md as system prompt);
-  replaced branch-by-branch as the real flows land.
+- `web/IntentController` — `POST /agents/stylist/intent`; routes a photo attachment to the
+  catalogue flow, else the chat fallback.
+- `chat/StylistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt) for non-photo
+  messages; replaced branch-by-branch as the real flows land.
+- `catalogue/WardrobeCataloguer` — the wardrobe-catalogue flow: garment photo → `caption` extract
+  (instruction = the `wardrobe-cataloguer` SKILL.md) → write via `mcp-wardrobe` `/internal/item`,
+  write-immediately. Soft-fails to a friendly message at any stage.
+- `http/CaptionClient` (`POST /internal/caption`) + `http/WardrobeClient` (`POST /internal/item`) —
+  the deterministic capability calls (MockWebServer-testable; not the SSE transport).
 
 ## Skills
 
-None yet — the first skill (`wardrobe-cataloguer`) ships in ST-c at
-`domains/stylist/skills/<name>/SKILL.md`.
+- `wardrobe-cataloguer` (vision extract) — turns a garment photo into a structured item
+  (category/colour/material/pattern/season/formality) as strict JSON; the cataloguer flow parses it
+  and writes the item. Lives at
+  [skills/stylist/wardrobe-cataloguer/SKILL.md](../skills/wardrobe-cataloguer/SKILL.md).

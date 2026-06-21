@@ -7,7 +7,8 @@ mcp:
   - mcp-wardrobe
   - mcp-media-processing
   - mcp-web
-skills: []
+skills:
+  - wardrobe-cataloguer
 intents:
   - example: Add this shirt to my wardrobe
     description: Catalogue a garment from a photo into the wardrobe.
