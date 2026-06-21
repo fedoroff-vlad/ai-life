@@ -14,6 +14,7 @@ Never load more than one domain file per task. Do not re-read a file you already
 | `platform.md` | shared services: orchestrator, gateway-telegram, llm-gateway, memory-service, scheduler, notifier; `memory/audit/bus/media` schemas | Working on a platform/shared service |
 | `media.md` | shared media-understanding capability-MCP (`mcp-media-processing`): OCR/STT/vision-caption over media-service bytes, `shared/mcp/`, agent binding | Any media-understanding (OCR/STT/caption) work |
 | `research.md` | web research specialist (`researcher-agent`) + shared `mcp-web` capability-MCP (`web_search` + `fetch_url` over SearXNG); cheap-first token economy | Any web-search / research / page-fetch work |
+| `market-data.md` | shared `mcp-market-data` capability-MCP (stocks/funds/metals/crypto `quote` over Stooq) + finance `investment-advisor` skill (advisory-only) | Any market-quote / investment-advisory work |
 | `roadmap.md` | Stage 0–6 plan, future agents (tasks/health/docs/briefing/...), n8n variant, open-source reuse table, risks | Planning next work, picking what to build, evaluating a reusable component |
 | `STATUS.md` | Current in-flight branch, what's done, next concrete steps. **Mutable** — update as work progresses | Resuming work, checking what's in flight. Update at end of each PR |
 | `PATTERNS.md` | Short scaffolding recipes (new MCP module, new agent, new migration, new contract) pointing at canonical examples | About to scaffold something new — read this BEFORE reading a sibling module as a template |
