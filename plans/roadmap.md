@@ -7,7 +7,7 @@
 - **Stage 3 — tasks (GTD):** tasks schema + mcp-tasks + tasks-agent. Inbox: anything not calendar/finance → tasks-inbox. "turn task into event" link with calendar.
 - **Stage 4 — memory + inter-agent:** memory-service (pgvector recall, scope). AGE graph (Person/Place/Item nodes; likes/owns/related_to). LISTEN/NOTIFY bus in common + outbox in `bus`. First cross-agent chain: calendar.birthday_upcoming → creator.draft_greeting → notifier.send.
 - **Stage 5 — real LLM:** llm-gateway providers Anthropic + DeepSeek. Langfuse traces. Golden tests on real models.
-- **Stage 6+ — remaining agents:** chef → nutritionist → search → creator → stylist → briefing → ... Same structure each: schema (if needed) → MCP → skills → agent.
+- **Stage 6+ — remaining agents:** chef → nutritionist → search → creator → stylist → briefing → ... Same structure each: schema (if needed) → MCP → skills → agent. **`stylist` STARTED early** (owner-chosen 2026-06-21): MVP = wardrobe catalogue + "analyse me" style profile (colour type / fabrics / body shape, via `mcp-media-processing` vision **analysis**) + capsule advice → **HTML** deliverables (PDF deferred). GPU visualise-me (CatVTON/Fooocus) + marketplace search deferred. PR-sliced in [stylist.md](stylist.md).
 
 ## Candidate future agents (priority)
 - tasks-agent (GTD) — high. health-agent (Apple Health) — med. docs-agent (receipts/contracts, OCR+search) — med. briefing-agent (morning digest: weather+calendar+finance+news) — high (wow). family-memory-agent — med. travel-agent — low. email-agent — low. smart-home-agent — if Home Assistant present.
