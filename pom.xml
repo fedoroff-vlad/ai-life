@@ -60,6 +60,7 @@
         <module>domains/tasks/tasks-agent</module>
         <module>domains/tasks/mcp-tasks</module>
         <module>domains/stylist/mcp-wardrobe</module>
+        <module>domains/stylist/stylist-agent</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>

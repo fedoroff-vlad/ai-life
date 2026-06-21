@@ -85,14 +85,15 @@ capability (reused, not rebuilt — a photo can belong to any domain).
 ## PR-sized slices (MVP)
 - **ST-0 — docs opener (this).** `stylist.md` + INDEX row + roadmap (mark in-progress, MVP boundary, HTML
   locked) + STATUS. No code.
-- **ST-a — `mcp-wardrobe` domain-MCP + schema.** `040-wardrobe.yml` (the two tables) + CRUD tools
+- **ST-a — `mcp-wardrobe` domain-MCP + schema. DONE (PR132).** `040-wardrobe.yml` (the two tables) + CRUD tools
   (`add_item`, `list_items`, `update_item`, `delete_item`, `set_style_profile`, `get_style_profile`) + the
-  `wardrobe/*` contracts. Testcontainers repo test. Scaffold per PATTERNS.md "new MCP module" + "new
+  `wardrobe/*` contracts. Testcontainers repo test (7 cases). Scaffold per PATTERNS.md "new MCP module" + "new
   migration"; template `mcp-tasks`.
-- **ST-b — `stylist-agent` scaffold + orchestrator registration.** Manifest + `@Import(AgentRuntimeConfig)`;
-  bind `mcp-wardrobe` + `mcp-media-processing` + `mcp-web` (SSE + the HTTP clients); register
-  `{name: stylist}` in orchestrator `application.yml` + `STYLIST_AGENT_URL`. Chat-fallback intent until the
-  flows land. Scaffold per PATTERNS.md "new agent"; template `finance-agent`.
+- **ST-b — `stylist-agent` scaffold + orchestrator registration. DONE (PR133).** Manifest + `@Import(AgentRuntimeConfig)`;
+  binds `mcp-wardrobe` + `mcp-media-processing` + `mcp-web` over SSE (the deterministic `/internal/*` HTTP clients
+  land with each flow); registered `{name: stylist}` in orchestrator `application.yml` + `STYLIST_AGENT_URL`.
+  Chat-fallback intent (`chat/StylistChat`) until the flows land. Scaffold per PATTERNS.md "new agent"; template
+  `researcher-agent` (leaner than finance-agent).
 - **ST-c — wardrobe catalogue flow.** A garment-photo intent → `mcp-media-processing` `caption` (structured
   garment extract via a `wardrobe-cataloguer` SKILL.md instruction — mirror `receipt-parser`) → write the
   item via `mcp-wardrobe`. Write-immediately for bulk upload (owner loads the whole wardrobe at once); edit

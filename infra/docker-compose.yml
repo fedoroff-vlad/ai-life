@@ -355,6 +355,7 @@ services:
       FINANCE_AGENT_URL: http://finance-agent:8093
       TASKS_AGENT_URL: http://tasks-agent:8096
       RESEARCHER_AGENT_URL: http://researcher-agent:8099
+      STYLIST_AGENT_URL: http://stylist-agent:8102
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -783,6 +784,46 @@ services:
       RESEARCHER_AGENT_MEMORY_RECALL_K: ${RESEARCHER_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8099/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  stylist-agent:
+    image: ai-life/stylist-agent:local
+    container_name: ai-life-stylist-agent
+    build:
+      context: ..
+      dockerfile: domains/stylist/stylist-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-wardrobe:
+        condition: service_healthy
+      mcp-media-processing:
+        condition: service_healthy
+      mcp-web:
+        condition: service_healthy
+    environment:
+      STYLIST_AGENT_PORT: 8102
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_WARDROBE_URL: http://mcp-wardrobe:8101
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
+      MCP_WEB_URL: http://mcp-web:8098
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      STYLIST_AGENT_MCP_CLIENT_ENABLED: ${STYLIST_AGENT_MCP_CLIENT_ENABLED:-true}
+      STYLIST_AGENT_MEMORY_RECALL_K: ${STYLIST_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8102/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
