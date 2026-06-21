@@ -50,11 +50,14 @@ interface later. Symbol mapping (a ticker → a Stooq symbol like `aapl.us` / `^
 ## PR-sized slices
 - **MD-0 — docs opener (this).** `market-data.md` + INDEX row + `roadmap.md` (mark in-progress,
   Stooq locked) + `finance.md` (investment-advisory row: source locked) + STATUS. No code.
-- **MD-a — `mcp-market-data` scaffold + `quote` over Stooq.** New module (no JPA),
-  `engine/MarketDataSource` + `StooqMarketDataSource` (GET Stooq `/q/l/?s={symbol}&f=...&e=csv` → parse
-  the CSV row), `quote` `@Tool`, `POST /internal/quote` passthrough, the `market/*` contracts. Service
-  needs no backing container (Stooq is a public HTTPS endpoint, unlike SearXNG) — just an outbound
-  `WebClient`. MockWebServer test (no real network). **No agent binding yet** — the capability stands
+- **MD-a — `mcp-market-data` scaffold + `quote` over Stooq.** ✅ **DONE (PR126).** New module
+  (no JPA, port 8100, no backing container — Stooq is public HTTPS), `engine/MarketDataSource` +
+  `StooqMarketDataSource` (`@ConditionalOnProperty marketdata.source=stooq`, matchIfMissing; GET Stooq
+  `/q/l/?s={symbol}&f=sd2t2ohlcv&e=csv` → parse the CSV row; `N/D`→null fields = "no data", not an
+  error), `quote(symbol)` `@Tool`, `POST /internal/quote` passthrough, `market/Quote` +
+  `market/QuoteInput` contracts. Read-only — **no order/trade tool, by design**. `InternalQuoteControllerTest`
+  (MockWebServer for Stooq: parses a real row + unknown-symbol→null-price; no network). Registered in
+  root pom + compose + `.env.example` + infra/README. **No agent binding yet** — the capability stands
   alone and is fully testable.
 - **MD-b (optional, later) — `history(symbol, range?)`.** Stooq's daily-series CSV
   (`/q/d/l/?s={symbol}&i=d`) → a compact series for trend/% change. Add only when the advisor needs

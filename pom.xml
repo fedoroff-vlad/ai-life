@@ -61,6 +61,7 @@
         <module>domains/tasks/mcp-tasks</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
+        <module>shared/mcp/mcp-market-data</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
 

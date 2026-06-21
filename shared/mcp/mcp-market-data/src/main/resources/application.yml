@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: mcp-market-data
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-market-data
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared market-data capability (read-only). quote: latest price + OHLC/volume
+          for a source-native symbol (stocks/indices/ETFs/metals/forex/crypto) over Stooq.
+          Advisory data only — there is no order/trade tool. The caller's agent reasons
+          over the numbers.
+
+server:
+  port: ${MCP_MARKET_DATA_PORT:8100}
+
+marketdata:
+  # Stooq base URL (public HTTPS CSV endpoint; no backing container needed).
+  stooq-url: ${MARKETDATA_STOOQ_URL:https://stooq.com}
+  # Which quotes source to wire: stooq (default). Swappable later (yahoo/keyed) via env.
+  source: ${MARKETDATA_SOURCE:stooq}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
