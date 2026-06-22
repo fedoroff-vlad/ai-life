@@ -24,6 +24,7 @@ class HtmlStylistRendererTest {
         StylistDoc doc = StylistDoc.builder("Wardrobe Audit Board")
                 .kicker("Edited · Strategic · Aligned")
                 .subtitle("Natural archetype")
+                .featured("https://files.example.test/v1/media/portrait")
                 .section("Diagnosis", List.of("Strong natural foundation."))
                 .swatch("#042C53", "deep blue")
                 .verdict("Slip dress", StylistDoc.Verdict.QUESTION, "Straps don't support the line",
@@ -40,6 +41,8 @@ class HtmlStylistRendererTest {
         assertThat(html).startsWith("<!DOCTYPE html>");
         assertThat(html).contains("Oranienbaum");                  // serif display loaded (Cyrillic)
         assertThat(html).contains("color-scheme: light");          // noble beige, no dark flip
+        assertThat(html).contains("class=\"portrait\"")            // centered photo anchor
+                .contains("/v1/media/portrait");
         assertThat(html).contains("Wardrobe Audit Board")
                 .contains("Edited · Strategic · Aligned")
                 .contains("Natural archetype");

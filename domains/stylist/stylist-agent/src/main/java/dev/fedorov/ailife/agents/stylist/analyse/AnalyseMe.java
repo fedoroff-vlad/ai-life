@@ -92,7 +92,7 @@ public class AnalyseMe {
         }
         SetStyleProfileInput input = buildInput(msg, mediaId, draft);
         return profiles.set(input)
-                .flatMap(saved -> store(msg, draft)
+                .flatMap(saved -> store(msg, mediaId, draft)
                         .map(link -> reply(summary(draft) + "\n\nПодробный анализ: " + link, model))
                         .onErrorResume(e -> {
                             log.warn("analysis render/store failed: {}", e.toString());
@@ -106,8 +106,8 @@ public class AnalyseMe {
     }
 
     /** Render the analysis board, store it in media-service, return the public link. */
-    private Mono<String> store(NormalizedMessage msg, JsonNode draft) {
-        RenderedDoc doc = renderer.render(buildDoc(draft));
+    private Mono<String> store(NormalizedMessage msg, String mediaId, JsonNode draft) {
+        RenderedDoc doc = renderer.render(buildDoc(mediaId, draft));
         return media.upload(msg.householdId(), msg.userId(), doc.filename(), doc.mimeType(), doc.content())
                 .map(this::link);
     }
@@ -131,11 +131,13 @@ public class AnalyseMe {
     }
 
     /** Build the full editorial board from the analysis draft — each block added only when present. */
-    private StylistDoc buildDoc(JsonNode d) {
+    private StylistDoc buildDoc(String mediaId, JsonNode d) {
         StylistDoc.Builder b = StylistDoc.builder("Анализ внешности и стиля")
                 .kicker("Structure · Balance · Intention");
         String subtitle = subtitle(d);
         if (subtitle != null) b.subtitle(subtitle);
+        String photo = photoUrl(mediaId);
+        if (photo != null) b.featured(photo);     // the analysed self-photo anchors the board
 
         List<String> bodyAnalysis = new ArrayList<>();
         addLabelled(bodyAnalysis, "Тип телосложения", text(d, "bodyType"));
@@ -243,9 +245,17 @@ public class AnalyseMe {
     }
 
     private String link(MediaObjectDto stored) {
+        return base() + "/v1/media/" + stored.id();
+    }
+
+    /** Public URL of the analysed self-photo — the board's centered anchor. */
+    private String photoUrl(String mediaId) {
+        return (mediaId == null || mediaId.isBlank()) ? null : base() + "/v1/media/" + mediaId.trim();
+    }
+
+    private String base() {
         String base = props.getPublicMediaBaseUrl();
-        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-        return base + "/v1/media/" + stored.id();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private String captionInstruction(String userText) {

@@ -16,6 +16,7 @@ public record StylistDoc(
         String kicker,
         String title,
         String subtitle,
+        String featuredImageUrl,
         List<Section> sections,
         List<Swatch> palette,
         List<VerdictItem> verdicts,
@@ -24,12 +25,12 @@ public record StylistDoc(
 
     /** Back-compat: a text-only board (no gallery) — e.g. the early analysis page. */
     public StylistDoc(String title, String subtitle, List<Section> sections) {
-        this(null, title, subtitle, sections, null, null, null, null);
+        this(null, title, subtitle, null, sections, null, null, null, null);
     }
 
     /** Back-compat: text board + an image gallery — e.g. the early capsule page. */
     public StylistDoc(String title, String subtitle, List<Section> sections, List<String> gallery) {
-        this(null, title, subtitle, sections, null, null, null, gallery);
+        this(null, title, subtitle, null, sections, null, null, null, gallery);
     }
 
     public record Section(String heading, List<String> paragraphs) {
@@ -58,6 +59,7 @@ public record StylistDoc(
         private String kicker;
         private final String title;
         private String subtitle;
+        private String featuredImageUrl;
         private final List<Section> sections = new ArrayList<>();
         private final List<Swatch> palette = new ArrayList<>();
         private final List<VerdictItem> verdicts = new ArrayList<>();
@@ -70,6 +72,7 @@ public record StylistDoc(
 
         public Builder kicker(String kicker) { this.kicker = kicker; return this; }
         public Builder subtitle(String subtitle) { this.subtitle = subtitle; return this; }
+        public Builder featured(String imageUrl) { this.featuredImageUrl = imageUrl; return this; }
 
         public Builder section(String heading, List<String> paragraphs) {
             sections.add(new Section(heading, paragraphs));
@@ -97,7 +100,7 @@ public record StylistDoc(
         }
 
         public StylistDoc build() {
-            return new StylistDoc(kicker, title, subtitle,
+            return new StylistDoc(kicker, title, subtitle, featuredImageUrl,
                     sections.isEmpty() ? null : sections,
                     palette.isEmpty() ? null : palette,
                     verdicts.isEmpty() ? null : verdicts,

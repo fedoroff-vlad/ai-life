@@ -158,6 +158,16 @@ copyrighted text. Boards build in this order:
   render the gap board ("Что докупить" / "Не покупать" / "Фокус" + coverage subtitle + palette).
   Routed by a gap cue ("что докупить / список покупок"). **Marketplace buy-links stay deferred.**
 
+- **ST-k — poster layout (owner-driven redesign 2026-06-22). DONE (PR143).** Owner reacted that the clean
+  stacked page didn't read like the reference *board*; reworked `HtmlStylistRenderer` to an **airy
+  editorial poster**: hairline dividers instead of boxed cards (single beige ground), a **centered
+  photo anchor** (`StylistDoc.featuredImageUrl`, new), and text sections in a **hairline-separated
+  multi-column flow**; verdict grid / hero / palette strip / gallery as full-width rows. `AnalyseMe`
+  sets the featured photo = the analysed self-photo. **Honest boundary (owner-agreed):** the
+  reference's drawn mini-figures / "you in different looks" model shots are **image-generation** (the
+  deferred line) — ST-k delivers the structure; figures + web-ref look images + generated imagery are
+  later layers. **Theme env-var follow-up still open.**
+
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and
   the final template designs — all deferred (recorded above); each is its own later line with its own
