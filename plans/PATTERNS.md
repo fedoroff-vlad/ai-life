@@ -148,7 +148,8 @@ GIN index).
 | `020-029` | finance | `finance.*` (transactions, budgets, recurring) |
 | `030-039` | tasks | `tasks.*` |
 | `040-049` | stylist | `wardrobe.*` (garments, style profile) |
-| `050-059` | _next domain_ (reserved) | — |
+| `050-059` | nutrition | `nutrition.*` (meal log, diet profile; Phase 2 pantry, recipes) |
+| `060-069` | _next domain_ (reserved) | — |
 
 Rules:
 - **Pick the lowest free slot inside your range** — don't leave gaps unless you
