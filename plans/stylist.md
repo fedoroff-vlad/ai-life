@@ -195,7 +195,11 @@ copyrighted text. Boards build in this order:
   + `MCP_IMAGE_GEN_URL`; README updated. Tested (`StylistAdvisorTest`: the capsule run now asserts a
   `/internal/generate` call carrying the editorial prompt + the generated illustration embedded as
   the board's featured image; module suite green, 13). **Board illustrations are now wired** — the
-  next image-gen steps are the real local engine + the deferred virtual try-on (refMediaIds).
+  next image-gen steps (the real `LocalImageEngine` + the deferred virtual try-on) are **PARKED:
+  owner-decided 2026-06-22 to wait for GPU-model access** (same posture as Stage 5 golden tests).
+  Building `LocalImageEngine` blind risks a mismatch with the chosen model server's API; the stub
+  infra is ready and the flip is one config line. When unblocked: lock the server API → implement
+  `LocalImageEngine` + a MockWebServer CI test (whisper precedent) → then design the try-on flow.
 
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and
