@@ -42,6 +42,21 @@ stylist-agent:
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  # Editorial-board theme — defaults = the locked beige/Oranienbaum aesthetic.
+  # Override any value to re-skin the HTML deliverables without a code change.
+  theme:
+    paper: ${STYLIST_THEME_PAPER:#efe7d8}
+    ink: ${STYLIST_THEME_INK:#3a352d}
+    soft: ${STYLIST_THEME_SOFT:#6f675a}
+    muted: ${STYLIST_THEME_MUTED:#9a907e}
+    line: ${STYLIST_THEME_LINE:#d8cdb6}
+    gold: ${STYLIST_THEME_GOLD:#a98a4e}
+    keep: ${STYLIST_THEME_KEEP:#5a6b4f}
+    question: ${STYLIST_THEME_QUESTION:#b0823a}
+    remove: ${STYLIST_THEME_REMOVE:#9b4a3a}
+    serif-family: '${STYLIST_THEME_SERIF_FAMILY:"Oranienbaum",Georgia,"Times New Roman",serif}'
+    sans-family: '${STYLIST_THEME_SANS_FAMILY:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}'
+    google-fonts-query: '${STYLIST_THEME_GOOGLE_FONTS_QUERY:family=Oranienbaum&family=Manrope:wght@300;400;500&display=swap}'
 
 ailife:
   llm-client:

@@ -201,6 +201,17 @@ copyrighted text. Boards build in this order:
   infra is ready and the flip is one config line. When unblocked: lock the server API → implement
   `LocalImageEngine` + a MockWebServer CI test (whisper precedent) → then design the try-on flow.
 
+- **ST-n — env-var theming. DONE (PR148).** Clears the long-standing owner-suggested polish (lift
+  the board theme into env vars so a redeploy re-skins without code). New
+  `config/StylistThemeProperties` (`stylist-agent.theme.*`) holds the palette (paper/ink/soft/muted/
+  line/gold/keep/question/remove), the serif + sans CSS font stacks, and the Google-Fonts `css2?`
+  query — defaults = the locked beige/Oranienbaum aesthetic. `HtmlStylistRenderer` now builds the
+  `:root` CSS variables + the fonts `<link>` from the theme (the layout rules stay constant); any
+  value is overridable via `STYLIST_THEME_*` env (e.g. `STYLIST_THEME_PAPER=#f3ece0`). Registered in
+  `@EnableConfigurationProperties`; application.yml + .env.example + README updated. Tested
+  (`HtmlStylistRendererTest` +re-skin case: a custom palette/font theme propagates into the page and
+  the locked default disappears). Module suite green (14).
+
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and
   the final template designs — all deferred (recorded above); each is its own later line with its own
