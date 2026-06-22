@@ -8,8 +8,8 @@ import org.springframework.web.reactive.function.client.WebClient;
  * One {@link WebClient} per outbound dependency, each {@code clone()}d off the shared builder to
  * avoid base-URL leakage (same pattern as the other agents). The {@code profile/notifier/memory}
  * beans are picked up by qualifier by the shared {@code agent-runtime} clients. The
- * {@code mcpWardrobe/mcpMediaProcessing/mcpWeb} beans back the deterministic capability calls the
- * flows add in ST-c..e.
+ * {@code mcpWardrobe/mcpMediaProcessing/mcpWeb/mcpImageGen} beans back the deterministic capability
+ * calls the flows make.
  */
 @Configuration
 public class OutboundHttpConfig {
@@ -27,6 +27,11 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWebWebClient(WebClient.Builder builder, StylistAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWebUrl()).build();
+    }
+
+    @Bean
+    public WebClient mcpImageGenWebClient(WebClient.Builder builder, StylistAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpImageGenUrl()).build();
     }
 
     @Bean

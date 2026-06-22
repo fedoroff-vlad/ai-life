@@ -4,9 +4,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Outbound HTTP destinations the stylist talks to. {@code mcpWardrobeUrl} is its own data
- * (the wardrobe domain-MCP); {@code mcpMediaProcessingUrl} + {@code mcpWebUrl} are shared
- * capabilities (vision caption / web trends) the deterministic flows (ST-c..e) call over their
- * {@code /internal/*} passthroughs. The profile / notifier / memory URLs back the shared
+ * (the wardrobe domain-MCP); {@code mcpMediaProcessingUrl} + {@code mcpWebUrl} +
+ * {@code mcpImageGenUrl} are shared capabilities (vision caption / web trends / image generation)
+ * the deterministic flows call over their {@code /internal/*} passthroughs. The profile / notifier
+ * / memory URLs back the shared
  * {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "stylist-agent")
@@ -15,6 +16,7 @@ public class StylistAgentProperties {
     private String mcpWardrobeUrl = "http://mcp-wardrobe:8101";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpWebUrl = "http://mcp-web:8098";
+    private String mcpImageGenUrl = "http://mcp-image-gen:8103";
     private String mediaServiceUrl = "http://media-service:8088";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
@@ -37,6 +39,9 @@ public class StylistAgentProperties {
 
     public String getMcpWebUrl() { return mcpWebUrl; }
     public void setMcpWebUrl(String mcpWebUrl) { this.mcpWebUrl = mcpWebUrl; }
+
+    public String getMcpImageGenUrl() { return mcpImageGenUrl; }
+    public void setMcpImageGenUrl(String mcpImageGenUrl) { this.mcpImageGenUrl = mcpImageGenUrl; }
 
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }

@@ -7,6 +7,7 @@ mcp:
   - mcp-wardrobe
   - mcp-media-processing
   - mcp-web
+  - mcp-image-gen
 skills:
   - wardrobe-cataloguer
   - style-analyst
