@@ -51,7 +51,7 @@ by briefing) once a second consumer needs it — the repo's "lift on the second 
 | Vision item | Architectural home | Why deferred |
 |---|---|---|
 | **PDF output** | the `render` seam above → an HTML→PDF library (or the shared `doc-render` capability) | MVP ships HTML; PDF is a drop-in once the template looks right. |
-| **Visualise me / virtual try-on** ("show how I'd look", "me in that coat") | a shared **GPU image-gen / try-on capability-MCP** (CatVTON / Fooocus — roadmap 🟢, engine to be LOCKED with the owner) | heavy infra: GPU/CUDA (Apple-Silicon MPS, non-turnkey), non-commercial licence. Cheap text+HTML advice ships first. |
+| **Visualise me / virtual try-on** ("show how I'd look", "me in that coat") | the **`mcp-image-gen` capability-MCP** — **scaffolded ST-l (stub engine)**; engine swaps to a self-hosted local GPU model (owner's Mac Studio) by config (`IMAGE_GEN_ENGINE=local`). Text-to-image board illustrations first; try-on (CatVTON/IDM-VTON, refMediaIds) once a real model is up. | infra now laid; the real engine + binding stylist-agent + flow wiring remain. Cheap text+HTML advice already ships. |
 | **Marketplace search + buy links** (Ozon / Yandex Market / Lamoda / store sites) | a sibling **marketplace-search capability-MCP** (or an `mcp-web` extension) — source/engine to be LOCKED | each marketplace is its own integration; needs a source decision like Stooq/SearXNG were. |
 | **"Saw it on the street" composite** (photo of an external garment → suits-me? → me-in-it + similar-item links + capsule) | the composite flow stitching `caption` (analyse the external garment) + `style_profile` + GPU try-on + marketplace links + a wardrobe capsule | lands once the GPU + marketplace capabilities exist; pure orchestration of the pieces. |
 | **Final template designs** (capsule / analysis layouts) | the stylist render templates once the owner sends examples | owner will provide example layouts; MVP ships sensible defaults. |
@@ -167,6 +167,19 @@ copyrighted text. Boards build in this order:
   reference's drawn mini-figures / "you in different looks" model shots are **image-generation** (the
   deferred line) — ST-k delivers the structure; figures + web-ref look images + generated imagery are
   later layers. **Theme env-var follow-up still open.**
+
+- **ST-l — image-gen capability-MCP scaffold (stub-first). DONE (PR144).** Owner-chosen path: lay the
+  whole image-generation infra now with a **stub** engine, flip to a self-hosted model later (Mac
+  Studio GPU) by config — no caller change. New `shared/mcp/mcp-image-gen` capability-MCP (port 8103,
+  no DB): `generate_image(prompt, refMediaIds?)` → render via the configured `ImageEngine`
+  (`StubImageEngine` placeholder PNG default / `LocalImageEngine` posts to `IMAGE_GEN_LOCAL_URL` when
+  `image-gen.engine=local`) → store in media-service → return the media id. `/internal/generate`
+  passthrough; new `imagegen/{ImageGenInput, ImageGenResult}` contracts; engine selected by
+  `@ConditionalOnProperty` (mirrors mcp-market-data's source seam). Deploy surface wired (root pom,
+  compose `depends_on: media-service`, `.env.example`, infra/README port 8103). **Not yet bound in
+  stylist-agent / not yet called by the flows** — that + the real engine are the next steps (use-case
+  order: board illustrations first, virtual try-on once a real model is up). Tested
+  (`InternalGenerateControllerTest`: stub → media-service upload → media id + model `stub`).
 
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and

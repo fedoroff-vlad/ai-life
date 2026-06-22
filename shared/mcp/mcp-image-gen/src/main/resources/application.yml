@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: mcp-image-gen
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-image-gen
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared image-generation capability. generate_image: render an image from a prompt
+          (+ optional reference photos for a future try-on), store it in media-service, return
+          the media id. The backend engine is configured server-side (a placeholder stub now; a
+          self-hosted model later) — callers are engine-agnostic.
+
+server:
+  port: ${MCP_IMAGE_GEN_PORT:8103}
+
+image-gen:
+  # Which engine to wire: stub (default — placeholder PNG, no cost) or local (self-hosted model).
+  engine: ${IMAGE_GEN_ENGINE:stub}
+  # Self-hosted model server (used when engine=local; e.g. a Mac Studio GPU model).
+  local-url: ${IMAGE_GEN_LOCAL_URL:http://localhost:9200}
+  # media-service — generated images are stored here and referenced by media id.
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

@@ -64,6 +64,7 @@
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>
+        <module>shared/mcp/mcp-image-gen</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
 

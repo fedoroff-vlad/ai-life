@@ -568,6 +568,29 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-image-gen:
+    image: ai-life/mcp-image-gen:local
+    container_name: ai-life-mcp-image-gen
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-image-gen/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      media-service:
+        condition: service_healthy
+    environment:
+      MCP_IMAGE_GEN_PORT: 8103
+      # stub (placeholder PNG, no cost) | local (self-hosted model at IMAGE_GEN_LOCAL_URL).
+      IMAGE_GEN_ENGINE: ${IMAGE_GEN_ENGINE:-stub}
+      IMAGE_GEN_LOCAL_URL: ${IMAGE_GEN_LOCAL_URL:-http://localhost:9200}
+      MEDIA_SERVICE_URL: http://media-service:8088
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8103/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-money-pro-import:
     image: ai-life/mcp-money-pro-import:local
     container_name: ai-life-mcp-money-pro-import
