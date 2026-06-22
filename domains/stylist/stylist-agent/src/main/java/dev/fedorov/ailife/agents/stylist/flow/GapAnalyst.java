@@ -9,9 +9,9 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
 import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
-import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistRenderer;
+import dev.fedorov.ailife.docrender.Doc;
+import dev.fedorov.ailife.docrender.DocRenderer;
+import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -49,7 +49,7 @@ public class GapAnalyst {
     private final Coordinator coordinator;
     private final WardrobeReadClient wardrobe;
     private final MediaStoreClient media;
-    private final StylistRenderer renderer;
+    private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -58,7 +58,7 @@ public class GapAnalyst {
     public GapAnalyst(Coordinator coordinator,
                       WardrobeReadClient wardrobe,
                       MediaStoreClient media,
-                      StylistRenderer renderer,
+                      DocRenderer renderer,
                       SkillRegistry skills,
                       AgentManifest manifest,
                       ObjectMapper json,
@@ -103,7 +103,7 @@ public class GapAnalyst {
                         return Mono.just(reply("Не смог собрать список покупок. Попробуйте позже.",
                                 result.llmModel()));
                     }
-                    StylistDoc doc = buildDoc(gap);
+                    Doc doc = buildDoc(gap);
                     return store(msg, doc)
                             .map(link -> reply(summary(gap) + "\n\nЧто докупить: " + link, result.llmModel()))
                             .onErrorResume(e -> {
@@ -113,8 +113,8 @@ public class GapAnalyst {
                 });
     }
 
-    private StylistDoc buildDoc(JsonNode gap) {
-        StylistDoc.Builder b = StylistDoc.builder("Wardrobe Gap Analysis")
+    private Doc buildDoc(JsonNode gap) {
+        Doc.Builder b = Doc.builder("Wardrobe Gap Analysis")
                 .kicker("Curated · Strategic · Aligned");
         String coverage = coverage(gap);
         if (coverage != null) b.subtitle(coverage);
@@ -153,7 +153,7 @@ public class GapAnalyst {
         return b.build();
     }
 
-    private Mono<String> store(NormalizedMessage msg, StylistDoc doc) {
+    private Mono<String> store(NormalizedMessage msg, Doc doc) {
         RenderedDoc rendered = renderer.render(doc);
         return media.upload(msg.householdId(), msg.userId(),
                         rendered.filename(), rendered.mimeType(), rendered.content())

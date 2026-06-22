@@ -16,7 +16,7 @@ routes a **photo attachment** by the caption text:
 - analyse-me cues / stated body params → `analyse/AnalyseMe` (ST-d) — `caption` analysis (instruction
   = the `style-analyst` SKILL.md, with the user's note folded in so it also picks up typed
   height/weight/measurements) → `set_style_profile` via `mcp-wardrobe` (`/internal/profile`) → render
-  the analysis as a **responsive HTML page** through the `render/StylistRenderer` seam → store it in
+  the analysis as a **responsive HTML page** through the shared `libs/doc-render` `DocRenderer` seam → store it in
   media-service → reply with a summary + a link the user opens on any device;
 - otherwise → `catalogue/WardrobeCataloguer` (ST-c) — structured garment extract → write the item via
   `mcp-wardrobe` (`/internal/item`), storing the photo's media id (the default, since the owner
@@ -27,8 +27,8 @@ A non-photo message with a **capsule cue** ("собери капсулу", "чт
 → one LLM synthesis → render a capsule HTML page (embedding the garment photos) → store → link.
 Other non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE
 for future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
-passthroughs. **Render-format seam** (`StylistRenderer`): HTML now, a PDF renderer drops in behind
-the same interface later. **Stylist MVP complete (ST-a..e).**
+passthroughs. **Render-format seam** lives in the shared **`libs/doc-render`** (`DocRenderer`): HTML
+now, a PDF renderer drops in behind the same interface later. **Stylist MVP complete (ST-a..e).**
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
 
@@ -90,12 +90,15 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   покупать", coverage before/after, palette) → store → link. Marketplace buy-links deferred.
 - `config/StylistThemeProperties` — `stylist-agent.theme.*` (palette + font stacks + Google-Fonts
   query); env-overridable (`STYLIST_THEME_*`) so a redeploy re-skins the deliverables without code.
-  Defaults = the locked beige/Oranienbaum aesthetic.
-- `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (**luxury-editorial** responsive
-  HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21; palette/fonts from `StylistThemeProperties`,
-  layout constant) + `render/StylistDoc` (board model: keyed
-  sections, palette swatches, KEEP/QUESTION/REMOVE verdict grid, hero row, image gallery — fluent
-  `builder`) / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
+  Defaults = the locked beige/Oranienbaum aesthetic. `toDocTheme()` maps it into the shared lib's
+  `DocTheme`.
+- `config/RenderConfig` — exposes the shared `DocRenderer` bean (`new HtmlDocRenderer(theme.toDocTheme())`).
+- **Rendering lives in the shared `libs/doc-render`** (lifted from here in DR-a on the second consumer
+  — nutrition/chef): `DocRenderer` (seam) + `HtmlDocRenderer` (**luxury-editorial** responsive HTML —
+  ivory/serif/grid/gold-hero, LOCKED 2026-06-21; palette/fonts from a `DocTheme`, layout constant) +
+  `Doc` (board model: keyed sections, palette swatches, verdict grid, hero row, image gallery — fluent
+  `builder`) / `RenderedDoc`. HTML now, PDF later behind the same seam. The flows build a `Doc` and
+  render it through the injected `DocRenderer`.
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
   `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
   `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`

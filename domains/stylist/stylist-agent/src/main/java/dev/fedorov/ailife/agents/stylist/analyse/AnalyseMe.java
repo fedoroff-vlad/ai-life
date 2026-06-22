@@ -8,9 +8,9 @@ import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
 import dev.fedorov.ailife.agents.stylist.http.CaptionClient;
 import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.StyleProfileClient;
-import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistRenderer;
+import dev.fedorov.ailife.docrender.Doc;
+import dev.fedorov.ailife.docrender.DocRenderer;
+import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -36,7 +36,7 @@ import java.util.UUID;
  * {@code style-analyst} SKILL.md, the user's note folded in so the model also reads typed
  * height/weight/measurements) for a structured analysis JSON → persist the profile fields via
  * {@code mcp-wardrobe}'s {@code POST /internal/profile} (keyed on household+owner=the user) → render
- * the full board through the {@link StylistRenderer} seam → store it in media-service → reply with a
+ * the full board through the {@link DocRenderer} seam → store it in media-service → reply with a
  * short summary plus a link the user can open on any device. Any stage failing degrades to a friendly
  * message; the board renders only the sections the analysis actually filled.
  */
@@ -49,7 +49,7 @@ public class AnalyseMe {
     private final CaptionClient caption;
     private final StyleProfileClient profiles;
     private final MediaStoreClient media;
-    private final StylistRenderer renderer;
+    private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -58,7 +58,7 @@ public class AnalyseMe {
     public AnalyseMe(CaptionClient caption,
                      StyleProfileClient profiles,
                      MediaStoreClient media,
-                     StylistRenderer renderer,
+                     DocRenderer renderer,
                      SkillRegistry skills,
                      AgentManifest manifest,
                      ObjectMapper json,
@@ -131,8 +131,8 @@ public class AnalyseMe {
     }
 
     /** Build the full editorial board from the analysis draft — each block added only when present. */
-    private StylistDoc buildDoc(String mediaId, JsonNode d) {
-        StylistDoc.Builder b = StylistDoc.builder("Анализ внешности и стиля")
+    private Doc buildDoc(String mediaId, JsonNode d) {
+        Doc.Builder b = Doc.builder("Анализ внешности и стиля")
                 .kicker("Structure · Balance · Intention");
         String subtitle = subtitle(d);
         if (subtitle != null) b.subtitle(subtitle);

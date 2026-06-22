@@ -11,9 +11,9 @@ import dev.fedorov.ailife.agents.stylist.http.ImageGenClient;
 import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.agents.stylist.http.WebSearchClient;
-import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistRenderer;
+import dev.fedorov.ailife.docrender.Doc;
+import dev.fedorov.ailife.docrender.DocRenderer;
+import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -41,7 +41,7 @@ import java.util.Optional;
  * {@code context} and runs one LLM synthesis from {@code [AGENT.md, capsule-advisor SKILL.md] +
  * {payload(request, season), context}} → a capsule, which is rendered as a responsive HTML page
  * (a generated lookbook illustration via the shared {@code mcp-image-gen} capability + the garment
- * photos) through the {@link StylistRenderer} seam, stored in media-service, and returned as a link.
+ * photos) through the {@link DocRenderer} seam, stored in media-service, and returned as a link.
  *
  * <p>Per-step soft-fail (a trends/profile outage just drops that constraint). An empty wardrobe →
  * an invite to catalogue first (no LLM call). Synthesis failure → a friendly message.
@@ -59,7 +59,7 @@ public class StylistAdvisor {
     private final WebSearchClient web;
     private final ImageGenClient imageGen;
     private final MediaStoreClient media;
-    private final StylistRenderer renderer;
+    private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -70,7 +70,7 @@ public class StylistAdvisor {
                           WebSearchClient web,
                           ImageGenClient imageGen,
                           MediaStoreClient media,
-                          StylistRenderer renderer,
+                          DocRenderer renderer,
                           SkillRegistry skills,
                           AgentManifest manifest,
                           ObjectMapper json,
@@ -139,7 +139,7 @@ public class StylistAdvisor {
      */
     private Mono<String> store(NormalizedMessage msg, List<WardrobeItemDto> items, String season, String capsuleText) {
         return illustrate(msg, capsuleText, season).flatMap(featured -> {
-            StylistDoc.Builder b = StylistDoc.builder("Капсула")
+            Doc.Builder b = Doc.builder("Капсула")
                     .kicker("Curated · Strategic · Aligned")
                     .subtitle(subtitle(season, msg.text()))
                     .section("Образы", splitParagraphs(capsuleText));
