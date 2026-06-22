@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.stylist;
 
+import dev.fedorov.ailife.agents.stylist.config.StylistThemeProperties;
 import dev.fedorov.ailife.agents.stylist.render.HtmlStylistRenderer;
 import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
 import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
@@ -17,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class HtmlStylistRendererTest {
 
-    private final HtmlStylistRenderer renderer = new HtmlStylistRenderer();
+    private final HtmlStylistRenderer renderer = new HtmlStylistRenderer(new StylistThemeProperties());
 
     @Test
     void rendersAllBlocksAndEditorialChrome() {
@@ -65,6 +66,26 @@ class HtmlStylistRendererTest {
                 .doesNotContain("Hero pieces")
                 .doesNotContain("class=\"pal\"")
                 .doesNotContain("class=\"gallery\"");
+    }
+
+    @Test
+    void themeOverridesReSkinWithoutCodeChange() {
+        StylistThemeProperties custom = new StylistThemeProperties();
+        custom.setPaper("#101418");                              // a dark re-skin
+        custom.setGold("#c9a227");
+        custom.setSerifFamily("\"Playfair Display\",serif");
+        custom.setGoogleFontsQuery("family=Playfair+Display&display=swap");
+        HtmlStylistRenderer reskinned = new HtmlStylistRenderer(custom);
+
+        String html = new String(reskinned.render(
+                new StylistDoc("T", null, List.of(new StylistDoc.Section("H", List.of("x")))))
+                .content(), StandardCharsets.UTF_8);
+
+        assertThat(html).contains("--paper:#101418")            // overridden palette propagated
+                .contains("--gold:#c9a227")
+                .contains("\"Playfair Display\",serif")         // overridden font stack
+                .contains("family=Playfair+Display");           // overridden Google-Fonts link
+        assertThat(html).doesNotContain("Oranienbaum");         // the locked default is gone
     }
 
     @Test

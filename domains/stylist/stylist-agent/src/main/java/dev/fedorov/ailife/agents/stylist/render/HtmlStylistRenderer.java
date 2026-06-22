@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.stylist.render;
 
+import dev.fedorov.ailife.agents.stylist.config.StylistThemeProperties;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -10,7 +11,11 @@ import java.util.Locale;
  * aesthetic LOCKED with the owner 2026-06-21 — noble warm-beige ground, serif display caps,
  * hairline dividers instead of boxed cards, a centered photo anchor, gold hero accent,
  * KEEP/QUESTION/REMOVE verdict tags, palette swatches). Light-only; the only external dependency is
- * Google Fonts (Oranienbaum + Manrope, Cyrillic). A PDF renderer can later wrap this behind the seam.
+ * Google Fonts. A PDF renderer can later wrap this behind the seam.
+ *
+ * <p>The palette + typography come from {@link StylistThemeProperties} (env-overridable, so a redeploy
+ * can re-skin without a code change); they're rendered into the page's {@code :root} CSS variables and
+ * the Google-Fonts link. The layout rules stay constant in {@link #STATIC_CSS}.
  *
  * <p>Layout: header → centered featured photo (when present) → palette strip → text sections flowing
  * in a hairline-separated multi-column block → full-width verdict grid / hero row / image gallery.
@@ -18,6 +23,12 @@ import java.util.Locale;
  */
 @Component
 public class HtmlStylistRenderer implements StylistRenderer {
+
+    private final StylistThemeProperties theme;
+
+    public HtmlStylistRenderer(StylistThemeProperties theme) {
+        this.theme = theme;
+    }
 
     @Override
     public RenderedDoc render(StylistDoc doc) {
@@ -29,8 +40,8 @@ public class HtmlStylistRenderer implements StylistRenderer {
           .append("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n")
           .append("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n")
           .append("<link href=\"https://fonts.googleapis.com/css2?")
-          .append("family=Oranienbaum&family=Manrope:wght@300;400;500&display=swap\" rel=\"stylesheet\">\n")
-          .append("<style>").append(CSS).append("</style>\n")
+          .append(esc(theme.getGoogleFontsQuery())).append("\" rel=\"stylesheet\">\n")
+          .append("<style>").append(rootVars()).append(STATIC_CSS).append("</style>\n")
           .append("</head>\n<body>\n<div class=\"board\">\n");
 
         // Header
@@ -145,11 +156,19 @@ public class HtmlStylistRenderer implements StylistRenderer {
         };
     }
 
-    /** The locked luxury-editorial poster styling — warm-beige ground, serif caps, hairline dividers. */
-    private static final String CSS = """
-            :root{ color-scheme: light; --paper:#efe7d8; --ink:#3a352d; --soft:#6f675a; --muted:#9a907e; \
-            --line:#d8cdb6; --gold:#a98a4e; --keep:#5a6b4f; --question:#b0823a; --remove:#9b4a3a; \
-            --serif:"Oranienbaum",Georgia,"Times New Roman",serif; --sans:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    /** The themeable {@code :root} block — palette + typography from {@link StylistThemeProperties}. */
+    private String rootVars() {
+        return ":root{ color-scheme: light;"
+                + " --paper:" + theme.getPaper() + "; --ink:" + theme.getInk() + ";"
+                + " --soft:" + theme.getSoft() + "; --muted:" + theme.getMuted() + ";"
+                + " --line:" + theme.getLine() + "; --gold:" + theme.getGold() + ";"
+                + " --keep:" + theme.getKeep() + "; --question:" + theme.getQuestion() + ";"
+                + " --remove:" + theme.getRemove() + ";"
+                + " --serif:" + theme.getSerifFamily() + "; --sans:" + theme.getSansFamily() + "; }\n";
+    }
+
+    /** The locked luxury-editorial poster layout — references the {@link #rootVars()} CSS variables. */
+    private static final String STATIC_CSS = """
             *{ box-sizing:border-box; }
             body{ margin:0; padding:1.25rem; background:var(--paper); color:var(--ink); font-family:var(--sans); font-weight:300; line-height:1.55; }
             .board{ max-width:1000px; margin:0 auto; border:1px solid var(--line); padding:1.5rem clamp(1rem,3vw,2.25rem) 0; }

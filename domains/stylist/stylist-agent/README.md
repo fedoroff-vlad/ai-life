@@ -52,6 +52,7 @@ the same interface later. **Stylist MVP complete (ST-a..e).**
 | `MCP_IMAGE_GEN_URL` | `http://mcp-image-gen:8103` | Shared image-gen capability: SSE binding + `/internal/generate` (board illustrations). |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | Stores the rendered HTML deliverables (analyse-me / capsule). |
 | `STYLIST_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | Public base the deliverable link is built from (`<base>/v1/media/{id}`); set to a reachable gateway in deployment. |
+| `STYLIST_THEME_*` | locked beige/Oranienbaum | Re-skin the HTML deliverables without code: `STYLIST_THEME_{PAPER,INK,SOFT,MUTED,LINE,GOLD,KEEP,QUESTION,REMOVE}` (colours), `STYLIST_THEME_{SERIF_FAMILY,SANS_FAMILY}` (CSS font stacks), `STYLIST_THEME_GOOGLE_FONTS_QUERY` (the `css2?` query). Defaults = the locked aesthetic. |
 | `STYLIST_AGENT_MCP_CLIENT_ENABLED` | `true` | Toggle the Spring AI MCP client. Tests default to `false`. |
 | `STYLIST_AGENT_MEMORY_RECALL_K` | `5` | Memory recall depth for the runtime clients. |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | service defaults | Back the shared `agent-runtime` clients. |
@@ -87,8 +88,12 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `flow/GapAnalyst` — the gap-analysis flow on the `Coordinator`: gather wardrobe + profile → one LLM
   synthesis → a gap JSON → render the **gap board** (what-to-buy with priority/price tier, "Не
   покупать", coverage before/after, palette) → store → link. Marketplace buy-links deferred.
+- `config/StylistThemeProperties` — `stylist-agent.theme.*` (palette + font stacks + Google-Fonts
+  query); env-overridable (`STYLIST_THEME_*`) so a redeploy re-skins the deliverables without code.
+  Defaults = the locked beige/Oranienbaum aesthetic.
 - `render/StylistRenderer` (seam) + `render/HtmlStylistRenderer` (**luxury-editorial** responsive
-  HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21) + `render/StylistDoc` (board model: keyed
+  HTML — ivory/serif/grid/gold-hero, LOCKED 2026-06-21; palette/fonts from `StylistThemeProperties`,
+  layout constant) + `render/StylistDoc` (board model: keyed
   sections, palette swatches, KEEP/QUESTION/REMOVE verdict grid, hero row, image gallery — fluent
   `builder`) / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +

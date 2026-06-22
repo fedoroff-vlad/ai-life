@@ -2,13 +2,14 @@ package dev.fedorov.ailife.agents.stylist;
 
 import dev.fedorov.ailife.agentruntime.config.AgentRuntimeConfig;
 import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
+import dev.fedorov.ailife.agents.stylist.config.StylistThemeProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
-@EnableConfigurationProperties(StylistAgentProperties.class)
+@EnableConfigurationProperties({StylistAgentProperties.class, StylistThemeProperties.class})
 @Import(AgentRuntimeConfig.class)
 public class StylistAgentApplication {
 
