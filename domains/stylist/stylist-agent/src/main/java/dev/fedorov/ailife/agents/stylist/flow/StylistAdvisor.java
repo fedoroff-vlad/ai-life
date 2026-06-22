@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
+import dev.fedorov.ailife.agents.stylist.http.ImageGenClient;
 import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.agents.stylist.http.WebSearchClient;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The capsule advisor (ST-e) — the stylist's reason for existing. On a capsule request it gathers,
@@ -38,8 +40,8 @@ import java.util.Map;
  * locally and added to the payload. The Coordinator folds the successful sources into a
  * {@code context} and runs one LLM synthesis from {@code [AGENT.md, capsule-advisor SKILL.md] +
  * {payload(request, season), context}} → a capsule, which is rendered as a responsive HTML page
- * (embedding the garment photos) through the {@link StylistRenderer} seam, stored in media-service,
- * and returned as a link.
+ * (a generated lookbook illustration via the shared {@code mcp-image-gen} capability + the garment
+ * photos) through the {@link StylistRenderer} seam, stored in media-service, and returned as a link.
  *
  * <p>Per-step soft-fail (a trends/profile outage just drops that constraint). An empty wardrobe →
  * an invite to catalogue first (no LLM call). Synthesis failure → a friendly message.
@@ -55,6 +57,7 @@ public class StylistAdvisor {
     private final Coordinator coordinator;
     private final WardrobeReadClient wardrobe;
     private final WebSearchClient web;
+    private final ImageGenClient imageGen;
     private final MediaStoreClient media;
     private final StylistRenderer renderer;
     private final SkillRegistry skills;
@@ -65,6 +68,7 @@ public class StylistAdvisor {
     public StylistAdvisor(Coordinator coordinator,
                           WardrobeReadClient wardrobe,
                           WebSearchClient web,
+                          ImageGenClient imageGen,
                           MediaStoreClient media,
                           StylistRenderer renderer,
                           SkillRegistry skills,
@@ -74,6 +78,7 @@ public class StylistAdvisor {
         this.coordinator = coordinator;
         this.wardrobe = wardrobe;
         this.web = web;
+        this.imageGen = imageGen;
         this.media = media;
         this.renderer = renderer;
         this.skills = skills;
@@ -126,17 +131,48 @@ public class StylistAdvisor {
                         }));
     }
 
-    /** Render the capsule board (editorial chrome + the looks + a garment-photo gallery), store, link. */
+    /**
+     * Render the capsule board (editorial chrome + a generated lookbook illustration + the looks + a
+     * garment-photo gallery), store, link. The illustration comes from the shared {@code mcp-image-gen}
+     * capability (a placeholder stub today, a real GPU model once flipped by config) — soft-failed, so
+     * a generation outage just drops the visual and the textual capsule still ships.
+     */
     private Mono<String> store(NormalizedMessage msg, List<WardrobeItemDto> items, String season, String capsuleText) {
-        StylistDoc.Builder b = StylistDoc.builder("Капсула")
-                .kicker("Curated · Strategic · Aligned")
-                .subtitle(subtitle(season, msg.text()))
-                .section("Образы", splitParagraphs(capsuleText));
-        for (String url : galleryUrls(items)) b.galleryImage(url);
-        RenderedDoc rendered = renderer.render(b.build());
-        return media.upload(msg.householdId(), msg.userId(),
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
+        return illustrate(msg, capsuleText, season).flatMap(featured -> {
+            StylistDoc.Builder b = StylistDoc.builder("Капсула")
+                    .kicker("Curated · Strategic · Aligned")
+                    .subtitle(subtitle(season, msg.text()))
+                    .section("Образы", splitParagraphs(capsuleText));
+            featured.ifPresent(b::featured);
+            for (String url : galleryUrls(items)) b.galleryImage(url);
+            RenderedDoc rendered = renderer.render(b.build());
+            return media.upload(msg.householdId(), msg.userId(),
+                            rendered.filename(), rendered.mimeType(), rendered.content())
+                    .map(this::link);
+        });
+    }
+
+    /** Generate the board's featured lookbook illustration; soft-fail to no illustration. */
+    private Mono<Optional<String>> illustrate(NormalizedMessage msg, String capsuleText, String season) {
+        return imageGen.generate(msg.householdId(), msg.userId(), illustrationPrompt(capsuleText, season))
+                .mapNotNull(r -> r.mediaId() == null ? null : mediaUrl(r.mediaId()))
+                .map(Optional::of)
+                .defaultIfEmpty(Optional.empty())
+                .onErrorResume(e -> {
+                    log.warn("capsule illustration failed (dropping it): {}", e.toString());
+                    return Mono.just(Optional.empty());
+                });
+    }
+
+    /** A concise editorial-illustration prompt grounded in the synthesized capsule + season. */
+    private static String illustrationPrompt(String capsuleText, String season) {
+        String looks = summary(capsuleText);
+        return "Editorial fashion illustration, luxury minimalist style, neutral warm-beige palette, "
+                + "a curated seasonal capsule for " + season + ": " + looks;
+    }
+
+    private String mediaUrl(java.util.UUID mediaId) {
+        return trimBase(props.getPublicMediaBaseUrl()) + "/v1/media/" + mediaId;
     }
 
     private List<String> galleryUrls(List<WardrobeItemDto> items) {

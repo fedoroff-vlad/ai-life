@@ -6,8 +6,10 @@ capsules. The canonical role lives in [AGENT.md](AGENT.md), served at
 `GET /agents/stylist/manifest`. Plan: [stylist.md](../../../plans/stylist.md).
 
 A cross-domain specialist (its own `domains/stylist/` folder). It owns the `mcp-wardrobe`
-domain-MCP (its persistent data) and binds two shared capabilities: `mcp-media-processing`
-(vision `caption` — understand garment / self photos) and `mcp-web` (`web_search` — trends).
+domain-MCP (its persistent data) and binds three shared capabilities: `mcp-media-processing`
+(vision `caption` — understand garment / self photos), `mcp-web` (`web_search` — trends), and
+`mcp-image-gen` (`generate_image` — editorial board illustrations; a stub engine today, a
+self-hosted GPU model later by config — no agent change).
 
 **Status (ST-d):** the wardrobe-catalogue **and** "analyse me" flows are live. `IntentController`
 routes a **photo attachment** by the caption text:
@@ -47,6 +49,7 @@ the same interface later. **Stylist MVP complete (ST-a..e).**
 | `MCP_WARDROBE_URL` | `http://mcp-wardrobe:8101` | Its data: SSE binding + the future HTTP base URL for the catalogue flow. |
 | `MCP_MEDIA_PROCESSING_URL` | `http://mcp-media-processing:8097` | Shared vision capability: SSE binding + `/internal/caption`. |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | Shared web capability: SSE binding + `/internal/search` (trends). |
+| `MCP_IMAGE_GEN_URL` | `http://mcp-image-gen:8103` | Shared image-gen capability: SSE binding + `/internal/generate` (board illustrations). |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | Stores the rendered HTML deliverables (analyse-me / capsule). |
 | `STYLIST_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | Public base the deliverable link is built from (`<base>/v1/media/{id}`); set to a reachable gateway in deployment. |
 | `STYLIST_AGENT_MCP_CLIENT_ENABLED` | `true` | Toggle the Spring AI MCP client. Tests default to `false`. |
@@ -60,9 +63,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 
 - `StylistAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/StylistAgentProperties` — `stylist-agent.{mcp-wardrobe-url, mcp-media-processing-url,
-  mcp-web-url, profile/notifier/memory urls}`.
-- `config/OutboundHttpConfig` — `mcpWardrobe/mcpMediaProcessing/mcpWeb` WebClients (for the
-  ST-c..e flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
+  mcp-web-url, mcp-image-gen-url, profile/notifier/memory urls}`.
+- `config/OutboundHttpConfig` — `mcpWardrobe/mcpMediaProcessing/mcpWeb/mcpImageGen` WebClients (for
+  the flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
 - `web/ManifestController` — `GET /agents/stylist/manifest`.
 - `web/IntentController` — `POST /agents/stylist/intent`; routes a photo to analyse-me (caption
   cues / body params) or the catalogue flow, a capsule-cue text to the advisor, else the chat fallback.
@@ -75,8 +78,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   (instruction = the `style-analyst` SKILL.md) → `set_style_profile` via `/internal/profile` →
   render the analysis HTML → store in media-service → reply with a link.
 - `flow/StylistAdvisor` — the capsule flow on the shared `Coordinator`: gather wardrobe items +
-  style profile + trends (mcp-web) + season (computed) → one LLM synthesis → render capsule HTML
-  with a garment-photo gallery → store → reply with a link. Empty wardrobe → invite to catalogue.
+  style profile + trends (mcp-web) + season (computed) → one LLM synthesis → generate a lookbook
+  illustration (mcp-image-gen, soft-fail) as the board's featured image → render capsule HTML with a
+  garment-photo gallery → store → reply with a link. Empty wardrobe → invite to catalogue.
 - `flow/WardrobeAuditor` — the audit flow on the `Coordinator`: gather wardrobe + profile → one LLM
   synthesis → a verdict JSON → render the **audit board** (KEEP/QUESTION/REMOVE grid with garment
   photos matched by name, gold hero row, palette, "Системная ошибка" diagnosis) → store → link.
@@ -89,8 +93,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   `builder`) / `render/RenderedDoc` — the render-format seam (HTML now, PDF later).
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
   `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
-  `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/MediaStoreClient`
-  (`POST /v1/media`) — the deterministic capability/media calls (MockWebServer-testable; not SSE).
+  `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`
+  (`/internal/generate`) + `http/MediaStoreClient` (`POST /v1/media`) — the deterministic
+  capability/media calls (MockWebServer-testable; not SSE).
 
 ## Skills
 

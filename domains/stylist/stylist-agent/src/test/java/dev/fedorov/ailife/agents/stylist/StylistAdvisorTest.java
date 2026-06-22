@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.imagegen.ImageGenResult;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
@@ -40,6 +41,7 @@ class StylistAdvisorTest {
 
     static MockWebServer mcpWardrobe;
     static MockWebServer mcpWeb;
+    static MockWebServer imageGen;
     static MockWebServer llm;
     static MockWebServer mediaService;
 
@@ -65,8 +67,10 @@ class StylistAdvisorTest {
                 return new MockResponse().setResponseCode(404);
             }
         });
+        imageGen = new MockWebServer();
         mcpWardrobe.start();
         mcpWeb.start();
+        imageGen.start();
         llm.start();
         mediaService.start();
     }
@@ -75,6 +79,7 @@ class StylistAdvisorTest {
     static void stop() throws Exception {
         mcpWardrobe.shutdown();
         mcpWeb.shutdown();
+        imageGen.shutdown();
         llm.shutdown();
         mediaService.shutdown();
     }
@@ -83,6 +88,7 @@ class StylistAdvisorTest {
     static void wire(DynamicPropertyRegistry r) {
         r.add("stylist-agent.mcp-wardrobe-url", () -> "http://localhost:" + mcpWardrobe.getPort());
         r.add("stylist-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
+        r.add("stylist-agent.mcp-image-gen-url", () -> "http://localhost:" + imageGen.getPort());
         r.add("stylist-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("stylist-agent.public-media-base-url", () -> "https://files.example.test");
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llm.getPort());
@@ -96,6 +102,7 @@ class StylistAdvisorTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID imageId = UUID.randomUUID();
+        UUID illustrationId = UUID.randomUUID();
         UUID docId = UUID.randomUUID();
 
         itemsJson = json.writeValueAsString(List.of(
@@ -106,6 +113,7 @@ class StylistAdvisorTest {
         mcpWeb.enqueue(json("{\"query\":\"x\",\"hits\":[]}"));
         llm.enqueue(json(json.writeValueAsString(new LlmChatResponse(
                 "mock-llm", "Капсула на зиму.\nLook 1: navy coat + white shirt.", "stop", null))));
+        imageGen.enqueue(json(json.writeValueAsString(new ImageGenResult(illustrationId, "stub"))));
         mediaService.enqueue(json(json.writeValueAsString(new MediaObjectDto(
                 docId, householdId, userId, "file", "text/html", 999L, null, "stylist", Instant.now()))));
 
@@ -133,12 +141,20 @@ class StylistAdvisorTest {
         String chatText = chatBody.toString();
         assertThat(chatText).contains("navy coat").contains("season");
 
-        // The capsule HTML was stored, embedding the garment photo (the item with an image id).
+        // A lookbook illustration was generated from the synthesized capsule + season.
+        RecordedRequest genReq = imageGen.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(genReq.getPath()).isEqualTo("/internal/generate");
+        assertThat(genReq.getBody().readUtf8()).contains("\"prompt\"")
+                .contains("Editorial fashion illustration");
+
+        // The capsule HTML was stored, embedding the garment photo (the item with an image id) and
+        // the generated illustration as the board's featured image.
         RecordedRequest uploadReq = mediaService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(uploadReq.getPath()).isEqualTo("/v1/media");
         String uploadBody = uploadReq.getBody().readUtf8();
         assertThat(uploadBody).contains("text/html").contains("<!DOCTYPE html>")
-                .contains("/v1/media/" + imageId);
+                .contains("/v1/media/" + imageId)
+                .contains("/v1/media/" + illustrationId);
     }
 
     @Test

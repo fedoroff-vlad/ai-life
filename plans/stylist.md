@@ -181,6 +181,22 @@ copyrighted text. Boards build in this order:
   order: board illustrations first, virtual try-on once a real model is up). Tested
   (`InternalGenerateControllerTest`: stub → media-service upload → media id + model `stub`).
 
+- **ST-m — stylist-agent binds `mcp-image-gen` + the capsule board gets a generated lookbook
+  illustration. DONE (PR146).** Mirrors MD-c (agent binds a capability + one flow uses it). New
+  `http/ImageGenClient` (`POST /internal/generate` → `ImageGenResult`, 60s timeout) + an
+  `mcpImageGenWebClient` bean + `stylist-agent.mcp-image-gen-url` (`MCP_IMAGE_GEN_URL`) + the
+  `spring.ai.mcp.client.sse.connections.mcp-image-gen` binding (future LLM-driven selection; the
+  deterministic call uses the HTTP passthrough). `flow/StylistAdvisor.store` now first generates a
+  text-to-image **lookbook illustration** (prompt grounded in the synthesized capsule + season) and
+  sets it as the board's `featured` image — **soft-failed**, so an image-gen outage just drops the
+  visual and the textual capsule still ships. With the **stub** engine this embeds a placeholder PNG
+  (proves the wiring); flip `IMAGE_GEN_ENGINE=local` and a real illustration appears with no code
+  change. AGENT.md `mcp:` += mcp-image-gen; compose stylist-agent gains `depends_on: mcp-image-gen`
+  + `MCP_IMAGE_GEN_URL`; README updated. Tested (`StylistAdvisorTest`: the capsule run now asserts a
+  `/internal/generate` call carrying the editorial prompt + the generated illustration embedded as
+  the board's featured image; module suite green, 13). **Board illustrations are now wired** — the
+  next image-gen steps are the real local engine + the deferred virtual try-on (refMediaIds).
+
 ## Out of scope (here)
 - GPU image-gen / virtual try-on, marketplace search, the "saw it on the street" composite, PDF output, and
   the final template designs — all deferred (recorded above); each is its own later line with its own

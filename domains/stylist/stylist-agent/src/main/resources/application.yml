@@ -7,9 +7,9 @@ spring:
     mcp:
       client:
         # Binds mcp-wardrobe (its data) + the shared mcp-media-processing (vision) +
-        # mcp-web (trends) so a future LLM-driven flow can pick their tools. The
-        # deterministic flows (ST-c..e) call the capabilities over their HTTP
-        # /internal passthroughs instead. Toggle off in dev/degraded envs.
+        # mcp-web (trends) + mcp-image-gen (illustrations) so a future LLM-driven flow
+        # can pick their tools. The deterministic flows call the capabilities over their
+        # HTTP /internal passthroughs instead. Toggle off in dev/degraded envs.
         enabled: ${STYLIST_AGENT_MCP_CLIENT_ENABLED:true}
         toolcallback:
           enabled: true
@@ -21,6 +21,8 @@ spring:
               url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
             mcp-web:
               url: ${MCP_WEB_URL:http://mcp-web:8098}
+            mcp-image-gen:
+              url: ${MCP_IMAGE_GEN_URL:http://mcp-image-gen:8103}
 
 server:
   port: ${STYLIST_AGENT_PORT:8102}
@@ -34,6 +36,7 @@ stylist-agent:
   mcp-wardrobe-url: ${MCP_WARDROBE_URL:http://mcp-wardrobe:8101}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  mcp-image-gen-url: ${MCP_IMAGE_GEN_URL:http://mcp-image-gen:8103}
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
   public-media-base-url: ${STYLIST_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
