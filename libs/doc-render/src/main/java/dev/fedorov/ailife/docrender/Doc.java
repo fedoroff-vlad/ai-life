@@ -1,18 +1,21 @@
-package dev.fedorov.ailife.agents.stylist.render;
+package dev.fedorov.ailife.docrender;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The render-format-agnostic model of a stylist deliverable board (analysis, audit, capsule, gap).
- * A {@link StylistRenderer} turns it into concrete bytes (luxury-editorial HTML today, PDF later via
- * the same seam). The board is a header ({@code kicker}/{@code title}/{@code subtitle}) plus any of:
- * keyed text {@code sections}, a colour {@code palette}, a {@code verdicts} grid (KEEP/QUESTION/REMOVE
- * per garment), a {@code hero} row, and an image {@code gallery}. Each is optional — a flow fills only
- * what its board needs; the renderer skips empties. The flow supplies content; the renderer owns all
- * styling (the locked aesthetic).
+ * The render-format-agnostic model of a deliverable board (stylist analysis/audit/capsule/gap; later
+ * nutrition basket breakdown / ration / recipe card). A {@link DocRenderer} turns it into concrete
+ * bytes (luxury-editorial HTML today, PDF later via the same seam). The board is a header
+ * ({@code kicker}/{@code title}/{@code subtitle} + an optional {@code featuredImageUrl}) plus any of:
+ * keyed text {@code sections}, a colour {@code palette}, a {@code verdicts} grid (a status tile per
+ * item), a {@code hero} row, and an image {@code gallery}. Each is optional — a flow fills only what
+ * its board needs; the renderer skips empties. The flow supplies content; the renderer owns styling.
+ *
+ * <p>Field generalisation for nutrition (a generic tile tone / a recipe-link list) lands with the
+ * first nutrition consumer that needs it — the structure here is the stylist board lifted intact.
  */
-public record StylistDoc(
+public record Doc(
         String kicker,
         String title,
         String subtitle,
@@ -23,13 +26,13 @@ public record StylistDoc(
         List<HeroItem> hero,
         List<String> gallery) {
 
-    /** Back-compat: a text-only board (no gallery) — e.g. the early analysis page. */
-    public StylistDoc(String title, String subtitle, List<Section> sections) {
+    /** Back-compat: a text-only board (no gallery) — e.g. an early analysis page. */
+    public Doc(String title, String subtitle, List<Section> sections) {
         this(null, title, subtitle, null, sections, null, null, null, null);
     }
 
-    /** Back-compat: text board + an image gallery — e.g. the early capsule page. */
-    public StylistDoc(String title, String subtitle, List<Section> sections, List<String> gallery) {
+    /** Back-compat: text board + an image gallery — e.g. an early capsule page. */
+    public Doc(String title, String subtitle, List<Section> sections, List<String> gallery) {
         this(null, title, subtitle, null, sections, null, null, null, gallery);
     }
 
@@ -42,7 +45,7 @@ public record StylistDoc(
 
     public enum Verdict { KEEP, QUESTION, REMOVE }
 
-    /** One audited garment: name, verdict, one-line reason, and an optional photo URL. */
+    /** One audited item: name, verdict, one-line reason, and an optional photo URL. */
     public record VerdictItem(String name, Verdict verdict, String reason, String imageUrl) {
     }
 
@@ -54,7 +57,7 @@ public record StylistDoc(
         return new Builder(title);
     }
 
-    /** Fluent builder for the richer boards (audit / analysis / gap); keeps call sites readable. */
+    /** Fluent builder for the richer boards; keeps call sites readable. */
     public static final class Builder {
         private String kicker;
         private final String title;
@@ -99,8 +102,8 @@ public record StylistDoc(
             return this;
         }
 
-        public StylistDoc build() {
-            return new StylistDoc(kicker, title, subtitle, featuredImageUrl,
+        public Doc build() {
+            return new Doc(kicker, title, subtitle, featuredImageUrl,
                     sections.isEmpty() ? null : sections,
                     palette.isEmpty() ? null : palette,
                     verdicts.isEmpty() ? null : verdicts,

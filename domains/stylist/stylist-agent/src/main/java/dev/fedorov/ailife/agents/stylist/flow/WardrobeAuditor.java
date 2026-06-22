@@ -9,9 +9,9 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
 import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
-import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistRenderer;
+import dev.fedorov.ailife.docrender.Doc;
+import dev.fedorov.ailife.docrender.DocRenderer;
+import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -49,7 +49,7 @@ public class WardrobeAuditor {
     private final Coordinator coordinator;
     private final WardrobeReadClient wardrobe;
     private final MediaStoreClient media;
-    private final StylistRenderer renderer;
+    private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -58,7 +58,7 @@ public class WardrobeAuditor {
     public WardrobeAuditor(Coordinator coordinator,
                            WardrobeReadClient wardrobe,
                            MediaStoreClient media,
-                           StylistRenderer renderer,
+                           DocRenderer renderer,
                            SkillRegistry skills,
                            AgentManifest manifest,
                            ObjectMapper json,
@@ -110,7 +110,7 @@ public class WardrobeAuditor {
                         return Mono.just(reply("Не смог собрать ревизию гардероба. Попробуйте позже.",
                                 result.llmModel()));
                     }
-                    StylistDoc doc = buildDoc(audit, items);
+                    Doc doc = buildDoc(audit, items);
                     return store(msg, doc)
                             .map(link -> reply(summary(audit) + "\n\nРевизия: " + link, result.llmModel()))
                             .onErrorResume(e -> {
@@ -120,14 +120,14 @@ public class WardrobeAuditor {
                 });
     }
 
-    private StylistDoc buildDoc(JsonNode audit, List<WardrobeItemDto> items) {
+    private Doc buildDoc(JsonNode audit, List<WardrobeItemDto> items) {
         Map<String, UUID> photoByName = new LinkedHashMap<>();
         for (WardrobeItemDto item : items) {
             if (item.name() != null && item.imageMediaId() != null) {
                 photoByName.put(item.name().toLowerCase(Locale.ROOT), item.imageMediaId());
             }
         }
-        StylistDoc.Builder b = StylistDoc.builder("Wardrobe Audit Board")
+        Doc.Builder b = Doc.builder("Wardrobe Audit Board")
                 .kicker("Edited · Strategic · Aligned");
 
         JsonNode verdicts = audit.get("verdicts");
@@ -163,7 +163,7 @@ public class WardrobeAuditor {
         return b.build();
     }
 
-    private Mono<String> store(NormalizedMessage msg, StylistDoc doc) {
+    private Mono<String> store(NormalizedMessage msg, Doc doc) {
         RenderedDoc rendered = renderer.render(doc);
         return media.upload(msg.householdId(), msg.userId(),
                         rendered.filename(), rendered.mimeType(), rendered.content())
@@ -186,12 +186,12 @@ public class WardrobeAuditor {
                 + ", убрать " + remove + ".";
     }
 
-    private static StylistDoc.Verdict parseVerdict(String v) {
-        if (v == null) return StylistDoc.Verdict.KEEP;
+    private static Doc.Verdict parseVerdict(String v) {
+        if (v == null) return Doc.Verdict.KEEP;
         return switch (v.trim().toLowerCase(Locale.ROOT)) {
-            case "remove" -> StylistDoc.Verdict.REMOVE;
-            case "question" -> StylistDoc.Verdict.QUESTION;
-            default -> StylistDoc.Verdict.KEEP;
+            case "remove" -> Doc.Verdict.REMOVE;
+            case "question" -> Doc.Verdict.QUESTION;
+            default -> Doc.Verdict.KEEP;
         };
     }
 

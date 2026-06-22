@@ -1,19 +1,14 @@
-package dev.fedorov.ailife.agents.stylist.config;
-
-import dev.fedorov.ailife.docrender.DocTheme;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+package dev.fedorov.ailife.docrender;
 
 /**
- * The stylist board theme — colours + fonts the shared {@code HtmlDocRenderer} renders into the page's
- * {@code :root} CSS variables and the Google-Fonts link. The defaults are the aesthetic LOCKED with the
- * owner 2026-06-21 (noble warm-beige ground, Oranienbaum display + Manrope body). This lets a redeploy
- * re-skin the deliverables without a code change: override any value via {@code STYLIST_THEME_*} env
- * vars (e.g. {@code STYLIST_THEME_PAPER=#f3ece0}). The layout rules live in the renderer — only the
- * palette/typography are configurable. {@link #toDocTheme()} maps these (possibly-overridden) values
- * into the lib's render-agnostic {@link DocTheme}.
+ * The deliverable theme — colours + fonts that {@link HtmlDocRenderer} renders into the page's
+ * {@code :root} CSS variables and the Google-Fonts link. A plain POJO (no Spring) so the lib stays
+ * pure; a consumer agent maps its own {@code @ConfigurationProperties} into one of these. The no-arg
+ * defaults are the aesthetic LOCKED with the owner 2026-06-21 (noble warm-beige ground, Oranienbaum
+ * display + Manrope body) — the canonical home of those values now that the renderer is shared. Only
+ * the palette/typography are configurable; the layout rules live in the renderer.
  */
-@ConfigurationProperties(prefix = "stylist-agent.theme")
-public class StylistThemeProperties {
+public class DocTheme {
 
     /** Page ground / card background. */
     private String paper = "#efe7d8";
@@ -27,11 +22,11 @@ public class StylistThemeProperties {
     private String line = "#d8cdb6";
     /** Hero accent. */
     private String gold = "#a98a4e";
-    /** Verdict KEEP. */
+    /** Verdict KEEP / positive tile. */
     private String keep = "#5a6b4f";
-    /** Verdict QUESTION. */
+    /** Verdict QUESTION / watch tile. */
     private String question = "#b0823a";
-    /** Verdict REMOVE. */
+    /** Verdict REMOVE / negative tile. */
     private String remove = "#9b4a3a";
 
     /** CSS font stack for display/serif headings. */
@@ -76,22 +71,4 @@ public class StylistThemeProperties {
 
     public String getGoogleFontsQuery() { return googleFontsQuery; }
     public void setGoogleFontsQuery(String googleFontsQuery) { this.googleFontsQuery = googleFontsQuery; }
-
-    /** Map the agent's (possibly env-overridden) theme into the shared lib's {@link DocTheme}. */
-    public DocTheme toDocTheme() {
-        DocTheme t = new DocTheme();
-        t.setPaper(paper);
-        t.setInk(ink);
-        t.setSoft(soft);
-        t.setMuted(muted);
-        t.setLine(line);
-        t.setGold(gold);
-        t.setKeep(keep);
-        t.setQuestion(question);
-        t.setRemove(remove);
-        t.setSerifFamily(serifFamily);
-        t.setSansFamily(sansFamily);
-        t.setGoogleFontsQuery(googleFontsQuery);
-        return t;
-    }
 }

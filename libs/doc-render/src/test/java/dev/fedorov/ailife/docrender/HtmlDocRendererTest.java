@@ -1,9 +1,5 @@
-package dev.fedorov.ailife.agents.stylist;
+package dev.fedorov.ailife.docrender;
 
-import dev.fedorov.ailife.agents.stylist.config.StylistThemeProperties;
-import dev.fedorov.ailife.agents.stylist.render.HtmlStylistRenderer;
-import dev.fedorov.ailife.agents.stylist.render.RenderedDoc;
-import dev.fedorov.ailife.agents.stylist.render.StylistDoc;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -12,25 +8,26 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Pure unit test for the editorial renderer (ST-f) — no Spring. Verifies the locked aesthetic
- * markers and that each optional board block (sections, palette, verdict grid, hero, gallery)
- * renders only when present, plus HTML escaping.
+ * Pure unit test for the shared editorial renderer (lifted from stylist-agent in DR-a). Verifies the
+ * locked aesthetic markers, that each optional board block (sections, palette, verdict grid, hero,
+ * gallery) renders only when present, HTML escaping, and that a {@link DocTheme} override re-skins the
+ * page without a code change.
  */
-class HtmlStylistRendererTest {
+class HtmlDocRendererTest {
 
-    private final HtmlStylistRenderer renderer = new HtmlStylistRenderer(new StylistThemeProperties());
+    private final HtmlDocRenderer renderer = new HtmlDocRenderer(new DocTheme());
 
     @Test
     void rendersAllBlocksAndEditorialChrome() {
-        StylistDoc doc = StylistDoc.builder("Wardrobe Audit Board")
+        Doc doc = Doc.builder("Wardrobe Audit Board")
                 .kicker("Edited · Strategic · Aligned")
                 .subtitle("Natural archetype")
                 .featured("https://files.example.test/v1/media/portrait")
                 .section("Diagnosis", List.of("Strong natural foundation."))
                 .swatch("#042C53", "deep blue")
-                .verdict("Slip dress", StylistDoc.Verdict.QUESTION, "Straps don't support the line",
+                .verdict("Slip dress", Doc.Verdict.QUESTION, "Straps don't support the line",
                         "https://files.example.test/v1/media/abc")
-                .verdict("Logo tee", StylistDoc.Verdict.REMOVE, "Duplicates & lowers polish", null)
+                .verdict("Logo tee", Doc.Verdict.REMOVE, "Duplicates & lowers polish", null)
                 .heroPiece("Wide-leg trousers", null, "Signature silhouette")
                 .galleryImage("https://files.example.test/v1/media/xyz")
                 .build();
@@ -56,8 +53,8 @@ class HtmlStylistRendererTest {
 
     @Test
     void textOnlyBoardSkipsEmptyBlocks() {
-        StylistDoc doc = new StylistDoc("Анализ стиля", "Тип: классический",
-                List.of(new StylistDoc.Section("Цветотип", List.of("Зима."))));
+        Doc doc = new Doc("Анализ стиля", "Тип: классический",
+                List.of(new Doc.Section("Цветотип", List.of("Зима."))));
 
         String html = new String(renderer.render(doc).content(), StandardCharsets.UTF_8);
         assertThat(html).contains("Анализ стиля").contains("Зима.");
@@ -70,15 +67,15 @@ class HtmlStylistRendererTest {
 
     @Test
     void themeOverridesReSkinWithoutCodeChange() {
-        StylistThemeProperties custom = new StylistThemeProperties();
+        DocTheme custom = new DocTheme();
         custom.setPaper("#101418");                              // a dark re-skin
         custom.setGold("#c9a227");
         custom.setSerifFamily("\"Playfair Display\",serif");
         custom.setGoogleFontsQuery("family=Playfair+Display&display=swap");
-        HtmlStylistRenderer reskinned = new HtmlStylistRenderer(custom);
+        HtmlDocRenderer reskinned = new HtmlDocRenderer(custom);
 
         String html = new String(reskinned.render(
-                new StylistDoc("T", null, List.of(new StylistDoc.Section("H", List.of("x")))))
+                new Doc("T", null, List.of(new Doc.Section("H", List.of("x")))))
                 .content(), StandardCharsets.UTF_8);
 
         assertThat(html).contains("--paper:#101418")            // overridden palette propagated
@@ -90,8 +87,8 @@ class HtmlStylistRendererTest {
 
     @Test
     void escapesHtmlInContent() {
-        StylistDoc doc = new StylistDoc("T", null,
-                List.of(new StylistDoc.Section("H", List.of("a <script> & \"x\""))));
+        Doc doc = new Doc("T", null,
+                List.of(new Doc.Section("H", List.of("a <script> & \"x\""))));
         String html = new String(renderer.render(doc).content(), StandardCharsets.UTF_8);
         assertThat(html).contains("a &lt;script&gt; &amp; &quot;x&quot;");
         assertThat(html).doesNotContain("<script>");

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>doc-render</artifactId>
+    <name>ai-life :: libs :: doc-render</name>
+    <description>Shared deliverable renderer: a format-agnostic Doc model + a luxury-editorial HTML renderer behind a DocRenderer seam (PDF later). Pure Java, no Spring; each consumer agent builds a DocTheme and a DocRenderer bean. First lifted from stylist-agent; reused by nutrition/chef.</description>
+
+    <dependencies>
+        <!-- Pure Java; no compile-scope deps. Test-only junit/assertj via starter-test. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

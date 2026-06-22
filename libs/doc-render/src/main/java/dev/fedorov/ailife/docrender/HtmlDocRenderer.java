@@ -1,37 +1,31 @@
-package dev.fedorov.ailife.agents.stylist.render;
-
-import dev.fedorov.ailife.agents.stylist.config.StylistThemeProperties;
-import org.springframework.stereotype.Component;
+package dev.fedorov.ailife.docrender;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
- * Default {@link StylistRenderer}: a self-contained, responsive <b>luxury-editorial poster</b> (the
- * aesthetic LOCKED with the owner 2026-06-21 — noble warm-beige ground, serif display caps,
- * hairline dividers instead of boxed cards, a centered photo anchor, gold hero accent,
- * KEEP/QUESTION/REMOVE verdict tags, palette swatches). Light-only; the only external dependency is
- * Google Fonts. A PDF renderer can later wrap this behind the seam.
+ * Default {@link DocRenderer}: a self-contained, responsive <b>luxury-editorial poster</b> (the
+ * aesthetic LOCKED with the owner 2026-06-21 — noble warm-beige ground, serif display caps, hairline
+ * dividers instead of boxed cards, a centered photo anchor, gold hero accent, KEEP/QUESTION/REMOVE
+ * verdict tags, palette swatches). Light-only; the only external dependency is Google Fonts. A PDF
+ * renderer can later wrap behind the seam.
  *
- * <p>The palette + typography come from {@link StylistThemeProperties} (env-overridable, so a redeploy
- * can re-skin without a code change); they're rendered into the page's {@code :root} CSS variables and
- * the Google-Fonts link. The layout rules stay constant in {@link #STATIC_CSS}.
- *
- * <p>Layout: header → centered featured photo (when present) → palette strip → text sections flowing
- * in a hairline-separated multi-column block → full-width verdict grid / hero row / image gallery.
- * Each block renders only when the {@link StylistDoc} carries it.
+ * <p>The palette + typography come from {@link DocTheme} (each consumer agent supplies its own, env-
+ * overridable, so a redeploy can re-skin without a code change); they're rendered into the page's
+ * {@code :root} CSS variables and the Google-Fonts link. The layout rules stay constant in
+ * {@link #STATIC_CSS}. Pure Java — a consumer wires a {@code DocRenderer} bean as
+ * {@code new HtmlDocRenderer(theme)}.
  */
-@Component
-public class HtmlStylistRenderer implements StylistRenderer {
+public class HtmlDocRenderer implements DocRenderer {
 
-    private final StylistThemeProperties theme;
+    private final DocTheme theme;
 
-    public HtmlStylistRenderer(StylistThemeProperties theme) {
+    public HtmlDocRenderer(DocTheme theme) {
         this.theme = theme;
     }
 
     @Override
-    public RenderedDoc render(StylistDoc doc) {
+    public RenderedDoc render(Doc doc) {
         StringBuilder sb = new StringBuilder(4096);
         sb.append("<!DOCTYPE html>\n<html lang=\"ru\">\n<head>\n")
           .append("<meta charset=\"utf-8\">\n")
@@ -63,7 +57,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
         // Palette strip
         if (doc.palette() != null && !doc.palette().isEmpty()) {
             sb.append("<div class=\"palrow\">\n");
-            for (StylistDoc.Swatch s : doc.palette()) {
+            for (Doc.Swatch s : doc.palette()) {
                 if (s == null || !notBlank(s.hex())) continue;
                 sb.append("<i style=\"background:").append(esc(s.hex())).append("\" title=\"")
                   .append(esc(s.label() == null ? "" : s.label())).append("\"></i>\n");
@@ -74,7 +68,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
         // Text sections — hairline-separated multi-column flow
         if (doc.sections() != null && !doc.sections().isEmpty()) {
             sb.append("<div class=\"flow\">\n");
-            for (StylistDoc.Section section : doc.sections()) {
+            for (Doc.Section section : doc.sections()) {
                 if (section == null) continue;
                 sb.append("<section>\n<h2>").append(esc(section.heading())).append("</h2>\n");
                 if (section.paragraphs() != null) {
@@ -87,10 +81,10 @@ public class HtmlStylistRenderer implements StylistRenderer {
             sb.append("</div>\n");
         }
 
-        // Verdict grid (audit)
+        // Verdict grid
         if (doc.verdicts() != null && !doc.verdicts().isEmpty()) {
             sb.append("<div class=\"grid\">\n");
-            for (StylistDoc.VerdictItem v : doc.verdicts()) {
+            for (Doc.VerdictItem v : doc.verdicts()) {
                 if (v == null) continue;
                 String cls = v.verdict() == null ? "keep" : v.verdict().name().toLowerCase(Locale.ROOT);
                 sb.append("<div class=\"cell\">\n");
@@ -114,7 +108,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
         // Hero row
         if (doc.hero() != null && !doc.hero().isEmpty()) {
             sb.append("<div class=\"hero\">\n<h3>✦ Hero pieces ✦</h3>\n<div class=\"row\">\n");
-            for (StylistDoc.HeroItem h : doc.hero()) {
+            for (Doc.HeroItem h : doc.hero()) {
                 if (h == null) continue;
                 sb.append("<div class=\"item\">\n");
                 if (notBlank(h.imageUrl())) {
@@ -132,7 +126,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
             sb.append("</div>\n</div>\n");
         }
 
-        // Image gallery (capsule looks / wardrobe)
+        // Image gallery
         if (doc.gallery() != null && !doc.gallery().isEmpty()) {
             sb.append("<div class=\"gallery\">\n");
             for (String url : doc.gallery()) {
@@ -143,11 +137,11 @@ public class HtmlStylistRenderer implements StylistRenderer {
             sb.append("</div>\n");
         }
 
-        sb.append("<footer>ai-life · stylist</footer>\n</div>\n</body>\n</html>\n");
-        return new RenderedDoc(sb.toString().getBytes(StandardCharsets.UTF_8), "text/html", "stylist.html");
+        sb.append("<footer>ai-life</footer>\n</div>\n</body>\n</html>\n");
+        return new RenderedDoc(sb.toString().getBytes(StandardCharsets.UTF_8), "text/html", "doc.html");
     }
 
-    private static String verdictLabel(StylistDoc.Verdict v) {
+    private static String verdictLabel(Doc.Verdict v) {
         if (v == null) return "Keep";
         return switch (v) {
             case KEEP -> "Keep";
@@ -156,7 +150,7 @@ public class HtmlStylistRenderer implements StylistRenderer {
         };
     }
 
-    /** The themeable {@code :root} block — palette + typography from {@link StylistThemeProperties}. */
+    /** The themeable {@code :root} block — palette + typography from {@link DocTheme}. */
     private String rootVars() {
         return ":root{ color-scheme: light;"
                 + " --paper:" + theme.getPaper() + "; --ink:" + theme.getInk() + ";"
