@@ -7,7 +7,7 @@
 - **Stage 3 — tasks (GTD):** tasks schema + mcp-tasks + tasks-agent. Inbox: anything not calendar/finance → tasks-inbox. "turn task into event" link with calendar.
 - **Stage 4 — memory + inter-agent:** memory-service (pgvector recall, scope). AGE graph (Person/Place/Item nodes; likes/owns/related_to). LISTEN/NOTIFY bus in common + outbox in `bus`. First cross-agent chain: calendar.birthday_upcoming → creator.draft_greeting → notifier.send.
 - **Stage 5 — real LLM:** llm-gateway providers Anthropic + DeepSeek. Langfuse traces. Golden tests on real models.
-- **Stage 6+ — remaining agents:** chef → nutritionist → search → creator → stylist → briefing → ... Same structure each: schema (if needed) → MCP → skills → agent. **`stylist` STARTED early** (owner-chosen 2026-06-21): MVP = wardrobe catalogue + "analyse me" style profile (colour type / fabrics / body shape, via `mcp-media-processing` vision **analysis**) + capsule advice → **HTML** deliverables (PDF deferred). GPU visualise-me (CatVTON/Fooocus) + marketplace search deferred. PR-sliced in [stylist.md](stylist.md).
+- **Stage 6+ — remaining agents:** chef → nutritionist → search → creator → stylist → briefing → ... Same structure each: schema (if needed) → MCP → skills → agent. **`stylist` DONE through Phase 2** (owner-chosen 2026-06-21): MVP (ST-a..e) = `mcp-wardrobe` (port 8101) + `stylist-agent` (8102): wardrobe catalogue + "analyse me" style profile + capsule, all → **HTML** deliverables via a render seam (PDF deferred). **Phase 2 (ST-f..k)** = four **luxury-editorial boards** (Body & Style Analysis, Wardrobe Audit, Capsule, Gap Analysis) on a locked beige/Oranienbaum poster template (central photo anchor, hairline grid). **Image-gen line started (ST-l):** `mcp-image-gen` capability-MCP scaffolded with a **stub** engine — flip `IMAGE_GEN_ENGINE=local` to a self-hosted GPU model (owner's Mac Studio) later, no caller change; then bind it in stylist + wire the flows (board illustrations → virtual try-on). Still deferred: real generation engine + binding, marketplace buy-links, env-var theming, `outfit` catalogue (Fits-like, per-person). PR-sliced in [stylist.md](stylist.md).
 
 ## Candidate future agents (priority)
 - tasks-agent (GTD) — high. health-agent (Apple Health) — med. docs-agent (receipts/contracts, OCR+search) — med. briefing-agent (morning digest: weather+calendar+finance+news) — high (wow). family-memory-agent — med. travel-agent — low. email-agent — low. smart-home-agent — if Home Assistant present.
@@ -20,6 +20,11 @@ LOCKED, free/no-key) + a finance `investment-advisor` skill (**advisory-only**),
 [market-data.md](market-data.md).
 - **`mcp-media-processing` STT** (whisper, MP-d2) — ✅ **DONE** (PR123/124): `transcribe` over a whisper
   ASR sidecar; voice → text for any agent (finance voice capture, docs, …).
+- **`mcp-image-gen`** — `generate_image(prompt, refMediaIds?)` → store in media-service → media id.
+  **Scaffolded (ST-l, PR144)** with a **stub** engine behind an `ImageEngine` seam; flips to a
+  self-hosted local GPU model (owner's Mac Studio) by config (`IMAGE_GEN_ENGINE=local`). First
+  consumer: stylist (board illustrations, then virtual try-on via CatVTON/IDM-VTON with `refMediaIds`);
+  reusable by creator/briefing later. Real engine + stylist binding + flow wiring still to come.
 
 ## Finance vision beyond MVP (owner 2026-06-20 — detail in [finance.md](finance.md))
 MVP now = receipt→capture + confirm + spending **analysis**. Recorded-but-later, each on an existing
@@ -46,7 +51,7 @@ as its own service and bind a thin capability-MCP. Language of the upstream proj
 | [Agent-Reach](https://github.com/Panniantong/Agent-Reach) | 🟢 strong (35.5k★, MIT, active) | researcher **extension** | Python CLI "capability layer" w/ fallbacks: YouTube/Twitter/Reddit/Bilibili/**RSS** + **video transcripts**. Closes the deferred video/social slice. But CLI-oriented, pulls external svcs (Jina/Exa) + cookie auth. Take its *tools* (yt-dlp, RSS) as a follow-up `mcp-web` extension — don't replace the clean self-hosted SearXNG core. |
 | [Whisper](https://github.com/openai/whisper) | 🟢 adopt | MP-d2 (STT) | Already planned. Use faster-whisper/whisper.cpp for speed; run as a service behind `mcp-media-processing`'s `transcribe`. |
 | [CatVTON](https://github.com/Zheng-Chong/CatVTON) | 🟢 good | stylist (virtual try-on) | Python/diffusers, ICLR 2025, <8GB VRAM, self-host (Gradio/ComfyUI). **License CC-BY-NC-SA (non-commercial)** — fine for family. ⚠️ CUDA → on Apple-Silicon Mac Studio runs via MPS, not turnkey. |
-| [Fooocus](https://github.com/lllyasviel/Fooocus) | 🟢 good | stylist (image-gen) | SDXL gen by the ControlNet author, free/local. Needs API mode / ComfyUI for programmatic calls (Fooocus itself is a UI). Same Apple-Silicon GPU caveat. |
+| [Fooocus](https://github.com/lllyasviel/Fooocus) | 🟢 good | stylist (image-gen) — **engine candidate for `mcp-image-gen` `local`** | SDXL gen by the ControlNet author, free/local. Needs API mode / ComfyUI for programmatic calls (Fooocus itself is a UI). Same Apple-Silicon GPU caveat. The `mcp-image-gen` `LocalImageEngine` seam (ST-l) is where it plugs in. |
 | [Grafana](https://github.com/grafana/grafana) | 🟢 adopt | finance dashboards | Already in architecture (over `finance.*` + matviews). Run it, zero code. |
 | [pinterest-mcp-server](https://github.com/Fydel-Tools/pinterest-mcp-server) | 🔴 skip for now | stylist (inspiration) | TS, official Pinterest API — but **0★, 1 commit**, immature; and it's about *managing* your account (posting pins), not harvesting inspiration. Official-API search is weak. Find inspiration-harvesting another way. |
 | [AppFlowy](https://github.com/AppFlowy-IO/AppFlowy) | 🟡 caution | "visual digest" | Full Notion-alt (Rust+Flutter); programmatic doc-gen immature → overkill for a digest. Prefer Grafana / generated HTML-PDF. Adopt only for a full personal-wiki workspace. |
