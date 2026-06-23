@@ -7,7 +7,8 @@ mcp:
   - mcp-nutrition
   - mcp-media-processing
   - mcp-web
-skills: []
+skills:
+  - meal-logger
 intents:
   - example: Log my lunch — chicken with rice
     description: Record a meal in the food log.
