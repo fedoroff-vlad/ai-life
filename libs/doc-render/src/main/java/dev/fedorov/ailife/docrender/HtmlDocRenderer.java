@@ -137,6 +137,22 @@ public class HtmlDocRenderer implements DocRenderer {
             sb.append("</div>\n");
         }
 
+        // External link list (e.g. recipe links)
+        if (doc.links() != null && !doc.links().isEmpty()) {
+            sb.append("<div class=\"links\">\n");
+            for (Doc.LinkItem l : doc.links()) {
+                if (l == null || !notBlank(l.url())) continue;
+                String label = notBlank(l.label()) ? l.label() : l.url();
+                sb.append("<a class=\"lnk\" href=\"").append(esc(l.url()))
+                  .append("\" target=\"_blank\" rel=\"noopener noreferrer\">")
+                  .append(esc(label)).append("</a>\n");
+                if (notBlank(l.note())) {
+                    sb.append("<p class=\"lnote\">").append(esc(l.note())).append("</p>\n");
+                }
+            }
+            sb.append("</div>\n");
+        }
+
         sb.append("<footer>ai-life</footer>\n</div>\n</body>\n</html>\n");
         return new RenderedDoc(sb.toString().getBytes(StandardCharsets.UTF_8), "text/html", "doc.html");
     }
@@ -198,6 +214,10 @@ public class HtmlDocRenderer implements DocRenderer {
             .hero .hn{ font-size:.7rem; color:var(--soft); margin-top:.2rem; }
             .gallery{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:.7rem; padding:.4rem 0 1rem; }
             .gallery .g{ width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:6px; border:1px solid var(--line); background:#ddd2bd; }
+            .links{ padding:.4rem 0 1rem; }
+            .links .lnk{ display:block; padding:.7rem 0 .25rem; border-top:1px solid var(--line); font-family:var(--serif); letter-spacing:.04em; font-size:.95rem; color:var(--ink); text-decoration:none; }
+            .links .lnk:hover{ color:var(--gold); }
+            .links .lnote{ margin:0 0 .35rem; font-size:.78rem; color:var(--soft); }
             footer{ margin-top:1rem; padding:1rem 0; border-top:1px solid var(--line); color:var(--muted); font-size:.7rem; text-align:center; letter-spacing:.14em; }
             """;
 

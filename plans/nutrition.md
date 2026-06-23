@@ -193,7 +193,17 @@ Ration + chef (cases 1 & 2):
 - **CH-b — recipe flow**: ration/request → `mcp-web` recipe search (food.ru etc.) → an HTML recipe
   card (links + web photos) (a `recipe-finder` SKILL). The nutritionist's NU-g **invokes the chef**
   via the orchestrator hub (ration → recipes), so they work "together" (like gift-recommender →
-  finance).
+  finance). Split b1/b2 (the inter-agent hub call crosses a service boundary, like C1/D2).
+  **CH-b1 DONE (PR168): the direct recipe flow.** `flow/RecipeFinder` — a recipe-cue message → search
+  recipes via `mcp-web` → one LLM synthesis via the `recipe-finder` SKILL → render an HTML recipe card
+  (synthesized text + the real recipe links from the hits, never LLM-invented URLs) via the shared
+  `libs/doc-render` → store → link. Empty search → the skill falls back to simple dishes (no links).
+  **doc-render extended:** `Doc` gained the generic `links` list (`LinkItem`) the renderer shows as a
+  clickable list — the recipe-link generalisation, landed with its first consumer. New `recipe-finder`
+  SKILL; `IntentController` routes a recipe cue → `RecipeFinder`, else chat. Tested (`RecipeFinderTest`,
+  2 + `HtmlDocRendererTest` link-list case).
+  **CH-b2 — ration → recipes over the hub (next):** chef exposes a `/agents/chef/actions/*` recipe
+  endpoint; the nutritionist's NU-g invokes it via the orchestrator `/v1/agents/invoke`.
 
 Data precision:
 - **FD-a — `mcp-food-data` (Open Food Facts)** `food_lookup` + `/internal/food-lookup`; bound by the

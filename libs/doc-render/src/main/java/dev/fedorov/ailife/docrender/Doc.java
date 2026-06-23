@@ -9,11 +9,13 @@ import java.util.List;
  * bytes (luxury-editorial HTML today, PDF later via the same seam). The board is a header
  * ({@code kicker}/{@code title}/{@code subtitle} + an optional {@code featuredImageUrl}) plus any of:
  * keyed text {@code sections}, a colour {@code palette}, a {@code verdicts} grid (a status tile per
- * item), a {@code hero} row, and an image {@code gallery}. Each is optional — a flow fills only what
- * its board needs; the renderer skips empties. The flow supplies content; the renderer owns styling.
+ * item), a {@code hero} row, an image {@code gallery}, and a {@code links} list (labelled external
+ * URLs — e.g. recipe links). Each is optional — a flow fills only what its board needs; the renderer
+ * skips empties. The flow supplies content; the renderer owns styling.
  *
- * <p>Field generalisation for nutrition (a generic tile tone / a recipe-link list) lands with the
- * first nutrition consumer that needs it — the structure here is the stylist board lifted intact.
+ * <p>The {@code links} list is the generic recipe-link list nutrition anticipated — it landed with
+ * the chef's recipe card (CH-b), the first consumer that needed it; the rest is the stylist board
+ * lifted intact.
  */
 public record Doc(
         String kicker,
@@ -24,16 +26,17 @@ public record Doc(
         List<Swatch> palette,
         List<VerdictItem> verdicts,
         List<HeroItem> hero,
-        List<String> gallery) {
+        List<String> gallery,
+        List<LinkItem> links) {
 
     /** Back-compat: a text-only board (no gallery) — e.g. an early analysis page. */
     public Doc(String title, String subtitle, List<Section> sections) {
-        this(null, title, subtitle, null, sections, null, null, null, null);
+        this(null, title, subtitle, null, sections, null, null, null, null, null);
     }
 
     /** Back-compat: text board + an image gallery — e.g. an early capsule page. */
     public Doc(String title, String subtitle, List<Section> sections, List<String> gallery) {
-        this(null, title, subtitle, null, sections, null, null, null, gallery);
+        this(null, title, subtitle, null, sections, null, null, null, gallery, null);
     }
 
     public record Section(String heading, List<String> paragraphs) {
@@ -53,6 +56,10 @@ public record Doc(
     public record HeroItem(String name, String imageUrl, String note) {
     }
 
+    /** One external link: the visible label (e.g. a recipe title) + its URL, plus an optional note. */
+    public record LinkItem(String label, String url, String note) {
+    }
+
     public static Builder builder(String title) {
         return new Builder(title);
     }
@@ -68,6 +75,7 @@ public record Doc(
         private final List<VerdictItem> verdicts = new ArrayList<>();
         private final List<HeroItem> hero = new ArrayList<>();
         private final List<String> gallery = new ArrayList<>();
+        private final List<LinkItem> links = new ArrayList<>();
 
         private Builder(String title) {
             this.title = title;
@@ -102,13 +110,19 @@ public record Doc(
             return this;
         }
 
+        public Builder link(String label, String url, String note) {
+            links.add(new LinkItem(label, url, note));
+            return this;
+        }
+
         public Doc build() {
             return new Doc(kicker, title, subtitle, featuredImageUrl,
                     sections.isEmpty() ? null : sections,
                     palette.isEmpty() ? null : palette,
                     verdicts.isEmpty() ? null : verdicts,
                     hero.isEmpty() ? null : hero,
-                    gallery.isEmpty() ? null : gallery);
+                    gallery.isEmpty() ? null : gallery,
+                    links.isEmpty() ? null : links);
         }
     }
 }
