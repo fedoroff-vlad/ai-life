@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: nutritionist-agent
+  main:
+    web-application-type: reactive
+  ai:
+    mcp:
+      client:
+        # Binds mcp-nutrition (its data) + the shared mcp-media-processing (vision) +
+        # mcp-web (store lookup) so a future LLM-driven flow can pick their tools. The
+        # deterministic flows call the capabilities over their HTTP /internal passthroughs
+        # instead. Toggle off in dev/degraded envs.
+        enabled: ${NUTRITIONIST_AGENT_MCP_CLIENT_ENABLED:true}
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            mcp-nutrition:
+              url: ${MCP_NUTRITION_URL:http://mcp-nutrition:8104}
+            mcp-media-processing:
+              url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+            mcp-web:
+              url: ${MCP_WEB_URL:http://mcp-web:8098}
+
+server:
+  port: ${NUTRITIONIST_AGENT_PORT:8105}
+
+agent:
+  manifest-classpath: AGENT.md
+  skills-classpath: classpath*:skills/nutrition/*/SKILL.md
+  memory-recall-k: ${NUTRITIONIST_AGENT_MEMORY_RECALL_K:5}
+
+nutritionist-agent:
+  mcp-nutrition-url: ${MCP_NUTRITION_URL:http://mcp-nutrition:8104}
+  mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+  mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
+  memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
