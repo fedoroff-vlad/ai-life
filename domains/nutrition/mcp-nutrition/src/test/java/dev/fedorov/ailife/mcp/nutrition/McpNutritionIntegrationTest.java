@@ -34,7 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Tests aren't isolated across methods (shared SpringBootTest context + DB) — assertions
  * scope on per-test households to stay deterministic (mirrors mcp-wardrobe).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 class McpNutritionIntegrationTest {
 
@@ -60,6 +60,7 @@ class McpNutritionIntegrationTest {
 
     @Autowired NutritionMcpTools tools;
     @Autowired JdbcTemplate jdbc;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
@@ -207,6 +208,35 @@ class McpNutritionIntegrationTest {
         // list returns it; another household doesn't leak.
         assertThat(tools.listBaskets(h, null)).hasSize(1);
         assertThat(tools.getBasket(UUID.randomUUID())).isNull();
+    }
+
+    @Test
+    void internalMealEndpointLogsAnd400OnMissingDescription() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        MealLogDto added = client.post().uri("/internal/meal")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new LogMealInput(h, null, null, "photo", "куриный салат",
+                        null, 350, new BigDecimal("30.0"), null, null, UUID.randomUUID()))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(MealLogDto.class)
+                .returnResult().getResponseBody();
+        assertThat(added).isNotNull();
+        assertThat(added.description()).isEqualTo("куриный салат");
+        assertThat(added.source()).isEqualTo("photo");
+        assertThat(added.kcal()).isEqualTo(350);
+
+        // Missing description → the tool's required-field guard surfaces as 400.
+        client.post().uri("/internal/meal")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new LogMealInput(h, null, null, null, null, null, null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     private void seedHousehold(UUID id) {
