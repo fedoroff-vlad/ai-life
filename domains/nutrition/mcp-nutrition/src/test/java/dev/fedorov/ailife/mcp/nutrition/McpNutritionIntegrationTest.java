@@ -240,6 +240,41 @@ class McpNutritionIntegrationTest {
     }
 
     @Test
+    void internalMealsEndpointListsScopedAndLimited() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID owner = seedUser(h);
+        Instant base = Instant.now().minus(2, ChronoUnit.DAYS);
+        tools.logMeal(new LogMealInput(h, owner, base, "text", "завтрак", null, null, null, null, null, null));
+        tools.logMeal(new LogMealInput(h, owner, base.plus(1, ChronoUnit.DAYS), "text", "обед", null, null, null, null, null, null));
+        tools.logMeal(new LogMealInput(h, null, base, "text", "общий перекус", null, null, null, null, null, null));
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        List<MealLogDto> all = client.get()
+                .uri(b -> b.path("/internal/meals").queryParam("householdId", h).build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(MealLogDto.class).returnResult().getResponseBody();
+        assertThat(all).hasSize(3);
+        assertThat(all.get(0).description()).isEqualTo("обед");   // newest eaten first
+
+        // ownerId scope drops the household-shared meal.
+        List<MealLogDto> mine = client.get()
+                .uri(b -> b.path("/internal/meals").queryParam("householdId", h).queryParam("ownerId", owner).build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(MealLogDto.class).returnResult().getResponseBody();
+        assertThat(mine).hasSize(2);
+
+        // limit caps the result.
+        List<MealLogDto> one = client.get()
+                .uri(b -> b.path("/internal/meals").queryParam("householdId", h).queryParam("limit", 1).build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(MealLogDto.class).returnResult().getResponseBody();
+        assertThat(one).hasSize(1);
+    }
+
+    @Test
     void internalDietProfileEndpointUpsertsAndReads404ThenProfile() throws Exception {
         UUID h = UUID.randomUUID();
         seedHousehold(h);
