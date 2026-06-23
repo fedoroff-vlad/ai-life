@@ -24,6 +24,12 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>platform-common</artifactId>
         </dependency>
+        <!-- Event-bus consumer: drains basket.captured off bus.outbox (IA-b) and forwards it to
+             nutritionist-agent — agents stay DB-less, so the bus listener lives in the domain-MCP. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>event-bus</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -70,6 +76,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

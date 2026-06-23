@@ -687,6 +687,9 @@ services:
       MCP_NUTRITION_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_NUTRITION_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_NUTRITION_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      # IA-b: the basket.captured bus consumer forwards to nutritionist-agent. No depends_on
+      # (that would cycle — nutritionist-agent depends_on mcp-nutrition); the forward is retried.
+      NUTRITIONIST_AGENT_URL: http://nutritionist-agent:8105
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8104/actuator/health"]
       interval: 10s

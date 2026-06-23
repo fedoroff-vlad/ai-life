@@ -24,6 +24,10 @@ spring:
           household+owner), and analysed grocery baskets. Macros are best-effort estimates;
           meal/receipt photos live in media-service, rows carry the media id, not the bytes.
 
+mcp-nutrition:
+  # Where the basket.captured bus consumer (IA-b) forwards the event for the breakdown.
+  nutritionist-agent-url: ${NUTRITIONIST_AGENT_URL:http://nutritionist-agent:8105}
+
 server:
   port: ${MCP_NUTRITION_PORT:8104}
 
