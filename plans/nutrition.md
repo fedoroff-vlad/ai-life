@@ -121,7 +121,20 @@ Nutrition core:
   basket `items` converts to/from `List<BasketItem>` via the shared `ObjectMapper`). Internal `/internal/*`
   passthroughs land with the agent flows (NU-c/d/f). Tested (`McpNutritionIntegrationTest`, 7 cases).
 - **NU-b — `nutritionist-agent` scaffold + orchestrator registration** (binds `mcp-nutrition` +
-  `mcp-media-processing` + `mcp-web`; chat fallback). Template `stylist-agent`.
+  `mcp-media-processing` + `mcp-web`; chat fallback). Template `stylist-agent`. **DONE (PR153):**
+  `domains/nutrition/nutritionist-agent` (port 8105), `@Import(AgentRuntimeConfig)`; AGENT.md
+  (`name: nutritionist`, the three MCPs, `skills: []` until NU-c, **+ the infant/medical-safety rule**)
+  served at `GET /agents/nutritionist/manifest`. Binds the three MCPs over SSE (future LLM-driven
+  selection; the NU-c.. flows call them over `/internal/*` HTTP passthroughs). `IntentController` ships
+  the `chat/NutritionistChat` fallback (one LLM turn, AGENT.md as system prompt — replaced branch-by-
+  branch as flows land). `config/NutritionistAgentProperties` (the three MCP URLs + profile/notifier/
+  memory) + `config/OutboundHttpConfig` (`mcpNutrition/mcpMediaProcessing/mcpWeb` WebClients + the
+  qualified profile/notifier/memory beans the shared runtime clients pick up). Registered in
+  orchestrator `application.yml` (`{name: nutritionist}` + `NUTRITIONIST_AGENT_URL`, manifest-driven —
+  no orchestrator Java change). Tested (`ManifestControllerTest`: full context boots MCP-client-disabled,
+  AGENT.md parsed, runtime beans + LlmClient + NutritionistChat resolve, manifest lists all three
+  capabilities). Wired into root pom, compose, `.env.example`, infra/README (port 8105). Full reactor
+  compiles; module suite green.
 - **NU-c — food-log flow** (c1/c2): meal photo → `caption` extract (a `meal-logger` SKILL) / typed
   meal → LLM extract → write via `/internal/meal`, write-immediately.
 - **NU-d — diet profile** (multi-person): `/internal/diet-profile` → `set_diet_profile`; set

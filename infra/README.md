@@ -81,6 +81,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | stylist-agent        | 8102 | Stylist domain agent (binds mcp-wardrobe + media-processing + web) |
 | mcp-image-gen        | 8103 | Image-generation capability-MCP (stub now, local model later)    |
 | mcp-nutrition        | 8104 | Nutrition CRUD MCP (meal log + diet profile + basket)            |
+| nutritionist-agent   | 8105 | Nutrition domain agent (binds mcp-nutrition + media-processing + web) |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

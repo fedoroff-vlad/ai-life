@@ -24,6 +24,8 @@ orchestrator:
       base-url: ${RESEARCHER_AGENT_URL:http://researcher-agent:8099}
     - name: stylist
       base-url: ${STYLIST_AGENT_URL:http://stylist-agent:8102}
+    - name: nutritionist
+      base-url: ${NUTRITIONIST_AGENT_URL:http://nutritionist-agent:8105}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
