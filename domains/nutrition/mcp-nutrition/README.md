@@ -46,8 +46,8 @@ Non-MCP, no LLM tax — for an agent that already has a concrete input and just 
   profile (null ownerId = household-default); 404 when unset. Used by the analysis/ration gathers (NU-e/g).
 - `GET /internal/meals?householdId=&ownerId=&limit=` → `List<MealLogDto>` — recent meals, newest-eaten
   first, via `list_meals` (same `ownerId` scope + `limit`). Used by the nutrition-analysis gather (NU-e).
-
-The remaining passthroughs (`/internal/basket`, …) land with the later nutritionist-agent flows (NU-f).
+- `POST /internal/basket` (body `SaveBasketInput`) → `BasketDto` | 400 — saves an analysed grocery
+  basket via `save_basket` (required-field guard applies). Used by the basket-breakdown flow (NU-f).
 
 ## Env
 
@@ -75,6 +75,7 @@ The remaining passthroughs (`/internal/basket`, …) land with the later nutriti
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 - `web/InternalMealController` — `POST /internal/meal`, delegates to `log_meal` (400 on bad input).
 - `web/InternalMealsController` — `GET /internal/meals`, delegates to `list_meals` (ownerId scope + limit).
+- `web/InternalBasketController` — `POST /internal/basket`, delegates to `save_basket` (400 on bad input).
 - `web/InternalDietProfileController` — `POST /internal/diet-profile` (set, 400 on bad input) +
   `GET /internal/diet-profile` (read, 404 when unset), over `set_diet_profile` / `get_diet_profile`.
 
