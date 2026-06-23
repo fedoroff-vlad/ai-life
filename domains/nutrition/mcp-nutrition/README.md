@@ -39,9 +39,13 @@ Non-MCP, no LLM tax — for an agent that already has a concrete input and just 
 - `POST /internal/meal` (body `LogMealInput`) → `MealLogDto` | 400 — logs a meal, delegating to the
   `log_meal` tool (required-field guards apply). Used by nutritionist-agent's food-log flow (NU-c).
   Mirrors mcp-wardrobe's `/internal/item`.
+- `POST /internal/diet-profile` (body `SetDietProfileInput`) → `DietProfileDto` | 400 — upserts a
+  person's diet profile via `set_diet_profile` ((household,owner) keying applies). Used by the
+  diet-profiler flow (NU-d).
+- `GET /internal/diet-profile?householdId=&ownerId=` → `DietProfileDto` | 404 — reads the person's
+  profile (null ownerId = household-default); 404 when unset. Used by the analysis/ration gathers (NU-e/g).
 
-The remaining passthroughs (`/internal/diet-profile`, `/internal/basket`, …) land with the later
-nutritionist-agent flows (NU-d/f).
+The remaining passthroughs (`/internal/basket`, …) land with the later nutritionist-agent flows (NU-f).
 
 ## Env
 
@@ -68,6 +72,8 @@ nutritionist-agent flows (NU-d/f).
   required-field checks; everything else relies on DB constraints.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 - `web/InternalMealController` — `POST /internal/meal`, delegates to `log_meal` (400 on bad input).
+- `web/InternalDietProfileController` — `POST /internal/diet-profile` (set, 400 on bad input) +
+  `GET /internal/diet-profile` (read, 404 when unset), over `set_diet_profile` / `get_diet_profile`.
 
 ## Schema
 

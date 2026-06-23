@@ -152,6 +152,11 @@ Nutrition core:
   llm `/v1/chat`+write source=text; "not a meal" → reply, no write; MockWebServers). Module suite green (4).
 - **NU-d — diet profile** (multi-person): `/internal/diet-profile` → `set_diet_profile`; set
   profiles for self / wife / infant (a `diet-profiler` SKILL) from typed goals/restrictions.
+  **NU-d1 DONE (PR156): mcp-nutrition `POST` + `GET /internal/diet-profile` passthroughs** →
+  `set_diet_profile` / `get_diet_profile` (`web/InternalDietProfileController`, 400 on bad set /
+  404 on unset read; (household,owner) keying; mirror mcp-wardrobe's `/internal/profile`). Tested
+  (`McpNutritionIntegrationTest` now 9: upsert-in-place + 404-then-200 read). **NU-d2 (agent
+  diet-profiler flow) next.**
 - **NU-e — nutrition-analysis board** (`Coordinator`): gather `{recent meals, diet_profile}` → one
   LLM synthesis (a `nutrition-analyst` SKILL: intake vs goals, deficits/excesses, recommendations) →
   render via `libs/doc-render` → store → link.
