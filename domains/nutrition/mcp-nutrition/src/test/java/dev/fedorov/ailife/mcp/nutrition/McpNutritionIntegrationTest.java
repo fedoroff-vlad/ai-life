@@ -239,6 +239,51 @@ class McpNutritionIntegrationTest {
                 .expectStatus().isBadRequest();
     }
 
+    @Test
+    void internalDietProfileEndpointUpsertsAndReads404ThenProfile() throws Exception {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID owner = seedUser(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        DietProfileDto saved = client.post().uri("/internal/diet-profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetDietProfileInput(h, owner, 2000, new BigDecimal("140.0"), null, null,
+                        MAPPER.readTree("[\"no-nuts\"]"), null, "cutting"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(DietProfileDto.class)
+                .returnResult().getResponseBody();
+        assertThat(saved).isNotNull();
+        assertThat(saved.goalKcal()).isEqualTo(2000);
+        assertThat(saved.restrictions().get(0).asText()).isEqualTo("no-nuts");
+
+        // Second post for the same (household, owner) updates in place — still one row.
+        client.post().uri("/internal/diet-profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetDietProfileInput(h, owner, 1800, null, null, null, null, null, "maintenance"))
+                .exchange()
+                .expectStatus().isOk();
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM nutrition.diet_profile WHERE household_id = ? AND owner_id = ?",
+                Integer.class, h, owner);
+        assertThat(rows).isEqualTo(1);
+
+        // GET — 404 for an unset person, 200 after the set.
+        client.get().uri(b -> b.path("/internal/diet-profile")
+                        .queryParam("householdId", h).queryParam("ownerId", UUID.randomUUID()).build())
+                .exchange().expectStatus().isNotFound();
+        DietProfileDto got = client.get()
+                .uri(b -> b.path("/internal/diet-profile")
+                        .queryParam("householdId", h).queryParam("ownerId", owner).build())
+                .exchange().expectStatus().isOk()
+                .expectBody(DietProfileDto.class).returnResult().getResponseBody();
+        assertThat(got).isNotNull();
+        assertThat(got.goalKcal()).isEqualTo(1800);
+    }
+
     private void seedHousehold(UUID id) {
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", id, "h-" + id);
     }
