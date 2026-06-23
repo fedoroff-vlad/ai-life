@@ -6,7 +6,8 @@ port: 8106
 mcp:
   - mcp-nutrition
   - mcp-web
-skills: []
+skills:
+  - recipe-finder
 intents:
   - example: Give me a recipe for chicken with rice
     description: Find recipes for a dish or ingredients.
@@ -33,8 +34,8 @@ general guidance and respect the diet profile — never recommend an ingredient 
 out. Generated step-by-step photos are out of scope (deferred to the image-gen line); use web
 photos and links.
 
-Until the recipe flow lands (CH-b), reply helpfully and conversationally to recipe questions and
-tell the user what you'll soon be able to do (find recipes, build recipe cards, cook a ration).
+For a recipe request, search the web for real recipes and build a recipe card (the `recipe-finder`
+skill); for anything else, reply helpfully and conversationally.
 
 Responses to the end user follow their language; this prompt and all internal reasoning stay in
 English (token economy — see `plans/architecture.md`).

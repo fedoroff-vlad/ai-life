@@ -86,6 +86,24 @@ class HtmlDocRendererTest {
     }
 
     @Test
+    void rendersExternalLinkList() {
+        Doc doc = Doc.builder("Рецепты")
+                .section("Что приготовить", List.of("Три рецепта под ваш рацион."))
+                .link("Паста с курицей", "https://food.ru/recipes/pasta", "30 минут")
+                .link("Овощное рагу", "https://food.ru/recipes/ragu", null)
+                .build();
+
+        String html = new String(renderer.render(doc).content(), StandardCharsets.UTF_8);
+        assertThat(html).contains("class=\"links\"");
+        assertThat(html).contains("href=\"https://food.ru/recipes/pasta\"")
+                .contains("target=\"_blank\"")
+                .contains("rel=\"noopener noreferrer\"")
+                .contains("Паста с курицей")
+                .contains("30 минут")
+                .contains("Овощное рагу");
+    }
+
+    @Test
     void escapesHtmlInContent() {
         Doc doc = new Doc("T", null,
                 List.of(new Doc.Section("H", List.of("a <script> & \"x\""))));
