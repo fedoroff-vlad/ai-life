@@ -109,7 +109,9 @@ layer's job — this MCP is intentionally low-level.
 
 ## Key classes
 
-- `McpFinanceApplication`.
+- `McpFinanceApplication` — `@Import(EventBusConfig)` for the `OutboxPublisher` (basket.captured drop-point).
+- `web/InternalBasketCapturedController` — `POST /internal/basket-captured`, enqueues the
+  `BasketCapturedEvent` onto `bus.outbox` via the `OutboxPublisher` (IA-a fan-out producer).
 - `domain/FinAccount` + `FinAccountRepository` — JPA over `finance.fin_account`.
 - `domain/FinCategory` + `FinCategoryRepository` — JPA over `finance.fin_category`.
 - `domain/FinTransaction` + `FinTransactionRepository` — JPA over
@@ -195,6 +197,12 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   descending). The deterministic gather path finance-agent's `financial-advisor`
   flow calls to build a spending snapshot before the LLM synthesis. The MCP tool
   stays the entry point for an LLM-driven question.
+- `POST /internal/basket-captured` (body `BasketCapturedEvent`) → 202 | 400 on
+  missing `householdId`. Durable async drop-point for the **`basket.captured`**
+  fan-out (IA-a): the DB-less finance-agent posts a recognised grocery basket
+  here, and mcp-finance enqueues it onto `bus.outbox` via the `OutboxPublisher`
+  for `nutritionist-agent` to consume (IA-b). Mirrors memory-service's
+  `POST /v1/observations` drop-point, scoped to the finance domain's own event.
 
 ## Schema
 

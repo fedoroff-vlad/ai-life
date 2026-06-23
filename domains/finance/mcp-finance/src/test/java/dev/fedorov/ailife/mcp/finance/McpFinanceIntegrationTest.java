@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.mcp.finance;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.BalanceResult;
 import dev.fedorov.ailife.contracts.finance.BudgetStatusResult;
@@ -23,6 +24,7 @@ import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import dev.fedorov.ailife.contracts.finance.UpsertAccountInput;
 import dev.fedorov.ailife.contracts.finance.UpsertCategoryInput;
 import dev.fedorov.ailife.contracts.finance.UpsertRecurringInput;
+import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.mcp.finance.tools.FinanceMcpTools;
 import okhttp3.mockwebserver.Dispatcher;
@@ -1255,6 +1257,42 @@ class McpFinanceIntegrationTest {
                         .queryParam("from", "2026-04-01T00:00:00Z")
                         .queryParam("to", "2026-03-01T00:00:00Z")
                         .build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void internalBasketCapturedPublishesToOutboxAnd400OnMissingHousehold() throws Exception {
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "basket hh");
+        UUID receiptMediaId = UUID.randomUUID();
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        client.post().uri("/internal/basket-captured")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new BasketCapturedEvent(hh, null, "Лента",
+                        List.of(new BasketItem("молоко", "1 л", null, null, null, null),
+                                new BasketItem("яблоки", "1 кг", null, null, null, null)),
+                        receiptMediaId, Instant.now()))
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // The event is durably enqueued on the bus for the nutrition consumer (IA-b).
+        Long rows = jdbc.queryForObject(
+                "SELECT count(*) FROM bus.outbox WHERE topic = ? AND household_id = ?",
+                Long.class, BasketCapturedEvent.TOPIC, hh);
+        assertThat(rows).isEqualTo(1L);
+        String payload = jdbc.queryForObject(
+                "SELECT payload::text FROM bus.outbox WHERE topic = ? AND household_id = ?",
+                String.class, BasketCapturedEvent.TOPIC, hh);
+        assertThat(payload).contains("Лента").contains("молоко").contains(receiptMediaId.toString());
+
+        // Missing householdId → 400, nothing enqueued.
+        client.post().uri("/internal/basket-captured")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new BasketCapturedEvent(null, null, "X", List.of(), null, Instant.now()))
                 .exchange()
                 .expectStatus().isBadRequest();
     }
