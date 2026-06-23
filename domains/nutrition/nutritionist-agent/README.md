@@ -28,7 +28,12 @@ replace the fallback branch-by-branch:
   **typed list** ("разбери продукты", "список покупок") → one LLM turn — both via the `basket-analyst`
   SKILL (with the diet profile folded in) → КБЖУ + good/watch/cut verdict → save via `/internal/basket`
   → HTML verdict board → link. `basket/BasketBreakdown`.
-- **IA-b** — basket breakdown auto-triggered off the `basket.captured` bus event (the case-1 fan-out).
+- **IA-b — basket breakdown off the bus (case-1 fan-out). Endpoint DONE (IA-b1).** `POST
+  /internal/basket-event` (body `BasketCapturedEvent`) → `BasketBreakdown.breakdownFromEvent`: one LLM
+  breakdown over the line items finance already extracted (no re-vision) → save basket → render verdict
+  board → **notify the household** (no user reply channel on a bus consume, so it fans out like the
+  gift-recommender). Best-effort; returns 202. mcp-nutrition's bus consumer (IA-b2) forwards the
+  `basket.captured` event here — agents stay DB-less, so the bus listener lives in the domain-MCP.
 - **NU-g** — ration + shopping list (multi-person `Coordinator` flow; invokes `chef-agent`).
 
 ## Endpoints
@@ -38,6 +43,9 @@ replace the fallback branch-by-branch:
   food-log; a profile cue → diet-profiler; an analysis cue → nutrition-analysis; a basket cue →
   basket breakdown; a food-log cue → food-log; else chat.
 - `GET /agents/nutritionist/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
+- `POST /internal/basket-event` (body `BasketCapturedEvent`) → 202 — the IA-b fan-out entry;
+  mcp-nutrition's bus consumer forwards a `basket.captured` event here, the agent runs the breakdown
+  and notifies the household.
 
 ## Env
 
@@ -71,6 +79,9 @@ replace the fallback branch-by-branch:
 - `basket/BasketBreakdown` — the basket-breakdown flow: a basket photo (caption) / typed list (LLM)
   → one extraction+breakdown pass via the `basket-analyst` SKILL (diet profile folded in) → save via
   `/internal/basket` → render a good/watch/cut verdict board via `libs/doc-render` → store → link.
+  `breakdownFromEvent` (IA-b) is the bus-fan-out variant: given the line items finance already
+  extracted, it runs the breakdown and **notifies the household** instead of replying.
+- `web/InternalBasketEventController` — `POST /internal/basket-event`, the IA-b consume entry.
 - `config/RenderConfig` — the shared `DocRenderer` bean (lib default `DocTheme`).
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
