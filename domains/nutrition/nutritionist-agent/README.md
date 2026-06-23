@@ -6,12 +6,13 @@ shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media
 (vision caption for meal/receipt photos) + `mcp-web` (store/availability lookup). Routes via the
 orchestrator (registered as `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (NU-b scaffold)
+## Status (through NU-c)
 
-Scaffold only: the manifest endpoint + a chat fallback. The real flows replace the fallback
-branch-by-branch:
-- **NU-c** — food log (typed / photo meal → `mcp-media-processing` caption → write via
-  `mcp-nutrition /internal/meal`).
+Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c). Remaining flows replace
+the fallback branch-by-branch:
+- **NU-c — food log. DONE.** A meal photo → `mcp-media-processing` caption extract, or a typed meal
+  ("съел…", "на обед…", "запиши…") → one LLM extract, both via the `meal-logger` SKILL → write
+  **write-immediately** to `mcp-nutrition`'s `/internal/meal` (attributed to the sender). `foodlog/FoodLogger`.
 - **NU-d** — multi-person diet profiles (`/internal/diet-profile`).
 - **NU-e** — nutrition-analysis HTML board (shared `libs/doc-render`).
 - **NU-f** — basket breakdown (direct); **IA-b** — basket breakdown auto-triggered off the
@@ -21,7 +22,7 @@ branch-by-branch:
 ## Endpoints
 
 - `POST /agents/nutritionist/intent` (body `NormalizedMessage`) → `IntentResponse` — the
-  orchestrator's entry point. Currently always the chat fallback.
+  orchestrator's entry point. A photo → food-log; a typed food-log cue → food-log; else chat.
 - `GET /agents/nutritionist/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 
 ## Env
@@ -43,9 +44,19 @@ branch-by-branch:
 - `config/NutritionistAgentProperties` — the outbound base URLs (`nutritionist-agent.*`).
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency; the
   `profile/notifier/memory` qualified beans back the shared runtime clients.
-- `chat/NutritionistChat` — the scaffold chat fallback (one LLM turn, AGENT.md as system prompt).
-- `web/IntentController` — `POST /intent` (→ chat for now).
+- `chat/NutritionistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
+- `foodlog/FoodLogger` — the food-log flow: photo → caption / typed → LLM extract, both via the
+  `meal-logger` SKILL, write-immediately to `/internal/meal` (attributed to the sender).
+- `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
+- `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write).
+- `web/IntentController` — `POST /intent` (photo / food-log cue → FoodLogger; else chat).
 - `web/ManifestController` — `GET /manifest`.
+
+## Skills
+
+- `meal-logger` (`domains/nutrition/skills/meal-logger/SKILL.md`) — strict-JSON meal extraction
+  (description, items, best-effort КБЖУ), shared by both the photo (caption instruction) and typed
+  (LLM system prompt) paths.
 
 ## AGENT.md
 

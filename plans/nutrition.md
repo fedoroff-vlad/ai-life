@@ -140,7 +140,16 @@ Nutrition core:
   mcp-nutrition `POST /internal/meal` add-passthrough → `log_meal` (`web/InternalMealController`,
   400 on the required-field guard; reuses `LogMealInput`; mirror ST-c1). Tested
   (`McpNutritionIntegrationTest` now 8: WebTestClient POST logs a meal + missing-description → 400).
-  **NU-c2 (agent food-log flow) next.**
+  **NU-c2 DONE (PR155): nutritionist-agent food-log flow — NU-c COMPLETE.** `foodlog/FoodLogger`
+  handles BOTH a meal **photo** (→ `mcp-media-processing` `caption` via new `http/CaptionClient` →
+  `/internal/caption`) and a **typed** meal (→ one llm-gateway `DEFAULT` turn), both using the new
+  `meal-logger` SKILL as the strict-JSON extract prompt → lenient-parse → **write-immediately** via
+  new `http/MealClient` → mcp-nutrition `/internal/meal`, attributed to the sender (`ownerId = userId`).
+  `IntentController` routes a photo → `logPhoto` (the default photo route until NU-f's basket split),
+  a typed food-log cue ("съел…/на обед…/запиши…") → `logText`, else the chat fallback. New skill
+  `domains/nutrition/skills/meal-logger/SKILL.md`; AGENT.md `skills:` += meal-logger. Tested
+  (`FoodLoggerTest`, 3: photo→caption(+note)+write asserts source=photo/ownerId/imageMediaId; typed→
+  llm `/v1/chat`+write source=text; "not a meal" → reply, no write; MockWebServers). Module suite green (4).
 - **NU-d — diet profile** (multi-person): `/internal/diet-profile` → `set_diet_profile`; set
   profiles for self / wife / infant (a `diet-profiler` SKILL) from typed goals/restrictions.
 - **NU-e — nutrition-analysis board** (`Coordinator`): gather `{recent meals, diet_profile}` → one
