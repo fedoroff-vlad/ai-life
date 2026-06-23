@@ -30,6 +30,11 @@ public class OutboundHttpConfig {
     }
 
     @Bean
+    public WebClient mediaServiceWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
+        return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
     public WebClient profileServiceWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
         return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
     }

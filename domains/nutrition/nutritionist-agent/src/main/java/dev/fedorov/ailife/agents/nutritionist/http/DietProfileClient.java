@@ -6,9 +6,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * Calls the {@code mcp-nutrition} domain-MCP's {@code POST /internal/diet-profile} passthrough
@@ -34,5 +36,22 @@ public class DietProfileClient {
                 .retrieve()
                 .bodyToMono(DietProfileDto.class)
                 .timeout(Duration.ofSeconds(10));
+    }
+
+    /**
+     * Read a person's diet profile (null ownerId = household-default). A 404 (none set yet) maps to
+     * an empty Mono, so the analysis/ration gathers just omit the profile constraint.
+     */
+    public Mono<DietProfileDto> get(UUID householdId, UUID ownerId) {
+        return http.get()
+                .uri(b -> {
+                    b.path("/internal/diet-profile").queryParam("householdId", householdId);
+                    if (ownerId != null) b.queryParam("ownerId", ownerId);
+                    return b.build();
+                })
+                .retrieve()
+                .bodyToMono(DietProfileDto.class)
+                .timeout(Duration.ofSeconds(10))
+                .onErrorResume(WebClientResponseException.NotFound.class, e -> Mono.empty());
     }
 }

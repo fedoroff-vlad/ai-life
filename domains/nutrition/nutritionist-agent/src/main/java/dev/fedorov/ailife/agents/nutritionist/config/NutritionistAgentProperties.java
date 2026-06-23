@@ -15,12 +15,28 @@ public class NutritionistAgentProperties {
     private String mcpNutritionUrl = "http://mcp-nutrition:8104";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpWebUrl = "http://mcp-web:8098";
+    private String mediaServiceUrl = "http://media-service:8088";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
 
+    /**
+     * Public base URL a stored deliverable link is built from (so the user can open it on any
+     * device). Defaults to the internal media-service URL; set to a publicly-reachable gateway base
+     * in a real deployment. The link is {@code <base>/v1/media/{id}}.
+     */
+    private String publicMediaBaseUrl = "http://media-service:8088";
+
     public String getMcpNutritionUrl() { return mcpNutritionUrl; }
     public void setMcpNutritionUrl(String mcpNutritionUrl) { this.mcpNutritionUrl = mcpNutritionUrl; }
+
+    public String getMediaServiceUrl() { return mediaServiceUrl; }
+    public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
+
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {
+        this.publicMediaBaseUrl = publicMediaBaseUrl;
+    }
 
     public String getMcpMediaProcessingUrl() { return mcpMediaProcessingUrl; }
     public void setMcpMediaProcessingUrl(String mcpMediaProcessingUrl) {
