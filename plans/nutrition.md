@@ -155,8 +155,16 @@ Nutrition core:
   **NU-d1 DONE (PR156): mcp-nutrition `POST` + `GET /internal/diet-profile` passthroughs** →
   `set_diet_profile` / `get_diet_profile` (`web/InternalDietProfileController`, 400 on bad set /
   404 on unset read; (household,owner) keying; mirror mcp-wardrobe's `/internal/profile`). Tested
-  (`McpNutritionIntegrationTest` now 9: upsert-in-place + 404-then-200 read). **NU-d2 (agent
-  diet-profiler flow) next.**
+  (`McpNutritionIntegrationTest` now 9: upsert-in-place + 404-then-200 read). **NU-d2 DONE (PR157):
+  nutritionist-agent diet-profiler flow — NU-d COMPLETE.** New `profile/DietProfiler`: a typed
+  diet-profile cue → one llm-gateway turn with the new `diet-profiler` SKILL → extract `{scope, macro
+  goals, restrictions, tastes, notes}` → upsert via new `http/DietProfileClient` → `/internal/diet-profile`.
+  Scope `self` → `ownerId = userId`, `household` → `ownerId = null` (default). Named ad-hoc people
+  (wife/infant) are carried inline in the NU-g ration request, not stored as owner rows
+  (`diet_profile.owner_id` → `core.users`). `IntentController` routes a profile cue ("моя цель…/у меня
+  аллергия…") → diet-profiler before the food-log cue. New skill `diet-profiler`; AGENT.md `skills:`
+  += diet-profiler. Tested (`DietProfilerTest`, 3: self-scope upsert with restrictions; household-scope
+  → ownerId omitted; "not a profile" → reply, no write). Module suite green (7).
 - **NU-e — nutrition-analysis board** (`Coordinator`): gather `{recent meals, diet_profile}` → one
   LLM synthesis (a `nutrition-analyst` SKILL: intake vs goals, deficits/excesses, recommendations) →
   render via `libs/doc-render` → store → link.
