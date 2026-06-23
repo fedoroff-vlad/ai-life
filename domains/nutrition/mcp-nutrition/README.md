@@ -49,6 +49,15 @@ Non-MCP, no LLM tax — for an agent that already has a concrete input and just 
 - `POST /internal/basket` (body `SaveBasketInput`) → `BasketDto` | 400 — saves an analysed grocery
   basket via `save_basket` (required-field guard applies). Used by the basket-breakdown flow (NU-f).
 
+## Bus consumer (IA-b)
+
+mcp-nutrition consumes the **`basket.captured`** event off `bus.outbox` (finance is the producer,
+IA-a) and forwards it to nutritionist-agent's `POST /internal/basket-event`, where the breakdown
+runs. Agents stay DB-less, so the bus listener lives here in the domain-MCP (owner-chosen
+2026-06-23). Retry policy mirrors notifier/memory consumers: a transient forward failure (agent
+5xx / timeout / down) throws → the row stays PENDING and is retried; a foreign topic / bad payload
+is accepted (marked PUBLISHED), not retried.
+
 ## Env
 
 | Var | Default | Purpose |
@@ -56,6 +65,7 @@ Non-MCP, no LLM tax — for an agent that already has a concrete input and just 
 | `MCP_NUTRITION_PORT` | `8104` | HTTP port |
 | `MCP_NUTRITION_DB_URL` | `jdbc:postgresql://localhost:5432/ailife` | Postgres |
 | `MCP_NUTRITION_DB_USER` / `MCP_NUTRITION_DB_PASSWORD` | `ailife` | DB credentials |
+| `NUTRITIONIST_AGENT_URL` | `http://nutritionist-agent:8105` | where the basket.captured consumer forwards (IA-b) |
 
 ## Key classes
 
@@ -76,6 +86,10 @@ Non-MCP, no LLM tax — for an agent that already has a concrete input and just 
 - `web/InternalMealController` — `POST /internal/meal`, delegates to `log_meal` (400 on bad input).
 - `web/InternalMealsController` — `GET /internal/meals`, delegates to `list_meals` (ownerId scope + limit).
 - `web/InternalBasketController` — `POST /internal/basket`, delegates to `save_basket` (400 on bad input).
+- `bus/BasketCapturedHandler` + `config/EventBusListenerConfig` — the IA-b bus consumer: drains
+  `basket.captured` and forwards it to nutritionist-agent's `/internal/basket-event` (throw-on-transient
+  retry). `config/HttpConfig` (`nutritionistAgentWebClient`) + `config/McpNutritionProperties`
+  (`mcp-nutrition.nutritionist-agent-url`). `McpNutritionApplication` `@Import(EventBusConfig)`.
 - `web/InternalDietProfileController` — `POST /internal/diet-profile` (set, 400 on bad input) +
   `GET /internal/diet-profile` (read, 404 when unset), over `set_diet_profile` / `get_diet_profile`.
 

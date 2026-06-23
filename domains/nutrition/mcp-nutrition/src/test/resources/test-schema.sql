@@ -76,3 +76,18 @@ CREATE TABLE IF NOT EXISTS nutrition.basket (
 );
 
 CREATE INDEX IF NOT EXISTS ix_basket_household_captured ON nutrition.basket (household_id, captured_at DESC);
+
+-- Mirrors infra/liquibase/features/007-bus.yml — needed for the basket.captured consumer (IA-b).
+CREATE SCHEMA IF NOT EXISTS bus;
+
+CREATE TABLE IF NOT EXISTS bus.outbox (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    topic         varchar(128) NOT NULL,
+    household_id  uuid,
+    payload       jsonb NOT NULL DEFAULT '{}'::jsonb,
+    status        varchar(16) NOT NULL DEFAULT 'PENDING',
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    published_at  timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS ix_outbox_pending ON bus.outbox (status, created_at);
