@@ -15,6 +15,13 @@ Do NOT re-read a file you already read this session. Do NOT broad-Glob/Grep the 
 ## README upkeep — non-negotiable
 Every module has a `README.md` at its root. Every PR that changes a module's **public contract** (env vars, endpoints, MCP tools, key class names, behaviour summary, port, manifest) **must update that module's README in the same PR.** READMEs that drift past one PR are worse than no READMEs at all — they actively mislead future sessions. Folder-level READMEs only exist where the grouping isn't obvious from filenames (e.g. `config/`, `sync/`). Don't add folder READMEs that just enumerate filenames.
 
+**Three blind spots that drift anyway — check them explicitly (they're not in the session reading order, so nothing forces a look):**
+1. **The root [`README.md`](README.md)** counts as a module README. Bump its Status line + layout when a stage closes or the repo restructures.
+2. **A capability/lib README when you *bind/consume* it, not just when you change it.** Binding `mcp-web` from a new agent, or adding a `libs/doc-render` consumer, is a change to *that* module's "who uses me" surface — update its README in your PR even though your code lives elsewhere. The "same PR" rule is about the *contract you touched*, and a consumer list is part of it.
+3. **The README's Status/summary header, not just the body.** It's easy to extend the key-classes list and forget the `Status (X)` line above it — bump both.
+
+At every **stage/domain closer**, do a quick freshness pass: root README + `plans/{STATUS,roadmap,architecture,INDEX}.md` + the closed domain's module READMEs (status headers especially).
+
 ## Work style — minimise overthinking
 - One PR = one small vertical slice. If a task needs >~5 files changed, STOP and propose splitting before writing code.
 - Don't restate the plan or re-derive the architecture. Assume the plan is correct and act.
