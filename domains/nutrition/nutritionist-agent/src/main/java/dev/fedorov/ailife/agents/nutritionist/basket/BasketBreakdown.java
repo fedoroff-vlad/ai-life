@@ -2,6 +2,8 @@ package dev.fedorov.ailife.agents.nutritionist.basket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.http.NotifierClient;
+import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
@@ -12,6 +14,7 @@ import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -63,6 +66,8 @@ public class BasketBreakdown {
     private final BasketClient baskets;
     private final MediaStoreClient media;
     private final DocRenderer renderer;
+    private final ProfileClient people;
+    private final NotifierClient notifier;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -74,6 +79,8 @@ public class BasketBreakdown {
                            BasketClient baskets,
                            MediaStoreClient media,
                            DocRenderer renderer,
+                           ProfileClient people,
+                           NotifierClient notifier,
                            SkillRegistry skills,
                            AgentManifest manifest,
                            ObjectMapper json,
@@ -84,6 +91,8 @@ public class BasketBreakdown {
         this.baskets = baskets;
         this.media = media;
         this.renderer = renderer;
+        this.people = people;
+        this.notifier = notifier;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -117,7 +126,11 @@ public class BasketBreakdown {
     }
 
     private Mono<Optional<DietProfileDto>> profile(NormalizedMessage msg) {
-        return profiles.get(msg.householdId(), msg.userId())
+        return profile(msg.householdId(), msg.userId());
+    }
+
+    private Mono<Optional<DietProfileDto>> profile(UUID householdId, UUID ownerId) {
+        return profiles.get(householdId, ownerId)
                 .map(Optional::of)
                 .defaultIfEmpty(Optional.empty())
                 .onErrorReturn(Optional.empty());
@@ -135,39 +148,34 @@ public class BasketBreakdown {
             return Mono.just(reply(
                     "Не нашёл продуктов в корзине. Пришлите фото чёткого чека или перечислите покупки.", model));
         }
-        JsonNode totals = draft.get("totals");
         JsonNode analysis = draft.hasNonNull("analysis") ? draft.get("analysis") : null;
-        SaveBasketInput input = new SaveBasketInput(
-                msg.householdId(),
-                msg.userId(),
-                null,
-                text(draft, "merchant"),
-                source,
-                receiptMediaId,
-                items,
-                intOrNull(totals, "kcal"),
-                decimalOrNull(totals, "protein_g"),
-                decimalOrNull(totals, "fat_g"),
-                decimalOrNull(totals, "carbs_g"),
-                analysis);
-        return baskets.save(input)
-                .flatMap(saved -> store(msg, draft, items)
-                        .map(link -> reply(summary(draft, analysis) + "\n\nРазбор корзины: " + link, model))
-                        .onErrorResume(e -> {
-                            log.warn("basket render/store failed: {}", e.toString());
-                            return Mono.just(reply(summary(draft, analysis), model));
-                        }))
+        return saveAndRender(msg.householdId(), msg.userId(), source, receiptMediaId,
+                        text(draft, "merchant"), draft, items)
+                .map(link -> reply(summary(draft, analysis) + "\n\nРазбор корзины: " + link, model))
                 .onErrorResume(e -> {
-                    log.warn("save_basket write failed: {}", e.toString());
-                    return Mono.just(reply("Не смог сохранить разбор корзины. Попробуйте позже.", null));
+                    log.warn("basket save/render failed: {}", e.toString());
+                    return Mono.just(reply(summary(draft, analysis), model));
                 });
     }
 
+    /** Save the analysed basket, render the verdict board, store it, and return the public link. */
+    private Mono<String> saveAndRender(UUID householdId, UUID ownerId, String source, UUID receiptMediaId,
+                                       String merchant, JsonNode draft, List<BasketItem> items) {
+        JsonNode totals = draft.get("totals");
+        JsonNode analysis = draft.hasNonNull("analysis") ? draft.get("analysis") : null;
+        SaveBasketInput input = new SaveBasketInput(
+                householdId, ownerId, null, merchant, source, receiptMediaId, items,
+                intOrNull(totals, "kcal"), decimalOrNull(totals, "protein_g"),
+                decimalOrNull(totals, "fat_g"), decimalOrNull(totals, "carbs_g"), analysis);
+        return baskets.save(input)
+                .flatMap(saved -> render(householdId, ownerId, merchant, draft, items));
+    }
+
     /** Render the verdict board (good/watch/cut tiles + КБЖУ totals + summary), store, link. */
-    private Mono<String> store(NormalizedMessage msg, JsonNode draft, List<BasketItem> items) {
+    private Mono<String> render(UUID householdId, UUID ownerId, String merchant,
+                                JsonNode draft, List<BasketItem> items) {
         Doc.Builder b = Doc.builder("Разбор корзины")
                 .kicker("КБЖУ · Хорошо · Осторожно · Убрать");
-        String merchant = text(draft, "merchant");
         b.subtitle(merchant != null && !merchant.isBlank()
                 ? merchant + " · " + items.size() + " позиц." : items.size() + " позиций");
 
@@ -182,9 +190,82 @@ public class BasketBreakdown {
         if (summary != null && !summary.isBlank()) b.section("Вывод", List.of(summary));
 
         RenderedDoc rendered = renderer.render(b.build());
-        return media.upload(msg.householdId(), msg.userId(),
+        return media.upload(householdId, ownerId,
                         rendered.filename(), rendered.mimeType(), rendered.content())
                 .map(this::link);
+    }
+
+    /**
+     * IA-b: a grocery {@code basket.captured} event consumed off the bus (mcp-nutrition forwards it
+     * here over {@code POST /internal/basket-event}). Finance already extracted the line items once,
+     * so we don't re-run vision — we run one LLM breakdown over the item list (the {@code
+     * basket-analyst} SKILL, diet profile folded in) → save the basket → render the verdict board →
+     * <b>notify every household member</b> with the summary + link (there's no user reply channel on
+     * a bus consume, so this fans out like the gift-recommender). Best-effort: any failure is logged
+     * and swallowed (the breakdown is a bonus on top of the finance expense).
+     */
+    public Mono<Void> breakdownFromEvent(BasketCapturedEvent event) {
+        if (event == null || event.householdId() == null
+                || event.items() == null || event.items().isEmpty()) {
+            return Mono.empty();
+        }
+        List<BasketItem> evItems = event.items();
+        return profile(event.householdId(), event.ownerId()).flatMap(prof -> {
+            LlmChatRequest request = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
+                    LlmMessage.system(instruction(null, prof.orElse(null))),
+                    LlmMessage.user(itemsToText(event.merchant(), evItems))));
+            return llm.chat(request).flatMap(r -> {
+                JsonNode draft = parseDraft(r.content());
+                if (draft == null) {
+                    log.warn("basket.captured breakdown: LLM returned no usable analysis for household {}",
+                            event.householdId());
+                    return Mono.<Void>empty();
+                }
+                List<BasketItem> items = parseItems(draft.get("items"));
+                if (items.isEmpty()) {
+                    items = evItems;   // fall back to the receipt's own line items
+                }
+                String draftMerchant = text(draft, "merchant");
+                String merchant = (draftMerchant != null && !draftMerchant.isBlank())
+                        ? draftMerchant : event.merchant();
+                JsonNode analysis = draft.hasNonNull("analysis") ? draft.get("analysis") : null;
+                return saveAndRender(event.householdId(), event.ownerId(), "receipt",
+                                event.receiptMediaId(), merchant, draft, items)
+                        .flatMap(link -> notifyHousehold(event.householdId(),
+                                "🧺 " + summary(draft, analysis) + "\n\nРазбор корзины: " + link));
+            });
+        }).onErrorResume(e -> {
+            log.warn("basket.captured breakdown failed for household {}: {}",
+                    event.householdId(), e.toString());
+            return Mono.empty();
+        });
+    }
+
+    /** Fan the breakdown out to every household member (no user reply channel on a bus consume). */
+    private Mono<Void> notifyHousehold(UUID householdId, String text) {
+        return people.usersByHousehold(householdId)
+                .flatMap(u -> notifier.notify(u.id(), text)
+                        .onErrorResume(e -> {
+                            log.warn("notify household member {} failed: {}", u.id(), e.toString());
+                            return Mono.empty();
+                        }))
+                .then();
+    }
+
+    /** A grocery list rendered as text for the LLM breakdown (the items finance already read). */
+    private static String itemsToText(String merchant, List<BasketItem> items) {
+        StringBuilder sb = new StringBuilder();
+        if (merchant != null && !merchant.isBlank()) {
+            sb.append("Чек из «").append(merchant).append("». Продукты:\n");
+        } else {
+            sb.append("Продукты в корзине:\n");
+        }
+        for (BasketItem it : items) {
+            sb.append("- ").append(it.name());
+            if (it.qty() != null && !it.qty().isBlank()) sb.append(" (").append(it.qty()).append(")");
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     private static void addVerdicts(Doc.Builder b, JsonNode arr, Doc.Verdict verdict) {
