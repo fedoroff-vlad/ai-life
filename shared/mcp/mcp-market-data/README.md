@@ -9,11 +9,11 @@ over MCP/SSE; it owns no data. Plan: [market-data.md](../../../plans/market-data
 never will be. Deciding anything (a buy/hold/sell *idea*, never an order) is the calling agent's
 advisory-only skill.
 
-**Status (MD-a):** `quote` reads a latest quote from **Stooq**'s CSV endpoint (free, no API key,
-no quota) behind a swappable `MarketDataSource` (`marketdata.source=stooq` default) — so Yahoo / a
-keyed provider can replace it later with no caller change. No backing container (Stooq is public
-HTTPS, unlike SearXNG's self-hosted container). Next: MD-c binds this to finance-agent's
-`investment-advisor` skill; `history` (series for trend) is a later optional slice.
+**Status (MD-c, bound):** `quote` reads a latest quote from **Stooq**'s CSV endpoint (free, no API
+key, no quota) behind a swappable `MarketDataSource` (`marketdata.source=stooq` default) — so Yahoo /
+a keyed provider can replace it later with no caller change. No backing container (Stooq is public
+HTTPS, unlike SearXNG's self-hosted container). **Bound (MD-c, PR127) by finance-agent's
+`investment-advisor` skill** (advisory-only). `history` (series for trend) is a later optional slice.
 
 ## Port: `8100` (`MCP_MARKET_DATA_PORT`)
 

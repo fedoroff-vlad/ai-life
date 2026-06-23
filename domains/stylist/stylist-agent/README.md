@@ -11,8 +11,11 @@ domain-MCP (its persistent data) and binds three shared capabilities: `mcp-media
 `mcp-image-gen` (`generate_image` — editorial board illustrations; a stub engine today, a
 self-hosted GPU model later by config — no agent change).
 
-**Status (ST-d):** the wardrobe-catalogue **and** "analyse me" flows are live. `IntentController`
-routes a **photo attachment** by the caption text:
+**Status (ST-n / Phase 2 complete):** all MVP flows + the four luxury-editorial boards are live —
+wardrobe catalogue (ST-c), "analyse me" (ST-d), capsule (ST-e), **Wardrobe Audit** (ST-h) and **Gap
+Analysis** (ST-j) boards, the editorial-poster template (ST-f..k), the `mcp-image-gen` lookbook
+illustration (ST-m, stub engine), and env-var theming (ST-n). `IntentController` routes a **photo
+attachment** by the caption text:
 - analyse-me cues / stated body params → `analyse/AnalyseMe` (ST-d) — `caption` analysis (instruction
   = the `style-analyst` SKILL.md, with the user's note folded in so it also picks up typed
   height/weight/measurements) → `set_style_profile` via `mcp-wardrobe` (`/internal/profile`) → render
@@ -28,7 +31,10 @@ A non-photo message with a **capsule cue** ("собери капсулу", "чт
 Other non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE
 for future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
 passthroughs. **Render-format seam** lives in the shared **`libs/doc-render`** (`DocRenderer`): HTML
-now, a PDF renderer drops in behind the same interface later. **Stylist MVP complete (ST-a..e).**
+now, a PDF renderer drops in behind the same interface later. An audit-cue text ("ревизия гардероба")
+→ `flow/WardrobeAuditor`; a gap-cue text ("что докупить") → `flow/GapAnalyst`. **Stylist MVP (ST-a..e)
++ Phase 2 editorial boards (ST-f..k) + image-gen binding (ST-m) + env theming (ST-n) complete.**
+Deferred: real GPU image-gen engine + virtual try-on, marketplace buy-links, PDF.
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
 
