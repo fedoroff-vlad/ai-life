@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.nutritionist.web;
 
 import dev.fedorov.ailife.agents.nutritionist.chat.NutritionistChat;
 import dev.fedorov.ailife.agents.nutritionist.foodlog.FoodLogger;
+import dev.fedorov.ailife.agents.nutritionist.profile.DietProfiler;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -20,6 +21,8 @@ import java.util.Set;
  * <ul>
  *   <li>a photo attachment → {@link FoodLogger#logPhoto} (meal photo → caption extract → log) — the
  *       default for a photo until NU-f adds a basket-cue split (mirrors stylist's catalogue default);</li>
+ *   <li>a typed message with a diet-profile cue ("моя цель…", "у меня аллергия…", "ккал в день…") →
+ *       {@link DietProfiler#setProfile} (one LLM extract → upsert the profile);</li>
  *   <li>a typed message with a food-log cue ("съел…", "на обед…", "запиши…") → {@link FoodLogger#logText}
  *       (one LLM extract → log);</li>
  *   <li>otherwise → the {@link NutritionistChat} fallback.</li>
@@ -31,16 +34,25 @@ import java.util.Set;
 @RequestMapping("/agents/nutritionist")
 public class IntentController {
 
+    private static final Set<String> PROFILE_CUES = Set.of(
+            "моя цель", "мои цели", "цель по", "ккал в день", "калорий в день", "у меня аллергия",
+            "аллергия на", "я вегетар", "я веган", "халяль", "без глютена", "без лактозы",
+            "установи цель", "мой профиль", "профиль питания", "мои ограничения",
+            "my goal", "my goals", "i'm allergic", "set my diet", "kcal a day", "kcal per day",
+            "i'm vegan", "i'm vegetarian", "diet goal");
+
     private static final Set<String> LOG_CUES = Set.of(
             "съел", "съела", "поел", "поела", "я ел", "я ела", "перекус",
             "на завтрак", "на обед", "на ужин", "на полдник", "запиши", "записать",
             "log meal", "log my", "i ate", "i had", "for breakfast", "for lunch", "for dinner");
 
     private final FoodLogger foodLogger;
+    private final DietProfiler dietProfiler;
     private final NutritionistChat chat;
 
-    public IntentController(FoodLogger foodLogger, NutritionistChat chat) {
+    public IntentController(FoodLogger foodLogger, DietProfiler dietProfiler, NutritionistChat chat) {
         this.foodLogger = foodLogger;
+        this.dietProfiler = dietProfiler;
         this.chat = chat;
     }
 
@@ -49,6 +61,9 @@ public class IntentController {
         Optional<Attachment> image = attachment(message, "image");
         if (image.isPresent()) {
             return foodLogger.logPhoto(message, image.get().storageUri());
+        }
+        if (isMatch(message.text(), PROFILE_CUES)) {
+            return dietProfiler.setProfile(message);
         }
         if (isMatch(message.text(), LOG_CUES)) {
             return foodLogger.logText(message);

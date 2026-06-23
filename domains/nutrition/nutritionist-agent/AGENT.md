@@ -9,6 +9,7 @@ mcp:
   - mcp-web
 skills:
   - meal-logger
+  - diet-profiler
 intents:
   - example: Log my lunch — chicken with rice
     description: Record a meal in the food log.

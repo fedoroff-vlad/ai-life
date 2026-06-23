@@ -13,7 +13,9 @@ the fallback branch-by-branch:
 - **NU-c — food log. DONE.** A meal photo → `mcp-media-processing` caption extract, or a typed meal
   ("съел…", "на обед…", "запиши…") → one LLM extract, both via the `meal-logger` SKILL → write
   **write-immediately** to `mcp-nutrition`'s `/internal/meal` (attributed to the sender). `foodlog/FoodLogger`.
-- **NU-d** — multi-person diet profiles (`/internal/diet-profile`).
+- **NU-d — diet profiles. DONE.** A typed message with a diet-profile cue ("моя цель…", "у меня
+  аллергия…") → one LLM extract via the `diet-profiler` SKILL → upsert via `/internal/diet-profile`,
+  for the sender (`self`) or the household-default (`household`). `profile/DietProfiler`.
 - **NU-e** — nutrition-analysis HTML board (shared `libs/doc-render`).
 - **NU-f** — basket breakdown (direct); **IA-b** — basket breakdown auto-triggered off the
   `basket.captured` bus event (the case-1 fan-out).
@@ -47,9 +49,13 @@ the fallback branch-by-branch:
 - `chat/NutritionistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `foodlog/FoodLogger` — the food-log flow: photo → caption / typed → LLM extract, both via the
   `meal-logger` SKILL, write-immediately to `/internal/meal` (attributed to the sender).
+- `profile/DietProfiler` — the diet-profile flow: typed goals/restrictions → LLM extract via the
+  `diet-profiler` SKILL → upsert via `/internal/diet-profile` (self or household-default).
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
-- `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write).
-- `web/IntentController` — `POST /intent` (photo / food-log cue → FoodLogger; else chat).
+- `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
+- `http/DietProfileClient` — `POST /internal/diet-profile` on mcp-nutrition (upsert profile).
+- `web/IntentController` — `POST /intent` (photo → food-log; profile cue → diet-profiler; food-log
+  cue → food-log; else chat).
 - `web/ManifestController` — `GET /manifest`.
 
 ## Skills
@@ -57,6 +63,8 @@ the fallback branch-by-branch:
 - `meal-logger` (`domains/nutrition/skills/meal-logger/SKILL.md`) — strict-JSON meal extraction
   (description, items, best-effort КБЖУ), shared by both the photo (caption instruction) and typed
   (LLM system prompt) paths.
+- `diet-profiler` (`domains/nutrition/skills/diet-profiler/SKILL.md`) — strict-JSON diet-profile
+  extraction (scope self|household, macro goals, restrictions, tastes) from a typed message.
 
 ## AGENT.md
 
