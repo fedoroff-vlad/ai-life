@@ -112,7 +112,14 @@ Foundation:
 
 Nutrition core:
 - **NU-a — `mcp-nutrition` + `050-nutrition.yml`** (`meal_log` + `diet_profile` + `basket`) + CRUD
-  tools + `nutrition/*` contracts. Testcontainers repo test. Template `mcp-wardrobe`.
+  tools + `nutrition/*` contracts. Testcontainers repo test. Template `mcp-wardrobe`. **DONE (PR152):**
+  `domains/nutrition/mcp-nutrition` (port 8104, owns the new `nutrition` schema). 8 `@Tool` methods —
+  meal log (`log_meal`/`list_meals`/`delete_meal`), diet profile (`set_diet_profile`/`get_diet_profile`,
+  keyed `(household, owner)`, null-owner = household-default via the native-SQL `CAST` finder),
+  basket (`save_basket`/`list_baskets`/`get_basket`). New contracts `nutrition/{MealLogDto,LogMealInput,
+  DietProfileDto,SetDietProfileInput,BasketDto,BasketItem,SaveBasketInput}` (jsonb fields = `JsonNode`;
+  basket `items` converts to/from `List<BasketItem>` via the shared `ObjectMapper`). Internal `/internal/*`
+  passthroughs land with the agent flows (NU-c/d/f). Tested (`McpNutritionIntegrationTest`, 7 cases).
 - **NU-b — `nutritionist-agent` scaffold + orchestrator registration** (binds `mcp-nutrition` +
   `mcp-media-processing` + `mcp-web`; chat fallback). Template `stylist-agent`.
 - **NU-c — food-log flow** (c1/c2): meal photo → `caption` extract (a `meal-logger` SKILL) / typed

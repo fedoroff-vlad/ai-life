@@ -80,6 +80,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-wardrobe         | 8101 | Wardrobe CRUD MCP (garments + style profile)                     |
 | stylist-agent        | 8102 | Stylist domain agent (binds mcp-wardrobe + media-processing + web) |
 | mcp-image-gen        | 8103 | Image-generation capability-MCP (stub now, local model later)    |
+| mcp-nutrition        | 8104 | Nutrition CRUD MCP (meal log + diet profile + basket)            |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
@@ -101,6 +102,7 @@ Schemas split by **bounded context**, not by service:
 | finance  | mcp-finance, finance-agent, mcp-money-pro-import           |
 | tasks    | mcp-tasks, tasks-agent                                     |
 | wardrobe | mcp-wardrobe, stylist-agent                                |
+| nutrition | mcp-nutrition, nutritionist-agent, chef-agent             |
 
 All Liquibase changesets are applied by one job; ordering is controlled by
 `db.changelog-master.xml`.
