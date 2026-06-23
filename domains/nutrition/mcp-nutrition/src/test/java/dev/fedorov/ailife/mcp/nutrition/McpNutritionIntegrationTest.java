@@ -319,6 +319,39 @@ class McpNutritionIntegrationTest {
         assertThat(got.goalKcal()).isEqualTo(1800);
     }
 
+    @Test
+    void internalBasketEndpointSavesAnd400OnMissingHousehold() throws Exception {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        BasketDto saved = client.post().uri("/internal/basket")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SaveBasketInput(h, null, null, "Лента", "receipt", UUID.randomUUID(),
+                        List.of(new BasketItem("молоко", "1 л", 60, new BigDecimal("3.0"), new BigDecimal("3.2"), new BigDecimal("4.7"))),
+                        60, new BigDecimal("3.0"), new BigDecimal("3.2"), new BigDecimal("4.7"),
+                        MAPPER.readTree("{\"good\":[\"молоко\"]}")))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(BasketDto.class)
+                .returnResult().getResponseBody();
+        assertThat(saved).isNotNull();
+        assertThat(saved.merchant()).isEqualTo("Лента");
+        assertThat(saved.source()).isEqualTo("receipt");
+        assertThat(saved.items()).hasSize(1);
+        assertThat(saved.analysis().get("good").get(0).asText()).isEqualTo("молоко");
+
+        // Missing householdId → the tool's required-field guard surfaces as 400.
+        client.post().uri("/internal/basket")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SaveBasketInput(null, null, null, null, null, null, null,
+                        null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
     private void seedHousehold(UUID id) {
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", id, "h-" + id);
     }
