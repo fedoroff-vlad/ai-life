@@ -6,11 +6,11 @@ shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media
 (vision caption for meal/receipt photos) + `mcp-web` (store/availability lookup). Routes via the
 orchestrator (registered as `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (through NU-f)
+## Status (through NU-g)
 
 Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c) + **diet profiles** (NU-d) +
-the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct). Remaining flows
-replace the fallback branch-by-branch:
+the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct) + the **ration +
+shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-branch:
 - **NU-c — food log. DONE.** A meal photo → `mcp-media-processing` caption extract, or a typed meal
   ("съел…", "на обед…", "запиши…") → one LLM extract, both via the `meal-logger` SKILL → write
   **write-immediately** to `mcp-nutrition`'s `/internal/meal` (attributed to the sender). `foodlog/FoodLogger`.
@@ -34,14 +34,20 @@ replace the fallback branch-by-branch:
   board → **notify the household** (no user reply channel on a bus consume, so it fans out like the
   gift-recommender). Best-effort; returns 202. mcp-nutrition's bus consumer (IA-b2) forwards the
   `basket.captured` event here — agents stay DB-less, so the bus listener lives in the domain-MCP.
-- **NU-g** — ration + shopping list (multi-person `Coordinator` flow; invokes `chef-agent`).
+- **NU-g — ration + shopping list (multi-person). DONE.** A ration cue ("составь рацион", "план
+  питания", "закупиться в Ленте") → gather the sender's diet profile + the household-default profile
+  + recent meals (`mcp-nutrition`) and, when a store is named, its availability (`mcp-web`) on the
+  shared `Coordinator` → one LLM synthesis via the `meal-planner` SKILL (multi-person ration +
+  grouped shopping list, ad-hoc people read from the request, infant caveat) → render an HTML board
+  via the shared `libs/doc-render` → store in media-service → reply with a link. `flow/MealPlanner`.
+  The chef invocation (ration → recipes) lands with `chef-agent` (CH-b).
 
 ## Endpoints
 
 - `POST /agents/nutritionist/intent` (body `NormalizedMessage`) → `IntentResponse` — the
   orchestrator's entry point. A photo with a basket cue → basket breakdown; any other photo →
-  food-log; a profile cue → diet-profiler; an analysis cue → nutrition-analysis; a basket cue →
-  basket breakdown; a food-log cue → food-log; else chat.
+  food-log; a profile cue → diet-profiler; an analysis cue → nutrition-analysis; a ration cue →
+  ration + shopping list; a basket cue → basket breakdown; a food-log cue → food-log; else chat.
 - `GET /agents/nutritionist/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 - `POST /internal/basket-event` (body `BasketCapturedEvent`) → 202 — the IA-b fan-out entry;
   mcp-nutrition's bus consumer forwards a `basket.captured` event here, the agent runs the breakdown
@@ -76,6 +82,10 @@ replace the fallback branch-by-branch:
 - `analysis/NutritionAnalyst` — the nutrition-analysis flow: gather recent meals + diet profile on
   the shared `Coordinator` → one LLM synthesis via the `nutrition-analyst` SKILL → render HTML via
   the shared `libs/doc-render` → store in media-service → reply with a link.
+- `flow/MealPlanner` — the ration + shopping-list flow: gather the sender + household diet profiles
+  + recent meals + (when a store is named) its availability via `mcp-web` on the shared `Coordinator`
+  → one LLM synthesis via the `meal-planner` SKILL → render an HTML board via `libs/doc-render` →
+  store in media-service → reply with a link.
 - `basket/BasketBreakdown` — the basket-breakdown flow: a basket photo (caption) / typed list (LLM)
   → one extraction+breakdown pass via the `basket-analyst` SKILL (diet profile folded in) → save via
   `/internal/basket` → render a good/watch/cut verdict board via `libs/doc-render` → store → link.
@@ -86,11 +96,13 @@ replace the fallback branch-by-branch:
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
 - `http/MealReadClient` — `GET /internal/meals` on mcp-nutrition (read recent meals).
+- `http/WebSearchClient` — `POST /internal/search` on mcp-web (store-availability lookup for the ration flow).
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered HTML).
 - `web/IntentController` — `POST /intent` (basket-cue photo → basket; photo → food-log; profile cue →
-  diet-profiler; analysis cue → nutrition-analysis; basket cue → basket; food-log cue → food-log; else chat).
+  diet-profiler; analysis cue → nutrition-analysis; ration cue → ration; basket cue → basket;
+  food-log cue → food-log; else chat).
 - `web/ManifestController` — `GET /manifest`.
 
 ## Skills
@@ -106,9 +118,12 @@ replace the fallback branch-by-branch:
 - `basket-analyst` (`domains/nutrition/skills/basket-analyst/SKILL.md`) — strict-JSON basket
   extraction (line items + best-effort КБЖУ totals) + a good/watch/cut breakdown against the diet
   profile, shared by the photo (caption instruction) and typed-list (LLM system prompt) paths.
+- `meal-planner` (`domains/nutrition/skills/meal-planner/SKILL.md`) — synthesises a multi-person
+  ration + a grouped shopping list from the gathered diet profiles, recent meals, and (optional)
+  store availability, handling ad-hoc people (wife / infant on прикорм) with a pediatrician caveat.
 
 ## AGENT.md
 
 `name: nutritionist`, binds `mcp-nutrition` + `mcp-media-processing` + `mcp-web`, `skills:
-meal-logger, diet-profiler, nutrition-analyst, basket-analyst`. ⚠️ Carries the infant/medical-safety
-rule (general guidance only + pediatrician caveat).
+meal-logger, diet-profiler, nutrition-analyst, basket-analyst, meal-planner`. ⚠️ Carries the
+infant/medical-safety rule (general guidance only + pediatrician caveat).
