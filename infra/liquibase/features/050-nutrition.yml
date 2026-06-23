@@ -1,0 +1,248 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 050-nutrition
+      author: ai-life
+      comment: |
+        Nutrition domain opener: source-of-truth food tables for mcp-nutrition
+        (plans/nutrition.md). Three tables — meal_log (one row per logged meal),
+        diet_profile (one row per person's diet goals/restrictions), basket (one
+        row per analysed grocery basket).
+
+        source/merchant are free-text varchars; macros are best-effort estimates
+        (LLM now, mcp-food-data later) so the *_g columns are nullable numeric.
+        items/analysis/restrictions/tastes are jsonb (free-form parsed structure).
+        image_media_id / receipt_media_id point at media-service objects with no
+        cross-schema FK (media-service owns blob lifecycle, same no-FK reasoning as
+        wardrobe_item.image_media_id). diet_profile is keyed (household_id, owner_id)
+        so a person has at most one profile (null owner = household default).
+      changes:
+        - createTable:
+            schemaName: nutrition
+            tableName: meal_log
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_meal_log_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_meal_log_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: eaten_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: varchar(16)
+              - column:
+                  name: description
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: items
+                  type: jsonb
+              - column:
+                  name: kcal
+                  type: integer
+              - column:
+                  name: protein_g
+                  type: numeric(7,2)
+              - column:
+                  name: fat_g
+                  type: numeric(7,2)
+              - column:
+                  name: carbs_g
+                  type: numeric(7,2)
+              - column:
+                  name: image_media_id
+                  type: uuid
+              - column:
+                  name: metadata
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: nutrition
+            tableName: meal_log
+            indexName: ix_meal_log_household_eaten
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: eaten_at
+                  descending: true
+
+        - createTable:
+            schemaName: nutrition
+            tableName: diet_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_diet_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_diet_profile_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: goal_kcal
+                  type: integer
+              - column:
+                  name: goal_protein_g
+                  type: numeric(7,2)
+              - column:
+                  name: goal_fat_g
+                  type: numeric(7,2)
+              - column:
+                  name: goal_carbs_g
+                  type: numeric(7,2)
+              - column:
+                  name: restrictions
+                  type: jsonb
+              - column:
+                  name: tastes
+                  type: jsonb
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: nutrition
+            tableName: diet_profile
+            indexName: ux_diet_profile_household_owner
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: owner_id
+
+        - createTable:
+            schemaName: nutrition
+            tableName: basket
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_basket_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_basket_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: captured_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: merchant
+                  type: varchar(128)
+              - column:
+                  name: source
+                  type: varchar(16)
+              - column:
+                  name: receipt_media_id
+                  type: uuid
+              - column:
+                  name: items
+                  type: jsonb
+              - column:
+                  name: kcal
+                  type: integer
+              - column:
+                  name: protein_g
+                  type: numeric(8,2)
+              - column:
+                  name: fat_g
+                  type: numeric(8,2)
+              - column:
+                  name: carbs_g
+                  type: numeric(8,2)
+              - column:
+                  name: analysis
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: nutrition
+            tableName: basket
+            indexName: ix_basket_household_captured
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: captured_at
+                  descending: true

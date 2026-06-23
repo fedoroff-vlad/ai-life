@@ -1,0 +1,71 @@
+# mcp-nutrition
+
+MCP server: source-of-truth nutrition CRUD over the `nutrition.*` schema (logged meals +
+per-person diet profiles + analysed grocery baskets). The food-log / "analyse me" / basket-
+breakdown / ration flows live in `nutritionist-agent` (and `chef-agent`); this MCP just
+persists what the agents extract. See [plans/nutrition.md](../../../plans/nutrition.md).
+
+## Tools (MCP)
+
+- `log_meal(householdId, ownerId?, eatenAt?, source?, description, items?, kcal?, proteinG?,
+  fatG?, carbsG?, imageMediaId?)` — log a meal. Only `householdId` + `description` are required;
+  `eatenAt` defaults to now, `source` (photo|text) to `text`. `items` is the free-form parsed
+  breakdown; macros are best-effort estimates. `ownerId` null = household-shared.
+- `list_meals(householdId, ownerId?, limit?)` — meals in a household, most recently eaten first;
+  `ownerId` scopes to one person, `limit` caps the count (default 20, max 200).
+- `delete_meal(id)` — delete and return the deleted row (so the agent can confirm/undo). Throws
+  on unknown id; confirming the destructive action is the agent layer's job.
+- `set_diet_profile(householdId, ownerId?, goalKcal?, goalProteinG?, goalFatG?, goalCarbsG?,
+  restrictions?, tastes?, notes?)` — upsert the diet profile, keyed on (householdId, ownerId);
+  null ownerId = household-default. Full set (every field overwrites). `restrictions` (allergies /
+  halal / vegan / infant-stage / …) and `tastes` are free-form JSON. Holds the wife/infant profiles.
+- `get_diet_profile(householdId, ownerId?)` — the person's profile, or null if unset.
+- `save_basket(householdId, ownerId?, capturedAt?, merchant?, source?, receiptMediaId?, items?,
+  kcal?, proteinG?, fatG?, carbsG?, analysis?)` — save an analysed grocery basket. Only
+  `householdId` is required; `capturedAt` defaults to now, `source` (receipt|manual) to `manual`.
+  `items` are the parsed line items (`BasketItem`s), the macro fields are basket totals, `analysis`
+  the optional breakdown.
+- `list_baskets(householdId, limit?)` — baskets in a household, most recently captured first.
+- `get_basket(id)` — one basket by id, or null.
+
+Scope rule: every tool takes a `householdId` and reads/writes only within that household
+(mirrors mcp-wardrobe / mcp-tasks). Per-person attribution is the optional `ownerId`.
+
+## Internal REST passthroughs
+
+None yet. The deterministic agent→MCP passthroughs (`/internal/meal`, `/internal/diet-profile`,
+`/internal/basket`, …) land with the nutritionist-agent flows (NU-c/d/f), mirroring mcp-wardrobe.
+
+## Env
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MCP_NUTRITION_PORT` | `8104` | HTTP port |
+| `MCP_NUTRITION_DB_URL` | `jdbc:postgresql://localhost:5432/ailife` | Postgres |
+| `MCP_NUTRITION_DB_USER` / `MCP_NUTRITION_DB_PASSWORD` | `ailife` | DB credentials |
+
+## Key classes
+
+- `McpNutritionApplication`.
+- `domain/MealLog` + `MealLogRepository` — JPA over `nutrition.meal_log` (list by household,
+  optionally by owner, newest-eaten first; `Pageable` caps the count). `items` jsonb → `JsonNode`.
+- `domain/DietProfile` + `DietProfileRepository` — JPA over `nutrition.diet_profile`; `findForOwner`
+  resolves the (household, owner) profile (null owner = household-default, native-SQL `CAST` for the
+  NULL-safe bind — same pgjdbc workaround as mcp-wardrobe). `restrictions`/`tastes` jsonb → `JsonNode`.
+- `domain/Basket` + `BasketRepository` — JPA over `nutrition.basket` (list by household,
+  newest-captured first). `items`/`analysis` jsonb → `JsonNode`; the tool converts `items` to/from
+  the contract's `List<BasketItem>` via the shared `ObjectMapper`.
+- `tools/NutritionMcpTools` — eight `@Tool` methods: meal log (`log_meal`, `list_meals`,
+  `delete_meal`), diet profile (`set_diet_profile`, `get_diet_profile`), basket (`save_basket`,
+  `list_baskets`, `get_basket`). The only invariants enforced here are the household scope and
+  required-field checks; everything else relies on DB constraints.
+- `tools/ToolsConfig` — `MethodToolCallbackProvider`.
+
+## Schema
+
+- [050-nutrition.yml](../../../infra/liquibase/features/050-nutrition.yml) —
+  `nutrition.meal_log` (one row per meal: description + source + `items`/macros + `image_media_id`)
+  + `nutrition.diet_profile` (one per person via the unique `(household_id, owner_id)` index: macro
+  goals + `restrictions`/`tastes`) + `nutrition.basket` (one analysed basket: merchant + source +
+  `items`/totals + `analysis` + `receipt_media_id`). `image_media_id` / `receipt_media_id` carry no
+  cross-schema FK (media-service owns blob lifecycle), mirroring `wardrobe_item.image_media_id`.

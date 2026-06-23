@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: mcp-nutrition
+  datasource:
+    url: ${MCP_NUTRITION_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MCP_NUTRITION_DB_USER:ailife}
+    password: ${MCP_NUTRITION_DB_PASSWORD:ailife}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-nutrition
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Source-of-truth nutrition CRUD over Postgres nutrition.* schema. Logged meals
+          (one row per meal), per-person diet profiles (goals + restrictions, keyed on
+          household+owner), and analysed grocery baskets. Macros are best-effort estimates;
+          meal/receipt photos live in media-service, rows carry the media id, not the bytes.
+
+server:
+  port: ${MCP_NUTRITION_PORT:8104}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
