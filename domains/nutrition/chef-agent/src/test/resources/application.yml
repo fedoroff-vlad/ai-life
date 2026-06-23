@@ -1,0 +1,45 @@
+# Test-scope config. Mirrors src/main/resources/application.yml (Spring Boot's
+# test application.yml REPLACES the main one — they don't merge) plus one override:
+# spring.ai.mcp.client is disabled so the SpringBootTest doesn't pay the eager
+# SSE-connect timeout when the MCP servers aren't running.
+spring:
+  application:
+    name: chef-agent
+  main:
+    web-application-type: reactive
+  ai:
+    mcp:
+      client:
+        enabled: false
+
+server:
+  port: ${CHEF_AGENT_PORT:8106}
+
+agent:
+  manifest-classpath: AGENT.md
+  skills-classpath: classpath*:skills/nutrition/*/SKILL.md
+  memory-recall-k: ${CHEF_AGENT_MEMORY_RECALL_K:5}
+
+chef-agent:
+  mcp-nutrition-url: ${MCP_NUTRITION_URL:http://mcp-nutrition:8104}
+  mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  public-media-base-url: ${CHEF_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
+  memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
