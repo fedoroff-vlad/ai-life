@@ -33,8 +33,15 @@ Scope rule: every tool takes a `householdId` and reads/writes only within that h
 
 ## Internal REST passthroughs
 
-None yet. The deterministic agent→MCP passthroughs (`/internal/meal`, `/internal/diet-profile`,
-`/internal/basket`, …) land with the nutritionist-agent flows (NU-c/d/f), mirroring mcp-wardrobe.
+Non-MCP, no LLM tax — for an agent that already has a concrete input and just needs to persist it
+(the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use HTTP).
+
+- `POST /internal/meal` (body `LogMealInput`) → `MealLogDto` | 400 — logs a meal, delegating to the
+  `log_meal` tool (required-field guards apply). Used by nutritionist-agent's food-log flow (NU-c).
+  Mirrors mcp-wardrobe's `/internal/item`.
+
+The remaining passthroughs (`/internal/diet-profile`, `/internal/basket`, …) land with the later
+nutritionist-agent flows (NU-d/f).
 
 ## Env
 
@@ -60,6 +67,7 @@ None yet. The deterministic agent→MCP passthroughs (`/internal/meal`, `/intern
   `list_baskets`, `get_basket`). The only invariants enforced here are the household scope and
   required-field checks; everything else relies on DB constraints.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
+- `web/InternalMealController` — `POST /internal/meal`, delegates to `log_meal` (400 on bad input).
 
 ## Schema
 

@@ -136,7 +136,11 @@ Nutrition core:
   capabilities). Wired into root pom, compose, `.env.example`, infra/README (port 8105). Full reactor
   compiles; module suite green.
 - **NU-c — food-log flow** (c1/c2): meal photo → `caption` extract (a `meal-logger` SKILL) / typed
-  meal → LLM extract → write via `/internal/meal`, write-immediately.
+  meal → LLM extract → write via `/internal/meal`, write-immediately. **NU-c1 DONE (PR154):**
+  mcp-nutrition `POST /internal/meal` add-passthrough → `log_meal` (`web/InternalMealController`,
+  400 on the required-field guard; reuses `LogMealInput`; mirror ST-c1). Tested
+  (`McpNutritionIntegrationTest` now 8: WebTestClient POST logs a meal + missing-description → 400).
+  **NU-c2 (agent food-log flow) next.**
 - **NU-d — diet profile** (multi-person): `/internal/diet-profile` → `set_diet_profile`; set
   profiles for self / wife / infant (a `diet-profiler` SKILL) from typed goals/restrictions.
 - **NU-e — nutrition-analysis board** (`Coordinator`): gather `{recent meals, diet_profile}` → one
