@@ -17,7 +17,8 @@ wkhtmltopdf/Chromium). The `render(Doc) → RenderedDoc` seam is identical, so l
 ## Key classes
 - `Doc` — the render-format-agnostic board: header (kicker/title/subtitle + optional `featuredImageUrl`)
   + optional keyed `sections`, colour `palette` swatches, a `verdicts` grid (status tile per item), a
-  `hero` row, and an image `gallery`. Fluent `builder` + back-compat constructors. The flow fills only
+  `hero` row, an image `gallery`, and a `links` list (labelled external URLs — e.g. recipe links,
+  rendered as a clickable list). Fluent `builder` + back-compat constructors. The flow fills only
   what its board needs; the renderer skips empties.
 - `DocRenderer` (seam) — `RenderedDoc render(Doc)`.
 - `HtmlDocRenderer` — the default: a responsive **luxury-editorial poster** (warm-beige ground, serif
@@ -36,6 +37,10 @@ wkhtmltopdf/Chromium). The `render(Doc) → RenderedDoc` seam is identical, so l
 Build a `Doc` via the builder and `render(doc)`; store the `RenderedDoc` bytes (e.g. media-service)
 and hand the user a link.
 
+## Consumers
+stylist (analysis / capsule / audit / gap boards), nutritionist (nutrition-analysis + basket-breakdown
+boards), chef (recipe card). The verdict tones double for nutrition "good/watch/cut".
+
 ## Field generalisation
-The model is the stylist board lifted intact (verdict tones reused for nutrition "good/watch/cut").
-A generic tile tone and a recipe-link list land with the first nutrition consumer that needs them.
+The model is the stylist board lifted intact. The generic **`links` list landed with the chef's
+recipe card** (CH-b1) — its first consumer, the repo's "generalise on the first real need" rule.

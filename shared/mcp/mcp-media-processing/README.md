@@ -13,7 +13,9 @@ whisper ASR **sidecar over HTTP** (`WhisperSttEngine`, deployed default; native-
 `StubSttEngine` via `mediaprocessing.stt-engine=stub`) — engine decision LOCKED = sidecar
 service (polyglot-by-design: the model runs in its own container, the JVM image stays slim).
 The `POST /internal/caption` HTTP passthrough (below) is the MockWebServer-testable transport
-finance-agent's `receipt-parser` calls deterministically (MP-c).
+callers use deterministically. **`caption` is now bound by** finance (`receipt-parser`, MP-c), the
+stylist (garment / self-photo), and the nutritionist (meal / basket photo) — the centralised vision
+call, reused not re-embedded.
 
 ## Port: `8097` (`MCP_MEDIA_PROCESSING_PORT`)
 

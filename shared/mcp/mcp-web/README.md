@@ -1,8 +1,9 @@
 # mcp-web
 
 Shared **web capability-MCP** (`shared/mcp/`, no schema). Cheap web retrieval any agent can
-reuse — a `researcher` query, chef recipe search, briefing news, finance market reads. Bound by
-agents over MCP/SSE; it owns no data. Plan: [research.md](../../../plans/research.md).
+reuse. **Bound by:** the `researcher` (its first consumer), the chef (recipe search, CH-b), the
+nutritionist (store-availability lookup, NU-g), and the stylist (trends); briefing news later. Bound
+over MCP/SSE; it owns no data. Plan: [research.md](../../../plans/research.md).
 
 **Status:** `web_search` runs against a self-hosted **SearXNG** backing service (free, no
 key/quota, private) behind a swappable `SearchEngine`; `fetch_url` reads a page (jsoup, behind
