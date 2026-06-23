@@ -7,14 +7,17 @@ import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
+import dev.fedorov.ailife.agents.finance.http.BasketCapturedClient;
 import dev.fedorov.ailife.agents.finance.http.CaptionClient;
 import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
+import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
+import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,7 +27,10 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Turns an inbound receipt photo into a finance transaction, <b>confirm-before-write</b>
@@ -52,6 +58,8 @@ public class ReceiptParser {
     public static final String FLOW = "receipt-confirm";
     /** Provenance for receipt-derived observations dropped at memory-service (MFC-c). */
     private static final String OBSERVE_SOURCE = "telegram-receipt";
+    /** Cap on grocery line items fanned out to nutrition (a receipt shouldn't blow up the event). */
+    private static final int MAX_BASKET_ITEMS = 100;
     private static final java.util.Set<String> AFFIRMATIVE = java.util.Set.of(
             "да", "ага", "верно", "сохрани", "сохранить", "ок", "окей", "давай", "+",
             "yes", "y", "ok", "save", "confirm");
@@ -59,6 +67,7 @@ public class ReceiptParser {
     private final CaptionClient caption;
     private final AccountClient accounts;
     private final TransactionClient transactions;
+    private final BasketCapturedClient basketCaptured;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -67,6 +76,7 @@ public class ReceiptParser {
     public ReceiptParser(CaptionClient caption,
                          AccountClient accounts,
                          TransactionClient transactions,
+                         BasketCapturedClient basketCaptured,
                          SkillRegistry skills,
                          AgentManifest manifest,
                          ObjectMapper json,
@@ -74,6 +84,7 @@ public class ReceiptParser {
         this.caption = caption;
         this.accounts = accounts;
         this.transactions = transactions;
+        this.basketCaptured = basketCaptured;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -82,7 +93,7 @@ public class ReceiptParser {
 
     public Mono<IntentResponse> parse(NormalizedMessage msg, String mediaId) {
         return caption.caption(mediaId, captionInstruction(msg.text()))
-                .flatMap(result -> confirm(msg, result.text(), result.model()))
+                .flatMap(result -> confirm(msg, mediaId, result.text(), result.model()))
                 .onErrorResume(e -> {
                     log.warn("receipt parse failed for media {}: {}", mediaId, e.toString());
                     return Mono.just(reply(
@@ -92,9 +103,10 @@ public class ReceiptParser {
     }
 
     /** Parse the draft, resolve an account, and ask the user to confirm — stash the write as a pendingAction. */
-    private Mono<IntentResponse> confirm(NormalizedMessage msg, String llmContent, String model) {
+    private Mono<IntentResponse> confirm(NormalizedMessage msg, String mediaId, String llmContent, String model) {
         Draft draft = parseDraft(llmContent);
         captureReceiptObservation(msg, draft);
+        publishBasketIfGrocery(msg, mediaId, draft);
         if (draft == null || draft.amount() == null) {
             return Mono.just(reply(
                     "Не удалось распознать сумму на чеке. Пришлите фото почётче или запишите вручную.",
@@ -166,6 +178,62 @@ public class ReceiptParser {
         memory.observe(msg.householdId(), msg.userId(), observation, OBSERVE_SOURCE);
     }
 
+    /**
+     * Fan a recognised <b>grocery</b> receipt out to the nutrition domain (IA-a, case-1). When the
+     * receipt is a grocery basket with readable line items, publish a {@link BasketCapturedEvent} to
+     * mcp-finance's bus drop-point; nutritionist-agent consumes it and runs its breakdown — so the
+     * receipt's vision work, done once here, reaches both agents. Fire-and-forget + soft-fail inside
+     * {@link BasketCapturedClient#publish} (the breakdown is best-effort and must not affect the
+     * expense-confirmation reply). Emitted at parse time (like the MFC-c observation), independent of
+     * whether the user later confirms the expense write. Non-grocery / itemless receipts emit nothing.
+     */
+    private void publishBasketIfGrocery(NormalizedMessage msg, String mediaId, Draft draft) {
+        if (draft == null || !draft.isGrocery()) {
+            return;
+        }
+        List<BasketItem> items = parseItems(draft.items());
+        if (items.isEmpty()) {
+            return;
+        }
+        basketCaptured.publish(new BasketCapturedEvent(
+                msg.householdId(),
+                null,                       // household-shared (matches the MVP transaction ownerId)
+                blankToNull(draft.merchant()),
+                items,
+                parseMediaId(mediaId),
+                Instant.now()));
+    }
+
+    /** Receipt line items → basket items (name + qty only; nutrition re-estimates the КБЖУ). */
+    private List<BasketItem> parseItems(JsonNode arr) {
+        List<BasketItem> out = new ArrayList<>();
+        if (arr == null || !arr.isArray()) {
+            return out;
+        }
+        for (JsonNode n : arr) {
+            String name = text(n, "name");
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            out.add(new BasketItem(name, text(n, "qty"), null, null, null, null));
+            if (out.size() >= MAX_BASKET_ITEMS) {
+                break;
+            }
+        }
+        return out;
+    }
+
+    private static UUID parseMediaId(String mediaId) {
+        if (mediaId == null || mediaId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(mediaId.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private JsonNode pendingAction(AddTransactionInput input, String accountName) {
         ObjectNode node = json.createObjectNode();
         node.put("flow", FLOW);
@@ -231,12 +299,16 @@ public class ReceiptParser {
                 return null;
             }
             BigDecimal amount = node.hasNonNull("amount") ? node.get("amount").decimalValue() : null;
+            boolean isGrocery = node.hasNonNull("is_grocery") && node.get("is_grocery").asBoolean(false);
+            JsonNode items = node.hasNonNull("items") ? node.get("items") : null;
             return new Draft(
                     amount,
                     text(node, "currency"),
                     text(node, "merchant"),
                     text(node, "date"),
-                    text(node, "note"));
+                    text(node, "note"),
+                    isGrocery,
+                    items);
         } catch (Exception e) {
             return null;
         }
@@ -281,6 +353,7 @@ public class ReceiptParser {
         return new IntentResponse(manifest.name(), text, model);
     }
 
-    private record Draft(BigDecimal amount, String currency, String merchant, String date, String note) {
+    private record Draft(BigDecimal amount, String currency, String merchant, String date, String note,
+                         boolean isGrocery, JsonNode items) {
     }
 }

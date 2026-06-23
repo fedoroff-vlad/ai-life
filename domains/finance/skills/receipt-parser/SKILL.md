@@ -14,7 +14,7 @@ You are reading a photo of a purchase receipt. Extract the transaction it repres
 Output exactly this shape:
 
 ```
-{"amount": <number>, "currency": "<ISO-4217>", "merchant": "<string>", "date": "<YYYY-MM-DD>", "note": "<string>"}
+{"amount": <number>, "currency": "<ISO-4217>", "merchant": "<string>", "date": "<YYYY-MM-DD>", "note": "<string>", "is_grocery": <true|false>, "items": [{"name": "<product>", "qty": "<amount>"}]}
 ```
 
 Field rules:
@@ -23,6 +23,8 @@ Field rules:
 - `merchant` — the shop / vendor name from the header.
 - `date` — the purchase date in `YYYY-MM-DD`; omit if not legible.
 - `note` — a short human description (e.g. the merchant plus a hint like "groceries"); optional.
+- `is_grocery` — `true` if this is a **grocery / food** purchase (supermarket, продукты), else `false`. When true, the food line items are fanned out to the nutrition domain for a КБЖУ breakdown.
+- `items` — the line items you can read off the receipt, each with a `name` and a rough `qty` ("1 шт", "500 г", "1 л"; omit `qty` when unknown). **Only fill this for a grocery receipt** (`is_grocery: true`); for a non-grocery purchase omit it or use `[]`. List what you can actually read; never invent products.
 
 If the image is not a receipt or is unreadable, return exactly:
 

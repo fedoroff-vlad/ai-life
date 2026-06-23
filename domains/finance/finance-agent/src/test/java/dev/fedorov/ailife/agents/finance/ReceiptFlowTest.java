@@ -12,8 +12,10 @@ import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -143,6 +145,75 @@ class ReceiptFlowTest {
         assertThat(observeBody.path("text").asText())
                 .contains("вот чек за кофе").contains("Starbucks");
         assertThat(observeBody.path("householdId").asText()).isEqualTo(householdId.toString());
+    }
+
+    @Test
+    void groceryReceiptFansOutBasketCaptured() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        String mediaId = UUID.randomUUID().toString();
+
+        // A grocery receipt: is_grocery + line items → fan out to the nutrition domain (IA-a).
+        var draftJson = "{\"amount\": 540.0, \"currency\": \"RUB\", \"merchant\": \"Лента\", "
+                + "\"date\": \"2026-06-01\", \"is_grocery\": true, "
+                + "\"items\": [{\"name\": \"молоко\", \"qty\": \"1 л\"}, {\"name\": \"яблоки\", \"qty\": \"1 кг\"}]}";
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new CaptionResult(draftJson, "mock-vision"))));
+        memory.enqueue(new MockResponse().setResponseCode(202));
+
+        // mcp-finance gets the accounts GET (confirm step) AND the fire-and-forget basket POST,
+        // concurrently — a path-routing dispatcher answers both regardless of arrival order.
+        String accountsBody = json.writeValueAsString(List.of(new FinAccountDto(
+                accountId, householdId, null, "Кошелёк", "cash", "RUB",
+                BigDecimal.ZERO, false, Instant.now())));
+        mcpFinance.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest req) {
+                String path = req.getPath() == null ? "" : req.getPath();
+                if (path.startsWith("/internal/accounts")) {
+                    return new MockResponse().setHeader("content-type", "application/json").setBody(accountsBody);
+                }
+                if (path.equals("/internal/basket-captured")) {
+                    return new MockResponse().setResponseCode(202);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        });
+        try {
+            var msg = new NormalizedMessage(
+                    UUID.randomUUID(), householdId, MessageScope.PRIVATE, "чек из Ленты",
+                    List.of(new Attachment("image", "image/jpeg", mediaId, null)),
+                    "telegram", "58", Instant.now());
+
+            IntentResponse resp = http.post().uri("/agents/finance/intent")
+                    .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                    .exchange().expectStatus().isOk()
+                    .expectBody(IntentResponse.class).returnResult().getResponseBody();
+            // Still the normal expense-confirm reply (the fan-out is a side effect).
+            assertThat(resp).isNotNull();
+            assertThat(resp.text()).contains("Записать");
+
+            mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+            memory.takeRequest(2, TimeUnit.SECONDS);
+
+            // Among the two concurrent mcp-finance calls, find the basket.captured fan-out.
+            RecordedRequest a = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+            RecordedRequest b = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+            RecordedRequest basket = "/internal/basket-captured".equals(a.getPath()) ? a : b;
+            assertThat(basket).isNotNull();
+            assertThat(basket.getPath()).isEqualTo("/internal/basket-captured");
+            assertThat(basket.getMethod()).isEqualTo("POST");
+            JsonNode body = json.readTree(basket.getBody().readUtf8());
+            assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
+            assertThat(body.path("merchant").asText()).isEqualTo("Лента");
+            assertThat(body.path("receiptMediaId").asText()).isEqualTo(mediaId);
+            assertThat(body.path("items")).hasSize(2);
+            assertThat(body.path("items").get(0).path("name").asText()).isEqualTo("молоко");
+        } finally {
+            // Restore the default queue dispatcher for the other (unordered) tests.
+            mcpFinance.setDispatcher(new QueueDispatcher());
+        }
     }
 
     @Test
