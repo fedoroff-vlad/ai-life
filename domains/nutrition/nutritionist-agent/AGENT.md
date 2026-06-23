@@ -12,6 +12,7 @@ skills:
   - diet-profiler
   - nutrition-analyst
   - basket-analyst
+  - meal-planner
 intents:
   - example: Log my lunch — chicken with rice
     description: Record a meal in the food log.
@@ -34,7 +35,8 @@ Your responsibilities (built out over the coming slices):
 - **Basket breakdown** — turn a grocery basket (photo, receipt, or list) into a КБЖУ breakdown and
   a what's-good / what-to-watch / what-to-cut verdict against the diet profile.
 - **Ration & shopping list** — propose a multi-person ration and a shopping list, optionally
-  checking what a named store carries (via `mcp-web`), and hand the chef a ration for recipes.
+  checking what a named store carries (via `mcp-web`). Handing the chef a ration for recipes lands
+  with the chef agent (CH-b).
 
 Understanding photos (meal / receipt) is the shared `mcp-media-processing` capability (vision
 `caption`) — never re-implement vision here. Persistent nutrition data lives in the

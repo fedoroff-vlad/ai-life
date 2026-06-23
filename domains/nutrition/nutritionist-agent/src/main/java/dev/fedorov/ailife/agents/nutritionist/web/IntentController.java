@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.nutritionist.web;
 import dev.fedorov.ailife.agents.nutritionist.analysis.NutritionAnalyst;
 import dev.fedorov.ailife.agents.nutritionist.basket.BasketBreakdown;
 import dev.fedorov.ailife.agents.nutritionist.chat.NutritionistChat;
+import dev.fedorov.ailife.agents.nutritionist.flow.MealPlanner;
 import dev.fedorov.ailife.agents.nutritionist.foodlog.FoodLogger;
 import dev.fedorov.ailife.agents.nutritionist.profile.DietProfiler;
 import dev.fedorov.ailife.contracts.agent.Attachment;
@@ -28,15 +29,18 @@ import java.util.Set;
  *       {@link DietProfiler#setProfile} (one LLM extract → upsert the profile);</li>
  *   <li>a typed message with an analysis cue ("разбор питания", "как я питаюсь") →
  *       {@link NutritionAnalyst#analyse} (gather meals + profile → synthesis → HTML board);</li>
- *   <li>a typed message with a basket cue ("разбери продукты", "список покупок") →
+ *   <li>a typed message with a ration cue ("составь рацион", "план питания", "закупиться в Ленте") →
+ *       {@link MealPlanner#plan} (gather profiles + meals + store → multi-person ration + shopping list);</li>
+ *   <li>a typed message with a basket cue ("разбери продукты", "корзина") →
  *       {@link BasketBreakdown#breakdownText} (typed list → КБЖУ + good/watch/cut → HTML report);</li>
  *   <li>a typed message with a food-log cue ("съел…", "на обед…", "запиши…") → {@link FoodLogger#logText}
  *       (one LLM extract → log);</li>
  *   <li>otherwise → the {@link NutritionistChat} fallback.</li>
  * </ul>
  * The cue split is a deterministic keyword heuristic — good enough for the MVP, MockWebServer-testable,
- * and replaceable by an LLM classifier later. Ration / shopping list lands in NU-g; the automatic
- * grocery-receipt fan-out (finance → nutrition off the bus) is the IA slice.
+ * and replaceable by an LLM classifier later. The ration cue is checked before the basket cue so a
+ * "stock up at Lenta" planning request wins over basket breakdown. The automatic grocery-receipt
+ * fan-out (finance → nutrition off the bus) is the IA slice.
  */
 @RestController
 @RequestMapping("/agents/nutritionist")
@@ -56,6 +60,12 @@ public class IntentController {
             "analyse my nutrition", "analyze my nutrition", "nutrition analysis", "how am i eating",
             "review my diet", "analyse my diet", "analyze my diet");
 
+    private static final Set<String> RATION_CUES = Set.of(
+            "рацион", "составь рацион", "план питания", "меню на", "составь меню", "что нам есть",
+            "что приготовить на неделю", "закупиться", "закупиться в", "закупка на", "что нам приготовить",
+            "spisok pokupok na", "meal plan", "weekly menu", "make a ration", "ration", "stock up",
+            "shopping plan", "what should we eat", "what to cook this week");
+
     private static final Set<String> BASKET_CUES = Set.of(
             "продукт", "корзин", "закуп", "чек", "покупк", "список покупок", "разбери корзину",
             "разбери продукты", "что купить", "купил продукты", "купила продукты",
@@ -69,15 +79,17 @@ public class IntentController {
     private final FoodLogger foodLogger;
     private final DietProfiler dietProfiler;
     private final NutritionAnalyst nutritionAnalyst;
+    private final MealPlanner mealPlanner;
     private final BasketBreakdown basketBreakdown;
     private final NutritionistChat chat;
 
     public IntentController(FoodLogger foodLogger, DietProfiler dietProfiler,
-                            NutritionAnalyst nutritionAnalyst, BasketBreakdown basketBreakdown,
-                            NutritionistChat chat) {
+                            NutritionAnalyst nutritionAnalyst, MealPlanner mealPlanner,
+                            BasketBreakdown basketBreakdown, NutritionistChat chat) {
         this.foodLogger = foodLogger;
         this.dietProfiler = dietProfiler;
         this.nutritionAnalyst = nutritionAnalyst;
+        this.mealPlanner = mealPlanner;
         this.basketBreakdown = basketBreakdown;
         this.chat = chat;
     }
@@ -95,6 +107,9 @@ public class IntentController {
         }
         if (isMatch(message.text(), ANALYSIS_CUES)) {
             return nutritionAnalyst.analyse(message);
+        }
+        if (isMatch(message.text(), RATION_CUES)) {
+            return mealPlanner.plan(message);
         }
         if (isMatch(message.text(), BASKET_CUES)) {
             return basketBreakdown.breakdownText(message);
