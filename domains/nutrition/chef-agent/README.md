@@ -7,9 +7,10 @@ via the shared `libs/doc-render`. Invoked by the nutritionist (ration → recipe
 orchestrator hub, and routable directly (registered as `chef`).
 See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (CH-b1)
+## Status (CH-b)
 
-Scaffold + orchestrator registration + chat fallback (CH-a) + the **recipe flow** (CH-b1, direct):
+Scaffold + orchestrator registration + chat fallback (CH-a) + the **recipe flow** (CH-b1, direct) +
+the **ration → recipes hub action** (CH-b2):
 - **CH-a — scaffold. DONE.** Manifest endpoint + `chat/ChefChat` fallback (one LLM turn, AGENT.md as
   system prompt). Binds `mcp-nutrition` + `mcp-web` over SSE (future LLM-driven tool selection; the
   deterministic flow calls them over `/internal/*` HTTP passthroughs).
@@ -20,13 +21,19 @@ Scaffold + orchestrator registration + chat fallback (CH-a) + the **recipe flow*
   shared `libs/doc-render` → store in media-service → reply with a link. Empty search → the skill
   falls back to a couple of simple dishes (no links). Token economy is structural (search = HTTP,
   only the synthesis hits the LLM).
-- **CH-b2 — ration → recipes over the hub (next).** The nutritionist's NU-g ration flow **invokes the
-  chef** via the orchestrator hub (ration → recipes) — the gift-recommender→finance shape.
+- **CH-b2 — ration → recipes over the hub. DONE.** `web/ActionController` exposes
+  `POST /agents/chef/actions/recommend_recipes` — the orchestrator forwards it when the nutritionist's
+  NU-g ration flow **invokes the chef** (ration → recipes, the gift-recommender→finance shape). It
+  reads `args.request` (the ration text), runs the shared `RecipeFinder.recommend` core, and returns
+  `{link, summary}`. Always an `AgentActionResult` (never an HTTP error).
 
 ## Endpoints
 
 - `POST /agents/chef/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's entry
   point. A recipe-cue message → the recipe flow; otherwise the chat fallback.
+- `POST /agents/chef/actions/{action}` (body `AgentActionRequest`) → `AgentActionResult` — the
+  inter-agent hub entry. `recommend_recipes` (args `{request}`) → a recipe card `{link, summary}`;
+  invoked by the nutritionist's NU-g over the orchestrator (ration → recipes).
 - `GET /agents/chef/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 
 ## Env
@@ -53,7 +60,10 @@ Scaffold + orchestrator registration + chat fallback (CH-a) + the **recipe flow*
 - `chat/ChefChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `flow/RecipeFinder` — the recipe flow: `mcp-web` recipe search → one LLM synthesis via the
   `recipe-finder` SKILL → render an HTML recipe card (text + the real recipe links) via
-  `libs/doc-render` → store in media-service → reply with a link.
+  `libs/doc-render` → store in media-service. The `recommend(household, user, request)` core serves
+  both the direct intent path and the inter-agent action; `findRecipes` wraps it for the intent path.
+- `web/ActionController` — `POST /agents/chef/actions/recommend_recipes` (the hub action the
+  nutritionist invokes): `args.request` → `RecipeFinder.recommend` → `AgentActionResult{link, summary}`.
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
 - `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered card).
 - `web/IntentController` — `POST /intent` (recipe cue → recipe flow; else chat).

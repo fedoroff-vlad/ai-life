@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * The recipe flow (CH-b) — the chef's reason for existing. On a recipe request it (1) <b>searches</b>
@@ -42,8 +43,11 @@ import java.util.Map;
  *
  * <p><b>Token economy is structural:</b> the search is plain HTTP (no model cost); only the synthesis
  * hits the LLM. Empty search → the skill falls back to a couple of simple dishes (no links). Every
- * stage degrades to a friendly message on failure. CH-b2 adds the action variant the nutritionist's
- * ration flow (NU-g) invokes over the hub.
+ * stage degrades to a friendly message on failure.
+ *
+ * <p>The core {@link #recommend} serves both entry points: the direct intent path (CH-b1, wrapped as
+ * an {@link IntentResponse}) and the inter-agent action (CH-b2) the nutritionist's ration flow (NU-g)
+ * invokes over the orchestrator hub (ration → recipes), wrapped as an {@code AgentActionResult}.
  */
 @Component
 public class RecipeFinder {
@@ -52,6 +56,7 @@ public class RecipeFinder {
     private static final String SKILL_NAME = "recipe-finder";
     private static final int SEARCH_LIMIT = 6;
     private static final int MAX_LINKS = 6;
+    private static final int MAX_QUERY = 120;
 
     private final Coordinator coordinator;
     private final WebSearchClient web;
@@ -80,24 +85,40 @@ public class RecipeFinder {
         this.props = props;
     }
 
+    /** Direct intent path (CH-b1): a recipe-cue message → a recipe card link in the reply. */
     public Mono<IntentResponse> findRecipes(NormalizedMessage msg) {
         String request = msg == null ? null : msg.text();
         if (request == null || request.isBlank()) {
             return Mono.just(reply("Что приготовить? Назовите блюдо или продукты — подберу рецепты.", null));
+        }
+        return recommend(msg.householdId(), msg.userId(), request)
+                .map(o -> reply(o.link() == null ? o.fullText() : o.summary() + "\n\nРецепты: " + o.link(),
+                        o.model()));
+    }
+
+    /**
+     * The core search → synthesize → render → store, returning a {@link RecipeOutcome}. Shared by the
+     * intent path and the inter-agent action (CH-b2). Never errors — a failed stage yields an outcome
+     * with a friendly message and a null link.
+     */
+    public Mono<RecipeOutcome> recommend(UUID householdId, UUID userId, String request) {
+        if (request == null || request.isBlank()) {
+            return Mono.just(new RecipeOutcome("Не указан запрос на рецепты.", null, null, null));
         }
         return web.search(recipeQuery(request), SEARCH_LIMIT)
                 .onErrorResume(e -> {
                     log.warn("recipe search failed for '{}': {}", request, e.toString());
                     return Mono.just(new WebSearchResult(request, List.of()));
                 })
-                .flatMap(result -> synthesize(msg, request, hits(result)))
+                .flatMap(result -> synthesize(householdId, userId, request, hits(result)))
                 .onErrorResume(e -> {
                     log.warn("recipe flow failed: {}", e.toString());
-                    return Mono.just(reply("Не получилось подобрать рецепты. Попробуйте позже.", null));
+                    return Mono.just(new RecipeOutcome(
+                            "Не получилось подобрать рецепты. Попробуйте позже.", null, null, null));
                 });
     }
 
-    private Mono<IntentResponse> synthesize(NormalizedMessage msg, String request, List<WebSearchHit> hits) {
+    private Mono<RecipeOutcome> synthesize(UUID householdId, UUID userId, String request, List<WebSearchHit> hits) {
         ObjectNode corpus = json.createObjectNode();
         corpus.put("query", request);
         ArrayNode sources = corpus.putArray("sources");
@@ -119,17 +140,18 @@ public class RecipeFinder {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .flatMap(result -> store(msg, result.text(), hits)
-                        .map(link -> reply(summary(result.text()) + "\n\nРецепты: " + link, result.llmModel()))
+                .flatMap(result -> store(householdId, userId, result.text(), hits)
+                        .map(link -> new RecipeOutcome(summary(result.text()), result.text(), link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("recipe render/store failed: {}", e.toString());
                             // Still hand back the textual card if the page couldn't be stored.
-                            return Mono.just(reply(result.text(), result.llmModel()));
+                            return Mono.just(new RecipeOutcome(
+                                    summary(result.text()), result.text(), null, result.llmModel()));
                         }));
     }
 
     /** Render the recipe card (the synthesized text + the real recipe links), store, link. */
-    private Mono<String> store(NormalizedMessage msg, String cardText, List<WebSearchHit> hits) {
+    private Mono<String> store(UUID householdId, UUID userId, String cardText, List<WebSearchHit> hits) {
         Doc.Builder b = Doc.builder("Рецепты")
                 .kicker("Меню · Рецепты · Кухня")
                 .subtitle("Подобрано под ваш запрос")
@@ -141,7 +163,7 @@ public class RecipeFinder {
             if (++added >= MAX_LINKS) break;
         }
         RenderedDoc rendered = renderer.render(b.build());
-        return media.upload(msg.householdId(), msg.userId(),
+        return media.upload(householdId, userId,
                         rendered.filename(), rendered.mimeType(), rendered.content())
                 .map(this::link);
     }
@@ -150,9 +172,15 @@ public class RecipeFinder {
         return result == null || result.hits() == null ? List.of() : result.hits();
     }
 
-    /** Bias the query toward recipe sources (food.ru and similar) without hard-coding one site. */
+    /**
+     * Bias the query toward recipe sources (food.ru and similar) without hard-coding one site, and
+     * cap it to the first line / {@value #MAX_QUERY} chars — a long ration (the CH-b2 action input)
+     * makes a poor search query, so we use its headline.
+     */
     private static String recipeQuery(String request) {
-        return request.strip() + " рецепт";
+        String head = request.strip().split("\\R", 2)[0].strip();
+        if (head.length() > MAX_QUERY) head = head.substring(0, MAX_QUERY);
+        return head + " рецепт";
     }
 
     private String link(MediaObjectDto stored) {
@@ -194,5 +222,12 @@ public class RecipeFinder {
 
     private IntentResponse reply(String text, String model) {
         return new IntentResponse(manifest.name(), text, model);
+    }
+
+    /**
+     * The outcome of a recipe run: a short {@code summary} (chat headline), the full {@code fullText}
+     * card, the deliverable {@code link} (null if the page couldn't be stored), and the model.
+     */
+    public record RecipeOutcome(String summary, String fullText, String link, String model) {
     }
 }

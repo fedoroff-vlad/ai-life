@@ -16,6 +16,7 @@ public class NutritionistAgentProperties {
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpWebUrl = "http://mcp-web:8098";
     private String mediaServiceUrl = "http://media-service:8088";
+    private String orchestratorUrl = "http://orchestrator:8083";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
@@ -32,6 +33,9 @@ public class NutritionistAgentProperties {
 
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
+
+    public String getOrchestratorUrl() { return orchestratorUrl; }
+    public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }
 
     public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
     public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {

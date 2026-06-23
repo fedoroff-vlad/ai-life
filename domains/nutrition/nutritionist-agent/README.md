@@ -39,8 +39,11 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   + recent meals (`mcp-nutrition`) and, when a store is named, its availability (`mcp-web`) on the
   shared `Coordinator` → one LLM synthesis via the `meal-planner` SKILL (multi-person ration +
   grouped shopping list, ad-hoc people read from the request, infant caveat) → render an HTML board
-  via the shared `libs/doc-render` → store in media-service → reply with a link. `flow/MealPlanner`.
-  The chef invocation (ration → recipes) lands with `chef-agent` (CH-b).
+  via the shared `libs/doc-render` → store in media-service → reply with a link. **Once the ration is
+  rendered it invokes the chef** (`recommend_recipes`) over the orchestrator hub
+  (`http/OrchestratorInvokeClient` → `/v1/agents/invoke`) and folds the returned recipe-card link into
+  the reply (CH-b2, gift-recommender→finance shape) — soft-failed, so a chef outage just drops the
+  recipes line. `flow/MealPlanner`.
 
 ## Endpoints
 
@@ -63,6 +66,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web/store-lookup capability |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | stores the rendered HTML deliverables |
 | `NUTRITIONIST_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | public base for the deliverable link (`<base>/v1/media/{id}`) |
+| `ORCHESTRATOR_URL` | `http://orchestrator:8083` | hub for the ration → recipes inter-agent call (NU-g invokes chef) |
 | `NUTRITIONIST_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the eager MCP-SSE binding off in dev |
 | `NUTRITIONIST_AGENT_MEMORY_RECALL_K` | `5` | memory recall fan-out |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway (chat) |
@@ -97,6 +101,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
 - `http/MealReadClient` — `GET /internal/meals` on mcp-nutrition (read recent meals).
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (store-availability lookup for the ration flow).
+- `http/OrchestratorInvokeClient` — `POST /v1/agents/invoke` on the orchestrator (NU-g → chef recipes).
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered HTML).

@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.agents.chef;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -158,6 +160,53 @@ class RecipeFinderTest {
         assertThat(mediaReq.getBody().readUtf8())
                 .contains("Рецепты")
                 .doesNotContain("class=\"links\"");
+    }
+
+    @Test
+    void hubActionRecommendRecipesReturnsCardLink() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID storedId = UUID.randomUUID();
+
+        mcpWeb.enqueue(jsonResponse(json.writeValueAsString(new WebSearchResult("рацион рецепт", List.of(
+                new WebSearchHit("Овсянка", "https://food.ru/recipes/oats", "на завтрак"))))));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Рецепты под рацион.\nОвсянка на завтрак.", "stop",
+                new LlmUsage(90, 60, 150)))));
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                storedId, householdId, userId, "file", "text/html", 2048, "sha", "chef", Instant.now()))));
+
+        // the nutritionist (NU-g) invokes the chef over the hub with a ration in args.request.
+        var req = new AgentActionRequest("chef", "recommend_recipes", householdId, userId, "nutritionist",
+                json.createObjectNode().put("request", "рацион на неделю: завтрак — овсянка"));
+
+        AgentActionResult result = http.post().uri("/agents/chef/actions/recommend_recipes")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(req)
+                .exchange().expectStatus().isOk()
+                .expectBody(AgentActionResult.class).returnResult().getResponseBody();
+
+        assertThat(result).isNotNull();
+        assertThat(result.ok()).isTrue();
+        assertThat(result.result().path("link").asText()).contains(storedId.toString());
+
+        assertThat(mcpWeb.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/internal/search");
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
+        assertThat(mediaService.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/media");
+    }
+
+    @Test
+    void hubActionRejectsUnknownAction() {
+        var req = new AgentActionRequest("chef", "do_something", UUID.randomUUID(), UUID.randomUUID(),
+                "nutritionist", json.createObjectNode().put("request", "x"));
+
+        AgentActionResult result = http.post().uri("/agents/chef/actions/do_something")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(req)
+                .exchange().expectStatus().isOk()
+                .expectBody(AgentActionResult.class).returnResult().getResponseBody();
+
+        assertThat(result).isNotNull();
+        assertThat(result.ok()).isFalse();
+        assertThat(result.error()).contains("unknown action");
     }
 
     private IntentResponse post(NormalizedMessage msg) {

@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.nutritionist;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -52,6 +53,7 @@ class MealPlannerTest {
     static MockWebServer mcpWeb;
     static MockWebServer llmGateway;
     static MockWebServer mediaService;
+    static MockWebServer orchestrator;
 
     @BeforeAll
     static void start() throws Exception {
@@ -59,10 +61,12 @@ class MealPlannerTest {
         mcpWeb = new MockWebServer();
         llmGateway = new MockWebServer();
         mediaService = new MockWebServer();
+        orchestrator = new MockWebServer();
         mcpNutrition.start();
         mcpWeb.start();
         llmGateway.start();
         mediaService.start();
+        orchestrator.start();
     }
 
     @AfterAll
@@ -71,12 +75,13 @@ class MealPlannerTest {
         mcpWeb.shutdown();
         llmGateway.shutdown();
         mediaService.shutdown();
+        orchestrator.shutdown();
     }
 
     /** Drain any recorded requests so the static servers stay isolated across (unordered) tests. */
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpNutrition, mcpWeb, llmGateway, mediaService)) {
+        for (MockWebServer s : List.of(mcpNutrition, mcpWeb, llmGateway, mediaService, orchestrator)) {
             while (s.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
                 // discard
             }
@@ -89,6 +94,7 @@ class MealPlannerTest {
         r.add("nutritionist-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
         r.add("nutritionist-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("nutritionist-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -111,6 +117,9 @@ class MealPlannerTest {
         mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
                 storedId, householdId, userId, "file", "text/html", 4096, "sha", "nutritionist",
                 Instant.now()))));
+        // chef (via the hub) returns a recipe card link.
+        orchestrator.enqueue(jsonResponse(json.writeValueAsString(AgentActionResult.ok(
+                json.createObjectNode().put("link", "http://chef.example/v1/media/recipes").put("summary", "3 рецепта")))));
 
         var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
                 "Хотим закупиться в Ленте на неделю: я, жена, и малыш 8 месяцев на прикорме",
@@ -119,6 +128,17 @@ class MealPlannerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Рацион и список покупок").contains(storedId.toString());
+        // the chef's recipe card link was folded into the reply.
+        assertThat(resp.text()).contains("Рецепты от шефа").contains("http://chef.example/v1/media/recipes");
+
+        // the chef was invoked over the orchestrator hub for recipes.
+        RecordedRequest invokeReq = orchestrator.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(invokeReq.getPath()).isEqualTo("/v1/agents/invoke");
+        String invokeBody = invokeReq.getBody().readUtf8();
+        assertThat(invokeBody)
+                .contains("\"targetAgent\":\"chef\"")
+                .contains("\"action\":\"recommend_recipes\"")
+                .contains("\"requestingAgent\":\"nutritionist\"");
 
         // mcp-nutrition was hit for the self profile, the household profile, and the recent meals.
         List<String> nutritionPaths = drainPaths(mcpNutrition, 3);
@@ -161,6 +181,9 @@ class MealPlannerTest {
         mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
                 storedId, householdId, userId, "file", "text/html", 2048, "sha", "nutritionist",
                 Instant.now()))));
+        // chef declines (ok=false) → the recipes line is soft-failed out.
+        orchestrator.enqueue(jsonResponse(json.writeValueAsString(
+                AgentActionResult.error("no recipes"))));
 
         var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
                 "составь рацион на неделю", List.of(), "telegram", "121", Instant.now());
@@ -168,13 +191,16 @@ class MealPlannerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Рацион и список покупок").contains(storedId.toString());
+        // chef declined → no recipes line, but the ration still ships.
+        assertThat(resp.text()).doesNotContain("Рецепты от шефа");
 
         // no store named → no web search call.
         assertThat(mcpWeb.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
 
-        // synthesis + store still happened.
+        // synthesis + store still happened, and the chef was still invoked.
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
         assertThat(mediaService.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/media");
+        assertThat(orchestrator.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/agents/invoke");
     }
 
     /** Routes the parallel mcp-nutrition gather by path: self profile / household profile / meals. */

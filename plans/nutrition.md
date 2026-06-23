@@ -202,8 +202,16 @@ Ration + chef (cases 1 & 2):
   clickable list — the recipe-link generalisation, landed with its first consumer. New `recipe-finder`
   SKILL; `IntentController` routes a recipe cue → `RecipeFinder`, else chat. Tested (`RecipeFinderTest`,
   2 + `HtmlDocRendererTest` link-list case).
-  **CH-b2 — ration → recipes over the hub (next):** chef exposes a `/agents/chef/actions/*` recipe
-  endpoint; the nutritionist's NU-g invokes it via the orchestrator `/v1/agents/invoke`.
+  **CH-b2 DONE (PR169): ration → recipes over the hub — the chef line is COMPLETE.** Chef
+  `web/ActionController` exposes `POST /agents/chef/actions/recommend_recipes` (args `{request}` → the
+  shared `RecipeFinder.recommend` → `{link, summary}`); the nutritionist's `MealPlanner`, once the
+  ration is rendered, invokes it via `http/OrchestratorInvokeClient` → `/v1/agents/invoke` and folds
+  the recipe-card link into the reply — soft-failed (a chef outage just drops the recipes line). The
+  nutritionist + chef now work "together" like gift-recommender → finance.
+
+**Nutrition MVP COMPLETE** — food log (NU-c) + multi-person diet profiles (NU-d) + nutrition analysis
+(NU-e) + basket breakdown (NU-f) + grocery-receipt fan-out (IA-a/b) + ration/shopping list (NU-g) +
+chef recipes (CH-a/b). Remaining nutrition work is the optional **FD-a** (`mcp-food-data`) below.
 
 Data precision:
 - **FD-a — `mcp-food-data` (Open Food Facts)** `food_lookup` + `/internal/food-lookup`; bound by the
