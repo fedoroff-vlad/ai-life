@@ -182,7 +182,14 @@ Ration + chef (cases 1 & 2):
   the named people incl. ad-hoc infant context, recent basket/log, goals, store availability via
   mcp-web}` → ration + shopping list (a `meal-planner` SKILL, infant caveat) → HTML → link.
 - **CH-a — `chef-agent` scaffold + orchestrator registration** (binds `mcp-nutrition` + `mcp-web` +
-  doc-render).
+  doc-render). **DONE (PR167):** `domains/nutrition/chef-agent` (port 8106), `@Import(AgentRuntimeConfig)`;
+  AGENT.md (`name: chef`, mcp: `mcp-nutrition` + `mcp-web`, `skills: []` until CH-b) at
+  `GET /agents/chef/manifest`. Binds the two MCPs over SSE (the deterministic CH-b flow calls them
+  over `/internal/*` passthroughs). `IntentController` ships the `chat/ChefChat` fallback; `config/`
+  holds `ChefAgentProperties` + `OutboundHttpConfig` + `RenderConfig` (the shared `DocRenderer` for
+  CH-b cards). Registered in orchestrator `application.yml` (`{name: chef}` + `CHEF_AGENT_URL`).
+  Template `nutritionist-agent` (leaner). Tested (`ManifestControllerTest`); wired into root pom,
+  compose, `.env.example`, infra/README (8106). Full reactor compiles; module suite green.
 - **CH-b — recipe flow**: ration/request → `mcp-web` recipe search (food.ru etc.) → an HTML recipe
   card (links + web photos) (a `recipe-finder` SKILL). The nutritionist's NU-g **invokes the chef**
   via the orchestrator hub (ration → recipes), so they work "together" (like gift-recommender →

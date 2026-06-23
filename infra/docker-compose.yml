@@ -357,6 +357,7 @@ services:
       RESEARCHER_AGENT_URL: http://researcher-agent:8099
       STYLIST_AGENT_URL: http://stylist-agent:8102
       NUTRITIONIST_AGENT_URL: http://nutritionist-agent:8105
+      CHEF_AGENT_URL: http://chef-agent:8106
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -926,6 +927,47 @@ services:
       NUTRITIONIST_AGENT_MEMORY_RECALL_K: ${NUTRITIONIST_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8105/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  chef-agent:
+    image: ai-life/chef-agent:local
+    container_name: ai-life-chef-agent
+    build:
+      context: ..
+      dockerfile: domains/nutrition/chef-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+      mcp-nutrition:
+        condition: service_healthy
+      mcp-web:
+        condition: service_healthy
+    environment:
+      CHEF_AGENT_PORT: 8106
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_NUTRITION_URL: http://mcp-nutrition:8104
+      MCP_WEB_URL: http://mcp-web:8098
+      MEDIA_SERVICE_URL: http://media-service:8088
+      CHEF_PUBLIC_MEDIA_BASE_URL: ${CHEF_PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      CHEF_AGENT_MCP_CLIENT_ENABLED: ${CHEF_AGENT_MCP_CLIENT_ENABLED:-true}
+      CHEF_AGENT_MEMORY_RECALL_K: ${CHEF_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8106/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
