@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.nutritionist.web;
 
+import dev.fedorov.ailife.agents.nutritionist.analysis.NutritionAnalyst;
 import dev.fedorov.ailife.agents.nutritionist.chat.NutritionistChat;
 import dev.fedorov.ailife.agents.nutritionist.foodlog.FoodLogger;
 import dev.fedorov.ailife.agents.nutritionist.profile.DietProfiler;
@@ -23,6 +24,8 @@ import java.util.Set;
  *       default for a photo until NU-f adds a basket-cue split (mirrors stylist's catalogue default);</li>
  *   <li>a typed message with a diet-profile cue ("моя цель…", "у меня аллергия…", "ккал в день…") →
  *       {@link DietProfiler#setProfile} (one LLM extract → upsert the profile);</li>
+ *   <li>a typed message with an analysis cue ("разбор питания", "как я питаюсь") →
+ *       {@link NutritionAnalyst#analyse} (gather meals + profile → synthesis → HTML board);</li>
  *   <li>a typed message with a food-log cue ("съел…", "на обед…", "запиши…") → {@link FoodLogger#logText}
  *       (one LLM extract → log);</li>
  *   <li>otherwise → the {@link NutritionistChat} fallback.</li>
@@ -41,6 +44,13 @@ public class IntentController {
             "my goal", "my goals", "i'm allergic", "set my diet", "kcal a day", "kcal per day",
             "i'm vegan", "i'm vegetarian", "diet goal");
 
+    private static final Set<String> ANALYSIS_CUES = Set.of(
+            "разбор питания", "разбор рациона", "проанализируй питание", "проанализируй рацион",
+            "анализ питания", "анализ рациона", "как я питаюсь", "как я ем", "оцени моё питание",
+            "оцени мое питание", "что с моим питанием",
+            "analyse my nutrition", "analyze my nutrition", "nutrition analysis", "how am i eating",
+            "review my diet", "analyse my diet", "analyze my diet");
+
     private static final Set<String> LOG_CUES = Set.of(
             "съел", "съела", "поел", "поела", "я ел", "я ела", "перекус",
             "на завтрак", "на обед", "на ужин", "на полдник", "запиши", "записать",
@@ -48,11 +58,14 @@ public class IntentController {
 
     private final FoodLogger foodLogger;
     private final DietProfiler dietProfiler;
+    private final NutritionAnalyst nutritionAnalyst;
     private final NutritionistChat chat;
 
-    public IntentController(FoodLogger foodLogger, DietProfiler dietProfiler, NutritionistChat chat) {
+    public IntentController(FoodLogger foodLogger, DietProfiler dietProfiler,
+                            NutritionAnalyst nutritionAnalyst, NutritionistChat chat) {
         this.foodLogger = foodLogger;
         this.dietProfiler = dietProfiler;
+        this.nutritionAnalyst = nutritionAnalyst;
         this.chat = chat;
     }
 
@@ -64,6 +77,9 @@ public class IntentController {
         }
         if (isMatch(message.text(), PROFILE_CUES)) {
             return dietProfiler.setProfile(message);
+        }
+        if (isMatch(message.text(), ANALYSIS_CUES)) {
+            return nutritionAnalyst.analyse(message);
         }
         if (isMatch(message.text(), LOG_CUES)) {
             return foodLogger.logText(message);

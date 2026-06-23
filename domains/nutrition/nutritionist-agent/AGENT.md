@@ -10,6 +10,7 @@ mcp:
 skills:
   - meal-logger
   - diet-profiler
+  - nutrition-analyst
 intents:
   - example: Log my lunch — chicken with rice
     description: Record a meal in the food log.
