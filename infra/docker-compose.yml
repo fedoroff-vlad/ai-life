@@ -920,6 +920,9 @@ services:
       MCP_WEB_URL: http://mcp-web:8098
       MEDIA_SERVICE_URL: http://media-service:8088
       NUTRITIONIST_PUBLIC_MEDIA_BASE_URL: ${NUTRITIONIST_PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
+      # Hub for the ration → recipes inter-agent call (NU-g invokes chef). No depends_on: the
+      # orchestrator depends on the agents, so the reverse edge would cycle; the invoke is best-effort.
+      ORCHESTRATOR_URL: http://orchestrator:8083
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087

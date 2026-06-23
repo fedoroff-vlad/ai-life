@@ -10,7 +10,10 @@ import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
+import dev.fedorov.ailife.agents.nutritionist.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.nutritionist.http.WebSearchClient;
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -47,7 +50,12 @@ import java.util.Map;
  * <p>Per-step soft-fail (no profile/store just drops that constraint). The ad-hoc people (wife,
  * infant) are read by the LLM from the request text — they aren't stored as owner rows. The
  * {@code meal-planner} SKILL carries the infant/medical-safety caveat. Synthesis failure → a friendly
- * message. CH-b adds the chef invocation (ration → recipes) on top of this flow.
+ * message.
+ *
+ * <p><b>Ration → recipes (CH-b2):</b> once the ration is rendered, the flow invokes the <b>chef</b>'s
+ * {@code recommend_recipes} over the orchestrator hub ({@code /v1/agents/invoke}) and folds the
+ * returned recipe-card link into the reply — the gift-recommender→finance shape. Soft-failed: a chef
+ * outage just drops the recipes line, the ration still ships.
  */
 @Component
 public class MealPlanner {
@@ -68,6 +76,7 @@ public class MealPlanner {
     private final MealReadClient meals;
     private final WebSearchClient web;
     private final MediaStoreClient media;
+    private final OrchestratorInvokeClient orchestrator;
     private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
@@ -79,6 +88,7 @@ public class MealPlanner {
                        MealReadClient meals,
                        WebSearchClient web,
                        MediaStoreClient media,
+                       OrchestratorInvokeClient orchestrator,
                        DocRenderer renderer,
                        SkillRegistry skills,
                        AgentManifest manifest,
@@ -89,6 +99,7 @@ public class MealPlanner {
         this.meals = meals;
         this.web = web;
         this.media = media;
+        this.orchestrator = orchestrator;
         this.renderer = renderer;
         this.skills = skills;
         this.manifest = manifest;
@@ -123,8 +134,9 @@ public class MealPlanner {
                         gather,
                         LlmChannel.DEFAULT)
                 .flatMap(result -> store(msg, result.text())
-                        .map(link -> reply(summary(result.text()) + "\n\nРацион и список покупок: " + link,
-                                result.llmModel()))
+                        .flatMap(link -> recipesFor(msg, result.text())
+                                .map(recipes -> reply(summary(result.text())
+                                        + "\n\nРацион и список покупок: " + link + recipes, result.llmModel())))
                         .onErrorResume(e -> {
                             log.warn("ration render/store failed: {}", e.toString());
                             // Still hand back the textual plan if the page couldn't be stored.
@@ -134,6 +146,27 @@ public class MealPlanner {
                     log.warn("meal planning failed: {}", e.toString());
                     return Mono.just(reply(
                             "Не получилось составить рацион. Попробуйте позже.", null));
+                });
+    }
+
+    /**
+     * Ask the chef (CH-b2) for recipes for the ration over the orchestrator hub, returning a "\n\n
+     * Рецепты от шефа: &lt;link&gt;" suffix when the chef produced a card, or "" otherwise. Soft-failed —
+     * a chef outage / no link just omits the recipes line; the ration is already in hand.
+     */
+    private Mono<String> recipesFor(NormalizedMessage msg, String rationText) {
+        JsonNode args = json.createObjectNode().put("request", rationText);
+        var request = new AgentActionRequest(
+                "chef", "recommend_recipes", msg.householdId(), msg.userId(), "nutritionist", args);
+        return orchestrator.invoke(request)
+                .filter(AgentActionResult::ok)
+                .map(AgentActionResult::result)
+                .map(r -> r != null && r.hasNonNull("link")
+                        ? "\n\nРецепты от шефа: " + r.get("link").asText() : "")
+                .defaultIfEmpty("")
+                .onErrorResume(e -> {
+                    log.warn("chef recipes invoke failed (dropping it): {}", e.toString());
+                    return Mono.just("");
                 });
     }
 

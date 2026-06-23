@@ -35,6 +35,11 @@ public class OutboundHttpConfig {
     }
 
     @Bean
+    public WebClient orchestratorWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
+        return builder.clone().baseUrl(props.getOrchestratorUrl()).build();
+    }
+
+    @Bean
     public WebClient profileServiceWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
         return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
     }
