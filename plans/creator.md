@@ -184,7 +184,19 @@ Sources (each a capability-MCP, mirror MD-a / FD-a):
   global `/search`; no target → empty, no upstream call). Wired into root pom, compose (no
   `depends_on`), `.env.example`, infra/README (8111). Not bound yet (creator-agent binds it in CR-d).
 - **FE-a — `mcp-feeds`** `feed_items` over RSS + public Telegram channels behind `FeedSource` +
-  `/internal/feed-items`.
+  `/internal/feed-items`. **DONE (PR180):** `shared/mcp/mcp-feeds` (port 8112, no schema — third
+  creator source, sibling of YT-a/RD-a). `feed_items(source)` takes an RSS/Atom feed URL (starts with
+  `http` → fetch + Rome `SyndFeedInput`) or a public Telegram channel handle (`durov`/`@durov` →
+  fetch `t.me/s/{channel}` + jsoup parse `.tgme_widget_message`, newest-first) → each item → a uniform
+  `trends/TrendHit` (platform `rss` with `{publishedAt, author}` metrics, or `telegram` with
+  `{channel}`). Behind a swappable `engine/FeedSource` (`feeds.source=romejsoup` default). **No key**
+  (both surfaces public). Added `com.rometools:rome` to the parent dependencyManagement (jsoup already
+  managed). New contract `trends/FeedItemsInput{source, maxResults?}`; `POST /internal/feed-items`
+  passthrough. Scaffold per PATTERNS "capability-MCP" (template `mcp-youtube`). Tested
+  (`InternalFeedItemsControllerTest`, 3 via one MockWebServer: RSS XML → Rome → 2 hits w/ author +
+  publishedAt; Telegram HTML → jsoup → 2 hits newest-first w/ channel; blank source → empty no fetch).
+  Wired into root pom, compose (no `depends_on`), `.env.example`, infra/README (8112). Not bound yet
+  (creator-agent binds it in CR-d). **All three sources (YT-a/RD-a/FE-a) now done — next is CR-d.**
 
 The headline flow:
 - **CR-d — the trend → ideas → drafts synthesis** (`Coordinator`, multi-source): gather

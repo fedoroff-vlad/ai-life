@@ -29,6 +29,7 @@
         <minio.version>8.5.14</minio.version>
         <tess4j.version>5.13.0</tess4j.version>
         <jsoup.version>1.18.3</jsoup.version>
+        <rome.version>2.1.0</rome.version>
 
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -73,6 +74,7 @@
         <module>shared/mcp/mcp-food-data</module>
         <module>shared/mcp/mcp-youtube</module>
         <module>shared/mcp/mcp-reddit</module>
+        <module>shared/mcp/mcp-feeds</module>
         <module>shared/mcp/mcp-image-gen</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
@@ -134,6 +136,11 @@
                 <groupId>org.jsoup</groupId>
                 <artifactId>jsoup</artifactId>
                 <version>${jsoup.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.rometools</groupId>
+                <artifactId>rome</artifactId>
+                <version>${rome.version}</version>
             </dependency>
 
             <!-- internal libs -->
