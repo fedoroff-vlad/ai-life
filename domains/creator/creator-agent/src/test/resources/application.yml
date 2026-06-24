@@ -23,6 +23,11 @@ agent:
 creator-agent:
   mcp-creator-url: ${MCP_CREATOR_URL:http://mcp-creator:8108}
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  mcp-youtube-url: ${MCP_YOUTUBE_URL:http://mcp-youtube:8110}
+  mcp-reddit-url: ${MCP_REDDIT_URL:http://mcp-reddit:8111}
+  mcp-feeds-url: ${MCP_FEEDS_URL:http://mcp-feeds:8112}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  public-media-base-url: ${PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}

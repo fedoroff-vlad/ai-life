@@ -1105,15 +1105,28 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
+      media-service:
+        condition: service_healthy
       mcp-creator:
         condition: service_healthy
       mcp-web:
+        condition: service_healthy
+      mcp-youtube:
+        condition: service_healthy
+      mcp-reddit:
+        condition: service_healthy
+      mcp-feeds:
         condition: service_healthy
     environment:
       CREATOR_AGENT_PORT: 8109
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_CREATOR_URL: http://mcp-creator:8108
       MCP_WEB_URL: http://mcp-web:8098
+      MCP_YOUTUBE_URL: http://mcp-youtube:8110
+      MCP_REDDIT_URL: http://mcp-reddit:8111
+      MCP_FEEDS_URL: http://mcp-feeds:8112
+      MEDIA_SERVICE_URL: http://media-service:8088
+      PUBLIC_MEDIA_BASE_URL: ${PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087

@@ -24,6 +24,26 @@ public class OutboundHttpConfig {
     }
 
     @Bean
+    public WebClient mcpYoutubeWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpYoutubeUrl()).build();
+    }
+
+    @Bean
+    public WebClient mcpRedditWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpRedditUrl()).build();
+    }
+
+    @Bean
+    public WebClient mcpFeedsWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpFeedsUrl()).build();
+    }
+
+    @Bean
+    public WebClient mediaServiceWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
+        return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
     public WebClient profileServiceWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
         return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
     }
