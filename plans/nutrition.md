@@ -215,7 +215,23 @@ chef recipes (CH-a/b). Remaining nutrition work is the optional **FD-a** (`mcp-f
 
 Data precision:
 - **FD-a — `mcp-food-data` (Open Food Facts)** `food_lookup` + `/internal/food-lookup`; bound by the
-  basket/log analysis for precise macros (barcode + product composition).
+  basket/log analysis for precise macros (barcode + product composition). **DONE (PR171):**
+  `shared/mcp/mcp-food-data` (port 8107, no schema, no backing container — Open Food Facts is public
+  HTTPS, like Stooq) + `food_lookup(query)` `@Tool`. `engine/FoodDataSource` + `OpenFoodFactsDataSource`
+  (`@ConditionalOnProperty fooddata.source=openfoodfacts`, matchIfMissing) behind the swappable
+  interface: a numeric query → `GET /api/v2/product/{barcode}.json` (precise), a text query →
+  `GET /cgi/search.pl?...&json=1&page_size=1` (best-effort first hit); parses `nutriments` per-100g
+  macros → new contracts `food/FoodFacts(query, name?, brand?, barcode?, quantity?, nutriScore?,
+  kcal100g?, protein100g?, fat100g?, carbs100g?)` + `food/FoodLookupInput(query)`. Missing product/
+  fields → null (no data, not an error; mirrors `Quote`'s null price). `POST /internal/food-lookup`
+  passthrough (`InternalFoodLookupController`, blocking on `boundedElastic`, mirror mcp-market-data's
+  `/internal/quote`). Read-only reference data — no write tool. webflux-only, Spring AI
+  `MethodToolCallbackProvider` exposes the one tool. Registered in root pom `<modules>`, compose (app
+  service, no `depends_on`), `.env.example`, infra/README (8107). Tested (`InternalFoodLookupControllerTest`,
+  3 cases: barcode → product API + parsed macros, name → search API first hit, unknown → null name;
+  MockWebServer stands in for Open Food Facts, no network). Full reactor compiles; compose validates.
+  **Not yet bound** — the nutrition agents use LLM macro estimates today; binding `food_lookup` into
+  the basket/log analysis for precise macros is the follow-up (**FD-c**, mirror MD-c).
 
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
