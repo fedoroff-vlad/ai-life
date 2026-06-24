@@ -3,10 +3,11 @@
 Nutrition domain agent (port **8105**). Logs meals, breaks grocery baskets down (КБЖУ +
 good/watch/cut), keeps per-person diet profiles, and (over the coming slices) plans rations +
 shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media-processing`
-(vision caption for meal/receipt photos) + `mcp-web` (store/availability lookup). Routes via the
-orchestrator (registered as `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
+(vision caption for meal/receipt photos) + `mcp-web` (store/availability lookup) + `mcp-food-data`
+(precise per-100g КБЖУ for the basket breakdown). Routes via the orchestrator (registered as
+`nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (through NU-g)
+## Status (through FD-c)
 
 Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c) + **diet profiles** (NU-d) +
 the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct) + the **ration +
@@ -28,6 +29,12 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   **typed list** ("разбери продукты", "список покупок") → one LLM turn — both via the `basket-analyst`
   SKILL (with the diet profile folded in) → КБЖУ + good/watch/cut verdict → save via `/internal/basket`
   → HTML verdict board → link. `basket/BasketBreakdown`.
+- **FD-c — precise macros. DONE.** Before rendering, the basket breakdown grounds its numbers in real
+  reference data: each item is looked up in the shared `mcp-food-data` capability (Open Food Facts) for
+  per-100g КБЖУ via `http/FoodDataClient` → `POST /internal/food-lookup` (parallel, soft-failed per
+  item, bounded), folded into the board as a "Точные КБЖУ (Open Food Facts)" section. A no-match just
+  omits the section (the LLM's own estimate still ships). Both the direct and the bus-fan-out paths
+  enrich (shared `render`).
 - **IA-b — basket breakdown off the bus (case-1 fan-out). Endpoint DONE (IA-b1).** `POST
   /internal/basket-event` (body `BasketCapturedEvent`) → `BasketBreakdown.breakdownFromEvent`: one LLM
   breakdown over the line items finance already extracted (no re-vision) → save basket → render verdict
@@ -64,6 +71,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 | `MCP_NUTRITION_URL` | `http://mcp-nutrition:8104` | nutrition domain-MCP (its data) |
 | `MCP_MEDIA_PROCESSING_URL` | `http://mcp-media-processing:8097` | shared vision capability |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web/store-lookup capability |
+| `MCP_FOOD_DATA_URL` | `http://mcp-food-data:8107` | shared nutrition-facts capability (precise per-100g КБЖУ for the basket breakdown) |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | stores the rendered HTML deliverables |
 | `NUTRITIONIST_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | public base for the deliverable link (`<base>/v1/media/{id}`) |
 | `ORCHESTRATOR_URL` | `http://orchestrator:8083` | hub for the ration → recipes inter-agent call (NU-g invokes chef) |
@@ -101,6 +109,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
 - `http/MealReadClient` — `GET /internal/meals` on mcp-nutrition (read recent meals).
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (store-availability lookup for the ration flow).
+- `http/FoodDataClient` — `POST /internal/food-lookup` on mcp-food-data (precise per-100g КБЖУ for the basket breakdown, FD-c).
 - `http/OrchestratorInvokeClient` — `POST /v1/agents/invoke` on the orchestrator (NU-g → chef recipes).
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
@@ -129,6 +138,6 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 
 ## AGENT.md
 
-`name: nutritionist`, binds `mcp-nutrition` + `mcp-media-processing` + `mcp-web`, `skills:
-meal-logger, diet-profiler, nutrition-analyst, basket-analyst, meal-planner`. ⚠️ Carries the
+`name: nutritionist`, binds `mcp-nutrition` + `mcp-media-processing` + `mcp-web` + `mcp-food-data`,
+`skills: meal-logger, diet-profiler, nutrition-analyst, basket-analyst, meal-planner`. ⚠️ Carries the
 infant/medical-safety rule (general guidance only + pediatrician caveat).

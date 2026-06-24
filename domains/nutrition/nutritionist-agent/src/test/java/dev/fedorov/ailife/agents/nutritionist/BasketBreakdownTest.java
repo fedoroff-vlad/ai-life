@@ -11,6 +11,7 @@ import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketDto;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -47,6 +48,7 @@ class BasketBreakdownTest {
     static MockWebServer mediaProcessing;
     static MockWebServer llmGateway;
     static MockWebServer mediaService;
+    static MockWebServer mcpFoodData;
 
     @BeforeAll
     static void start() throws Exception {
@@ -54,10 +56,15 @@ class BasketBreakdownTest {
         mediaProcessing = new MockWebServer();
         llmGateway = new MockWebServer();
         mediaService = new MockWebServer();
+        mcpFoodData = new MockWebServer();
         mcpNutrition.start();
         mediaProcessing.start();
         llmGateway.start();
         mediaService.start();
+        mcpFoodData.start();
+        // FD-c: mcp-food-data answers any /internal/food-lookup with a matched product (a fixed
+        // FoodFacts) so the basket-breakdown enrichment grounds the board in precise per-100g КБЖУ.
+        mcpFoodData.setDispatcher(FOOD_LOOKUP_DISPATCHER);
     }
 
     @AfterAll
@@ -66,12 +73,13 @@ class BasketBreakdownTest {
         mediaProcessing.shutdown();
         llmGateway.shutdown();
         mediaService.shutdown();
+        mcpFoodData.shutdown();
     }
 
     /** Drain any recorded requests so the static servers stay isolated across (unordered) tests. */
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpNutrition, mediaProcessing, llmGateway, mediaService)) {
+        for (MockWebServer s : List.of(mcpNutrition, mediaProcessing, llmGateway, mediaService, mcpFoodData)) {
             while (s.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
                 // discard
             }
@@ -84,8 +92,19 @@ class BasketBreakdownTest {
         r.add("nutritionist-agent.mcp-media-processing-url", () -> "http://localhost:" + mediaProcessing.getPort());
         r.add("nutritionist-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("nutritionist-agent.mcp-food-data-url", () -> "http://localhost:" + mcpFoodData.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
+
+    /** Every food-lookup → a matched product with macros + a Nutri-Score (the FD-c facts section). */
+    private static final Dispatcher FOOD_LOOKUP_DISPATCHER = new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+            return new MockResponse().setHeader("content-type", "application/json").setBody(
+                    "{\"name\":\"Молоко 3.2%\",\"brand\":\"Простоквашино\",\"quantity\":\"1 л\","
+                    + "\"nutriScore\":\"b\",\"kcal100g\":60,\"protein100g\":3.0,\"fat100g\":3.2,\"carbs100g\":4.7}");
+        }
+    };
 
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
@@ -156,6 +175,12 @@ class BasketBreakdownTest {
         assertThat(mediaReq.getPath()).isEqualTo("/v1/media");
         String boardHtml = mediaReq.getBody().readUtf8();
         assertThat(boardHtml).contains("Разбор корзины").contains("молоко").contains("чипсы");
+        // FD-c: the board is grounded in precise per-100g facts from mcp-food-data.
+        assertThat(boardHtml).contains("Open Food Facts").contains("Nutri-Score B");
+
+        // the items were enriched against mcp-food-data (one lookup per item).
+        RecordedRequest foodReq = mcpFoodData.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(foodReq.getPath()).isEqualTo("/internal/food-lookup");
     }
 
     @Test

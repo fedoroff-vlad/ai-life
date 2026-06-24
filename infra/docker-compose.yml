@@ -931,12 +931,15 @@ services:
         condition: service_healthy
       mcp-web:
         condition: service_healthy
+      mcp-food-data:
+        condition: service_healthy
     environment:
       NUTRITIONIST_AGENT_PORT: 8105
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_NUTRITION_URL: http://mcp-nutrition:8104
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
       MCP_WEB_URL: http://mcp-web:8098
+      MCP_FOOD_DATA_URL: http://mcp-food-data:8107
       MEDIA_SERVICE_URL: http://media-service:8088
       NUTRITIONIST_PUBLIC_MEDIA_BASE_URL: ${NUTRITIONIST_PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
       # Hub for the ration → recipes inter-agent call (NU-g invokes chef). No depends_on: the

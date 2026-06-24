@@ -4,10 +4,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Outbound HTTP destinations the nutritionist talks to. {@code mcpNutritionUrl} is its own data
- * (the nutrition domain-MCP); {@code mcpMediaProcessingUrl} + {@code mcpWebUrl} are shared
- * capabilities (vision caption / store lookup) the deterministic flows call over their
- * {@code /internal/*} passthroughs. The profile / notifier / memory URLs back the shared
- * {@code agent-runtime} clients every agent imports.
+ * (the nutrition domain-MCP); {@code mcpMediaProcessingUrl} + {@code mcpWebUrl} + {@code mcpFoodDataUrl}
+ * are shared capabilities (vision caption / store lookup / nutrition-facts lookup) the deterministic
+ * flows call over their {@code /internal/*} passthroughs. The profile / notifier / memory URLs back
+ * the shared {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "nutritionist-agent")
 public class NutritionistAgentProperties {
@@ -15,6 +15,7 @@ public class NutritionistAgentProperties {
     private String mcpNutritionUrl = "http://mcp-nutrition:8104";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpWebUrl = "http://mcp-web:8098";
+    private String mcpFoodDataUrl = "http://mcp-food-data:8107";
     private String mediaServiceUrl = "http://media-service:8088";
     private String orchestratorUrl = "http://orchestrator:8083";
     private String profileServiceUrl = "http://profile-service:8082";
@@ -49,6 +50,9 @@ public class NutritionistAgentProperties {
 
     public String getMcpWebUrl() { return mcpWebUrl; }
     public void setMcpWebUrl(String mcpWebUrl) { this.mcpWebUrl = mcpWebUrl; }
+
+    public String getMcpFoodDataUrl() { return mcpFoodDataUrl; }
+    public void setMcpFoodDataUrl(String mcpFoodDataUrl) { this.mcpFoodDataUrl = mcpFoodDataUrl; }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {

@@ -21,6 +21,11 @@ spring:
               url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
             mcp-web:
               url: ${MCP_WEB_URL:http://mcp-web:8098}
+            # Shared food-data capability (FD-c). Bound here so a future LLM-driven flow can pick its
+            # tools; the deterministic basket-breakdown enrichment goes over the HTTP
+            # /internal/food-lookup passthrough (FoodDataClient), which is MockWebServer-testable.
+            mcp-food-data:
+              url: ${MCP_FOOD_DATA_URL:http://mcp-food-data:8107}
 
 server:
   port: ${NUTRITIONIST_AGENT_PORT:8105}
@@ -34,6 +39,7 @@ nutritionist-agent:
   mcp-nutrition-url: ${MCP_NUTRITION_URL:http://mcp-nutrition:8104}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  mcp-food-data-url: ${MCP_FOOD_DATA_URL:http://mcp-food-data:8107}
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
   public-media-base-url: ${NUTRITIONIST_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
   orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}

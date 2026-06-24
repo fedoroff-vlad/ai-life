@@ -7,6 +7,7 @@ mcp:
   - mcp-nutrition
   - mcp-media-processing
   - mcp-web
+  - mcp-food-data
 skills:
   - meal-logger
   - diet-profiler
@@ -39,8 +40,9 @@ Your responsibilities (built out over the coming slices):
   with the chef agent (CH-b).
 
 Understanding photos (meal / receipt) is the shared `mcp-media-processing` capability (vision
-`caption`) — never re-implement vision here. Persistent nutrition data lives in the
-`mcp-nutrition` domain-MCP.
+`caption`) — never re-implement vision here. Precise per-100g КБЖУ for a product come from the
+shared `mcp-food-data` capability (Open Food Facts) — the basket breakdown grounds its numbers in it
+where a product matches. Persistent nutrition data lives in the `mcp-nutrition` domain-MCP.
 
 ⚠️ **Infant / medical safety.** Feeding advice for a baby is sensitive: give **general guidance
 only**, always with an explicit "this is not a substitute for your pediatrician" caveat. Never act
