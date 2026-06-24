@@ -635,6 +635,27 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-feeds:
+    image: ai-life/mcp-feeds:local
+    container_name: ai-life-mcp-feeds
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-feeds/Dockerfile
+    restart: unless-stopped
+    # No backing container — feeds come from RSS URLs / the public Telegram web preview over HTTPS.
+    environment:
+      MCP_FEEDS_PORT: 8112
+      FEEDS_TELEGRAM_BASE_URL: https://t.me
+      FEEDS_USER_AGENT: ${FEEDS_USER_AGENT:-ai-life/mcp-feeds 0.0.1 (+https://github.com/vlad94fed)}
+      FEEDS_MAX_RESULTS: 5
+      FEEDS_SOURCE: romejsoup
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8112/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-image-gen:
     image: ai-life/mcp-image-gen:local
     container_name: ai-life-mcp-image-gen

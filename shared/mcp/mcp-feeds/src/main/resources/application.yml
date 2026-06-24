@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: mcp-feeds
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-feeds
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared feeds capability (read-only). feed_items: the latest items (title + link + snippet)
+          from an RSS/Atom feed URL or a public Telegram channel handle. Trend data only — the
+          caller's agent folds the items into content ideas/drafts.
+
+server:
+  port: ${MCP_FEEDS_PORT:8112}
+
+feeds:
+  # Public Telegram channel web-preview base URL (t.me/s/{channel}). RSS/Atom URLs are absolute.
+  telegram-base-url: ${FEEDS_TELEGRAM_BASE_URL:https://t.me}
+  # User-Agent for feed / channel fetches (some hosts block generic clients).
+  user-agent: ${FEEDS_USER_AGENT:ai-life/mcp-feeds 0.0.1 (+https://github.com/vlad94fed)}
+  # Default item count when the caller doesn't cap it.
+  max-results: ${FEEDS_MAX_RESULTS:5}
+  # Which feed source to wire: romejsoup (default — Rome for RSS, jsoup for Telegram). Swappable later.
+  source: ${FEEDS_SOURCE:romejsoup}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
