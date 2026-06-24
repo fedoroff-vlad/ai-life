@@ -7,12 +7,14 @@ domain-MCP; binds the shared `mcp-web` (web trend search). Routes via the orches
 `creator`). The gather → synthesize shape is the `researcher` agent, fanned out to multiple sources.
 See [plans/creator.md](../../../plans/creator.md).
 
-## Status (CR-b — scaffold)
+## Status (through CR-c)
 
-Manifest endpoint + the `chat/CreatorChat` fallback (one LLM turn, AGENT.md as system prompt). Real
-flows replace the fallback branch-by-branch as they land:
-- **CR-c — creator profile.** A typed profile cue → one LLM extract via a `creator-profiler` SKILL →
-  upsert the per-person content track via `mcp-creator`.
+Manifest endpoint + the `chat/CreatorChat` fallback (one LLM turn, AGENT.md as system prompt) +
+the **creator-profile flow** (CR-c). Real flows replace the fallback branch-by-branch as they land:
+- **CR-c — creator profile. DONE.** A typed message with a creator-profile cue ("моя ниша…", "мой
+  контент про…", "my niche…") → one LLM extract via the `creator-profiler` SKILL → upsert the
+  per-person content track via `mcp-creator`'s `/internal/creator-profile` (self → the sender,
+  household → the default). `profile/CreatorProfiler`.
 - **CR-d — trend → ideas → drafts (the headline).** Gather `{web, youtube, reddit, feeds}` for the
   niche on the shared `Coordinator` (cheap-first — all gather is HTTP/API, one LLM synthesis) → 3–5
   trends + 10 ideas + 2–3 drafts + per-platform format recs → render an HTML board via
@@ -45,10 +47,20 @@ flows replace the fallback branch-by-branch as they land:
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency; the `profile/notifier/memory`
   qualified beans back the shared runtime clients, `mcpCreator` + `mcpWeb` the future flows.
 - `chat/CreatorChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
-- `web/IntentController` — `POST /agents/creator/intent` (CR-b → chat fallback).
+- `profile/CreatorProfiler` — the creator-profile flow: a typed profile cue → LLM extract via the
+  `creator-profiler` SKILL → upsert via `/internal/creator-profile` (self or household-default).
+- `http/CreatorProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/creator-profile`
+  on mcp-creator.
+- `web/IntentController` — `POST /agents/creator/intent` (profile cue → creator-profiler; else chat).
 - `web/ManifestController` — `GET /agents/creator/manifest`.
+
+## Skills
+
+- `creator-profiler` (`domains/creator/skills/creator-profiler/SKILL.md`) — strict-JSON creator-track
+  extraction (scope self|household, niche, audience, tone, platforms, goals, guardrails) from a typed
+  message.
 
 ## AGENT.md
 
-`name: creator`, binds `mcp-creator` + `mcp-web`, `skills: []` (until CR-c). Guardrails: respect
+`name: creator`, binds `mcp-creator` + `mcp-web`, `skills: creator-profiler`. Guardrails: respect
 platform rules, no clickbait, friendly-expert tone, never invent a trend or a source link.

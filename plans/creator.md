@@ -141,7 +141,16 @@ Foundation:
   `POST` + `GET /internal/creator-profile` passthroughs** → `set_creator_profile` / `get_creator_profile`
   (`web/InternalCreatorProfileController`, 400 on bad set / 404 on unset read; (household,owner)
   keying; mirror mcp-nutrition's `InternalDietProfileController`). Tested (`McpCreatorIntegrationTest`
-  now 8: upsert-in-place + 400-guard + 404-then-200 read).
+  now 8: upsert-in-place + 400-guard + 404-then-200 read). **CR-c2 DONE (PR177): creator-agent
+  creator-profiler flow — CR-c COMPLETE.** New `profile/CreatorProfiler`: a typed creator-profile cue
+  → one llm-gateway `DEFAULT` turn with the new `creator-profiler` SKILL → extract `{scope, niche,
+  audience, tone, platforms, goals, guardrails, notes}` → upsert via new `http/CreatorProfileClient`
+  → `/internal/creator-profile`. Scope `self` → `ownerId = userId`, `household` → `ownerId = null`
+  (default). `IntentController` routes a profile cue ("моя ниша…", "мой контент про…", "my niche…") →
+  creator-profiler, else the `CreatorChat` fallback. New skill `domains/creator/skills/creator-profiler/SKILL.md`;
+  AGENT.md `skills:` += creator-profiler. The `diet-profiler` shape. Tested (`CreatorProfilerTest`, 3:
+  self-scope upsert with platforms/guardrails; household-scope → ownerId omitted; "not a profile" →
+  reply, no write). Module suite green (4).
 
 Sources (each a capability-MCP, mirror MD-a / FD-a):
 - **YT-a — `mcp-youtube`** `youtube_trends` over the YouTube Data API v3 behind `VideoTrendsSource` +
