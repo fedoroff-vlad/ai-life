@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: mcp-food-data
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-food-data
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared food-data capability (read-only). food_lookup: nutrition facts (calories +
+          protein/fat/carbs per 100 g) for one product over Open Food Facts, by barcode (precise)
+          or product name (best-effort). Reference data only — the caller's agent reasons over the
+          numbers (КБЖУ for a basket, deficits vs a diet profile).
+
+server:
+  port: ${MCP_FOOD_DATA_PORT:8107}
+
+fooddata:
+  # Open Food Facts base URL (public HTTPS JSON API; no backing container needed).
+  open-food-facts-url: ${FOODDATA_OPEN_FOOD_FACTS_URL:https://world.openfoodfacts.org}
+  # Which food-data source to wire: openfoodfacts (default). Swappable later (usda/keyed) via env.
+  source: ${FOODDATA_SOURCE:openfoodfacts}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

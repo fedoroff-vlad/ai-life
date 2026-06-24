@@ -570,6 +570,25 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-food-data:
+    image: ai-life/mcp-food-data:local
+    container_name: ai-life-mcp-food-data
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-food-data/Dockerfile
+    restart: unless-stopped
+    # No backing container — facts come from Open Food Facts over public HTTPS.
+    environment:
+      MCP_FOOD_DATA_PORT: 8107
+      FOODDATA_OPEN_FOOD_FACTS_URL: https://world.openfoodfacts.org
+      FOODDATA_SOURCE: openfoodfacts
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8107/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-image-gen:
     image: ai-life/mcp-image-gen:local
     container_name: ai-life-mcp-image-gen
