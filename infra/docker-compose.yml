@@ -358,6 +358,7 @@ services:
       STYLIST_AGENT_URL: http://stylist-agent:8102
       NUTRITIONIST_AGENT_URL: http://nutritionist-agent:8105
       CHEF_AGENT_URL: http://chef-agent:8106
+      CREATOR_AGENT_URL: http://creator-agent:8109
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1017,6 +1018,43 @@ services:
       CHEF_AGENT_MEMORY_RECALL_K: ${CHEF_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8106/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  creator-agent:
+    image: ai-life/creator-agent:local
+    container_name: ai-life-creator-agent
+    build:
+      context: ..
+      dockerfile: domains/creator/creator-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-creator:
+        condition: service_healthy
+      mcp-web:
+        condition: service_healthy
+    environment:
+      CREATOR_AGENT_PORT: 8109
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_CREATOR_URL: http://mcp-creator:8108
+      MCP_WEB_URL: http://mcp-web:8098
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      CREATOR_AGENT_MCP_CLIENT_ENABLED: ${CREATOR_AGENT_MCP_CLIENT_ENABLED:-true}
+      CREATOR_AGENT_MEMORY_RECALL_K: ${CREATOR_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8109/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10

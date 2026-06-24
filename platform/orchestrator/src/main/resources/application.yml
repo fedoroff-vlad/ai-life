@@ -28,6 +28,8 @@ orchestrator:
       base-url: ${NUTRITIONIST_AGENT_URL:http://nutritionist-agent:8105}
     - name: chef
       base-url: ${CHEF_AGENT_URL:http://chef-agent:8106}
+    - name: creator
+      base-url: ${CREATOR_AGENT_URL:http://creator-agent:8109}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
