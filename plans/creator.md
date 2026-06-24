@@ -137,7 +137,11 @@ Foundation:
   `.env.example`, infra/README (port 8109). Full reactor compiles; module suite green.
 - **CR-c — creator-profile flow** (multi-person): a typed profile cue → one LLM extract via a
   `creator-profiler` SKILL → upsert via `/internal/creator-profile` (self / household-default), the
-  `diet-profiler` shape.
+  `diet-profiler` shape. Split c1/c2 (mirror NU-d). **CR-c1 DONE (PR176): mcp-creator
+  `POST` + `GET /internal/creator-profile` passthroughs** → `set_creator_profile` / `get_creator_profile`
+  (`web/InternalCreatorProfileController`, 400 on bad set / 404 on unset read; (household,owner)
+  keying; mirror mcp-nutrition's `InternalDietProfileController`). Tested (`McpCreatorIntegrationTest`
+  now 8: upsert-in-place + 400-guard + 404-then-200 read).
 
 Sources (each a capability-MCP, mirror MD-a / FD-a):
 - **YT-a — `mcp-youtube`** `youtube_trends` over the YouTube Data API v3 behind `VideoTrendsSource` +
