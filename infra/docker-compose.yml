@@ -717,6 +717,30 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-creator:
+    image: ai-life/mcp-creator:local
+    container_name: ai-life-mcp-creator
+    build:
+      context: ..
+      dockerfile: domains/creator/mcp-creator/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      MCP_CREATOR_PORT: 8108
+      MCP_CREATOR_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_CREATOR_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_CREATOR_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8108/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   # ---------- agents ----------
 
   calendar-agent:

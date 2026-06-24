@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: mcp-creator
+  datasource:
+    url: ${MCP_CREATOR_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MCP_CREATOR_DB_USER:ailife}
+    password: ${MCP_CREATOR_DB_PASSWORD:ailife}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-creator
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Source-of-truth creator CRUD over Postgres creator.* schema. Per-person content
+          tracks (creator_profile: niche/audience/tone/platforms/guardrails), a trend cache
+          (one row per gathered trend with source + link + metrics), and the idea/draft history
+          (content_piece: kind idea|draft). The trend → ideas → drafts gather/synthesis lives in
+          creator-agent; this MCP just persists.
+
+server:
+  port: ${MCP_CREATOR_PORT:8108}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

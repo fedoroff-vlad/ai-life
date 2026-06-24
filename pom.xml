@@ -65,6 +65,7 @@
         <module>domains/nutrition/mcp-nutrition</module>
         <module>domains/nutrition/nutritionist-agent</module>
         <module>domains/nutrition/chef-agent</module>
+        <module>domains/creator/mcp-creator</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>
