@@ -1,0 +1,230 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 060-creator
+      author: ai-life
+      comment: |
+        Creator domain opener: source-of-truth tables for mcp-creator
+        (plans/creator.md). Three tables — creator_profile (one per person's
+        content track), trend (cache of gathered trends), content_piece (the
+        idea/draft history).
+
+        creator_profile is keyed (household_id, owner_id) so a person has at most
+        one profile (null owner = household default) — mirrors diet_profile /
+        style_profile. platforms/guardrails/metrics/hashtags are jsonb (free-form
+        parsed structure). trend_id on content_piece is a soft provenance pointer
+        with no FK (the trend cache is evictable, like media ids carry no FK).
+      changes:
+        - createTable:
+            schemaName: creator
+            tableName: creator_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_creator_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_creator_profile_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: niche
+                  type: text
+              - column:
+                  name: audience
+                  type: text
+              - column:
+                  name: tone
+                  type: varchar(64)
+              - column:
+                  name: platforms
+                  type: jsonb
+              - column:
+                  name: goals
+                  type: text
+              - column:
+                  name: guardrails
+                  type: jsonb
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: creator
+            tableName: creator_profile
+            indexName: ux_creator_profile_household_owner
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: owner_id
+
+        - createTable:
+            schemaName: creator
+            tableName: trend
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trend_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_trend_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: source
+                  type: varchar(16)
+              - column:
+                  name: platform
+                  type: varchar(32)
+              - column:
+                  name: title
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: url
+                  type: text
+              - column:
+                  name: summary
+                  type: text
+              - column:
+                  name: metrics
+                  type: jsonb
+              - column:
+                  name: captured_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: creator
+            tableName: trend
+            indexName: ix_trend_household_captured
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: captured_at
+                  descending: true
+
+        - createTable:
+            schemaName: creator
+            tableName: content_piece
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_content_piece_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_content_piece_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: kind
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: platform
+                  type: varchar(32)
+              - column:
+                  name: title
+                  type: text
+              - column:
+                  name: body
+                  type: text
+              - column:
+                  name: cta
+                  type: text
+              - column:
+                  name: hashtags
+                  type: jsonb
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: new
+                  constraints:
+                    nullable: false
+              - column:
+                  name: trend_id
+                  type: uuid
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: creator
+            tableName: content_piece
+            indexName: ix_content_piece_household_created
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: created_at
+                  descending: true

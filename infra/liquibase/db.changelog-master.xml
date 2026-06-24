@@ -30,6 +30,7 @@
     <include file="features/030-tasks.yml" relativeToChangelogFile="true"/>
     <include file="features/040-wardrobe.yml" relativeToChangelogFile="true"/>
     <include file="features/050-nutrition.yml" relativeToChangelogFile="true"/>
+    <include file="features/060-creator.yml" relativeToChangelogFile="true"/>
     <include file="features/009-conversation-state.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):

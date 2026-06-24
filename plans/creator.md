@@ -96,7 +96,28 @@ Foundation:
   + STATUS.
 - **CR-a — `mcp-creator` + `060-creator.yml`** (`creator_profile` + `trend` + `content_piece`) + CRUD
   tools + `creator/*` contracts. Testcontainers repo test. Template `mcp-nutrition`. `/internal/*`
-  passthroughs land with the agent flows (CR-c/d/e, mirror NU-c1).
+  passthroughs land with the agent flows (CR-c/d/e, mirror NU-c1). **DONE (PR174):**
+  `domains/creator/mcp-creator` (port 8108, owns the new `creator` schema — first creator module).
+  Migration [060-creator.yml](../infra/liquibase/features/060-creator.yml) — three tables:
+  `creator_profile` (one per person via the unique `(household_id, owner_id)` index, null-owner =
+  household-default: niche/audience/tone + `platforms`/`guardrails` jsonb), `trend` (cached trend:
+  source/platform/title/url/summary + `metrics` jsonb + captured_at), `content_piece` (idea/draft:
+  kind + body/cta + `hashtags` jsonb + status + soft `trend_id` provenance with no FK — the cache is
+  evictable). `creator` schema added to [postgres/init.sql](../infra/postgres/init.sql). Eight `@Tool`
+  methods on `CreatorMcpTools` — profile (`set_creator_profile`/`get_creator_profile`, keyed
+  (household,owner) via the native-SQL `CAST` finder, mirrors mcp-nutrition), trend cache
+  (`save_trend`/`list_trends`), content pieces (`save_content_piece`/`list_content_pieces`/
+  `get_content_piece`/`delete_content_piece`). New contracts `creator/{CreatorProfileDto,
+  SetCreatorProfileInput, TrendDto, SaveTrendInput, ContentPieceDto, SaveContentPieceInput}` (jsonb
+  fields = `JsonNode`). Scaffold per PATTERNS.md (template `mcp-nutrition`, minus the bus consumer —
+  no inbound events yet); webflux MCP server, JPA over Postgres, **no `/internal/*` passthroughs yet**
+  (they land with the agent flows CR-c/d/e). Tested (`McpCreatorIntegrationTest`, 7 cases: profile
+  upsert-in-place with jsonb roundtrip + one-row-per-(household,owner), get-null-then-profile,
+  required-field guards, trend store/defaults + list scoping by household/owner + newest-captured +
+  limit + isolation, content-piece status default + list-by-kind + get, delete returns-row). Wired
+  into root pom `<modules>`, compose (`depends_on: postgres+liquibase`, no agent deps), `.env.example`,
+  infra/README (port 8108 + `creator` schema row). Full reactor compiles; module suite green (8 tools
+  registered).
 - **CR-b — `creator-agent` scaffold + orchestrator registration** (binds `mcp-creator` + `mcp-web`;
   `IntentController` chat fallback). Template `researcher-agent` / `nutritionist-agent`.
 - **CR-c — creator-profile flow** (multi-person): a typed profile cue → one LLM extract via a
