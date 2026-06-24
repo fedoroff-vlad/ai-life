@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: mcp-youtube
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-youtube
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared YouTube-trends capability (read-only). youtube_trends: trending / most-relevant
+          videos (title + watch link + snippet + channel/date) for a query or topic over the YouTube
+          Data API v3. Trend data only — the caller's agent folds the hits into content ideas/drafts.
+
+server:
+  port: ${MCP_YOUTUBE_PORT:8110}
+
+youtube:
+  # YouTube Data API v3 base URL (public HTTPS JSON API; no backing container needed).
+  api-base-url: ${YOUTUBE_API_BASE_URL:https://www.googleapis.com/youtube/v3}
+  # Free-quota API key. Blank → the source returns no hits (graceful soft-fail; no key in CI).
+  api-key: ${YOUTUBE_API_KEY:}
+  # Default hit count when the caller doesn't cap it.
+  max-results: ${YOUTUBE_MAX_RESULTS:5}
+  # Which video-trends source to wire: youtubedata (default). Swappable later via env.
+  source: ${YOUTUBE_SOURCE:youtubedata}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

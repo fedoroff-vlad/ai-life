@@ -154,7 +154,21 @@ Foundation:
 
 Sources (each a capability-MCP, mirror MD-a / FD-a):
 - **YT-a — `mcp-youtube`** `youtube_trends` over the YouTube Data API v3 behind `VideoTrendsSource` +
-  `/internal/youtube-trends`. MockWebServer test (no key in CI).
+  `/internal/youtube-trends`. MockWebServer test (no key in CI). **DONE (PR178):**
+  `shared/mcp/mcp-youtube` (port 8110, no schema — first creator source). One
+  `GET /search?part=snippet&type=video&order=relevance` call → each item → a uniform
+  `trends/TrendHit{source, platform, title, url, summary?, metrics?}` (the `watch?v=` link, channel +
+  publishedAt in `metrics`; the researcher's `WebSearchHit` generalised across sources). Behind a
+  swappable `engine/VideoTrendsSource` (`youtube.source=youtubedata` default, sibling of
+  `FoodDataSource`/`MarketDataSource`). **Free quota needs `YOUTUBE_API_KEY`; blank key → empty list**
+  (graceful soft-fail for the multi-source gather; no key in CI). New contracts
+  `trends/{TrendHit, YoutubeTrendsInput}`. `POST /internal/youtube-trends` passthrough (mirror
+  `InternalFoodLookupController`). Scaffold per PATTERNS "capability-MCP" (template `mcp-food-data` —
+  webflux MCP server, no JPA/datasource, no backing container). Tested
+  (`InternalYoutubeTrendsControllerTest`, 3 cases via MockWebServer: search response → 2 hits with
+  metrics + correct query params; no matches → empty; blank query → empty, no upstream call). Wired
+  into root pom, compose (no `depends_on`), `.env.example`, infra/README (8110). **Not bound yet** —
+  creator-agent binds it in CR-d.
 - **RD-a — `mcp-reddit`** `reddit_trends` over the Reddit API behind `SocialTrendsSource` +
   `/internal/reddit-trends`.
 - **FE-a — `mcp-feeds`** `feed_items` over RSS + public Telegram channels behind `FeedSource` +

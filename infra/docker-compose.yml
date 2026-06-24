@@ -590,6 +590,27 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-youtube:
+    image: ai-life/mcp-youtube:local
+    container_name: ai-life-mcp-youtube
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-youtube/Dockerfile
+    restart: unless-stopped
+    # No backing container — trends come from the YouTube Data API over public HTTPS.
+    environment:
+      MCP_YOUTUBE_PORT: 8110
+      YOUTUBE_API_BASE_URL: https://www.googleapis.com/youtube/v3
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      YOUTUBE_MAX_RESULTS: 5
+      YOUTUBE_SOURCE: youtubedata
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8110/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-image-gen:
     image: ai-life/mcp-image-gen:local
     container_name: ai-life-mcp-image-gen
