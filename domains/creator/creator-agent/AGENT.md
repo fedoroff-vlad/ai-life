@@ -6,7 +6,8 @@ port: 8109
 mcp:
   - mcp-creator
   - mcp-web
-skills: []
+skills:
+  - creator-profiler
 intents:
   - example: What's trending in "English for IT" this week? Give me a few ideas.
     description: Monitor trends for the creator's niche and propose trends + post ideas.
