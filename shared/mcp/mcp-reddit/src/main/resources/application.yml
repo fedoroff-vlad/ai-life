@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: mcp-reddit
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-reddit
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared Reddit-trends capability (read-only). reddit_trends: hot / most-relevant posts
+          (title + permalink + snippet + subreddit/score/comments) for a subreddit and/or query over
+          the Reddit API. Trend data only — the caller's agent folds the hits into content ideas/drafts.
+
+server:
+  port: ${MCP_REDDIT_PORT:8111}
+
+reddit:
+  # Reddit OAuth API base URL (listings) + auth base URL (token). Public HTTPS; no backing container.
+  api-base-url: ${REDDIT_API_BASE_URL:https://oauth.reddit.com}
+  auth-base-url: ${REDDIT_AUTH_BASE_URL:https://www.reddit.com}
+  # Free app credentials (client_credentials grant). Blank → the source returns no hits (soft-fail; no creds in CI).
+  client-id: ${REDDIT_CLIENT_ID:}
+  client-secret: ${REDDIT_CLIENT_SECRET:}
+  # Reddit's API policy requires an identifying User-Agent.
+  user-agent: ${REDDIT_USER_AGENT:ai-life/mcp-reddit 0.0.1 (by /u/ai-life)}
+  # Default hit count when the caller doesn't cap it.
+  max-results: ${REDDIT_MAX_RESULTS:5}
+  # Which social-trends source to wire: redditapi (default). Swappable later via env.
+  source: ${REDDIT_SOURCE:redditapi}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

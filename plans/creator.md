@@ -170,7 +170,19 @@ Sources (each a capability-MCP, mirror MD-a / FD-a):
   into root pom, compose (no `depends_on`), `.env.example`, infra/README (8110). **Not bound yet** —
   creator-agent binds it in CR-d.
 - **RD-a — `mcp-reddit`** `reddit_trends` over the Reddit API behind `SocialTrendsSource` +
-  `/internal/reddit-trends`.
+  `/internal/reddit-trends`. **DONE (PR179):** `shared/mcp/mcp-reddit` (port 8111, no schema —
+  second creator source, sibling of YT-a). App-only OAuth: one `POST /api/v1/access_token`
+  (grant `client_credentials`, HTTP Basic with the app id:secret) mints a bearer token → one listing
+  call (`/r/{sub}/hot` | `/r/{sub}/search` | global `/search`) → each post → a uniform
+  `trends/TrendHit` (the permalink, subreddit + score + comment count in `metrics`). Behind a swappable
+  `engine/SocialTrendsSource` (`reddit.source=redditapi` default). **Free API needs
+  `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET`; blank → empty list** (graceful soft-fail; no creds in
+  CI). New contract `trends/RedditTrendsInput{subreddit?, query?, maxResults?}`;
+  `POST /internal/reddit-trends` passthrough. Scaffold per PATTERNS "capability-MCP" (template
+  `mcp-youtube`). Tested (`InternalRedditTrendsControllerTest`, 3 via one MockWebServer for both auth
+  + API hosts: subreddit hot → token then listing → 1 hit w/ metrics + Bearer header; query-only →
+  global `/search`; no target → empty, no upstream call). Wired into root pom, compose (no
+  `depends_on`), `.env.example`, infra/README (8111). Not bound yet (creator-agent binds it in CR-d).
 - **FE-a — `mcp-feeds`** `feed_items` over RSS + public Telegram channels behind `FeedSource` +
   `/internal/feed-items`.
 

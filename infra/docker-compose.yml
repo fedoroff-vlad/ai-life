@@ -611,6 +611,30 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-reddit:
+    image: ai-life/mcp-reddit:local
+    container_name: ai-life-mcp-reddit
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-reddit/Dockerfile
+    restart: unless-stopped
+    # No backing container — trends come from the Reddit API over public HTTPS.
+    environment:
+      MCP_REDDIT_PORT: 8111
+      REDDIT_API_BASE_URL: https://oauth.reddit.com
+      REDDIT_AUTH_BASE_URL: https://www.reddit.com
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-ai-life/mcp-reddit 0.0.1 (by /u/ai-life)}
+      REDDIT_MAX_RESULTS: 5
+      REDDIT_SOURCE: redditapi
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8111/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-image-gen:
     image: ai-life/mcp-image-gen:local
     container_name: ai-life-mcp-image-gen

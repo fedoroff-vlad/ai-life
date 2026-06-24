@@ -87,6 +87,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-creator          | 8108 | Creator CRUD MCP (content track + trend cache + idea/draft history) |
 | creator-agent        | 8109 | Creator/content-factory agent (binds mcp-creator + web)         |
 | mcp-youtube          | 8110 | Video-trends capability-MCP (`youtube_trends` over YouTube Data API v3) |
+| mcp-reddit           | 8111 | Social-trends capability-MCP (`reddit_trends` over the Reddit API) |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
