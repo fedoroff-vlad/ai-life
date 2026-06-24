@@ -9,6 +9,7 @@ import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import dev.fedorov.ailife.contracts.profile.UserDto;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -45,6 +46,7 @@ class BasketEventFlowTest {
     static MockWebServer mediaService;
     static MockWebServer profileService;
     static MockWebServer notifier;
+    static MockWebServer mcpFoodData;
 
     @BeforeAll
     static void start() throws Exception {
@@ -53,11 +55,15 @@ class BasketEventFlowTest {
         mediaService = new MockWebServer();
         profileService = new MockWebServer();
         notifier = new MockWebServer();
+        mcpFoodData = new MockWebServer();
         mcpNutrition.start();
         llmGateway.start();
         mediaService.start();
         profileService.start();
         notifier.start();
+        mcpFoodData.start();
+        // FD-c: the bus-fan-out breakdown also enriches via mcp-food-data (shared render path).
+        mcpFoodData.setDispatcher(FOOD_LOOKUP_DISPATCHER);
     }
 
     @AfterAll
@@ -67,11 +73,12 @@ class BasketEventFlowTest {
         mediaService.shutdown();
         profileService.shutdown();
         notifier.shutdown();
+        mcpFoodData.shutdown();
     }
 
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpNutrition, llmGateway, mediaService, profileService, notifier)) {
+        for (MockWebServer s : List.of(mcpNutrition, llmGateway, mediaService, profileService, notifier, mcpFoodData)) {
             while (s.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
                 // discard
             }
@@ -85,8 +92,19 @@ class BasketEventFlowTest {
         r.add("nutritionist-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("nutritionist-agent.notifier-url", () -> "http://localhost:" + notifier.getPort());
+        r.add("nutritionist-agent.mcp-food-data-url", () -> "http://localhost:" + mcpFoodData.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
+
+    /** Every food-lookup → a matched product (the FD-c enrichment runs on the bus path too). */
+    private static final Dispatcher FOOD_LOOKUP_DISPATCHER = new Dispatcher() {
+        @Override
+        public MockResponse dispatch(RecordedRequest request) {
+            return new MockResponse().setHeader("content-type", "application/json").setBody(
+                    "{\"name\":\"Молоко 3.2%\",\"brand\":\"Простоквашино\",\"kcal100g\":60,"
+                    + "\"protein100g\":3.0,\"fat100g\":3.2,\"carbs100g\":4.7}");
+        }
+    };
 
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;

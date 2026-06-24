@@ -10,11 +10,13 @@ import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties
 import dev.fedorov.ailife.agents.nutritionist.http.BasketClient;
 import dev.fedorov.ailife.agents.nutritionist.http.CaptionClient;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
+import dev.fedorov.ailife.agents.nutritionist.http.FoodDataClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
+import dev.fedorov.ailife.contracts.food.FoodFacts;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -29,6 +31,7 @@ import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -53,17 +56,28 @@ import java.util.UUID;
  *
  * <p>The automatic fan-out (a grocery receipt reaching finance <i>and</i> nutrition off the bus) is
  * the IA slice on top; this direct path lands first.
+ *
+ * <p>FD-c: before rendering, the board is grounded in real reference data — each item is looked up in
+ * the shared {@code mcp-food-data} capability (Open Food Facts) for precise per-100g КБЖУ, folded in
+ * as a "Точные КБЖУ" section. The lookups are read-only, soft-failed per item, and bounded; a
+ * no-match just omits the section (the LLM's own estimate still ships). Both the direct and the
+ * bus-fan-out paths enrich, since they share {@code render}.
  */
 @Component
 public class BasketBreakdown {
 
     private static final Logger log = LoggerFactory.getLogger(BasketBreakdown.class);
     private static final String SKILL_NAME = "basket-analyst";
+    /** Bound the food-facts fan-out so a long receipt can't trigger an unbounded lookup storm. */
+    private static final int MAX_LOOKUPS = 40;
+    /** Cap concurrent lookups so the enrichment stays a courteous neighbour to Open Food Facts. */
+    private static final int LOOKUP_CONCURRENCY = 6;
 
     private final CaptionClient caption;
     private final LlmClient llm;
     private final DietProfileClient profiles;
     private final BasketClient baskets;
+    private final FoodDataClient food;
     private final MediaStoreClient media;
     private final DocRenderer renderer;
     private final ProfileClient people;
@@ -77,6 +91,7 @@ public class BasketBreakdown {
                            LlmClient llm,
                            DietProfileClient profiles,
                            BasketClient baskets,
+                           FoodDataClient food,
                            MediaStoreClient media,
                            DocRenderer renderer,
                            ProfileClient people,
@@ -89,6 +104,7 @@ public class BasketBreakdown {
         this.llm = llm;
         this.profiles = profiles;
         this.baskets = baskets;
+        this.food = food;
         this.media = media;
         this.renderer = renderer;
         this.people = people;
@@ -171,28 +187,92 @@ public class BasketBreakdown {
                 .flatMap(saved -> render(householdId, ownerId, merchant, draft, items));
     }
 
-    /** Render the verdict board (good/watch/cut tiles + КБЖУ totals + summary), store, link. */
+    /** Render the verdict board (good/watch/cut tiles + КБЖУ totals + precise facts + summary), store, link. */
     private Mono<String> render(UUID householdId, UUID ownerId, String merchant,
                                 JsonNode draft, List<BasketItem> items) {
-        Doc.Builder b = Doc.builder("Разбор корзины")
-                .kicker("КБЖУ · Хорошо · Осторожно · Убрать");
-        b.subtitle(merchant != null && !merchant.isBlank()
-                ? merchant + " · " + items.size() + " позиц." : items.size() + " позиций");
+        return enrichFacts(items).flatMap(facts -> {
+            Doc.Builder b = Doc.builder("Разбор корзины")
+                    .kicker("КБЖУ · Хорошо · Осторожно · Убрать");
+            b.subtitle(merchant != null && !merchant.isBlank()
+                    ? merchant + " · " + items.size() + " позиц." : items.size() + " позиций");
 
-        addVerdicts(b, draft.path("analysis").get("good"), Doc.Verdict.KEEP);
-        addVerdicts(b, draft.path("analysis").get("watch"), Doc.Verdict.QUESTION);
-        addVerdicts(b, draft.path("analysis").get("cut"), Doc.Verdict.REMOVE);
+            addVerdicts(b, draft.path("analysis").get("good"), Doc.Verdict.KEEP);
+            addVerdicts(b, draft.path("analysis").get("watch"), Doc.Verdict.QUESTION);
+            addVerdicts(b, draft.path("analysis").get("cut"), Doc.Verdict.REMOVE);
 
-        List<String> totals = totalsLines(draft.get("totals"));
-        if (!totals.isEmpty()) b.section("Итоги (КБЖУ)", totals);
+            List<String> totals = totalsLines(draft.get("totals"));
+            if (!totals.isEmpty()) b.section("Итоги (КБЖУ)", totals);
 
-        String summary = text(draft, "summary");
-        if (summary != null && !summary.isBlank()) b.section("Вывод", List.of(summary));
+            List<String> factsLines = factsLines(facts);
+            if (!factsLines.isEmpty()) b.section("Точные КБЖУ (Open Food Facts, на 100 г)", factsLines);
 
-        RenderedDoc rendered = renderer.render(b.build());
-        return media.upload(householdId, ownerId,
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
+            String summary = text(draft, "summary");
+            if (summary != null && !summary.isBlank()) b.section("Вывод", List.of(summary));
+
+            RenderedDoc rendered = renderer.render(b.build());
+            return media.upload(householdId, ownerId,
+                            rendered.filename(), rendered.mimeType(), rendered.content())
+                    .map(this::link);
+        });
+    }
+
+    /**
+     * FD-c: ground the breakdown in real reference data. For each basket item, look up precise
+     * per-100g macros from the shared {@code mcp-food-data} capability (Open Food Facts) in parallel,
+     * keeping only the products that matched. Read-only enrichment, <b>soft-failed per item</b> (a
+     * missing/erroring lookup just drops out), capped and concurrency-bounded so a long receipt stays
+     * a courteous neighbour. Returns an empty list when nothing matched — the board simply omits the
+     * facts section (the LLM's own КБЖУ estimate still ships).
+     */
+    private Mono<List<FoodFacts>> enrichFacts(List<BasketItem> items) {
+        if (items == null || items.isEmpty()) {
+            return Mono.just(List.of());
+        }
+        List<String> names = new ArrayList<>();
+        for (BasketItem it : items) {
+            if (it.name() != null && !it.name().isBlank() && names.size() < MAX_LOOKUPS) {
+                names.add(it.name());
+            }
+        }
+        if (names.isEmpty()) {
+            return Mono.just(List.of());
+        }
+        return Flux.fromIterable(names)
+                .flatMap(name -> food.lookup(name)
+                        .onErrorResume(e -> {
+                            log.debug("food-lookup failed for '{}': {}", name, e.toString());
+                            return Mono.empty();
+                        }), LOOKUP_CONCURRENCY)
+                .filter(f -> f != null && f.name() != null && !f.name().isBlank())
+                .collectList();
+    }
+
+    /** One readable line per matched product: "name (brand) — N ккал, Б.. Ж.. У.. · Nutri-Score X". */
+    private static List<String> factsLines(List<FoodFacts> facts) {
+        List<String> out = new ArrayList<>();
+        if (facts == null) {
+            return out;
+        }
+        for (FoodFacts f : facts) {
+            List<String> macros = new ArrayList<>();
+            if (f.kcal100g() != null) macros.add(f.kcal100g() + " ккал");
+            addBd(macros, "Б", f.protein100g());
+            addBd(macros, "Ж", f.fat100g());
+            addBd(macros, "У", f.carbs100g());
+            if (macros.isEmpty()) continue; // matched but no macros on file — nothing to ground
+            StringBuilder sb = new StringBuilder(f.name());
+            if (f.brand() != null && !f.brand().isBlank()) sb.append(" (").append(f.brand()).append(")");
+            sb.append(" — ").append(String.join(", ", macros));
+            if (f.nutriScore() != null && !f.nutriScore().isBlank()) {
+                sb.append(" · Nutri-Score ").append(f.nutriScore().toUpperCase());
+            }
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    private static void addBd(List<String> out, String label, BigDecimal value) {
+        if (value != null) out.add(label + " " + value.stripTrailingZeros().toPlainString());
     }
 
     /**

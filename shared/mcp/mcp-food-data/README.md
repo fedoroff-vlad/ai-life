@@ -3,16 +3,17 @@
 Shared **food-data capability-MCP** (`shared/mcp/`, no schema). Read-only nutrition facts (КБЖУ per
 100 g) any agent can reuse — the nutrition basket/log analysis now, a fitness/health line later. A
 **sibling** of `mcp-market-data` (structured numeric reference reads). Bound by agents over MCP/SSE;
-it owns no data. Plan: [nutrition.md](../../../plans/nutrition.md) §FD-a.
+it owns no data. Plan: [nutrition.md](../../../plans/nutrition.md) §FD-a/FD-c.
 
 **Reference data only.** `food_lookup` is a read-only facts source — there is no write tool. Deciding
 anything (a basket's КБЖУ, deficits vs a diet profile) is the calling agent's skill.
 
-**Status (FD-a, scaffold):** `food_lookup` reads nutrition facts from **Open Food Facts** (free, no
-API key, no quota) behind a swappable `FoodDataSource` (`fooddata.source=openfoodfacts` default) — so
+**Status (FD-c, bound):** `food_lookup` reads nutrition facts from **Open Food Facts** (free, no API
+key, no quota) behind a swappable `FoodDataSource` (`fooddata.source=openfoodfacts` default) — so
 USDA / a keyed provider can replace it later with no caller change. No backing container (Open Food
-Facts is public HTTPS, like Stooq). **Not yet bound** — the nutrition agents call LLM macro estimates
-today; binding `food_lookup` for precise macros is the follow-up (mirror MD-c).
+Facts is public HTTPS, like Stooq). **Bound (FD-c, PR172) by nutritionist-agent's basket breakdown**
+(`BasketBreakdown` grounds its КБЖУ in precise per-100g facts via the `/internal/food-lookup`
+passthrough, soft-failed per item).
 
 ## Port: `8107` (`MCP_FOOD_DATA_PORT`)
 
@@ -38,7 +39,7 @@ today; binding `food_lookup` for precise macros is the follow-up (mirror MD-c).
 
 No DB / no Liquibase feature (capability-MCP). No backing container (Open Food Facts is a public
 HTTPS endpoint). Binding side: an agent adds a `spring.ai.mcp.client.sse.connections.mcp-food-data`
-block + `MCP_FOOD_DATA_URL` (happens when a flow binds it).
+block + `MCP_FOOD_DATA_URL` — **nutritionist-agent** binds it this way (FD-c).
 
 ## Key classes
 

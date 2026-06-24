@@ -230,8 +230,25 @@ Data precision:
   service, no `depends_on`), `.env.example`, infra/README (8107). Tested (`InternalFoodLookupControllerTest`,
   3 cases: barcode → product API + parsed macros, name → search API first hit, unknown → null name;
   MockWebServer stands in for Open Food Facts, no network). Full reactor compiles; compose validates.
-  **Not yet bound** — the nutrition agents use LLM macro estimates today; binding `food_lookup` into
-  the basket/log analysis for precise macros is the follow-up (**FD-c**, mirror MD-c).
+  Bound by FD-c below.
+- **FD-c — bind `food_lookup` into the nutritionist basket breakdown** (mirror MD-c). **DONE (PR172):**
+  nutritionist-agent binds `mcp-food-data` — new `http/FoodDataClient` (`POST /internal/food-lookup` →
+  `FoodFacts`, 8s timeout, mirror `MarketDataClient`/`CaptionClient`) + `mcpFoodDataWebClient` bean +
+  `nutritionist-agent.mcp-food-data-url` (`MCP_FOOD_DATA_URL`) + the
+  `spring.ai.mcp.client.sse.connections.mcp-food-data` binding (future LLM-driven selection; the
+  deterministic enrichment uses the HTTP passthrough). `BasketBreakdown.render` (shared by the direct
+  NU-f path **and** the IA-b bus-fan-out path) now first runs `enrichFacts`: a parallel `food_lookup`
+  per item (soft-failed per item, capped at 40, concurrency 6), keeping only matched products, folded
+  into the board as a "Точные КБЖУ (Open Food Facts, на 100 г)" section (name/brand + per-100g macros
+  + Nutri-Score). Read-only, no extra LLM call — a no-match just omits the section (the LLM's own
+  estimate still ships); quantity→portion math stays out of scope. AGENT.md `mcp:` += mcp-food-data;
+  compose nutritionist-agent gains `depends_on: mcp-food-data` + `MCP_FOOD_DATA_URL`; `.env.example` +
+  READMEs (nutritionist-agent, AGENT.md, mcp-food-data → "bound") updated. Tested (`BasketBreakdownTest`
+  asserts the board carries the Open Food Facts facts section + Nutri-Score and the per-item lookup;
+  `BasketEventFlowTest` wires the enrichment on the bus path too; MockWebServer `Dispatcher` stands in
+  for mcp-food-data). Full nutritionist suite green (16). **The basket breakdown is now grounded in
+  real reference macros where Open Food Facts matches** — the nutrition domain's first precise-data
+  consumer of the shared capability.
 
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
