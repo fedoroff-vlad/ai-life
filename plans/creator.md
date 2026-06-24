@@ -205,7 +205,26 @@ The headline flow:
   content-strategist SKILL.md] + {payload(profile, request), context}` → 3–5 trends + 10 ideas +
   2–3 drafts + per-platform format recs → render an HTML board via `libs/doc-render` (trend list with
   source links + idea list + draft cards) → store in media-service → reply with a link. Token economy
-  structural (gather = HTTP, one LLM call). New `content-strategist` SKILL.
+  structural (gather = HTTP, one LLM call). New `content-strategist` SKILL. **DONE (PR181):**
+  `flow/ContentStrategist` on the shared `Coordinator`. A trend/ideas/draft cue (the new
+  `IntentController` branch, after the profile cue) → resolve the creator track (self →
+  household-default via `CreatorProfileClient`) → niche = profile.niche or the request text → gather
+  `web` + `youtube` + `reddit` for the niche (and a named RSS/`@channel` `feed` if the request
+  mentions one) in parallel via the new single `http/TrendGatherClient` (binds all four
+  `/internal/*` passthroughs; maps web `WebSearchHit`→`TrendHit`) → ONE `DEFAULT` synthesis with the
+  new `content-strategist` SKILL → render an HTML board via `libs/doc-render` (`config/RenderConfig`
+  `DocRenderer` bean; the "План" section from the synthesis + a **provenance links section built
+  deterministically from the gathered corpus** so links are real even on a mock LLM) → store via the
+  new `http/MediaStoreClient` (`POST /v1/media`) → reply with first-line summary + the link. Per-source
+  soft-fail (Coordinator omits a failed/empty source); render/store failure still returns the textual
+  plan. `creator-agent` now binds `mcp-youtube`/`mcp-reddit`/`mcp-feeds` (AGENT.md `mcp:` + SSE
+  connections) + `media-service`; `CreatorAgentProperties`/`OutboundHttpConfig` gain the source +
+  media URLs + `publicMediaBaseUrl`; doc-render dep added. Tested (`ContentStrategistTest`, 2 via 6
+  MockWebServers: full gather→synth→render→store→link with niche+corpus in the LLM body + HTML upload;
+  one source 500 → still produces a plan). Wired into compose (`depends_on` the sources + media) +
+  `.env.example`. **Persisting the gathered trends + generated pieces into the `mcp-creator` cache is
+  CR-e.** **Feed gather is request-token-driven for now** (the profile has no monitored-feed list);
+  a profile-level feed list can fold in later.
 - **CR-e — trend cache** — persist the gathered `TrendHit`s into `trend` (dedupe by `(owner, url)`),
   and the generated ideas/drafts into `content_piece`, so a run shows provenance and a later run can
   reuse a recent gather. Bind `mcp-creator`'s write passthroughs.

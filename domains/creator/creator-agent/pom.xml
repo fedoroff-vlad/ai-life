@@ -32,6 +32,11 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- Shared HTML deliverable renderer (the content-plan board, CR-d). PDF later behind the same seam. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>doc-render</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
