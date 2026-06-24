@@ -71,6 +71,7 @@
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>
         <module>shared/mcp/mcp-food-data</module>
+        <module>shared/mcp/mcp-youtube</module>
         <module>shared/mcp/mcp-image-gen</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
