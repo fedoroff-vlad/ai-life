@@ -30,8 +30,19 @@ creator domain (Stage 6). See [plans/creator.md](../../../plans/creator.md).
 Scope rule: every tool takes a `householdId` and reads/writes only within that household (mirrors
 mcp-nutrition / mcp-wardrobe). Per-person attribution is the optional `ownerId`.
 
-The `/internal/*` REST passthroughs (the deterministic, MockWebServer-testable path an agent calls)
-land with the agent flows (CR-c/d/e), mirroring mcp-nutrition's `/internal/*`.
+## Internal REST passthroughs
+
+Non-MCP, no LLM tax — for an agent that already has a concrete input and just needs to persist/read
+it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use HTTP).
+
+- `POST /internal/creator-profile` (body `SetCreatorProfileInput`) → `CreatorProfileDto` | 400 —
+  upserts a person's creator track via `set_creator_profile` ((household,owner) keying applies). Used
+  by the creator-profiler flow (CR-c).
+- `GET /internal/creator-profile?householdId=&ownerId=` → `CreatorProfileDto` | 404 — reads the
+  person's track (null ownerId = household-default); 404 when unset. Used by the trend gather (CR-d).
+
+The remaining `/internal/*` passthroughs (trend / content-piece writes for the synthesis flow) land
+with CR-d/e, mirroring mcp-nutrition's `/internal/*`.
 
 ## Env
 
@@ -57,6 +68,9 @@ land with the agent flows (CR-c/d/e), mirroring mcp-nutrition's `/internal/*`.
   (`save_content_piece`, `list_content_pieces`, `get_content_piece`, `delete_content_piece`). The
   only invariants enforced here are the household scope and required-field checks.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
+- `web/InternalCreatorProfileController` — `POST /internal/creator-profile` (upsert, 400 on bad
+  input) + `GET /internal/creator-profile` (read, 404 when unset), over `set_creator_profile` /
+  `get_creator_profile`. Mirrors mcp-nutrition's `InternalDietProfileController`.
 
 ## Schema
 

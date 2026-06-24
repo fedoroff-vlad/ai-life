@@ -58,6 +58,7 @@ class McpCreatorIntegrationTest {
 
     @Autowired CreatorMcpTools tools;
     @Autowired JdbcTemplate jdbc;
+    @org.springframework.boot.test.web.server.LocalServerPort int port;
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
@@ -216,6 +217,59 @@ class McpCreatorIntegrationTest {
         assertThatThrownBy(() -> tools.deleteContentPiece(piece.id()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not found");
+    }
+
+    @Test
+    void internalCreatorProfileEndpointUpsertsAndReads404ThenProfile() throws Exception {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID owner = seedUser(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        CreatorProfileDto saved = client.post().uri("/internal/creator-profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetCreatorProfileInput(h, owner, "English for IT", "junior devs",
+                        "friendly-expert", MAPPER.readTree("[\"youtube\"]"), null, null, "ru/en"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CreatorProfileDto.class)
+                .returnResult().getResponseBody();
+        assertThat(saved).isNotNull();
+        assertThat(saved.niche()).isEqualTo("English for IT");
+        assertThat(saved.platforms().get(0).asText()).isEqualTo("youtube");
+
+        // Second post for the same (household, owner) updates in place — still one row.
+        client.post().uri("/internal/creator-profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetCreatorProfileInput(h, owner, "English for IT", "mid devs",
+                        "expert", null, null, null, null))
+                .exchange()
+                .expectStatus().isOk();
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM creator.creator_profile WHERE household_id = ? AND owner_id = ?",
+                Integer.class, h, owner);
+        assertThat(rows).isEqualTo(1);
+
+        // Missing householdId → the tool's required-field guard surfaces as 400.
+        client.post().uri("/internal/creator-profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SetCreatorProfileInput(null, null, "x", null, null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+
+        // GET — 404 for an unset person, 200 after the set.
+        client.get().uri(b -> b.path("/internal/creator-profile")
+                        .queryParam("householdId", h).queryParam("ownerId", UUID.randomUUID()).build())
+                .exchange().expectStatus().isNotFound();
+        CreatorProfileDto got = client.get()
+                .uri(b -> b.path("/internal/creator-profile")
+                        .queryParam("householdId", h).queryParam("ownerId", owner).build())
+                .exchange().expectStatus().isOk()
+                .expectBody(CreatorProfileDto.class).returnResult().getResponseBody();
+        assertThat(got).isNotNull();
+        assertThat(got.audience()).isEqualTo("mid devs");
     }
 
     private void seedHousehold(UUID id) {
