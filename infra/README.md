@@ -85,6 +85,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | chef-agent           | 8106 | Recipe specialist (binds mcp-nutrition + web; invoked by nutritionist) |
 | mcp-food-data        | 8107 | Food-data capability-MCP (read-only `food_lookup` over Open Food Facts) |
 | mcp-creator          | 8108 | Creator CRUD MCP (content track + trend cache + idea/draft history) |
+| creator-agent        | 8109 | Creator/content-factory agent (binds mcp-creator + web)         |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

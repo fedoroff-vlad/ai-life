@@ -119,7 +119,22 @@ Foundation:
   infra/README (port 8108 + `creator` schema row). Full reactor compiles; module suite green (8 tools
   registered).
 - **CR-b — `creator-agent` scaffold + orchestrator registration** (binds `mcp-creator` + `mcp-web`;
-  `IntentController` chat fallback). Template `researcher-agent` / `nutritionist-agent`.
+  `IntentController` chat fallback). Template `researcher-agent` / `nutritionist-agent`. **DONE (PR175):**
+  `domains/creator/creator-agent` (port 8109), `@Import(AgentRuntimeConfig)`; AGENT.md
+  (`name: creator`, mcp: `mcp-creator` + `mcp-web`, `skills: []` until CR-c, + the no-clickbait /
+  platform-rules guardrails) served at `GET /agents/creator/manifest`. Binds the two MCPs over SSE
+  (future LLM-driven selection; the CR-c.. flows call them over `/internal/*` HTTP passthroughs).
+  `IntentController` ships the `chat/CreatorChat` fallback (one LLM turn, AGENT.md as system prompt —
+  replaced branch-by-branch as flows land). `config/CreatorAgentProperties` (mcp-creator/mcp-web +
+  profile/notifier/memory) + `config/OutboundHttpConfig` (`mcpCreator`/`mcpWeb` WebClients + the
+  qualified profile/notifier/memory beans the shared runtime clients pick up). Registered in
+  orchestrator `application.yml` (`{name: creator}` + `CREATOR_AGENT_URL`, manifest-driven — no
+  orchestrator Java change). Scaffold per PATTERNS.md "new agent" (template `researcher-agent`/
+  `nutritionist-agent`). Tested (`ManifestControllerTest`: full context boots MCP-client-disabled,
+  AGENT.md parsed, runtime beans + LlmClient + CreatorChat resolve, manifest lists mcp-creator +
+  mcp-web). Wired into root pom, compose (creator-agent service `depends_on` llm-gateway +
+  profile/notifier/memory + mcp-creator + mcp-web; `CREATOR_AGENT_URL` in orchestrator env),
+  `.env.example`, infra/README (port 8109). Full reactor compiles; module suite green.
 - **CR-c — creator-profile flow** (multi-person): a typed profile cue → one LLM extract via a
   `creator-profiler` SKILL → upsert via `/internal/creator-profile` (self / household-default), the
   `diet-profiler` shape.
