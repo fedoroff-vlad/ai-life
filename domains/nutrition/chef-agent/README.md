@@ -65,7 +65,7 @@ the **ration → recipes hub action** (CH-b2):
 - `web/ActionController` — `POST /agents/chef/actions/recommend_recipes` (the hub action the
   nutritionist invokes): `args.request` → `RecipeFinder.recommend` → `AgentActionResult{link, summary}`.
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
-- `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered card).
+- `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered card); `@Bean` (source `chef`) wired in `config/OutboundHttpConfig`.
 - `web/IntentController` — `POST /intent` (recipe cue → recipe flow; else chat).
 - `web/ManifestController` — `GET /manifest`.
 

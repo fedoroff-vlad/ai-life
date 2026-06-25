@@ -10,7 +10,7 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.creator.config.CreatorAgentProperties;
 import dev.fedorov.ailife.agents.creator.http.CreatorCacheClient;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
-import dev.fedorov.ailife.agents.creator.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.creator.http.TrendGatherClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;

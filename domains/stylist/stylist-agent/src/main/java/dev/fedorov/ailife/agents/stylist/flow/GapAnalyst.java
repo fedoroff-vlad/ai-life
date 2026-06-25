@@ -7,7 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
-import dev.fedorov.ailife.agents.stylist.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.docrender.DocRenderer;

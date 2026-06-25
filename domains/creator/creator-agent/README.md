@@ -87,7 +87,7 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 - `http/TrendGatherClient` — one client binding the four source passthroughs (`/internal/search`,
   `/internal/youtube-trends`, `/internal/reddit-trends`, `/internal/feed-items`); maps web hits to the
   uniform `TrendHit`.
-- `http/MediaStoreClient` — multipart `POST /v1/media` (stores the rendered HTML board).
+- `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (stores the rendered HTML board); `@Bean` (source `creator`) wired in `config/OutboundHttpConfig`.
 - `web/IntentController` — `POST /agents/creator/intent` (profile cue → profiler; trend cue →
   strategist; else chat).
 - `web/ManifestController` — `GET /agents/creator/manifest`.

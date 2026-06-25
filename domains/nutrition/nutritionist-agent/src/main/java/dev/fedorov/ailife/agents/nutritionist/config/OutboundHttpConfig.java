@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.nutritionist.config;
 
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +40,12 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mediaServiceWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
         return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
+    public MediaStoreClient mediaStoreClient(
+            @Qualifier("mediaServiceWebClient") WebClient mediaServiceWebClient) {
+        return new MediaStoreClient(mediaServiceWebClient, "nutritionist");
     }
 
     @Bean

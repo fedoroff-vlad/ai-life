@@ -108,7 +108,8 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
   `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
   `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`
-  (`/internal/generate`) + `http/MediaStoreClient` (`POST /v1/media`) — the deterministic
+  (`/internal/generate`) + the shared `MediaStoreClient` (`libs/agent-runtime`, `POST /v1/media`;
+  `@Bean` source `stylist` in `config/OutboundHttpConfig`) — the deterministic
   capability/media calls (MockWebServer-testable; not SSE).
 
 ## Skills
