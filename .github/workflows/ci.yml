@@ -60,10 +60,13 @@ jobs:
         if: steps.detect.outputs.skip != 'true'
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # buildUpstream=always pulls the changed modules' upstream libs into the same
+            # reactor, so their SNAPSHOTs resolve intra-build (no install needed on a clean CI).
             mvn -B -ntp \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
+              -Dgib.buildUpstream=always \
               verify
           else
             mvn -B -ntp verify
