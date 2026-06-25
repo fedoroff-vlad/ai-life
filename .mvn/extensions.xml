@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  gitflow-incremental-builder (GIB): builds only the modules changed vs a reference
+  branch plus their downstream dependents. It is DISABLED by default (see
+  .mvn/maven.config: -Dgib.disable=true) so local `mvn verify` and the main-branch CI
+  stay full builds. CI enables it only on pull requests (-Dgib.disable=false), where a
+  leaf-module change builds just that module instead of the whole reactor.
+-->
+<extensions xmlns="http://maven.apache.org/EXTENSIONS/1.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/EXTENSIONS/1.0.0 http://maven.apache.org/xsd/core-extensions-1.0.0.xsd">
+    <extension>
+        <groupId>io.github.gitflow-incremental-builder</groupId>
+        <artifactId>gitflow-incremental-builder</artifactId>
+        <version>4.5.6</version>
+    </extension>
+</extensions>
