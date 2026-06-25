@@ -2,19 +2,15 @@ package dev.fedorov.ailife.agents.stylist.analyse;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
 import dev.fedorov.ailife.agents.stylist.http.CaptionClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.StyleProfileClient;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.wardrobe.SetStyleProfileInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,29 +44,23 @@ public class AnalyseMe {
 
     private final CaptionClient caption;
     private final StyleProfileClient profiles;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final StylistAgentProperties props;
 
     public AnalyseMe(CaptionClient caption,
                      StyleProfileClient profiles,
-                     MediaStoreClient media,
-                     DocRenderer renderer,
+                     DeliverablePublisher publisher,
                      SkillRegistry skills,
                      AgentManifest manifest,
-                     ObjectMapper json,
-                     StylistAgentProperties props) {
+                     ObjectMapper json) {
         this.caption = caption;
         this.profiles = profiles;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> analyse(NormalizedMessage msg, String mediaId) {
@@ -107,9 +97,7 @@ public class AnalyseMe {
 
     /** Render the analysis board, store it in media-service, return the public link. */
     private Mono<String> store(NormalizedMessage msg, String mediaId, JsonNode draft) {
-        RenderedDoc doc = renderer.render(buildDoc(mediaId, draft));
-        return media.upload(msg.householdId(), msg.userId(), doc.filename(), doc.mimeType(), doc.content())
-                .map(this::link);
+        return publisher.publish(msg.householdId(), msg.userId(), buildDoc(mediaId, draft));
     }
 
     /** The schema fields the wardrobe profile persists (the board renders the fuller draft directly). */
@@ -136,7 +124,7 @@ public class AnalyseMe {
                 .kicker("Structure · Balance · Intention");
         String subtitle = subtitle(d);
         if (subtitle != null) b.subtitle(subtitle);
-        String photo = photoUrl(mediaId);
+        String photo = publisher.mediaUrl(mediaId);
         if (photo != null) b.featured(photo);     // the analysed self-photo anchors the board
 
         List<String> bodyAnalysis = new ArrayList<>();
@@ -242,20 +230,6 @@ public class AnalyseMe {
         if (notBlank(text(d, "colourType"))) sb.append(" Цветотип: ").append(text(d, "colourType")).append(".");
         if (notBlank(text(d, "bodyShape"))) sb.append(" Фигура: ").append(text(d, "bodyShape")).append(".");
         return sb.toString();
-    }
-
-    private String link(MediaObjectDto stored) {
-        return base() + "/v1/media/" + stored.id();
-    }
-
-    /** Public URL of the analysed self-photo — the board's centered anchor. */
-    private String photoUrl(String mediaId) {
-        return (mediaId == null || mediaId.isBlank()) ? null : base() + "/v1/media/" + mediaId.trim();
-    }
-
-    private String base() {
-        String base = props.getPublicMediaBaseUrl();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private String captionInstruction(String userText) {

@@ -5,27 +5,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.chef.config.ChefAgentProperties;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.chef.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,29 +55,23 @@ public class RecipeFinder {
 
     private final Coordinator coordinator;
     private final WebSearchClient web;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final ChefAgentProperties props;
 
     public RecipeFinder(Coordinator coordinator,
                         WebSearchClient web,
-                        MediaStoreClient media,
-                        DocRenderer renderer,
+                        DeliverablePublisher publisher,
                         SkillRegistry skills,
                         AgentManifest manifest,
-                        ObjectMapper json,
-                        ChefAgentProperties props) {
+                        ObjectMapper json) {
         this.coordinator = coordinator;
         this.web = web;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     /** Direct intent path (CH-b1): a recipe-cue message → a recipe card link in the reply. */
@@ -141,12 +130,13 @@ public class RecipeFinder {
                         gather,
                         LlmChannel.DEFAULT)
                 .flatMap(result -> store(householdId, userId, result.text(), hits)
-                        .map(link -> new RecipeOutcome(summary(result.text()), result.text(), link, result.llmModel()))
+                        .map(link -> new RecipeOutcome(DeliverablePublisher.summary(result.text(), "Подобрал рецепты под ваш запрос."), result.text(), link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("recipe render/store failed: {}", e.toString());
                             // Still hand back the textual card if the page couldn't be stored.
                             return Mono.just(new RecipeOutcome(
-                                    summary(result.text()), result.text(), null, result.llmModel()));
+                                    DeliverablePublisher.summary(result.text(), "Подобрал рецепты под ваш запрос."),
+                                    result.text(), null, result.llmModel()));
                         }));
     }
 
@@ -155,17 +145,14 @@ public class RecipeFinder {
         Doc.Builder b = Doc.builder("Рецепты")
                 .kicker("Меню · Рецепты · Кухня")
                 .subtitle("Подобрано под ваш запрос")
-                .section("Что приготовить", splitParagraphs(cardText));
+                .section("Что приготовить", DeliverablePublisher.splitParagraphs(cardText));
         int added = 0;
         for (WebSearchHit h : hits) {
             if (h.url() == null || h.url().isBlank()) continue;
             b.link(h.title() == null || h.title().isBlank() ? h.url() : h.title(), h.url(), h.snippet());
             if (++added >= MAX_LINKS) break;
         }
-        RenderedDoc rendered = renderer.render(b.build());
-        return media.upload(householdId, userId,
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
+        return publisher.publish(householdId, userId, b.build());
     }
 
     private static List<WebSearchHit> hits(WebSearchResult result) {
@@ -181,34 +168,6 @@ public class RecipeFinder {
         String head = request.strip().split("\\R", 2)[0].strip();
         if (head.length() > MAX_QUERY) head = head.substring(0, MAX_QUERY);
         return head + " рецепт";
-    }
-
-    private String link(MediaObjectDto stored) {
-        return base() + "/v1/media/" + stored.id();
-    }
-
-    private String base() {
-        String base = props.getPublicMediaBaseUrl();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-    }
-
-    /** First line of the card as the chat summary; the full version lives in the HTML. */
-    private static String summary(String cardText) {
-        if (cardText == null || cardText.isBlank()) {
-            return "Подобрал рецепты под ваш запрос.";
-        }
-        String firstLine = cardText.strip().split("\\R", 2)[0];
-        return firstLine.length() > 280 ? firstLine.substring(0, 277) + "…" : firstLine;
-    }
-
-    private static List<String> splitParagraphs(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null) return out;
-        for (String line : text.strip().split("\\R")) {
-            if (!line.isBlank()) out.add(line.strip());
-        }
-        if (out.isEmpty()) out.add(text.strip());
-        return out;
     }
 
     private String skillBody() {

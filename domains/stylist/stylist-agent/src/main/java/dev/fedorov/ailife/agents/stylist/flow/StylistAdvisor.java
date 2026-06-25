@@ -4,21 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
 import dev.fedorov.ailife.agents.stylist.http.ImageGenClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.agents.stylist.http.WebSearchClient;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,33 +54,27 @@ public class StylistAdvisor {
     private final WardrobeReadClient wardrobe;
     private final WebSearchClient web;
     private final ImageGenClient imageGen;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final StylistAgentProperties props;
 
     public StylistAdvisor(Coordinator coordinator,
                           WardrobeReadClient wardrobe,
                           WebSearchClient web,
                           ImageGenClient imageGen,
-                          MediaStoreClient media,
-                          DocRenderer renderer,
+                          DeliverablePublisher publisher,
                           SkillRegistry skills,
                           AgentManifest manifest,
-                          ObjectMapper json,
-                          StylistAgentProperties props) {
+                          ObjectMapper json) {
         this.coordinator = coordinator;
         this.wardrobe = wardrobe;
         this.web = web;
         this.imageGen = imageGen;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> advise(NormalizedMessage msg) {
@@ -123,7 +113,8 @@ public class StylistAdvisor {
                         gather,
                         LlmChannel.DEFAULT)
                 .flatMap(result -> store(msg, items, season, result.text())
-                        .map(link -> reply(summary(result.text()) + "\n\nКапсула: " + link, result.llmModel()))
+                        .map(link -> reply(DeliverablePublisher.summary(result.text(), "Собрал капсулу из вашего гардероба.")
+                                + "\n\nКапсула: " + link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("capsule render/store failed: {}", e.toString());
                             // Still hand back the textual capsule if the page couldn't be stored.
@@ -142,20 +133,17 @@ public class StylistAdvisor {
             Doc.Builder b = Doc.builder("Капсула")
                     .kicker("Curated · Strategic · Aligned")
                     .subtitle(subtitle(season, msg.text()))
-                    .section("Образы", splitParagraphs(capsuleText));
+                    .section("Образы", DeliverablePublisher.splitParagraphs(capsuleText));
             featured.ifPresent(b::featured);
             for (String url : galleryUrls(items)) b.galleryImage(url);
-            RenderedDoc rendered = renderer.render(b.build());
-            return media.upload(msg.householdId(), msg.userId(),
-                            rendered.filename(), rendered.mimeType(), rendered.content())
-                    .map(this::link);
+            return publisher.publish(msg.householdId(), msg.userId(), b.build());
         });
     }
 
     /** Generate the board's featured lookbook illustration; soft-fail to no illustration. */
     private Mono<Optional<String>> illustrate(NormalizedMessage msg, String capsuleText, String season) {
         return imageGen.generate(msg.householdId(), msg.userId(), illustrationPrompt(capsuleText, season))
-                .mapNotNull(r -> r.mediaId() == null ? null : mediaUrl(r.mediaId()))
+                .mapNotNull(r -> publisher.mediaUrl(r.mediaId()))
                 .map(Optional::of)
                 .defaultIfEmpty(Optional.empty())
                 .onErrorResume(e -> {
@@ -166,32 +154,19 @@ public class StylistAdvisor {
 
     /** A concise editorial-illustration prompt grounded in the synthesized capsule + season. */
     private static String illustrationPrompt(String capsuleText, String season) {
-        String looks = summary(capsuleText);
+        String looks = DeliverablePublisher.summary(capsuleText, "Собрал капсулу из вашего гардероба.");
         return "Editorial fashion illustration, luxury minimalist style, neutral warm-beige palette, "
                 + "a curated seasonal capsule for " + season + ": " + looks;
     }
 
-    private String mediaUrl(java.util.UUID mediaId) {
-        return trimBase(props.getPublicMediaBaseUrl()) + "/v1/media/" + mediaId;
-    }
-
     private List<String> galleryUrls(List<WardrobeItemDto> items) {
-        String base = trimBase(props.getPublicMediaBaseUrl());
         List<String> urls = new ArrayList<>();
         for (WardrobeItemDto item : items) {
             if (item.imageMediaId() == null) continue;
-            urls.add(base + "/v1/media/" + item.imageMediaId());
+            urls.add(publisher.mediaUrl(item.imageMediaId()));
             if (urls.size() >= MAX_GALLERY) break;
         }
         return urls;
-    }
-
-    private String link(MediaObjectDto stored) {
-        return trimBase(props.getPublicMediaBaseUrl()) + "/v1/media/" + stored.id();
-    }
-
-    private static String trimBase(String base) {
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private static String trendQuery(String season, String request) {
@@ -215,25 +190,6 @@ public class StylistAdvisor {
             case 6, 7, 8 -> "лето";
             default -> "осень";
         };
-    }
-
-    /** First sentence/line of the capsule as the chat summary; the full version lives in the HTML. */
-    private static String summary(String capsuleText) {
-        if (capsuleText == null || capsuleText.isBlank()) {
-            return "Собрал капсулу из вашего гардероба.";
-        }
-        String firstLine = capsuleText.strip().split("\\R", 2)[0];
-        return firstLine.length() > 280 ? firstLine.substring(0, 277) + "…" : firstLine;
-    }
-
-    private static List<String> splitParagraphs(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null) return out;
-        for (String line : text.strip().split("\\R")) {
-            if (!line.isBlank()) out.add(line.strip());
-        }
-        if (out.isEmpty()) out.add(text.strip());
-        return out;
     }
 
     private String skillBody() {

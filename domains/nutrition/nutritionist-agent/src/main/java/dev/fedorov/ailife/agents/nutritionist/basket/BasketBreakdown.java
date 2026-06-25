@@ -2,16 +2,15 @@ package dev.fedorov.ailife.agents.nutritionist.basket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
 import dev.fedorov.ailife.agents.nutritionist.http.BasketClient;
 import dev.fedorov.ailife.agents.nutritionist.http.CaptionClient;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.FoodDataClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -20,13 +19,10 @@ import dev.fedorov.ailife.contracts.food.FoodFacts;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;
 import dev.fedorov.ailife.contracts.nutrition.SaveBasketInput;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,41 +74,35 @@ public class BasketBreakdown {
     private final DietProfileClient profiles;
     private final BasketClient baskets;
     private final FoodDataClient food;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final ProfileClient people;
     private final NotifierClient notifier;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final NutritionistAgentProperties props;
 
     public BasketBreakdown(CaptionClient caption,
                            LlmClient llm,
                            DietProfileClient profiles,
                            BasketClient baskets,
                            FoodDataClient food,
-                           MediaStoreClient media,
-                           DocRenderer renderer,
+                           DeliverablePublisher publisher,
                            ProfileClient people,
                            NotifierClient notifier,
                            SkillRegistry skills,
                            AgentManifest manifest,
-                           ObjectMapper json,
-                           NutritionistAgentProperties props) {
+                           ObjectMapper json) {
         this.caption = caption;
         this.llm = llm;
         this.profiles = profiles;
         this.baskets = baskets;
         this.food = food;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.people = people;
         this.notifier = notifier;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     /** A basket photo (receipt / products) → caption extract + breakdown → save + report. */
@@ -209,10 +199,7 @@ public class BasketBreakdown {
             String summary = text(draft, "summary");
             if (summary != null && !summary.isBlank()) b.section("Вывод", List.of(summary));
 
-            RenderedDoc rendered = renderer.render(b.build());
-            return media.upload(householdId, ownerId,
-                            rendered.filename(), rendered.mimeType(), rendered.content())
-                    .map(this::link);
+            return publisher.publish(householdId, ownerId, b.build());
         });
     }
 
@@ -450,15 +437,6 @@ public class BasketBreakdown {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private String link(MediaObjectDto stored) {
-        return base() + "/v1/media/" + stored.id();
-    }
-
-    private String base() {
-        String base = props.getPublicMediaBaseUrl();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private static String text(JsonNode node, String field) {

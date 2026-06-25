@@ -37,6 +37,15 @@ package sits outside their `@SpringBootApplication` scan root.
 - `Coordinator` — the reusable **gather → synthesize** scaffold for agent-led
   multi-source flows. Needs the agent's `LlmClient` + the default `ObjectMapper`
   (every agent has both), so it wires for free on `@Import`.
+- `DeliverablePublisher` — the shared **render → store → link** seam for the
+  gather→synthesize agents that hand the user an HTML board/report. Wraps the
+  agent's `DocRenderer` + `MediaStoreClient` + public-media base URL into one
+  `publish(household, owner, Doc)` (render → upload → public link) plus the
+  `mediaUrl(id)` URL builder and the `splitParagraphs`/`summary` text helpers all
+  four deliverable agents copy-pasted. Optional: the deliverable agents declare the
+  `@Bean` (`new DeliverablePublisher(docRenderer, mediaStoreClient,
+  props.getPublicMediaBaseUrl())`) in their own `OutboundHttpConfig`, so base URLs
+  stay per-agent and `publish` is signature-identical across callers.
 
 ## Coordinator (the agent-led multi-source pattern)
 `coordinate(systemPrompts, payload, gather, channel)` runs a `Map<String, Mono<JsonNode>>`
@@ -70,6 +79,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `http/MediaStoreClient` — `upload(householdId, ownerId, filename, mimeType, bytes)` → multipart `POST /v1/media` (15s); shared by the deliverable agents. Bean is opt-in per agent (`new MediaStoreClient(mediaServiceWebClient, "<source>")`); the `source` tag is constructor-set so `upload` is signature-identical across callers.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
+- `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 
 ## Tests
 `libs/agent-runtime/src/test/resources/test-skills/{good,bad}/SKILL.md` drive

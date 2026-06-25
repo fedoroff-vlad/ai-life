@@ -88,6 +88,7 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   `/internal/youtube-trends`, `/internal/reddit-trends`, `/internal/feed-items`); maps web hits to the
   uniform `TrendHit`.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (stores the rendered HTML board); `@Bean` (source `creator`) wired in `config/OutboundHttpConfig`.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `ContentStrategist` builds the content-plan `Doc` (synthesis + provenance links) and hands it off. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /agents/creator/intent` (profile cue → profiler; trend cue →
   strategist; else chat).
 - `web/ManifestController` — `GET /agents/creator/manifest`.
