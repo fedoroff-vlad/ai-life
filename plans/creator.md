@@ -243,10 +243,14 @@ Inter-agent (closes the Stage-4 chain) — split g1 (callee) / g2 (caller), mirr
   (`flow/GreetingDrafter`) → returns `{greeting, model}`. Always an `AgentActionResult` (structured
   `ok=false` on a bad request / LLM failure). AGENT.md `skills:` += greeting-drafter. Tested
   (`ActionControllerTest`, 3). Mirrors the chef's `ActionController` (minus web/render).
-- **CR-g2 — close the chain (the caller).** The calendar birthday wake (gift-recommender's sibling)
-  invokes `creator.draft_greeting` via the orchestrator `/v1/agents/invoke`, then notifier delivers —
-  closing `calendar.birthday_upcoming → creator.draft_greeting → notifier.send`. Mirrors NU-g
-  (nutritionist invokes chef).
+- **CR-g2 — close the chain (the caller). DONE (PR184).** On a `birthday.greet` wake the calendar
+  agent's new `flow/BirthdayGreeter` invokes `creator.draft_greeting` via the orchestrator
+  `/v1/agents/invoke` (longer-timeout `OrchestratorInvokeClient.invoke(req, timeout)` — the draft sits
+  behind an LLM on the creator side) → fans the returned greeting out to the household via notifier —
+  closing `calendar.birthday_upcoming → creator.draft_greeting → notifier.send`. **Best-effort with a
+  fallback:** if the creator can't help (no person to name, hub/LLM error, `ok=false`, or empty draft)
+  the wake falls back to the calendar's own `birthday-greeter` skill, so it always greets. Mirrors NU-g
+  (nutritionist invokes chef). **Stage 6 creator MVP complete** (CR-0…g).
 
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
