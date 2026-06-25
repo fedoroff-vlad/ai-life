@@ -48,8 +48,9 @@ mvn -T1C -DskipTests install   # fast local compile (respects the module DAG)
 ```
 
 ## Plan & docs
-The design lives in [`plans/`](plans/) — start at [`plans/INDEX.md`](plans/INDEX.md), then the one
-relevant domain file. Key entry points:
+New here? Read [`docs/REFERENCE.md`](docs/REFERENCE.md) first — a two-lens overview (developer, then
+user) of what's done, how it works, and how to run it. The design lives in [`plans/`](plans/) — start at
+[`plans/INDEX.md`](plans/INDEX.md), then the one relevant domain file. Key entry points:
 - [`plans/STATUS.md`](plans/STATUS.md) — current in-flight work + what's done (mutable).
 - [`plans/roadmap.md`](plans/roadmap.md) — stages, future agents, reuse table, risks.
 - [`plans/architecture.md`](plans/architecture.md) — layers, monorepo structure, DB schemas, LLM strategy, locked decisions.
