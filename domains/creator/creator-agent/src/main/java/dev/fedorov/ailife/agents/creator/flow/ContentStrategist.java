@@ -5,12 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.CoordinationResult;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.creator.config.CreatorAgentProperties;
 import dev.fedorov.ailife.agents.creator.http.CreatorCacheClient;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.creator.http.TrendGatherClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -20,10 +19,7 @@ import dev.fedorov.ailife.contracts.creator.SaveContentPieceInput;
 import dev.fedorov.ailife.contracts.creator.SaveTrendInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.trends.TrendHit;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -65,33 +61,27 @@ public class ContentStrategist {
     private final CreatorProfileClient profiles;
     private final TrendGatherClient gather;
     private final CreatorCacheClient cache;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final CreatorAgentProperties props;
 
     public ContentStrategist(Coordinator coordinator,
                              CreatorProfileClient profiles,
                              TrendGatherClient gather,
                              CreatorCacheClient cache,
-                             MediaStoreClient media,
-                             DocRenderer renderer,
+                             DeliverablePublisher publisher,
                              SkillRegistry skills,
                              AgentManifest manifest,
-                             ObjectMapper json,
-                             CreatorAgentProperties props) {
+                             ObjectMapper json) {
         this.coordinator = coordinator;
         this.profiles = profiles;
         this.gather = gather;
         this.cache = cache;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> run(NormalizedMessage msg) {
@@ -143,7 +133,8 @@ public class ContentStrategist {
                         LlmChannel.DEFAULT)
                 .flatMap(result -> persist(msg, niche, result)
                         .then(store(msg, niche, result.text(), result.gathered())
-                                .map(link -> reply(summary(result.text()) + "\n\nПолный контент-план: " + link, result.llmModel()))
+                                .map(link -> reply(DeliverablePublisher.summary(result.text(), "Собрал контент-план по свежим трендам.")
+                                        + "\n\nПолный контент-план: " + link, result.llmModel()))
                                 .onErrorResume(e -> {
                                     log.warn("content-plan render/store failed: {}", e.toString());
                                     return Mono.just(reply(result.text(), result.llmModel()));
@@ -219,14 +210,11 @@ public class ContentStrategist {
         Doc.Builder doc = Doc.builder("Контент-план: " + niche)
                 .kicker("Тренды · Идеи · Драфты")
                 .subtitle("На основе свежих трендов из нескольких источников")
-                .section("План", splitParagraphs(planText));
+                .section("План", DeliverablePublisher.splitParagraphs(planText));
         for (Link l : provenance(gathered)) {
             doc.link(l.label(), l.url(), l.source());
         }
-        RenderedDoc rendered = renderer.render(doc.build());
-        return media.upload(msg.householdId(), msg.userId(),
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
+        return publisher.publish(msg.householdId(), msg.userId(), doc.build());
     }
 
     /** Build a deduped, capped link list from the gathered corpus so the board shows real provenance. */
@@ -279,31 +267,6 @@ public class ContentStrategist {
             }
         }
         return null;
-    }
-
-    private String link(MediaObjectDto stored) {
-        String base = props.getPublicMediaBaseUrl();
-        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-        return base + "/v1/media/" + stored.id();
-    }
-
-    /** First line of the synthesis as the chat summary; the full plan lives in the HTML. */
-    private static String summary(String planText) {
-        if (planText == null || planText.isBlank()) {
-            return "Собрал контент-план по свежим трендам.";
-        }
-        String firstLine = planText.strip().split("\\R", 2)[0];
-        return firstLine.length() > 280 ? firstLine.substring(0, 277) + "…" : firstLine;
-    }
-
-    private static List<String> splitParagraphs(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null) return out;
-        for (String line : text.strip().split("\\R")) {
-            if (!line.isBlank()) out.add(line.strip());
-        }
-        if (out.isEmpty()) out.add(text.strip());
-        return out;
     }
 
     private static void putIf(ObjectNode node, String field, String value) {

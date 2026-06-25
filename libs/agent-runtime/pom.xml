@@ -27,6 +27,13 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>llm-client</artifactId>
         </dependency>
+        <!-- The DeliverablePublisher render→store→link seam renders a Doc through the
+             agent's DocRenderer. Every deliverable agent already pulls doc-render
+             directly; declared here so the runtime owns the dep its publisher needs. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>doc-render</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>

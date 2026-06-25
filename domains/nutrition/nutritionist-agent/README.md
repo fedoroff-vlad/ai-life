@@ -114,6 +114,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered HTML); `@Bean` (source `nutritionist`) wired in `config/OutboundHttpConfig`.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`) used by `NutritionAnalyst` / `MealPlanner` / `BasketBreakdown`. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /intent` (basket-cue photo → basket; photo → food-log; profile cue →
   diet-profiler; analysis cue → nutrition-analysis; ration cue → ration; basket cue → basket;
   food-log cue → food-log; else chat).

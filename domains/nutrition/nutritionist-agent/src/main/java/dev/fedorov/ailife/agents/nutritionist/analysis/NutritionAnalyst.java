@@ -4,27 +4,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.nutrition.MealLogDto;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,31 +47,25 @@ public class NutritionAnalyst {
     private final Coordinator coordinator;
     private final MealReadClient meals;
     private final DietProfileClient profiles;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final NutritionistAgentProperties props;
 
     public NutritionAnalyst(Coordinator coordinator,
                             MealReadClient meals,
                             DietProfileClient profiles,
-                            MediaStoreClient media,
-                            DocRenderer renderer,
+                            DeliverablePublisher publisher,
                             SkillRegistry skills,
                             AgentManifest manifest,
-                            ObjectMapper json,
-                            NutritionistAgentProperties props) {
+                            ObjectMapper json) {
         this.coordinator = coordinator;
         this.meals = meals;
         this.profiles = profiles;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> analyse(NormalizedMessage msg) {
@@ -112,7 +101,8 @@ public class NutritionAnalyst {
                         gather,
                         LlmChannel.DEFAULT)
                 .flatMap(result -> store(msg, result.text())
-                        .map(link -> reply(summary(result.text()) + "\n\nПолный разбор: " + link, result.llmModel()))
+                        .map(link -> reply(DeliverablePublisher.summary(result.text(), "Сделал разбор вашего питания.")
+                                + "\n\nПолный разбор: " + link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("analysis render/store failed: {}", e.toString());
                             // Still hand back the textual analysis if the page couldn't be stored.
@@ -125,40 +115,9 @@ public class NutritionAnalyst {
         Doc doc = Doc.builder("Разбор питания")
                 .kicker("Питание · Баланс · Цели")
                 .subtitle("На основе недавних приёмов пищи")
-                .section("Анализ", splitParagraphs(analysisText))
+                .section("Анализ", DeliverablePublisher.splitParagraphs(analysisText))
                 .build();
-        RenderedDoc rendered = renderer.render(doc);
-        return media.upload(msg.householdId(), msg.userId(),
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
-    }
-
-    private String link(MediaObjectDto stored) {
-        return base() + "/v1/media/" + stored.id();
-    }
-
-    private String base() {
-        String base = props.getPublicMediaBaseUrl();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
-    }
-
-    /** First line of the synthesis as the chat summary; the full version lives in the HTML. */
-    private static String summary(String analysisText) {
-        if (analysisText == null || analysisText.isBlank()) {
-            return "Сделал разбор вашего питания.";
-        }
-        String firstLine = analysisText.strip().split("\\R", 2)[0];
-        return firstLine.length() > 280 ? firstLine.substring(0, 277) + "…" : firstLine;
-    }
-
-    private static List<String> splitParagraphs(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null) return out;
-        for (String line : text.strip().split("\\R")) {
-            if (!line.isBlank()) out.add(line.strip());
-        }
-        if (out.isEmpty()) out.add(text.strip());
-        return out;
+        return publisher.publish(msg.householdId(), msg.userId(), doc);
     }
 
     private String skillBody() {

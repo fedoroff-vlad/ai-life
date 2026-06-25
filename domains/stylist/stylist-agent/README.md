@@ -104,7 +104,12 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   ivory/serif/grid/gold-hero, LOCKED 2026-06-21; palette/fonts from a `DocTheme`, layout constant) +
   `Doc` (board model: keyed sections, palette swatches, verdict grid, hero row, image gallery — fluent
   `builder`) / `RenderedDoc`. HTML now, PDF later behind the same seam. The flows build a `Doc` and
-  render it through the injected `DocRenderer`.
+  hand it to the shared `DeliverablePublisher` (render → store → link).
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam
+  (`publish(household, owner, Doc)` + the `mediaUrl(id)` builder for the boards' photo/gallery/featured
+  URLs + static `splitParagraphs`/`summary`) used by `StylistAdvisor` / `WardrobeAuditor` / `GapAnalyst`
+  / `AnalyseMe`. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient`
+  + public-media base URL.
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
   `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
   `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`

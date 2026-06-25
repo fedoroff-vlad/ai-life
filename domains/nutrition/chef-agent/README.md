@@ -66,6 +66,7 @@ the **ration → recipes hub action** (CH-b2):
   nutritionist invokes): `args.request` → `RecipeFinder.recommend` → `AgentActionResult{link, summary}`.
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered card); `@Bean` (source `chef`) wired in `config/OutboundHttpConfig`.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `RecipeFinder` builds the card `Doc` and hands it off. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /intent` (recipe cue → recipe flow; else chat).
 - `web/ManifestController` — `GET /manifest`.
 

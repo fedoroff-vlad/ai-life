@@ -4,13 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.nutritionist.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
@@ -18,10 +17,7 @@ import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -30,7 +26,6 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -76,36 +71,30 @@ public class MealPlanner {
     private final DietProfileClient profiles;
     private final MealReadClient meals;
     private final WebSearchClient web;
-    private final MediaStoreClient media;
+    private final DeliverablePublisher publisher;
     private final OrchestratorInvokeClient orchestrator;
-    private final DocRenderer renderer;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final NutritionistAgentProperties props;
 
     public MealPlanner(Coordinator coordinator,
                        DietProfileClient profiles,
                        MealReadClient meals,
                        WebSearchClient web,
-                       MediaStoreClient media,
+                       DeliverablePublisher publisher,
                        OrchestratorInvokeClient orchestrator,
-                       DocRenderer renderer,
                        SkillRegistry skills,
                        AgentManifest manifest,
-                       ObjectMapper json,
-                       NutritionistAgentProperties props) {
+                       ObjectMapper json) {
         this.coordinator = coordinator;
         this.profiles = profiles;
         this.meals = meals;
         this.web = web;
-        this.media = media;
+        this.publisher = publisher;
         this.orchestrator = orchestrator;
-        this.renderer = renderer;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> plan(NormalizedMessage msg) {
@@ -136,7 +125,7 @@ public class MealPlanner {
                         LlmChannel.DEFAULT)
                 .flatMap(result -> store(msg, result.text())
                         .flatMap(link -> recipesFor(msg, result.text())
-                                .map(recipes -> reply(summary(result.text())
+                                .map(recipes -> reply(DeliverablePublisher.summary(result.text(), "Составил рацион и список покупок.")
                                         + "\n\nРацион и список покупок: " + link + recipes, result.llmModel())))
                         .onErrorResume(e -> {
                             log.warn("ration render/store failed: {}", e.toString());
@@ -178,21 +167,9 @@ public class MealPlanner {
         Doc doc = Doc.builder("Рацион и список покупок")
                 .kicker("Питание · Семья · Закупка")
                 .subtitle("План на основе профилей и недавнего рациона")
-                .section("План", splitParagraphs(planText))
+                .section("План", DeliverablePublisher.splitParagraphs(planText))
                 .build();
-        RenderedDoc rendered = renderer.render(doc);
-        return media.upload(msg.householdId(), msg.userId(),
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
-    }
-
-    private String link(MediaObjectDto stored) {
-        return base() + "/v1/media/" + stored.id();
-    }
-
-    private String base() {
-        String base = props.getPublicMediaBaseUrl();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+        return publisher.publish(msg.householdId(), msg.userId(), doc);
     }
 
     /** The first store name mentioned in the request (lower-cased contains), else null. */
@@ -215,25 +192,6 @@ public class MealPlanner {
             case 6, 7, 8 -> "лето";
             default -> "осень";
         };
-    }
-
-    /** First line of the plan as the chat summary; the full version lives in the HTML. */
-    private static String summary(String planText) {
-        if (planText == null || planText.isBlank()) {
-            return "Составил рацион и список покупок.";
-        }
-        String firstLine = planText.strip().split("\\R", 2)[0];
-        return firstLine.length() > 280 ? firstLine.substring(0, 277) + "…" : firstLine;
-    }
-
-    private static List<String> splitParagraphs(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null) return out;
-        for (String line : text.strip().split("\\R")) {
-            if (!line.isBlank()) out.add(line.strip());
-        }
-        if (out.isEmpty()) out.add(text.strip());
-        return out;
     }
 
     private String skillBody() {

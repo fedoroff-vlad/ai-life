@@ -4,19 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.stylist.config.StylistAgentProperties;
-import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.docrender.Doc;
-import dev.fedorov.ailife.docrender.DocRenderer;
-import dev.fedorov.ailife.docrender.RenderedDoc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
-import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,29 +44,23 @@ public class WardrobeAuditor {
 
     private final Coordinator coordinator;
     private final WardrobeReadClient wardrobe;
-    private final MediaStoreClient media;
-    private final DocRenderer renderer;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
-    private final StylistAgentProperties props;
 
     public WardrobeAuditor(Coordinator coordinator,
                            WardrobeReadClient wardrobe,
-                           MediaStoreClient media,
-                           DocRenderer renderer,
+                           DeliverablePublisher publisher,
                            SkillRegistry skills,
                            AgentManifest manifest,
-                           ObjectMapper json,
-                           StylistAgentProperties props) {
+                           ObjectMapper json) {
         this.coordinator = coordinator;
         this.wardrobe = wardrobe;
-        this.media = media;
-        this.renderer = renderer;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
-        this.props = props;
     }
 
     public Mono<IntentResponse> audit(NormalizedMessage msg) {
@@ -136,7 +126,7 @@ public class WardrobeAuditor {
                 String name = text(v, "name");
                 if (name == null) continue;
                 b.verdict(name, parseVerdict(text(v, "verdict")), text(v, "reason"),
-                        photoUrl(photoByName.get(name.toLowerCase(Locale.ROOT))));
+                        publisher.mediaUrl(photoByName.get(name.toLowerCase(Locale.ROOT))));
             }
         }
 
@@ -145,7 +135,7 @@ public class WardrobeAuditor {
             for (JsonNode h : hero) {
                 String name = h.asText();
                 if (name != null && !name.isBlank()) {
-                    b.heroPiece(name, photoUrl(photoByName.get(name.toLowerCase(Locale.ROOT))), null);
+                    b.heroPiece(name, publisher.mediaUrl(photoByName.get(name.toLowerCase(Locale.ROOT))), null);
                 }
             }
         }
@@ -164,10 +154,7 @@ public class WardrobeAuditor {
     }
 
     private Mono<String> store(NormalizedMessage msg, Doc doc) {
-        RenderedDoc rendered = renderer.render(doc);
-        return media.upload(msg.householdId(), msg.userId(),
-                        rendered.filename(), rendered.mimeType(), rendered.content())
-                .map(this::link);
+        return publisher.publish(msg.householdId(), msg.userId(), doc);
     }
 
     private String summary(JsonNode audit) {
@@ -193,18 +180,6 @@ public class WardrobeAuditor {
             case "question" -> Doc.Verdict.QUESTION;
             default -> Doc.Verdict.KEEP;
         };
-    }
-
-    private String photoUrl(UUID mediaId) {
-        return mediaId == null ? null : trimBase(props.getPublicMediaBaseUrl()) + "/v1/media/" + mediaId;
-    }
-
-    private String link(MediaObjectDto stored) {
-        return trimBase(props.getPublicMediaBaseUrl()) + "/v1/media/" + stored.id();
-    }
-
-    private static String trimBase(String base) {
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private JsonNode parse(String content) {
