@@ -40,6 +40,20 @@ class DeliverablePublisherTest {
     }
 
     @Test
+    void defaultThemeConstructorRendersHtmlAndLinks() {
+        DeliverablePublisher publisher = new DeliverablePublisher(media, "https://m.example.com");
+        UUID household = UUID.randomUUID();
+        UUID owner = UUID.randomUUID();
+        UUID stored = UUID.randomUUID();
+        when(media.upload(eq(household), eq(owner), eq("doc.html"), eq("text/html"), any()))
+                .thenReturn(Mono.just(dto(stored)));
+
+        String link = publisher.publish(household, owner,
+                Doc.builder("T").section("S", List.of("p")).build()).block();
+        assertThat(link).isEqualTo("https://m.example.com/v1/media/" + stored);
+    }
+
+    @Test
     void mediaUrlComposesFromBaseAndIsNullSafe() {
         DeliverablePublisher publisher = new DeliverablePublisher(renderer, media, "https://m.example.com");
         UUID id = UUID.randomUUID();

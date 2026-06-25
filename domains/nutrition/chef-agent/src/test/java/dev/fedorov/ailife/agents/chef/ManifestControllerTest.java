@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Boots the full chef-agent context (MCP client disabled via test application.yml) and verifies the
  * manifest endpoint the orchestrator scrapes on startup. Proves the scaffold wires: AGENT.md parsed,
  * the agent-runtime beans (which need the profile/notifier/memory WebClients) resolve, the LlmClient
- * + ChefChat + DocRenderer beans wire, and the agent registers as {@code chef} binding mcp-nutrition
- * + mcp-web.
+ * + ChefChat + DeliverablePublisher beans wire, and the agent registers as {@code chef} binding
+ * mcp-nutrition + mcp-web.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient

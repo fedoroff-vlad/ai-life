@@ -104,7 +104,6 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   `breakdownFromEvent` (IA-b) is the bus-fan-out variant: given the line items finance already
   extracted, it runs the breakdown and **notifies the household** instead of replying.
 - `web/InternalBasketEventController` — `POST /internal/basket-event`, the IA-b consume entry.
-- `config/RenderConfig` — the shared `DocRenderer` bean (lib default `DocTheme`).
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
 - `http/MealReadClient` — `GET /internal/meals` on mcp-nutrition (read recent meals).
@@ -114,7 +113,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered HTML); `@Bean` (source `nutritionist`) wired in `config/OutboundHttpConfig`.
-- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`) used by `NutritionAnalyst` / `MealPlanner` / `BasketBreakdown`. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`) used by `NutritionAnalyst` / `MealPlanner` / `BasketBreakdown`. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /intent` (basket-cue photo → basket; photo → food-log; profile cue →
   diet-profiler; analysis cue → nutrition-analysis; ration cue → ration; basket cue → basket;
   food-log cue → food-log; else chat).

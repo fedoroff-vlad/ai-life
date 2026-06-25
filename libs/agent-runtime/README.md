@@ -43,9 +43,12 @@ package sits outside their `@SpringBootApplication` scan root.
   `publish(household, owner, Doc)` (render → upload → public link) plus the
   `mediaUrl(id)` URL builder and the `splitParagraphs`/`summary` text helpers all
   four deliverable agents copy-pasted. Optional: the deliverable agents declare the
-  `@Bean` (`new DeliverablePublisher(docRenderer, mediaStoreClient,
-  props.getPublicMediaBaseUrl())`) in their own `OutboundHttpConfig`, so base URLs
-  stay per-agent and `publish` is signature-identical across callers.
+  `@Bean` in their own `OutboundHttpConfig`, so base URLs stay per-agent and
+  `publish` is signature-identical across callers. Default-theme agents use the
+  convenience ctor `new DeliverablePublisher(mediaStoreClient, baseUrl)` (it builds
+  the default `HtmlDocRenderer`, so they need no `RenderConfig`/`DocRenderer` bean);
+  an agent that themes its boards (stylist) passes its own `DocRenderer` to the
+  three-arg ctor instead.
 
 ## Coordinator (the agent-led multi-source pattern)
 `coordinate(systemPrompts, payload, gather, channel)` runs a `Map<String, Mono<JsonNode>>`
@@ -79,7 +82,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `http/MediaStoreClient` — `upload(householdId, ownerId, filename, mimeType, bytes)` → multipart `POST /v1/media` (15s); shared by the deliverable agents. Bean is opt-in per agent (`new MediaStoreClient(mediaServiceWebClient, "<source>")`); the `source` tag is constructor-set so `upload` is signature-identical across callers.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
-- `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
+- `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 
 ## Tests
 `libs/agent-runtime/src/test/resources/test-skills/{good,bad}/SKILL.md` drive

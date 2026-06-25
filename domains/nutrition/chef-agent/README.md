@@ -56,7 +56,6 @@ the **ration → recipes hub action** (CH-b2):
 - `config/ChefAgentProperties` — the outbound base URLs (`chef-agent.*`).
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency; the `profile/notifier/memory`
   qualified beans back the shared runtime clients.
-- `config/RenderConfig` — the shared `DocRenderer` bean (lib default `DocTheme`), for the CH-b cards.
 - `chat/ChefChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `flow/RecipeFinder` — the recipe flow: `mcp-web` recipe search → one LLM synthesis via the
   `recipe-finder` SKILL → render an HTML recipe card (text + the real recipe links) via
@@ -66,7 +65,7 @@ the **ration → recipes hub action** (CH-b2):
   nutritionist invokes): `args.request` → `RecipeFinder.recommend` → `AgentActionResult{link, summary}`.
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered card); `@Bean` (source `chef`) wired in `config/OutboundHttpConfig`.
-- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `RecipeFinder` builds the card `Doc` and hands it off. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `RecipeFinder` builds the card `Doc` and hands it off. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /intent` (recipe cue → recipe flow; else chat).
 - `web/ManifestController` — `GET /manifest`.
 
