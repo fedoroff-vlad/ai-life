@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.agents.calendar.config;
 
+import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -41,5 +43,11 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient orchestratorWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
         return builder.clone().baseUrl(props.getOrchestratorUrl()).build();
+    }
+
+    @Bean
+    public OrchestratorInvokeClient orchestratorInvokeClient(
+            @Qualifier("orchestratorWebClient") WebClient orchestratorWebClient) {
+        return new OrchestratorInvokeClient(orchestratorWebClient);
     }
 }

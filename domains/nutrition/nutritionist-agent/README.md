@@ -48,7 +48,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   grouped shopping list, ad-hoc people read from the request, infant caveat) → render an HTML board
   via the shared `libs/doc-render` → store in media-service → reply with a link. **Once the ration is
   rendered it invokes the chef** (`recommend_recipes`) over the orchestrator hub
-  (`http/OrchestratorInvokeClient` → `/v1/agents/invoke`) and folds the returned recipe-card link into
+  (the shared `OrchestratorInvokeClient` → `/v1/agents/invoke`) and folds the returned recipe-card link into
   the reply (CH-b2, gift-recommender→finance shape) — soft-failed, so a chef outage just drops the
   recipes line. `flow/MealPlanner`.
 
@@ -110,7 +110,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `http/MealReadClient` — `GET /internal/meals` on mcp-nutrition (read recent meals).
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (store-availability lookup for the ration flow).
 - `http/FoodDataClient` — `POST /internal/food-lookup` on mcp-food-data (precise per-100g КБЖУ for the basket breakdown, FD-c).
-- `http/OrchestratorInvokeClient` — `POST /v1/agents/invoke` on the orchestrator (NU-g → chef recipes).
+- `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `POST /v1/agents/invoke` (NU-g → chef recipes, 8s timeout); `@Bean` wired in `config/OutboundHttpConfig`.
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered HTML).
