@@ -3,10 +3,12 @@ package dev.fedorov.ailife.agents.creator.flow;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.coordinate.CoordinationResult;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.creator.config.CreatorAgentProperties;
+import dev.fedorov.ailife.agents.creator.http.CreatorCacheClient;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
 import dev.fedorov.ailife.agents.creator.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.creator.http.TrendGatherClient;
@@ -14,7 +16,10 @@ import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.creator.CreatorProfileDto;
+import dev.fedorov.ailife.contracts.creator.SaveContentPieceInput;
+import dev.fedorov.ailife.contracts.creator.SaveTrendInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
+import dev.fedorov.ailife.contracts.trends.TrendHit;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.docrender.DocRenderer;
@@ -59,6 +64,7 @@ public class ContentStrategist {
     private final Coordinator coordinator;
     private final CreatorProfileClient profiles;
     private final TrendGatherClient gather;
+    private final CreatorCacheClient cache;
     private final MediaStoreClient media;
     private final DocRenderer renderer;
     private final SkillRegistry skills;
@@ -69,6 +75,7 @@ public class ContentStrategist {
     public ContentStrategist(Coordinator coordinator,
                              CreatorProfileClient profiles,
                              TrendGatherClient gather,
+                             CreatorCacheClient cache,
                              MediaStoreClient media,
                              DocRenderer renderer,
                              SkillRegistry skills,
@@ -78,6 +85,7 @@ public class ContentStrategist {
         this.coordinator = coordinator;
         this.profiles = profiles;
         this.gather = gather;
+        this.cache = cache;
         this.media = media;
         this.renderer = renderer;
         this.skills = skills;
@@ -133,12 +141,58 @@ public class ContentStrategist {
                         payload,
                         sources,
                         LlmChannel.DEFAULT)
-                .flatMap(result -> store(msg, niche, result.text(), result.gathered())
-                        .map(link -> reply(summary(result.text()) + "\n\nПолный контент-план: " + link, result.llmModel()))
-                        .onErrorResume(e -> {
-                            log.warn("content-plan render/store failed: {}", e.toString());
-                            return Mono.just(reply(result.text(), result.llmModel()));
-                        }));
+                .flatMap(result -> persist(msg, niche, result)
+                        .then(store(msg, niche, result.text(), result.gathered())
+                                .map(link -> reply(summary(result.text()) + "\n\nПолный контент-план: " + link, result.llmModel()))
+                                .onErrorResume(e -> {
+                                    log.warn("content-plan render/store failed: {}", e.toString());
+                                    return Mono.just(reply(result.text(), result.llmModel()));
+                                })));
+    }
+
+    /**
+     * Persist the run into the {@code mcp-creator} cache (CR-e): the gathered {@code TrendHit} corpus
+     * into {@code trend} (deduped per (owner, url) by the cache) and the synthesized plan into
+     * {@code content_piece} as a draft, attributed to the speaker. Best-effort — the reply already
+     * carries the deliverable, so a persist failure only logs and never breaks the user response.
+     */
+    private Mono<Void> persist(NormalizedMessage msg, String niche, CoordinationResult result) {
+        List<SaveTrendInput> trendInputs = trendInputs(msg, result.gathered());
+        Mono<Void> saveTrends = trendInputs.isEmpty()
+                ? Mono.empty()
+                : cache.saveTrends(trendInputs).then();
+        SaveContentPieceInput draft = new SaveContentPieceInput(
+                msg.householdId(), msg.userId(), "draft", null,
+                "Контент-план: " + niche, result.text(), null, null, "new", null);
+        return saveTrends
+                .then(cache.saveContentPiece(draft).then())
+                .onErrorResume(e -> {
+                    log.warn("creator cache persist failed: {}", e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /** Flatten the gathered corpus into {@code SaveTrendInput}s, attributed to the speaker. */
+    private List<SaveTrendInput> trendInputs(NormalizedMessage msg, JsonNode gathered) {
+        List<SaveTrendInput> out = new ArrayList<>();
+        if (gathered == null) {
+            return out;
+        }
+        for (String source : SOURCE_ORDER) {
+            JsonNode arr = gathered.get(source);
+            if (arr == null || !arr.isArray()) {
+                continue;
+            }
+            for (JsonNode node : arr) {
+                TrendHit hit = json.convertValue(node, TrendHit.class);
+                if (hit.title() == null || hit.title().isBlank()) {
+                    continue;
+                }
+                out.add(new SaveTrendInput(msg.householdId(), msg.userId(), hit.source(),
+                        hit.platform(), hit.title(), hit.url(), hit.summary(), hit.metrics(), null));
+            }
+        }
+        return out;
     }
 
     /** Try the speaker's own track first, then the household-default; absent/error → empty. */

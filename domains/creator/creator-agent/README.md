@@ -7,7 +7,7 @@ domain-MCP; binds the shared trend sources `mcp-web` / `mcp-youtube` / `mcp-redd
 Routes via the orchestrator (registered as `creator`). The gather → synthesize shape is the
 `researcher` agent, fanned out to multiple sources. See [plans/creator.md](../../../plans/creator.md).
 
-## Status (through CR-d)
+## Status (through CR-e)
 
 Manifest endpoint + the `chat/CreatorChat` fallback (one LLM turn, AGENT.md as system prompt) +
 the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts flow** (CR-d):
@@ -22,8 +22,12 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   SKILL → fresh trends + post ideas + ready drafts + per-platform format recs → rendered as an HTML
   content-plan board via `libs/doc-render` (with a provenance links section built from the gathered
   hits) → stored in media-service → reply with the link. `flow/ContentStrategist`. Per-source
-  soft-fail; render/store failure still returns the textual plan. (Persisting the gathered trends +
-  generated pieces into the `mcp-creator` cache is CR-e.)
+  soft-fail; render/store failure still returns the textual plan.
+- **CR-e — trend cache persist. DONE.** After the synthesis, the flow persists the run into
+  `mcp-creator`: the gathered `TrendHit` corpus → `POST /internal/trends` in one batch (the cache
+  dedups per `(owner, url)`), and the synthesized plan → `POST /internal/content-piece` as a `draft`,
+  both attributed to the speaker. Best-effort — the reply already carries the deliverable link, so a
+  persist failure only logs. `http/CreatorCacheClient`.
 - **CR-g — `draft_greeting` action.** Invoked over the orchestrator hub by the calendar birthday
   wake → drafts a greeting → notifier delivers (closes the Stage-4 chain).
 
@@ -65,6 +69,8 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   on the `Coordinator` → one `content-strategist` synthesis → render HTML board (+ provenance links) →
   store in media-service → reply with the link.
 - `http/CreatorProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/creator-profile`.
+- `http/CreatorCacheClient` — the CR-e persist: `POST /internal/trends` (batch trend cache) +
+  `POST /internal/content-piece` (the draft), over `mcp-creator`.
 - `http/TrendGatherClient` — one client binding the four source passthroughs (`/internal/search`,
   `/internal/youtube-trends`, `/internal/reddit-trends`, `/internal/feed-items`); maps web hits to the
   uniform `TrendHit`.
