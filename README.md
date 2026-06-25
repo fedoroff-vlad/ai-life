@@ -34,9 +34,11 @@ ai-life/
 │   ├── tasks/               tasks-agent, mcp-tasks, skills/
 │   ├── researcher/          researcher-agent
 │   ├── stylist/             stylist-agent, mcp-wardrobe, skills/
-│   └── nutrition/           nutritionist-agent, chef-agent, mcp-nutrition, skills/
+│   ├── nutrition/           nutritionist-agent, chef-agent, mcp-nutrition, skills/
+│   └── creator/             creator-agent, mcp-creator, skills/
 ├── shared/                  shared RUNTIME capabilities any agent binds:
-│   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen (capability-MCPs, no schema)
+│   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen,
+│                            mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)
 └── infra/                   docker-compose, liquibase, postgres init, .env.example
 ```
 Each agent/MCP is its **own Spring Boot app + Dockerfile + container** — co-location ≠ one process.
