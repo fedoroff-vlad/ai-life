@@ -70,7 +70,6 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency; the `profile/notifier/memory`
   qualified beans back the shared runtime clients, `mcpCreator` + the four trend sources + `mediaService`
   back the flows.
-- `config/RenderConfig` — the shared `DocRenderer` bean (HTML, default `DocTheme`) for the content-plan board.
 - `chat/CreatorChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `profile/CreatorProfiler` — the creator-profile flow: a typed profile cue → LLM extract via the
   `creator-profiler` SKILL → upsert via `/internal/creator-profile` (self or household-default).
@@ -88,7 +87,7 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   `/internal/youtube-trends`, `/internal/reddit-trends`, `/internal/feed-items`); maps web hits to the
   uniform `TrendHit`.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (stores the rendered HTML board); `@Bean` (source `creator`) wired in `config/OutboundHttpConfig`.
-- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `ContentStrategist` builds the content-plan `Doc` (synthesis + provenance links) and hands it off. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient` + public-media base URL.
+- `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `ContentStrategist` builds the content-plan `Doc` (synthesis + provenance links) and hands it off. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
 - `web/IntentController` — `POST /agents/creator/intent` (profile cue → profiler; trend cue →
   strategist; else chat).
 - `web/ManifestController` — `GET /agents/creator/manifest`.

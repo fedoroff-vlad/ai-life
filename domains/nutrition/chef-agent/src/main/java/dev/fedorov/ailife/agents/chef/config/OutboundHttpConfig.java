@@ -2,7 +2,6 @@ package dev.fedorov.ailife.agents.chef.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
-import dev.fedorov.ailife.docrender.DocRenderer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,10 +39,10 @@ public class OutboundHttpConfig {
     }
 
     @Bean
-    public DeliverablePublisher deliverablePublisher(DocRenderer docRenderer,
-                                                     MediaStoreClient mediaStoreClient,
+    public DeliverablePublisher deliverablePublisher(MediaStoreClient mediaStoreClient,
                                                      ChefAgentProperties props) {
-        return new DeliverablePublisher(docRenderer, mediaStoreClient, props.getPublicMediaBaseUrl());
+        // Default editorial theme (chef doesn't skin its cards) → the convenience ctor builds the renderer.
+        return new DeliverablePublisher(mediaStoreClient, props.getPublicMediaBaseUrl());
     }
 
     @Bean

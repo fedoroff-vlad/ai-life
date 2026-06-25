@@ -3,6 +3,8 @@ package dev.fedorov.ailife.agentruntime.deliver;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.docrender.DocRenderer;
+import dev.fedorov.ailife.docrender.DocTheme;
+import dev.fedorov.ailife.docrender.HtmlDocRenderer;
 import dev.fedorov.ailife.docrender.RenderedDoc;
 import reactor.core.publisher.Mono;
 
@@ -33,6 +35,15 @@ public class DeliverablePublisher {
         this.renderer = renderer;
         this.media = media;
         this.publicMediaBaseUrl = trimTrailingSlash(publicMediaBaseUrl);
+    }
+
+    /**
+     * Convenience for agents that render with the <b>default</b> warm-beige editorial theme (the common
+     * case — only stylist themes its boards): builds the default {@link HtmlDocRenderer} so the agent
+     * doesn't need its own {@code DocRenderer} bean / {@code RenderConfig}.
+     */
+    public DeliverablePublisher(MediaStoreClient media, String publicMediaBaseUrl) {
+        this(new HtmlDocRenderer(new DocTheme()), media, publicMediaBaseUrl);
     }
 
     /** Render the doc, store it in media-service, and return the public link to open it. */

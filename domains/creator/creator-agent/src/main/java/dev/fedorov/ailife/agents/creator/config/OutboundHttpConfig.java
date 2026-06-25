@@ -2,7 +2,6 @@ package dev.fedorov.ailife.agents.creator.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
-import dev.fedorov.ailife.docrender.DocRenderer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,10 +53,10 @@ public class OutboundHttpConfig {
     }
 
     @Bean
-    public DeliverablePublisher deliverablePublisher(DocRenderer docRenderer,
-                                                     MediaStoreClient mediaStoreClient,
+    public DeliverablePublisher deliverablePublisher(MediaStoreClient mediaStoreClient,
                                                      CreatorAgentProperties props) {
-        return new DeliverablePublisher(docRenderer, mediaStoreClient, props.getPublicMediaBaseUrl());
+        // Default editorial theme → the convenience ctor builds the renderer (no per-agent RenderConfig).
+        return new DeliverablePublisher(mediaStoreClient, props.getPublicMediaBaseUrl());
     }
 
     @Bean
