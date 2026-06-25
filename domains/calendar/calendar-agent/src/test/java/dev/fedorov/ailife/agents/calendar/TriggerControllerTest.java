@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.calendar;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
@@ -56,6 +57,7 @@ class TriggerControllerTest {
 
     static ProfileDispatcher profileDispatcher;
     static MemoryDispatcher memoryDispatcher;
+    static OrchestratorDispatcher orchestratorDispatcher;
 
     @BeforeAll
     static void start() throws Exception {
@@ -80,6 +82,8 @@ class TriggerControllerTest {
         memoryService.setDispatcher(memoryDispatcher);
         memoryService.start();
         orchestrator = new MockWebServer();
+        orchestratorDispatcher = new OrchestratorDispatcher();
+        orchestrator.setDispatcher(orchestratorDispatcher);
         orchestrator.start();
     }
 
@@ -110,9 +114,24 @@ class TriggerControllerTest {
     }
 
     @BeforeEach
-    void resetDispatchers() {
+    void resetDispatchers() throws InterruptedException {
         profileDispatcher.reset();
         memoryDispatcher.reset();
+        orchestratorDispatcher.reset();
+        // Drain any requests a prior test left unconsumed so per-test takeRequest assertions are clean
+        // (the servers are static and shared across methods).
+        drain(llmGateway);
+        drain(profileService);
+        drain(notifier);
+        drain(icsImport);
+        drain(memoryService);
+        drain(orchestrator);
+    }
+
+    private static void drain(MockWebServer server) throws InterruptedException {
+        while (server.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
+            // discard
+        }
     }
 
     @Autowired WebTestClient http;
@@ -130,7 +149,7 @@ class TriggerControllerTest {
     }
 
     @Test
-    void birthdayWakeResolvesPersonRunsSkillAndFansGreetingOut() throws Exception {
+    void birthdayWakeAsksCreatorToDraftGreetingAndFansOut() throws Exception {
         UUID householdId = UUID.randomUUID();
         UUID personId = UUID.randomUUID();
         UUID vladId = UUID.randomUUID();
@@ -143,22 +162,10 @@ class TriggerControllerTest {
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()),
                 new UserDto(wifeId, householdId, "Wife", "ru-RU", 2L, "admin", Instant.now()));
 
-        // Cross-agent chain: enrich with memories + relations BEFORE the LLM call.
-        memoryDispatcher.recallHits = List.of(new RecallMemoryHit(new MemoryDto(
-                UUID.randomUUID(), householdId, null, personId, "chat",
-                "Maria mentioned wanting a quiet birthday this year.", null, Instant.now()), 0.12));
-        memoryDispatcher.relations = new PersonRelationsResponse(
-                personId,
-                List.of(new RelationDto(
-                        UUID.randomUUID(), householdId, "person", personId, "likes",
-                        "label", null, "loose-leaf earl grey tea", 1.0f, "chat", null, Instant.now())),
-                List.of());
-
-        llmGateway.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(new LlmChatResponse(
-                        "mock-large", "С днём рождения, Маша!", "stop",
-                        new LlmUsage(80, 8, 88)))));
+        // CR-g2: the creator agent drafts the greeting over the orchestrator hub.
+        orchestratorDispatcher.greeting = json.createObjectNode()
+                .put("greeting", "С днём рождения, Маша!")
+                .put("model", "mock-large");
 
         var payload = json.createObjectNode().put("personId", personId.toString());
         var wake = new AgentWakeRequest(
@@ -170,18 +177,18 @@ class TriggerControllerTest {
                 .exchange()
                 .expectStatus().isAccepted();
 
-        // LLM saw the resolved person fields AND the recalled memories AND the relations.
-        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(llmReq).isNotNull();
-        String llmBody = llmReq.getBody().readUtf8();
-        assertThat(llmBody)
-                .contains("Maria")
-                .contains("sister")
-                .contains("earl grey")                               // person.notes
-                .contains("Maria mentioned wanting a quiet birthday") // memory recall hit
-                .contains("loose-leaf earl grey tea");                // relation object_label
+        // The hub invoke was creator.draft_greeting with the person name + occasion.
+        RecordedRequest invoke = orchestrator.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(invoke).isNotNull();
+        assertThat(invoke.getPath()).isEqualTo("/v1/agents/invoke");
+        assertThat(invoke.getBody().readUtf8())
+                .contains("\"action\":\"draft_greeting\"")
+                .contains("\"targetAgent\":\"creator\"")
+                .contains(householdId.toString())
+                .contains("Maria")        // person.displayName as args.person
+                .contains("birthday");    // args.occasion
 
-        // Two notify POSTs landed.
+        // The drafted greeting fanned out to both members; no local LLM call (creator drafted it).
         RecordedRequest first = notifier.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest second = notifier.takeRequest(2, TimeUnit.SECONDS);
         assertThat(first).isNotNull();
@@ -190,6 +197,53 @@ class TriggerControllerTest {
         assertThat(bodies)
                 .contains(vladId.toString())
                 .contains(wifeId.toString())
+                .contains("С днём рождения");
+        assertThat(llmGateway.takeRequest(200, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void birthdayWakeFallsBackToLocalSkillWhenCreatorUnavailable() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        UUID vladId = UUID.randomUUID();
+
+        profileDispatcher.person = new PersonDto(
+                personId, householdId, "Maria", "sister", "ru-RU",
+                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now());
+        profileDispatcher.householdMembers = List.of(
+                new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
+
+        // Creator can't help (structured ok=false) → fall back to the local birthday-greeter skill.
+        orchestratorDispatcher.creatorDeclines = true;
+
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "С днём рождения, Маша!", "stop", new LlmUsage(80, 8, 88)))));
+
+        var payload = json.createObjectNode().put("personId", personId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), householdId, "calendar", "birthday.greet", payload);
+
+        http.post().uri("/agents/calendar/triggers/birthday.greet")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // The creator was tried first…
+        RecordedRequest invoke = orchestrator.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(invoke).isNotNull();
+        assertThat(invoke.getBody().readUtf8()).contains("\"action\":\"draft_greeting\"");
+
+        // …then the local skill ran (LLM with the resolved person) and the greeting still fanned out.
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(llmReq).isNotNull();
+        assertThat(llmReq.getBody().readUtf8()).contains("Maria").contains("sister");
+        RecordedRequest notifyReq = notifier.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(notifyReq).isNotNull();
+        assertThat(notifyReq.getBody().readUtf8())
+                .contains(vladId.toString())
                 .contains("С днём рождения");
     }
 
@@ -220,14 +274,11 @@ class TriggerControllerTest {
 
         // D2c: the coordinator invokes finance's get_gift_budget through the
         // orchestrator hub. Stub the envelope the invoke returns.
-        var budget = json.createObjectNode()
+        orchestratorDispatcher.giftBudget = json.createObjectNode()
                 .put("hasGiftBudget", true)
                 .put("amount", 5000)
                 .put("currency", "RUB")
                 .put("remaining", 3000);
-        orchestrator.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(AgentActionResult.ok(budget))));
 
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
@@ -304,6 +355,10 @@ class TriggerControllerTest {
                 json.createArrayNode().add("books"), "n/a", null, Instant.now());
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
+
+        // Drive the local-skill fallback (CR-g2): the creator declines, so the local birthday-greeter
+        // skill runs — that's the path memory enrichment (and its soft-fail) belongs to.
+        orchestratorDispatcher.creatorDeclines = true;
 
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
@@ -395,6 +450,55 @@ class TriggerControllerTest {
 
         // Forward attempt happened.
         assertThat(icsImport.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+    }
+
+    private static MockResponse jsonResponse(String body) {
+        return new MockResponse().setHeader("content-type", "application/json").setBody(body);
+    }
+
+    /**
+     * Routes the orchestrator hub ({@code POST /v1/agents/invoke}) by the action in the body, so the
+     * gift ({@code get_gift_budget}) and birthday ({@code draft_greeting}) paths don't depend on
+     * enqueue order across methods. {@code creatorDeclines} returns {@code ok=false} for
+     * {@code draft_greeting} so the caller falls back to the local skill. Reads the body via a buffer
+     * clone so the test's own {@code takeRequest} can still inspect it.
+     */
+    private static class OrchestratorDispatcher extends Dispatcher {
+        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        volatile JsonNode giftBudget;       // get_gift_budget ok payload (null → error)
+        volatile JsonNode greeting;         // draft_greeting ok payload (null → error)
+        volatile boolean creatorDeclines;   // force draft_greeting to ok=false
+
+        void reset() {
+            giftBudget = null;
+            greeting = null;
+            creatorDeclines = false;
+        }
+
+        @Override
+        public MockResponse dispatch(RecordedRequest req) {
+            try {
+                JsonNode root = M.readTree(req.getBody().clone().readUtf8());
+                String action = root.path("action").asText("");
+                AgentActionResult result;
+                if ("draft_greeting".equals(action)) {
+                    result = (creatorDeclines || greeting == null)
+                            ? AgentActionResult.error("creator unavailable")
+                            : AgentActionResult.ok(greeting);
+                } else if ("get_gift_budget".equals(action)) {
+                    result = giftBudget == null
+                            ? AgentActionResult.error("no budget")
+                            : AgentActionResult.ok(giftBudget);
+                } else {
+                    return new MockResponse().setResponseCode(404);
+                }
+                return new MockResponse()
+                        .setHeader("content-type", "application/json")
+                        .setBody(M.writeValueAsString(result));
+            } catch (Exception e) {
+                return new MockResponse().setResponseCode(500).setBody(e.toString());
+            }
+        }
     }
 
     /**

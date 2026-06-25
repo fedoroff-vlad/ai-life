@@ -28,13 +28,14 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   dedups per `(owner, url)`), and the synthesized plan → `POST /internal/content-piece` as a `draft`,
   both attributed to the speaker. Best-effort — the reply already carries the deliverable link, so a
   persist failure only logs. `http/CreatorCacheClient`.
-- **CR-g1 — `draft_greeting` action. DONE.** `POST /agents/creator/actions/draft_greeting`
+- **CR-g — `draft_greeting` action + chain closed. DONE.** `POST /agents/creator/actions/draft_greeting`
   (`web/ActionController`): reads `args.person` (required) + `args.occasion` (optional, defaults to a
   birthday) → one LLM turn via the `greeting-drafter` skill (`flow/GreetingDrafter`) → returns
   `{greeting, model}`. Always an `AgentActionResult` (structured `ok=false` on a bad request / LLM
-  failure), mirroring the chef's `ActionController`. **CR-g2** (the calendar birthday wake invokes it
-  over the hub → notifier delivers, closing `calendar.birthday_upcoming → creator.draft_greeting →
-  notifier.send`) is the follow-up.
+  failure), mirroring the chef's `ActionController`. **CR-g2 (calendar side, PR184):** the calendar
+  `birthday.greet` wake invokes this over the orchestrator hub → notifier delivers, closing the
+  Stage-4 chain `calendar.birthday_upcoming → creator.draft_greeting → notifier.send` (with a fallback
+  to calendar's own `birthday-greeter` skill if the creator is unavailable).
 
 ## Endpoints
 

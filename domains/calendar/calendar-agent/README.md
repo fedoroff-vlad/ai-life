@@ -50,6 +50,15 @@ relationship-tiered rule, else the "Gifts" envelope, D3d),
 independently — a finance outage just drops the budget constraint. **Delivery is two
 notifications per member (D3e): a deterministic birthday reminder, then the gift ideas.**
 
+**`birthday.greet` delegates the greeting to the creator agent (CR-g2):** instead of the
+generic recall→LLM path it runs `BirthdayGreeter`, which invokes `creator.draft_greeting`
+over the orchestrator hub (content authoring is the creator's specialty; the calendar owns the
+occasion) and fans the returned greeting out to the household — closing the Stage-4 chain
+`calendar.birthday_upcoming → creator.draft_greeting → notifier.send`. **Best-effort with a
+fallback:** if the creator can't help (no person to name, the hub/LLM errors, an `ok=false`
+result, or an empty draft) the wake falls back to the local `birthday-greeter` skill, so it
+always greets.
+
 ## Env
 | Var | Default | Purpose |
 |---|---|---|
@@ -60,7 +69,7 @@ notifications per member (D3e): a deterministic birthday reminder, then the gift
 | `calendar-agent.ics-import-url` / `MCP_ICS_IMPORT_URL` | `http://mcp-ics-import:8091` | Target for `ics.pull` system trigger. |
 | `calendar-agent.memory-service-url` / `MEMORY_SERVICE_URL` | `http://memory-service:8087` | Pre-skill recall + relations enrichment. |
 | `calendar-agent.mcp-caldav-url` / `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | Target for the `create_event` action (`POST /internal/event`). |
-| `calendar-agent.orchestrator-url` / `ORCHESTRATOR_URL` | `http://orchestrator:8083` | Inter-agent invoke hub (`POST /v1/agents/invoke`) — used by `GiftRecommender` to call finance's `get_gift_budget`. |
+| `calendar-agent.orchestrator-url` / `ORCHESTRATOR_URL` | `http://orchestrator:8083` | Inter-agent invoke hub (`POST /v1/agents/invoke`) — used by `GiftRecommender` to call finance's `get_gift_budget` and by `BirthdayGreeter` to call creator's `draft_greeting`. |
 | `calendar-agent.memory-recall-k` / `CALENDAR_AGENT_MEMORY_RECALL_K` | `5` | Top-k for the recall call. |
 
 ## AGENT.md convention
@@ -100,14 +109,15 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - AGENT.md / SKILL.md loaders + `SkillRegistry` live in shared `libs/agent-runtime` as of PR25a. Agent opts in with `@Import(AgentRuntimeConfig.class)` on `CalendarAgentApplication`; scan paths come from `agent.{manifest-classpath, skills-classpath}` in `application.yml`.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt.
-- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution. `gift.recommend` is routed to `GiftRecommender` (Coordinator flow); every other kind takes the generic **memory enrichment (recall + relations zipped)** + LLM + household fan-out path. `buildRecallQuery` anchors the recall query on the person's display name when available.
+- `flow/BirthdayGreeter` — closes the inter-agent chain (CR-g2). On `birthday.greet` it invokes `creator.draft_greeting` over the hub (args `{person: displayName, occasion: "birthday"}`, longer timeout) and fans the returned greeting out to the household. Resolves to `false` (caller falls back to the local skill) on no person / hub error / `ok=false` / empty draft — best-effort, the wake always greets.
+- `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution. `gift.recommend` is routed to `GiftRecommender` (Coordinator flow); `birthday.greet` to `BirthdayGreeter` (creator hub, local skill on fallback); every other kind takes the generic **memory enrichment (recall + relations zipped)** + LLM + household fan-out path. `buildRecallQuery` anchors the recall query on the person's display name when available.
 
 ## Tests
 
 `mvn -B -pl domains/calendar/calendar-agent -am test` — 13 tests:
 - Manifest endpoint returns frontmatter + body.
 - Skill loader discovers both `birthday-greeter` and `gift-recommender`.
-- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service + orchestrator) covers `birthday.greet` (generic path) and `gift.recommend` (Coordinator path) end-to-end, asserting (a) household members receive the notify POST, (b) the LLM body contains the resolved person's `interests`/`notes`, (c) the recalled memory text + relation `object_label` are present, **(d) for `gift.recommend`, the coordinator calls finance's `get_gift_budget` through `/v1/agents/invoke` and the gathered budget envelope reaches the LLM**.
+- `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service + orchestrator; the orchestrator dispatcher routes by action so gift/birthday paths don't share an enqueue order) covers `birthday.greet` (creator hub + local-skill fallback) and `gift.recommend` (Coordinator path) end-to-end, asserting (a) household members receive the notify POST, (b) for `birthday.greet`, the hub invoke is `creator.draft_greeting` and the drafted greeting fans out with no local LLM call — and on an `ok=false` the local skill runs as fallback, (c) for `gift.recommend`, the coordinator calls finance's `get_gift_budget` through `/v1/agents/invoke`, the gathered budget envelope reaches the LLM, and the LLM body carries the recalled memory + relation `object_label`.
 - New: memory-service returns 500 → skill still runs, LLM body has **no** `memories` or `relations` block (soft-fail).
 - `ics.pull` system trigger forwards to mcp-ics-import without touching LLM or notifier; downstream 500 still returns 202.
 - Unknown trigger kind → 404 (no skill, no system handler).

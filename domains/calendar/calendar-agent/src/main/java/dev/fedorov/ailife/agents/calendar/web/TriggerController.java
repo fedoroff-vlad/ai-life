@@ -8,6 +8,7 @@ import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.calendar.flow.BirthdayGreeter;
 import dev.fedorov.ailife.agents.calendar.flow.GiftRecommender;
 import dev.fedorov.ailife.agents.calendar.system.SystemTriggerHandler;
 import dev.fedorov.ailife.agents.calendar.system.SystemTriggerRegistry;
@@ -54,6 +55,9 @@ public class TriggerController {
     /** Trigger routed through the budget-aware {@link GiftRecommender} coordinator (D2c). */
     private static final String GIFT_RECOMMEND = "gift.recommend";
 
+    /** Trigger that asks the creator agent to draft the greeting (CR-g2), falling back to the local skill. */
+    private static final String BIRTHDAY_GREET = "birthday.greet";
+
     private final LlmClient llm;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
@@ -62,6 +66,7 @@ public class TriggerController {
     private final NotifierClient notifier;
     private final MemoryClient memory;
     private final GiftRecommender giftRecommender;
+    private final BirthdayGreeter birthdayGreeter;
     private final ObjectMapper json;
 
     public TriggerController(LlmClient llm,
@@ -72,6 +77,7 @@ public class TriggerController {
                              NotifierClient notifier,
                              MemoryClient memory,
                              GiftRecommender giftRecommender,
+                             BirthdayGreeter birthdayGreeter,
                              ObjectMapper json) {
         this.llm = llm;
         this.manifest = manifest;
@@ -81,6 +87,7 @@ public class TriggerController {
         this.notifier = notifier;
         this.memory = memory;
         this.giftRecommender = giftRecommender;
+        this.birthdayGreeter = birthdayGreeter;
         this.json = json;
     }
 
@@ -115,6 +122,15 @@ public class TriggerController {
                     // generic recall→LLM→notify path.
                     if (GIFT_RECOMMEND.equals(kind)) {
                         return giftRecommender.recommend(skill, req, person);
+                    }
+                    // birthday.greet closes the inter-agent chain (CR-g2): the creator agent drafts
+                    // the greeting over the hub. If it can't (no person, hub/LLM down, empty draft),
+                    // fall back to the calendar's own birthday-greeter skill so the wake still greets.
+                    if (BIRTHDAY_GREET.equals(kind)) {
+                        return birthdayGreeter.greet(req, person)
+                                .flatMap(delivered -> delivered
+                                        ? Mono.<Void>empty()
+                                        : runSkill(kind, skill, req, person));
                     }
                     return runSkill(kind, skill, req, person);
                 })
