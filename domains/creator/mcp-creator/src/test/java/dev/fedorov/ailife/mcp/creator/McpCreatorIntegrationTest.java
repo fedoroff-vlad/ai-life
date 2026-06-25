@@ -144,6 +144,89 @@ class McpCreatorIntegrationTest {
     }
 
     @Test
+    void saveTrendIsIdempotentOnUrlPerOwner() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID owner = seedUser(h);
+        String url = "https://youtu.be/dedup";
+
+        TrendDto first = tools.saveTrend(new SaveTrendInput(
+                h, owner, "youtube", "YouTube", "first title", url, null, null, null));
+        // Same (household, owner, url) → returns the existing row, no duplicate.
+        TrendDto again = tools.saveTrend(new SaveTrendInput(
+                h, owner, "youtube", "YouTube", "different title", url, null, null, null));
+        assertThat(again.id()).isEqualTo(first.id());
+        assertThat(again.title()).isEqualTo("first title");
+
+        // A different owner with the same url is a distinct row (dedup is per (owner, url)).
+        UUID other = seedUser(h);
+        TrendDto otherOwner = tools.saveTrend(new SaveTrendInput(
+                h, other, "youtube", "YouTube", "first title", url, null, null, null));
+        assertThat(otherOwner.id()).isNotEqualTo(first.id());
+
+        // A null url never dedups — each save is its own row.
+        UUID h2 = UUID.randomUUID();
+        seedHousehold(h2);
+        TrendDto a = tools.saveTrend(new SaveTrendInput(h2, null, "web", "Web", "no url", null, null, null, null));
+        TrendDto b = tools.saveTrend(new SaveTrendInput(h2, null, "web", "Web", "no url", null, null, null, null));
+        assertThat(b.id()).isNotEqualTo(a.id());
+    }
+
+    @Test
+    void internalTrendsAndContentPieceEndpointsPersistAndDedup() throws Exception {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID owner = seedUser(h);
+
+        var client = org.springframework.test.web.reactive.server.WebTestClient
+                .bindToServer().baseUrl("http://localhost:" + port).build();
+
+        // Batch trend cache — two distinct urls land, the third (a repeat) folds onto the first.
+        List<TrendDto> saved = client.post().uri("/internal/trends")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(List.of(
+                        new SaveTrendInput(h, owner, "web", "Web", "A", "https://e.com/a", null, null, null),
+                        new SaveTrendInput(h, owner, "youtube", "YouTube", "B", "https://e.com/b", null, null, null),
+                        new SaveTrendInput(h, owner, "web", "Web", "A again", "https://e.com/a", null, null, null)))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(TrendDto.class)
+                .returnResult().getResponseBody();
+        assertThat(saved).hasSize(3);
+        Integer rows = jdbc.queryForObject(
+                "SELECT count(*) FROM creator.trend WHERE household_id = ?", Integer.class, h);
+        assertThat(rows).isEqualTo(2);   // the repeat deduped
+
+        // Bad item (missing title) in the batch surfaces as 400.
+        client.post().uri("/internal/trends")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(List.of(new SaveTrendInput(h, owner, "web", "Web", null, "https://e.com/c", null, null, null)))
+                .exchange()
+                .expectStatus().isBadRequest();
+
+        // Content piece — the synthesized plan saved as a draft.
+        ContentPieceDto piece = client.post().uri("/internal/content-piece")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SaveContentPieceInput(h, owner, "draft", null, "Контент-план: x",
+                        "plan body", null, null, null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ContentPieceDto.class)
+                .returnResult().getResponseBody();
+        assertThat(piece).isNotNull();
+        assertThat(piece.kind()).isEqualTo("draft");
+        assertThat(piece.status()).isEqualTo("new");
+        assertThat(piece.body()).isEqualTo("plan body");
+
+        // Missing kind → 400.
+        client.post().uri("/internal/content-piece")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new SaveContentPieceInput(h, owner, null, null, "x", null, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
     void listTrendsScopesToHouseholdAndOwnerNewestFirst() {
         UUID h = UUID.randomUUID();
         seedHousehold(h);

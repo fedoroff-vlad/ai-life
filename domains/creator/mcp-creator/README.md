@@ -14,7 +14,10 @@ creator domain (Stage 6). See [plans/creator.md](../../../plans/creator.md).
 - `get_creator_profile(householdId, ownerId?)` — the person's track, or null if unset.
 - `save_trend(householdId, ownerId?, source?, platform?, title, url?, summary?, metrics?,
   capturedAt?)` — cache a gathered trend. Only `householdId` + `title` are required; `capturedAt`
-  defaults to now. `source` is web|youtube|reddit|telegram|rss; `metrics` the free-form per-source signal.
+  defaults to now. `source` is web|youtube|reddit|telegram|rss; `metrics` the free-form per-source
+  signal. **Idempotent on the source link:** a trend with the same `(householdId, ownerId, url)`
+  already cached is returned as-is rather than duplicated, so re-running a gather is safe (a null
+  `url` never dedups).
 - `list_trends(householdId, ownerId?, limit?)` — cached trends in a household, most recently captured
   first; `ownerId` scopes to one person, `limit` caps the count (default 20, max 200).
 - `save_content_piece(householdId, ownerId?, kind, platform?, title?, body?, cta?, hashtags?,
@@ -40,9 +43,11 @@ it (the MCP/SSE transport can't be MockWebServer'd, so deterministic calls use H
   by the creator-profiler flow (CR-c).
 - `GET /internal/creator-profile?householdId=&ownerId=` → `CreatorProfileDto` | 404 — reads the
   person's track (null ownerId = household-default); 404 when unset. Used by the trend gather (CR-d).
-
-The remaining `/internal/*` passthroughs (trend / content-piece writes for the synthesis flow) land
-with CR-d/e, mirroring mcp-nutrition's `/internal/*`.
+- `POST /internal/trends` (body `List<SaveTrendInput>`) → `List<TrendDto>` | 400 — caches a whole
+  gathered batch in one round-trip via `save_trend` per item (the per-`(owner, url)` dedup applies).
+  Used by the content-strategist flow's persist (CR-e).
+- `POST /internal/content-piece` (body `SaveContentPieceInput`) → `ContentPieceDto` | 400 — saves a
+  generated idea/draft via `save_content_piece`. Used by the content-strategist flow's persist (CR-e).
 
 ## Env
 
@@ -60,7 +65,8 @@ with CR-d/e, mirroring mcp-nutrition's `/internal/*`.
   `CAST` for the NULL-safe bind — same pgjdbc workaround as mcp-nutrition). `platforms`/`guardrails`
   jsonb → `JsonNode`.
 - `domain/Trend` + `TrendRepository` — JPA over `creator.trend` (list by household, optionally by
-  owner, newest-captured first). `metrics` jsonb → `JsonNode`.
+  owner, newest-captured first; `findForUrl` is the native-SQL `CAST` dedup lookup by
+  `(household, owner, url)`). `metrics` jsonb → `JsonNode`.
 - `domain/ContentPiece` + `ContentPieceRepository` — JPA over `creator.content_piece` (list by
   household, optionally by kind, newest-created first). `hashtags` jsonb → `JsonNode`.
 - `tools/CreatorMcpTools` — eight `@Tool` methods: creator profile (`set_creator_profile`,
@@ -71,6 +77,10 @@ with CR-d/e, mirroring mcp-nutrition's `/internal/*`.
 - `web/InternalCreatorProfileController` — `POST /internal/creator-profile` (upsert, 400 on bad
   input) + `GET /internal/creator-profile` (read, 404 when unset), over `set_creator_profile` /
   `get_creator_profile`. Mirrors mcp-nutrition's `InternalDietProfileController`.
+- `web/InternalTrendController` — `POST /internal/trends` (batch cache, 400 on a bad item) over
+  `save_trend` per item; the content-strategist persist (CR-e).
+- `web/InternalContentPieceController` — `POST /internal/content-piece` (save a draft, 400 on bad
+  input) over `save_content_piece`; the content-strategist persist (CR-e).
 
 ## Schema
 

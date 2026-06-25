@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -92,12 +93,21 @@ public class CreatorMcpTools {
             Save a gathered trend into the cache. Only `householdId` + `title` are required;
             `capturedAt` defaults to now. Set `ownerId` to attribute it to a person (null =
             household-shared). `source` is the origin (web|youtube|reddit|telegram|rss), `url` the
-            source link, `metrics` the free-form per-source signal (score/engagement).
+            source link, `metrics` the free-form per-source signal (score/engagement). The cache is
+            idempotent on the source link: a trend with the same (householdId, ownerId, url) already
+            present is returned as-is rather than duplicated, so re-running a gather is safe.
             """)
     @Transactional
     public TrendDto saveTrend(SaveTrendInput input) {
         requireField(input.householdId(), "householdId");
         requireField(input.title(), "title");
+        if (input.url() != null && !input.url().isBlank()) {
+            Optional<Trend> existing = trends.findForUrl(
+                    input.householdId(), input.ownerId(), input.url());
+            if (existing.isPresent()) {
+                return existing.get().toDto();
+            }
+        }
         Instant capturedAt = input.capturedAt() != null ? input.capturedAt() : Instant.now();
         Trend trend = new Trend(UUID.randomUUID(), input.householdId(), input.ownerId(),
                 capturedAt, input.title());

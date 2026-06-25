@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.creator.ContentPieceDto;
 import dev.fedorov.ailife.contracts.creator.CreatorProfileDto;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -108,6 +109,12 @@ class ContentStrategistTest {
                 "Сейчас в нише горячо.\nТренд: idioms.\nИдея: short про git.\nДрафт: ...",
                 "stop", new LlmUsage(120, 80, 200)))));
 
+        // The gathered corpus is cached, then the plan is saved as a draft (CR-e).
+        mcpCreator.enqueue(jsonResponse("[]"));
+        mcpCreator.enqueue(jsonResponse(json.writeValueAsString(new ContentPieceDto(
+                UUID.randomUUID(), householdId, userId, "draft", null, "Контент-план: English for IT",
+                "body", null, null, "new", null, Instant.now()))));
+
         // media-service stores the HTML board.
         media.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
                 mediaId, householdId, userId, "file", "text/html", 2048, "sha", "creator", Instant.now()))));
@@ -135,6 +142,20 @@ class ContentStrategistTest {
         RecordedRequest upload = media.takeRequest(3, TimeUnit.SECONDS);
         assertThat(upload.getPath()).isEqualTo("/v1/media");
         assertThat(upload.getBody().readUtf8()).contains("text/html");
+
+        // mcp-creator saw: the profile read, then the batched trend cache, then the draft piece.
+        mcpCreator.takeRequest(3, TimeUnit.SECONDS);   // GET /internal/creator-profile
+        RecordedRequest trendsReq = mcpCreator.takeRequest(3, TimeUnit.SECONDS);
+        assertThat(trendsReq.getPath()).isEqualTo("/internal/trends");
+        assertThat(trendsReq.getBody().readUtf8())
+                .contains("https://blog.example.com/guide")     // web hit
+                .contains("https://www.youtube.com/watch?v=abc") // youtube hit
+                .contains("https://www.reddit.com/r/x/1/");      // reddit hit
+        RecordedRequest pieceReq = mcpCreator.takeRequest(3, TimeUnit.SECONDS);
+        assertThat(pieceReq.getPath()).isEqualTo("/internal/content-piece");
+        assertThat(pieceReq.getBody().readUtf8())
+                .contains("\"draft\"")
+                .contains("English for IT");
     }
 
     @Test
@@ -160,6 +181,11 @@ class ContentStrategistTest {
 
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "План готов.\nИдея 1.\nИдея 2.", "stop", new LlmUsage(40, 30, 70)))));
+        // Persist the (two-source) gather + the draft piece (CR-e).
+        mcpCreator.enqueue(jsonResponse("[]"));
+        mcpCreator.enqueue(jsonResponse(json.writeValueAsString(new ContentPieceDto(
+                UUID.randomUUID(), householdId, userId, "draft", null, "Контент-план: подкасты",
+                "body", null, null, "new", null, Instant.now()))));
         media.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
                 mediaId, householdId, userId, "file", "text/html", 1024, "sha", "creator", Instant.now()))));
 

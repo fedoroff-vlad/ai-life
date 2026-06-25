@@ -225,9 +225,16 @@ The headline flow:
   `.env.example`. **Persisting the gathered trends + generated pieces into the `mcp-creator` cache is
   CR-e.** **Feed gather is request-token-driven for now** (the profile has no monitored-feed list);
   a profile-level feed list can fold in later.
-- **CR-e — trend cache** — persist the gathered `TrendHit`s into `trend` (dedupe by `(owner, url)`),
-  and the generated ideas/drafts into `content_piece`, so a run shows provenance and a later run can
-  reuse a recent gather. Bind `mcp-creator`'s write passthroughs.
+- **CR-e — trend cache. DONE (PR182).** After the synthesis, `creator-agent` persists the run into
+  the `mcp-creator` cache via the new `http/CreatorCacheClient`: the gathered `TrendHit` corpus →
+  `POST /internal/trends` in one batch (`web/InternalTrendController`, loops `save_trend`), and the
+  synthesized plan → `POST /internal/content-piece` as a `draft` (`web/InternalContentPieceController`),
+  both attributed to the speaker. `save_trend` is now **idempotent on the source link** — same
+  `(householdId, ownerId, url)` returns the existing row instead of duplicating (`TrendRepository.findForUrl`,
+  native-SQL `CAST` for the null-owner default; a null `url` never dedups), so re-running a gather is
+  safe. Persist runs before render/store but **soft-fails** (the reply already carries the deliverable
+  link). The content-piece keeps a single `draft` per run for now (extracting discrete ideas/drafts
+  from the synthesis is a later refinement; the trend cache is the reuse target).
 
 Inter-agent (closes the Stage-4 chain):
 - **CR-g — `draft_greeting` action over the hub.** `creator-agent` `POST /agents/creator/actions/draft_greeting`
