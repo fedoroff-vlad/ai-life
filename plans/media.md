@@ -38,6 +38,15 @@ pushes us off-JVM. **Operational notes:** `tessdata` is resolved at startup from
 `TESSDATA_PREFIX` → a probe of common distro paths (works across tesseract 4/5 layouts);
 CI installs `tesseract-ocr` so the real-OCR test runs (else it self-skips on a bare box).
 
+**Backlog candidate — VLM OCR for hard receipts/documents (deferred, needs GPU).**
+[`baidu/Unlimited-OCR`](https://github.com/baidu/Unlimited-OCR) (MIT, local inference, a
+DeepSeek-OCR-based vision-language model for long/complex-layout docs) is a candidate engine
+behind the same `OcrEngine` interface — a drop-in via a `mediaprocessing.ocr-engine=unlimited`
+sidecar, no caller change. **Blocked on the GPU line** (NVIDIA + CUDA 12.9 + PyTorch; same
+deferred GPU as stylist image-gen). Revisit only if Tesseract quality on real receipts proves
+insufficient *and* a GPU host exists — otherwise Tesseract stays. Vet the repo before adopting
+(young, high-star).
+
 ## Decision — STT engine integration: **whisper sidecar service** (LOCKED, owner 2026-06-21)
 The `transcribe` tool reaches whisper as a **separate self-hosted container** (an OSS whisper
 ASR webservice, faster-whisper engine) over plain HTTP, behind the `SttEngine` interface. Chosen
