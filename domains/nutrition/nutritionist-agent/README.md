@@ -113,7 +113,7 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 - `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `POST /v1/agents/invoke` (NU-g → chef recipes, 8s timeout); `@Bean` wired in `config/OutboundHttpConfig`.
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
-- `http/MediaStoreClient` — multipart `POST /v1/media` on media-service (store the rendered HTML).
+- `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered HTML); `@Bean` (source `nutritionist`) wired in `config/OutboundHttpConfig`.
 - `web/IntentController` — `POST /intent` (basket-cue photo → basket; photo → food-log; profile cue →
   diet-profiler; analysis cue → nutrition-analysis; ration cue → ration; basket cue → basket;
   food-log cue → food-log; else chat).

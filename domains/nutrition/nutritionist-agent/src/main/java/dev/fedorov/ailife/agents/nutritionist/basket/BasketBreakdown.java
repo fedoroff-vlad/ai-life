@@ -11,7 +11,7 @@ import dev.fedorov.ailife.agents.nutritionist.http.BasketClient;
 import dev.fedorov.ailife.agents.nutritionist.http.CaptionClient;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.FoodDataClient;
-import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;

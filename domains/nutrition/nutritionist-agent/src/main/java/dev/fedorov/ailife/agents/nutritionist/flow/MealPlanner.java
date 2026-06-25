@@ -10,7 +10,7 @@ import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
-import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agents.nutritionist.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;

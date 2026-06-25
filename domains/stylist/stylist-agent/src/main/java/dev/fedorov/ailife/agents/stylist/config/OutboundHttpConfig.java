@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.agents.stylist.config;
 
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -37,6 +39,12 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mediaServiceWebClient(WebClient.Builder builder, StylistAgentProperties props) {
         return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
+    public MediaStoreClient mediaStoreClient(
+            @Qualifier("mediaServiceWebClient") WebClient mediaServiceWebClient) {
+        return new MediaStoreClient(mediaServiceWebClient, "stylist");
     }
 
     @Bean

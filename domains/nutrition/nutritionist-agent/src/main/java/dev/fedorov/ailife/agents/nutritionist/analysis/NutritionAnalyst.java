@@ -9,7 +9,7 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
-import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
