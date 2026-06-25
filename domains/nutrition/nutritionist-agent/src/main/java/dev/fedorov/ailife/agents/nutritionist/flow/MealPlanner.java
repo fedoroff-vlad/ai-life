@@ -9,8 +9,8 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.config.NutritionistAgentProperties;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
+import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MediaStoreClient;
-import dev.fedorov.ailife.agents.nutritionist.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.nutritionist.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -158,7 +159,9 @@ public class MealPlanner {
         JsonNode args = json.createObjectNode().put("request", rationText);
         var request = new AgentActionRequest(
                 "chef", "recommend_recipes", msg.householdId(), msg.userId(), "nutritionist", args);
-        return orchestrator.invoke(request)
+        // The chef's recommend_recipes fronts a web search + LLM synthesis, so keep the wider 8s
+        // timeout the nutritionist used before the shared client's 5s default.
+        return orchestrator.invoke(request, Duration.ofSeconds(8))
                 .filter(AgentActionResult::ok)
                 .map(AgentActionResult::result)
                 .map(r -> r != null && r.hasNonNull("link")

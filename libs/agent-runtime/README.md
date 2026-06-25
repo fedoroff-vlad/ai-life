@@ -19,6 +19,10 @@ package sits outside their `@SpringBootApplication` scan root.
   consuming per-agent-named `WebClient` beans (`profileServiceWebClient`,
   `notifierWebClient`, `memoryServiceWebClient`) so each agent binds its own
   base URL.
+- `OrchestratorInvokeClient` — the shared inter-agent hub client
+  (`invoke(req[, timeout])` → `POST /v1/agents/invoke`); the locked path for one
+  agent to reach another. Optional: only the agents that talk to the hub declare
+  the `@Bean` (+ an `orchestratorWebClient`) in their own `OutboundHttpConfig`.
 - `SkillInfoContributor` — exposes the loaded skill inventory under
   `/actuator/info` as `skills.{count, names, triggers}` so a deploy smoke check
   can verify the registry from outside the JVM (the quiet observability lane
@@ -56,6 +60,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `http/ProfileClient` — `usersByHousehold`, `personById`.
 - `http/NotifierClient` — `notify(userId, text)`.
 - `http/MemoryClient` — `recall(query, scope, k)` with 500ms timeout + no-throw downgrade to empty list (memory downtime must not block the trigger path). Also `observe(householdId, userId, text, source)` — fire-and-forget drop at memory-service `/v1/observations` so an agent feeds durable facts it saw into memory-from-chat (MFC-c); off the response path, soft-fail, no-op on blank text.
+- `http/OrchestratorInvokeClient` — `invoke(req)` (5s) / `invoke(req, timeout)` → `POST /v1/agents/invoke`; the shared inter-agent hub client. Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig` alongside an `orchestratorWebClient`).
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
 
