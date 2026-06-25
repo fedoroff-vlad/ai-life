@@ -96,9 +96,10 @@ ai-life/
 │   ├── tasks/      { tasks-agent, mcp-tasks, skills/ }
 │   ├── researcher/ { researcher-agent }
 │   ├── stylist/    { stylist-agent, mcp-wardrobe, skills/ }
-│   └── nutrition/  { nutritionist-agent, chef-agent, mcp-nutrition, skills/ }
+│   ├── nutrition/  { nutritionist-agent, chef-agent, mcp-nutrition, skills/ }
+│   └── creator/    { creator-agent, mcp-creator, skills/ }
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
-    ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen, …
+    ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds, …
     └── skills/ cross-cutting skills
 ```
 **Group-by-domain:** everything about one specialist lives under `domains/<domain>/` — but each agent/MCP there is still its **own Spring Boot app + Dockerfile + container** (co-location ≠ one process). Adding a domain = a new `domains/<domain>/` folder; adding a piece = a sub-module + register in root `pom.xml` `<modules>` + docker-compose. No edits to existing services.
@@ -118,7 +119,7 @@ Rule of thumb: **tools = MCP, reasoning = agent, instructions = skill, editable 
 
 ## DB & migrations
 One Postgres, schemas split by **bounded context, not by service**:
-`core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks, wardrobe, nutrition`.
+`core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks, wardrobe, nutrition, creator`.
 
 One shared Liquibase changelog, features split by domain. Numbering convention
 is owned by [PATTERNS.md](PATTERNS.md) §"Recipe: add a Liquibase migration" —
@@ -132,7 +133,8 @@ read it before creating a new file. Cheat-sheet:
 | `030-039` | tasks |
 | `040-049` | stylist (`wardrobe`) |
 | `050-059` | nutrition (`nutrition`) |
-| `060-069` | _reserved for next domain_ |
+| `060-069` | creator (`creator`) |
+| `070-079` | _reserved for next domain_ |
 
 ```
 infra/liquibase/
