@@ -7,7 +7,7 @@ domain-MCP; binds the shared trend sources `mcp-web` / `mcp-youtube` / `mcp-redd
 Routes via the orchestrator (registered as `creator`). The gather → synthesize shape is the
 `researcher` agent, fanned out to multiple sources. See [plans/creator.md](../../../plans/creator.md).
 
-## Status (through CR-e)
+## Status (through CR-g1)
 
 Manifest endpoint + the `chat/CreatorChat` fallback (one LLM turn, AGENT.md as system prompt) +
 the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts flow** (CR-d):
@@ -28,14 +28,22 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   dedups per `(owner, url)`), and the synthesized plan → `POST /internal/content-piece` as a `draft`,
   both attributed to the speaker. Best-effort — the reply already carries the deliverable link, so a
   persist failure only logs. `http/CreatorCacheClient`.
-- **CR-g — `draft_greeting` action.** Invoked over the orchestrator hub by the calendar birthday
-  wake → drafts a greeting → notifier delivers (closes the Stage-4 chain).
+- **CR-g1 — `draft_greeting` action. DONE.** `POST /agents/creator/actions/draft_greeting`
+  (`web/ActionController`): reads `args.person` (required) + `args.occasion` (optional, defaults to a
+  birthday) → one LLM turn via the `greeting-drafter` skill (`flow/GreetingDrafter`) → returns
+  `{greeting, model}`. Always an `AgentActionResult` (structured `ok=false` on a bad request / LLM
+  failure), mirroring the chef's `ActionController`. **CR-g2** (the calendar birthday wake invokes it
+  over the hub → notifier delivers, closing `calendar.birthday_upcoming → creator.draft_greeting →
+  notifier.send`) is the follow-up.
 
 ## Endpoints
 
 - `POST /agents/creator/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's
   entry point. Profile cue → creator-profiler; trend/ideas/draft cue → content-strategist; else chat.
 - `GET /agents/creator/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
+- `POST /agents/creator/actions/draft_greeting` (body `AgentActionRequest`, args `{person, occasion?}`)
+  → `AgentActionResult` `{greeting, model}` — the inter-agent action the calendar birthday wake
+  invokes over the orchestrator hub (CR-g).
 
 ## Env
 
@@ -68,6 +76,10 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 - `flow/ContentStrategist` — the headline flow: resolve the track → gather web/youtube/reddit(+feed)
   on the `Coordinator` → one `content-strategist` synthesis → render HTML board (+ provenance links) →
   store in media-service → reply with the link.
+- `flow/GreetingDrafter` — the `draft_greeting` core (CR-g): one LLM turn via the `greeting-drafter`
+  skill → a short greeting for `{person, occasion}`. No gather/media; returns plain text.
+- `web/ActionController` — `POST /agents/creator/actions/draft_greeting` (the inter-agent action);
+  always an `AgentActionResult`.
 - `http/CreatorProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/creator-profile`.
 - `http/CreatorCacheClient` — the CR-e persist: `POST /internal/trends` (batch trend cache) +
   `POST /internal/content-piece` (the draft), over `mcp-creator`.
@@ -87,9 +99,11 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 - `content-strategist` (`domains/creator/skills/content-strategist/SKILL.md`) — synthesises a content
   plan (3–5 trends + 10 ideas + 2–3 drafts + per-platform format tips) from the gathered trend corpus;
   grounded in the corpus, respects guardrails, plain readable text for the HTML board.
+- `greeting-drafter` (`domains/creator/skills/greeting-drafter/SKILL.md`) — a short, warm greeting for
+  a named person + occasion (plain text, ≤ 4 sentences); backs the `draft_greeting` action.
 
 ## AGENT.md
 
 `name: creator`, binds `mcp-creator` + `mcp-web` + `mcp-youtube` + `mcp-reddit` + `mcp-feeds`,
-`skills: creator-profiler, content-strategist`. Guardrails: respect platform rules, no clickbait,
+`skills: creator-profiler, content-strategist, greeting-drafter`. Guardrails: respect platform rules, no clickbait,
 friendly-expert tone, never invent a trend or a source link.

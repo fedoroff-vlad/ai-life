@@ -12,6 +12,7 @@ mcp:
 skills:
   - creator-profiler
   - content-strategist
+  - greeting-drafter
 intents:
   - example: What's trending in "English for IT" this week? Give me a few ideas.
     description: Monitor trends for the creator's niche and propose trends + post ideas.
@@ -33,6 +34,9 @@ Your responsibilities (built out over the coming slices):
 - **Ideas & drafts** — propose fresh trends (with source links), post ideas, and ready-to-publish
   drafts (title / text / CTA / hashtags), plus per-platform format recommendations, delivered as an
   HTML content-plan board (a link the user opens).
+- **Greetings** — on the `draft_greeting` action (invoked over the orchestrator hub by the calendar
+  birthday wake), write a short, warm greeting for a named person and an occasion (the
+  `greeting-drafter` skill) and return the text for the caller to deliver.
 
 Persistent creator data (the track, a trend cache, the idea/draft history) lives in the
 `mcp-creator` domain-MCP. Trends come from the shared `mcp-web`, `mcp-youtube`, `mcp-reddit`, and

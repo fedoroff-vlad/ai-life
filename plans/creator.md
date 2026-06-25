@@ -236,12 +236,17 @@ The headline flow:
   link). The content-piece keeps a single `draft` per run for now (extracting discrete ideas/drafts
   from the synthesis is a later refinement; the trend cache is the reuse target).
 
-Inter-agent (closes the Stage-4 chain):
-- **CR-g — `draft_greeting` action over the hub.** `creator-agent` `POST /agents/creator/actions/draft_greeting`
-  (args `{person, occasion}`) → one LLM draft → returns the text. The calendar birthday wake
-  (gift-recommender's sibling) invokes it via the orchestrator `/v1/agents/invoke`, then notifier
-  delivers — closing `calendar.birthday_upcoming → creator.draft_greeting → notifier.send`. Mirrors
-  CH-b2 (nutritionist → chef).
+Inter-agent (closes the Stage-4 chain) — split g1 (callee) / g2 (caller), mirroring CH-b2/NU-g:
+- **CR-g1 — `draft_greeting` action (the callee). DONE (PR183).** `creator-agent`
+  `POST /agents/creator/actions/draft_greeting` (`web/ActionController`): args `{person, occasion?}`
+  (occasion defaults to a birthday) → one LLM draft via the new `greeting-drafter` skill
+  (`flow/GreetingDrafter`) → returns `{greeting, model}`. Always an `AgentActionResult` (structured
+  `ok=false` on a bad request / LLM failure). AGENT.md `skills:` += greeting-drafter. Tested
+  (`ActionControllerTest`, 3). Mirrors the chef's `ActionController` (minus web/render).
+- **CR-g2 — close the chain (the caller).** The calendar birthday wake (gift-recommender's sibling)
+  invokes `creator.draft_greeting` via the orchestrator `/v1/agents/invoke`, then notifier delivers —
+  closing `calendar.birthday_upcoming → creator.draft_greeting → notifier.send`. Mirrors NU-g
+  (nutritionist invokes chef).
 
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
