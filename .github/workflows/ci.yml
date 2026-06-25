@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # GIB diffs against the base branch, so the build needs full git history.
+          fetch-depth: 0
 
       - name: set up jdk 21
         uses: actions/setup-java@v4
@@ -24,10 +27,44 @@ jobs:
           java-version: '21'
           cache: maven
 
+      # Skip the (heavy) Maven build for docs-only changes — *.md / docs/ / plans/.
+      # The job still reports green so the "build & test" check is satisfied.
+      - name: detect docs-only change
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "${{ github.base_ref }}"
+            changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          else
+            changed=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          echo "changed files:"; echo "$changed"
+          code=$(echo "$changed" | grep -vE '(\.md$|^docs/|^plans/)' || true)
+          if [ -n "$changed" ] && [ -z "$code" ]; then
+            echo "docs-only change — skipping the Maven build"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
       # MP-b). Without it that test self-skips; installing it here proves the real path.
       - name: install tesseract (OCR)
+        if: steps.detect.outputs.skip != 'true'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus
 
+      # PR: incremental build via GIB (only modules changed vs the base + their
+      # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)
+      # — main remains the authoritative full-suite run.
       - name: maven verify
-        run: mvn -B -ntp verify
+        if: steps.detect.outputs.skip != 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            mvn -B -ntp \
+              -Dgib.disable=false \
+              -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
+              -Dgib.fetchReferenceBranch=true \
+              verify
+          else
+            mvn -B -ntp verify
+          fi
