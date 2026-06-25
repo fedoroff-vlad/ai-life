@@ -1,6 +1,6 @@
 # Architecture — stable cross-cutting design
 
-> Family (2 users) AI-agent system for everyday-life automation. Local deployment (target host: Mac Studio 128GB), Java/Spring Boot, Postgres. Entry point: Telegram (multimodal). Foundation MVP was calendar + finance; live domains now also include tasks, researcher, stylist, and nutrition (nutritionist + chef).
+> Family (2 users) AI-agent system for everyday-life automation. Local deployment (target host: Mac Studio 128GB), Java/Spring Boot, Postgres. Entry point: Telegram (multimodal). Foundation MVP was calendar + finance; the Stage 6 domain agents are complete — live domains now also include tasks, researcher, stylist, nutrition (nutritionist + chef), and creator.
 
 ## High-level
 

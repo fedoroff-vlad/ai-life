@@ -23,6 +23,12 @@ label — pick one up independently, don't reopen "Stage 6" as a bucket:
 
 (`tasks-agent` (GTD) shipped in Stage 3; `creator`/`stylist`/`nutrition`/`researcher` shipped in Stage 6.)
 
+## UI & reporting (issues)
+The system has no UI of its own (entry is Telegram; deliverables are HTML boards). Read surfaces are
+tracked as their own issues:
+- **Calendar read-only web view** (Google/Yandex-calendar style over `calendar.events_cache` / Radicale; iOS = subscribe a CalDAV client today) — [#195](https://github.com/fedoroff-vlad/ai-life/issues/195).
+- **Finance report templates** — Grafana dashboards over `finance.*` + matviews, and a finance skill that renders an HTML report via `libs/doc-render` into Telegram (the deferred "report template" vision; charts ride in with `chart-render`) — [#196](https://github.com/fedoroff-vlad/ai-life/issues/196).
+
 ## Candidate shared capability-MCPs (built when the first consumer needs them)
 - **`chart-render`** — data → PNG/SVG for Telegram. First consumer: finance year-analysis charts; reused by briefing. Shared, not finance-specific.
 - **`web-fetch/search`** (`mcp-web`) — `web_search` + `fetch_url` over **SearXNG** (self-hosted, free), cheap-first (HTTP retrieval → LLM-only-on-summary) for token economy. ✅ **DONE** (R-a..d, PR118–122) — PR-sliced in [research.md](research.md), built alongside the `researcher` agent (its first consumer). Now also bound by **chef recipe search** (CH-b) + the nutritionist's store-availability lookup (NU-g); briefing news later. **`market-data`** (stocks/funds/metals/crypto quotes) is a **sibling** capability that rides in with finance investment-advisory — not part of `mcp-web`. ✅ **DONE** (MD-0/a/c, PR125–127): a `shared/mcp/mcp-market-data` capability-MCP (`quote` over **Stooq** — LOCKED, free/no-key) + a finance `investment-advisor` skill (**advisory-only**), PR-sliced in [market-data.md](market-data.md).

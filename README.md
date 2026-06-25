@@ -4,7 +4,7 @@ Personal AI agents system for a 2-person household.
 Telegram entry → orchestrator → domain agents → narrow MCP servers → Postgres.
 Local-first deployment (target: Mac Studio 128 GB), Java / Spring Boot.
 
-> **Status:** Stage 6 — domains being built out. Foundation (Stage 0–4) closed; Stage 5 (real LLM) blocked on model access. Live domains: **calendar, finance, tasks, researcher, stylist, nutrition (nutritionist + chef), creator**. The **creator** (content-factory) MVP is complete (trend → ideas → drafts, trend/draft cache, and the inter-agent birthday-greeting chain `calendar → creator → notifier`). See [`plans/STATUS.md`](plans/STATUS.md) for the in-flight detail and [`CLAUDE.md`](CLAUDE.md) for working conventions + authorization rules.
+> **Status:** Foundation (Stage 0–4) closed; Stage 5 (real LLM) blocked on model access; **Stage 6 domain agents complete** — calendar, finance, tasks, researcher, stylist, nutrition (nutritionist + chef), creator, all MVP-done. No in-flight domain work; next is owner's pick — a future agent (each a [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue), unblocking Stage 5 (a real model), or a UI/reporting follow-up. See [`docs/REFERENCE.md`](docs/REFERENCE.md) for the overview, [`plans/STATUS.md`](plans/STATUS.md) for in-flight detail, and [`CLAUDE.md`](CLAUDE.md) for conventions + authorization.
 
 ## Stack
 - Java 21 LTS, Maven 3.9+, Spring Boot 3.4.x, Spring AI (MCP).
