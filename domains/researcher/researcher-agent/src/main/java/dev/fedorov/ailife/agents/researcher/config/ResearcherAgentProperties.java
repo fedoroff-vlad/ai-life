@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.researcher.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -9,7 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * imports — the researcher doesn't fan out or recall in the MVP, but the runtime beans need them.
  */
 @ConfigurationProperties(prefix = "researcher-agent")
-public class ResearcherAgentProperties {
+public class ResearcherAgentProperties implements SharedClientProperties {
 
     private String mcpWebUrl = "http://mcp-web:8098";
     private String profileServiceUrl = "http://profile-service:8082";

@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.creator.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -11,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * the shared {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "creator-agent")
-public class CreatorAgentProperties {
+public class CreatorAgentProperties implements SharedClientProperties {
 
     private String mcpCreatorUrl = "http://mcp-creator:8108";
     private String mcpWebUrl = "http://mcp-web:8098";

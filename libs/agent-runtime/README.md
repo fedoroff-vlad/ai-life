@@ -15,10 +15,15 @@ package sits outside their `@SpringBootApplication` scan root.
 - `SkillRegistry` — scans `agent.skills-classpath` for `SKILL.md` files, indexes
   by trigger kind. Cross-checks against `manifest.skills()` and **aborts startup**
   if a declared skill failed to load (the silent-failure mode PR32 closed).
+- `profileServiceWebClient`, `notifierWebClient`, `memoryServiceWebClient` —
+  the three platform-service `WebClient`s, each `clone()`d off the shared
+  auto-configured builder and bound to a base URL read through
+  `SharedClientProperties` (the agent's `*AgentProperties` implements it). These
+  used to be re-declared identically in every agent's `OutboundHttpConfig`; they
+  live here now, so an agent declares only the URL *values* (its own
+  `@ConfigurationProperties` prefix), not the wiring.
 - `ProfileClient`, `NotifierClient`, `MemoryClient` — outbound HTTP clients
-  consuming per-agent-named `WebClient` beans (`profileServiceWebClient`,
-  `notifierWebClient`, `memoryServiceWebClient`) so each agent binds its own
-  base URL.
+  consuming the three `WebClient` beans above.
 - `OrchestratorInvokeClient` — the shared inter-agent hub client
   (`invoke(req[, timeout])` → `POST /v1/agents/invoke`); the locked path for one
   agent to reach another. Optional: only the agents that talk to the hub declare
@@ -71,6 +76,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 ## Key classes
 - `config/AgentRuntimeConfig` — `@Configuration` + `@EnableConfigurationProperties`. Single entry point agents `@Import`.
 - `config/AgentRuntimeProperties` — `agent.*` binding.
+- `config/SharedClientProperties` — interface (`getProfileServiceUrl/getNotifierUrl/getMemoryServiceUrl`) each agent's `*AgentProperties` implements, so `AgentRuntimeConfig` builds the three platform-service `WebClient` beans once instead of every agent re-declaring them.
 - `manifest/ManifestParser` — splits YAML frontmatter + body, validates required fields, returns `AgentManifest` (contract lives in `libs/contracts`).
 - `skill/SkillParser` — same shape for `SKILL.md`.
 - `skill/Skill` — record (name, description, version, triggers, languages, body).

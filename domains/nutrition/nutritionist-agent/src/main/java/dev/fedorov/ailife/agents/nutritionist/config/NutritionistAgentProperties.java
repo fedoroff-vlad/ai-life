@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.nutritionist.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * the shared {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "nutritionist-agent")
-public class NutritionistAgentProperties {
+public class NutritionistAgentProperties implements SharedClientProperties {
 
     private String mcpNutritionUrl = "http://mcp-nutrition:8104";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";

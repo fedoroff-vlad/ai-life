@@ -7,28 +7,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * The qualified {@link WebClient} beans {@code AgentRuntimeConfig}'s shared clients bind on.
- * Each is {@code clone()}d off Spring Boot's shared builder (which mutates state on
- * {@code baseUrl}) — same pattern calendar-agent / finance-agent use. The skeleton wires only
- * the three the runtime requires; the mcp-tasks client is added with the first skill.
+ * The agent-specific {@link WebClient} beans, each {@code clone()}d off Spring Boot's shared builder
+ * (which mutates state on {@code baseUrl}) — same pattern calendar-agent / finance-agent use:
+ * {@code mcpTasks} (REST passthrough) + {@code orchestrator} (inter-agent invoke). The shared
+ * {@code profile/notifier/memory} WebClients {@code AgentRuntimeConfig}'s runtime clients bind on now
+ * live in {@code agent-runtime} (built from {@code SharedClientProperties}).
  */
 @Configuration
 public class OutboundHttpConfig {
-
-    @Bean
-    public WebClient profileServiceWebClient(WebClient.Builder builder, TasksAgentProperties props) {
-        return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
-    }
-
-    @Bean
-    public WebClient notifierWebClient(WebClient.Builder builder, TasksAgentProperties props) {
-        return builder.clone().baseUrl(props.getNotifierUrl()).build();
-    }
-
-    @Bean
-    public WebClient memoryServiceWebClient(WebClient.Builder builder, TasksAgentProperties props) {
-        return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
-    }
 
     /** REST passthrough to mcp-tasks (e.g. /internal/review) — separate from the MCP-SSE transport. */
     @Bean

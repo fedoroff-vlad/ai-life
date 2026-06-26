@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.calendar.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -7,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * required for the trigger fan-out flow (profile lookup → notifier send).
  */
 @ConfigurationProperties(prefix = "calendar-agent")
-public class CalendarAgentProperties {
+public class CalendarAgentProperties implements SharedClientProperties {
 
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";

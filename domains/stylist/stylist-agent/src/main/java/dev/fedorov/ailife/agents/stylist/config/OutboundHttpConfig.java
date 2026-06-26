@@ -9,11 +9,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * One {@link WebClient} per outbound dependency, each {@code clone()}d off the shared builder to
- * avoid base-URL leakage (same pattern as the other agents). The {@code profile/notifier/memory}
- * beans are picked up by qualifier by the shared {@code agent-runtime} clients. The
+ * One {@link WebClient} per agent-specific outbound dependency, each {@code clone()}d off the shared
+ * builder to avoid base-URL leakage (same pattern as the other agents). The
  * {@code mcpWardrobe/mcpMediaProcessing/mcpWeb/mcpImageGen} beans back the deterministic capability
- * calls the flows make.
+ * calls the flows make. The shared {@code profile/notifier/memory} WebClients live in
+ * {@code agent-runtime}'s {@code AgentRuntimeConfig} (built from {@code SharedClientProperties}).
  */
 @Configuration
 public class OutboundHttpConfig {
@@ -54,20 +54,5 @@ public class OutboundHttpConfig {
                                                      MediaStoreClient mediaStoreClient,
                                                      StylistAgentProperties props) {
         return new DeliverablePublisher(docRenderer, mediaStoreClient, props.getPublicMediaBaseUrl());
-    }
-
-    @Bean
-    public WebClient profileServiceWebClient(WebClient.Builder builder, StylistAgentProperties props) {
-        return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
-    }
-
-    @Bean
-    public WebClient notifierWebClient(WebClient.Builder builder, StylistAgentProperties props) {
-        return builder.clone().baseUrl(props.getNotifierUrl()).build();
-    }
-
-    @Bean
-    public WebClient memoryServiceWebClient(WebClient.Builder builder, StylistAgentProperties props) {
-        return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
     }
 }

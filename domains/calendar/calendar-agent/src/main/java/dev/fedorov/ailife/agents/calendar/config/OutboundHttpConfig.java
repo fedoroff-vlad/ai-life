@@ -7,32 +7,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * One {@link WebClient} per outbound dependency, each with its own base URL.
+ * One {@link WebClient} per agent-specific outbound dependency, each with its own base URL.
  * Spring Boot's shared {@code WebClient.Builder} mutates state when you set
  * {@code baseUrl}, so we {@code clone()} per use — same pattern the orchestrator
- * uses to dial agent endpoints.
+ * uses to dial agent endpoints. The shared {@code profile/notifier/memory} WebClients live in
+ * {@code agent-runtime}'s {@code AgentRuntimeConfig} (built from {@code SharedClientProperties}).
  */
 @Configuration
 public class OutboundHttpConfig {
 
     @Bean
-    public WebClient profileServiceWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
-        return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
-    }
-
-    @Bean
-    public WebClient notifierWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
-        return builder.clone().baseUrl(props.getNotifierUrl()).build();
-    }
-
-    @Bean
     public WebClient icsImportWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
         return builder.clone().baseUrl(props.getIcsImportUrl()).build();
-    }
-
-    @Bean
-    public WebClient memoryServiceWebClient(WebClient.Builder builder, CalendarAgentProperties props) {
-        return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
     }
 
     @Bean

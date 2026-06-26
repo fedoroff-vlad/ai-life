@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.chef.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "chef-agent")
-public class ChefAgentProperties {
+public class ChefAgentProperties implements SharedClientProperties {
 
     private String mcpNutritionUrl = "http://mcp-nutrition:8104";
     private String mcpWebUrl = "http://mcp-web:8098";
