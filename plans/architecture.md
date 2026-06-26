@@ -165,12 +165,13 @@ Mac Studio candidates: default Qwen2.5-72B / Llama-3.3-70B; fast Qwen2.5-7B; vis
 - Sync: HTTP/SSE via `libs/contracts` DTO.
 - Async: `libs/event-bus` (Postgres LISTEN/NOTIFY); outbox table in `bus`. Swap to Redis Streams later behind the same adapter if needed.
 - LLM: only via `libs/llm-client`. MCP: only via `libs/mcp-client`.
+- **Tool-call transport split (decided 2026-06-26, closes #201):** MCP/SSE (`@Tool` + `libs/mcp-client`) is the surface for **LLM tool-selection** (the model sees `@Tool` descriptions and picks) and for **external clients** that speak the MCP protocol. Inter-service deterministic tool calls (agent→MCP, orchestrator→agent, `ToolDispatcher`) use **`/internal/*` REST** — same `libs/contracts` DTOs, MockWebServer-testable, no MCP transport overhead. Every MCP tool therefore has two representations: `@Tool` for LLM/external, `POST /internal/tools/{name}` for internal callers. Do NOT use `libs/mcp-client` for deterministic inter-service calls.
 
 ## Locked decisions (do NOT relitigate)
 - Calendar: Radicale = source of truth. Apple/Google = read-only ICS subscription into an `external` calendar in Radicale, refreshed by scheduler. Writes only through our system.
 - Money Pro: import from CSV export (autodetect delimiter/encoding, preview before import, idempotent by row hash). No live API.
 - Telegram: one bot for both users; identify by telegram_user_id → user_id; group chat supported for household commands.
-- MCP client: Spring AI MCP module; thin HTTP/SSE fallback in libs/mcp-client behind an interface if unstable.
+- MCP client: Spring AI MCP module used for LLM tool-selection surface only; inter-service deterministic calls go over `/internal/*` REST (see "Tool-call transport split" in Inter-service comms above).
 - Finance backend: our own `finance.*` schema in our PG. Not Firefly III (full control, single DB, all Java).
 - Memory: hybrid; every record has `scope` = user:<id> | household:<id> | agent:<name>.
 - Inter-agent on start: Postgres LISTEN/NOTIFY (no new infra).

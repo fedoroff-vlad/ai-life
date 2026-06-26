@@ -31,6 +31,7 @@ pattern; mcp-caldav is older and slightly less aligned). For a schema-less share
    - `tools/<Name>McpTools.java` + `tools/ToolsConfig.java` — Spring AI `@Tool`-annotated
      methods + `MethodToolCallbackProvider` bean. **Tool descriptions in English** (token
      economy).
+   - `web/InternalToolsController.java` — `@RestController @RequestMapping("/internal/tools")` that mirrors every `@Tool` method as `POST /internal/tools/{name}` for deterministic inter-service calls (agent→MCP, `ToolDispatcher`). `@Tool` = LLM surface; `/internal` = inter-service surface. Both are required for every tool (see architecture.md "Tool-call transport split").
 4. `src/main/resources/application.yml` — `spring.ai.mcp.server.{name, version, type:
    ASYNC, instructions}`, `server.port`, properties, actuator exposure.
 5. Add new contract DTOs/inputs in `libs/contracts/.../<domain>/` (records,
