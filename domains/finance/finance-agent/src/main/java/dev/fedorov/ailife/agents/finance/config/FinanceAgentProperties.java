@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.finance.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * shared {@code libs/agent-runtime} once a third agent ships the same fan-out.
  */
 @ConfigurationProperties(prefix = "finance-agent")
-public class FinanceAgentProperties {
+public class FinanceAgentProperties implements SharedClientProperties {
 
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";

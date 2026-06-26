@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.tasks.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -10,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * wiring land with the first skill.
  */
 @ConfigurationProperties(prefix = "tasks-agent")
-public class TasksAgentProperties {
+public class TasksAgentProperties implements SharedClientProperties {
 
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";

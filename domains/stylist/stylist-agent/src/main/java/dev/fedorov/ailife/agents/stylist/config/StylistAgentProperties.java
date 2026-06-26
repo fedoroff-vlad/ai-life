@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.stylist.config;
 
+import dev.fedorov.ailife.agentruntime.config.SharedClientProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -11,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "stylist-agent")
-public class StylistAgentProperties {
+public class StylistAgentProperties implements SharedClientProperties {
 
     private String mcpWardrobeUrl = "http://mcp-wardrobe:8101";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";

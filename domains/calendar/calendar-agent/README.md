@@ -97,7 +97,7 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `CalendarAgentApplication`.
 - `config/CalendarAgentProperties` — `calendar-agent.{profile-service-url, notifier-url}`.
 - `config/OutboundHttpConfig` — `WebClient` per outbound dependency (LLM, profile, notifier), each via `WebClient.Builder.clone()`.
-- `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them with `@Qualifier`-driven `WebClient` injection, so the per-agent `OutboundHttpConfig` only owns the URL binding.
+- `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them, and as of #200 also builds their `profile/notifier/memory` `WebClient` beans (from `SharedClientProperties`, which `CalendarAgentProperties` implements), so the per-agent `OutboundHttpConfig` only owns the agent-specific clients + the URL *values*.
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
 - `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`. Used by the `create_event` action.
 - `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `invoke(req[, timeout])` POSTs the orchestrator's `/v1/agents/invoke` hub. The locked inter-agent path (agents never call each other directly); the `orchestratorWebClient` + the `@Bean` wiring live in `config/OutboundHttpConfig`. Used by `GiftRecommender` (budget) + `BirthdayGreeter` (creator greeting, 30s).

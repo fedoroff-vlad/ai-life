@@ -76,6 +76,28 @@ public class AgentRuntimeConfig {
         return new Coordinator(llm, json);
     }
 
+    /**
+     * The three platform-service {@link WebClient}s the shared clients below talk to. Every agent used
+     * to re-declare these identical {@code clone().baseUrl(...).build()} beans in its own
+     * {@code OutboundHttpConfig}; they live here now, reading the per-agent base URLs through
+     * {@link SharedClientProperties} (the agent's {@code *AgentProperties} implements it). Each is
+     * {@code clone()}d off the shared auto-configured builder so a base URL can't leak across clients.
+     */
+    @Bean
+    public WebClient profileServiceWebClient(WebClient.Builder builder, SharedClientProperties props) {
+        return builder.clone().baseUrl(props.getProfileServiceUrl()).build();
+    }
+
+    @Bean
+    public WebClient notifierWebClient(WebClient.Builder builder, SharedClientProperties props) {
+        return builder.clone().baseUrl(props.getNotifierUrl()).build();
+    }
+
+    @Bean
+    public WebClient memoryServiceWebClient(WebClient.Builder builder, SharedClientProperties props) {
+        return builder.clone().baseUrl(props.getMemoryServiceUrl()).build();
+    }
+
     @Bean
     public ProfileClient profileClient(
             @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
