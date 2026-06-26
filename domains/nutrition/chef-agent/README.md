@@ -63,6 +63,7 @@ the **ration → recipes hub action** (CH-b2):
   both the direct intent path and the inter-agent action; `findRecipes` wraps it for the intent path.
 - `web/ActionController` — `POST /agents/chef/actions/recommend_recipes` (the hub action the
   nutritionist invokes): `args.request` → `RecipeFinder.recommend` → `AgentActionResult{link, summary}`.
+  Extends the shared `AgentActionController` (`libs/agent-runtime`) for the unknown-action + error envelope.
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered card); `@Bean` (source `chef`) wired in `config/OutboundHttpConfig`.
 - `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `RecipeFinder` builds the card `Doc` and hands it off. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.

@@ -2,11 +2,10 @@ package dev.fedorov.ailife.agents.creator.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.creator.flow.GreetingDrafter;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,24 +26,25 @@ import reactor.core.publisher.Mono;
  * {@code ActionController}.
  */
 @RestController
-public class ActionController {
-
-    private static final Logger log = LoggerFactory.getLogger(ActionController.class);
+public class ActionController extends AgentActionController {
 
     private final GreetingDrafter greetingDrafter;
     private final ObjectMapper json;
 
     public ActionController(GreetingDrafter greetingDrafter, ObjectMapper json) {
+        super("creator");
         this.greetingDrafter = greetingDrafter;
         this.json = json;
+        register("draft_greeting", this::draftGreeting);
     }
 
     @PostMapping("/agents/creator/actions/{action}")
     public Mono<AgentActionResult> action(@PathVariable String action,
                                           @RequestBody AgentActionRequest request) {
-        if (!"draft_greeting".equals(action)) {
-            return Mono.just(AgentActionResult.error("creator: unknown action '" + action + "'"));
-        }
+        return dispatch(action, request);
+    }
+
+    private Mono<AgentActionResult> draftGreeting(AgentActionRequest request) {
         JsonNode args = request.args();
         String person = text(args, "person");
         if (person == null) {
@@ -57,10 +57,6 @@ public class ActionController {
                     if (draft.text() != null) result.put("greeting", draft.text());
                     if (draft.model() != null) result.put("model", draft.model());
                     return AgentActionResult.ok(result);
-                })
-                .onErrorResume(e -> {
-                    log.warn("draft_greeting failed (requestedBy={})", request.requestingAgent(), e);
-                    return Mono.just(AgentActionResult.error("draft_greeting failed: " + e.getMessage()));
                 });
     }
 

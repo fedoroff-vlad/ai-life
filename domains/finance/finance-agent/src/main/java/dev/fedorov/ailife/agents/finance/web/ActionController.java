@@ -3,12 +3,11 @@ package dev.fedorov.ailife.agents.finance.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,25 +35,22 @@ import java.util.UUID;
  * Mirrors calendar-agent's {@code create_event} action (C1c / PR74).
  */
 @RestController
-public class ActionController {
-
-    private static final Logger log = LoggerFactory.getLogger(ActionController.class);
+public class ActionController extends AgentActionController {
 
     private final GiftBudgetClient giftBudget;
     private final ObjectMapper json;
 
     public ActionController(GiftBudgetClient giftBudget, ObjectMapper json) {
+        super("finance");
         this.giftBudget = giftBudget;
         this.json = json;
+        register("get_gift_budget", this::getGiftBudget);
     }
 
     @PostMapping("/agents/finance/actions/{action}")
     public Mono<AgentActionResult> action(@PathVariable String action,
                                           @RequestBody AgentActionRequest request) {
-        if (!"get_gift_budget".equals(action)) {
-            return Mono.just(AgentActionResult.error("finance: unknown action '" + action + "'"));
-        }
-        return getGiftBudget(request);
+        return dispatch(action, request);
     }
 
     private Mono<AgentActionResult> getGiftBudget(AgentActionRequest request) {
@@ -63,16 +59,12 @@ public class ActionController {
             return Mono.just(AgentActionResult.error("get_gift_budget requires householdId"));
         }
         String relationship = relationshipArg(request);
-        Mono<AgentActionResult> result = (relationship == null)
+        return (relationship == null)
                 ? envelope(household)
                 : giftBudget.fetchRule(household, relationship)
                         .flatMap(opt -> opt.isPresent()
                                 ? Mono.just(ruleResult(opt.get(), relationship))
                                 : envelope(household));
-        return result.onErrorResume(e -> {
-            log.warn("get_gift_budget failed (requestedBy={})", request.requestingAgent(), e);
-            return Mono.just(AgentActionResult.error("get_gift_budget failed: " + e.getMessage()));
-        });
     }
 
     /** The household "Gifts" envelope read (D2b), used directly or as the D3c tier fallback. */
