@@ -83,6 +83,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
 - `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
+- `web/AgentActionController` — abstract base for an agent's `POST /agents/<name>/actions/{action}` endpoint: `register(action, handler)` in the subclass ctor + `dispatch(action, request)` applies the shared envelope (unknown-action → structured `ok=false`; handler failure → `"<action> failed: <msg>"` logged with `requestedBy`). Subclasses stay `@RestController`s (the path literal carries the agent name) and only hold per-action business logic.
 
 ## Tests
 `libs/agent-runtime/src/test/resources/test-skills/{good,bad}/SKILL.md` drive

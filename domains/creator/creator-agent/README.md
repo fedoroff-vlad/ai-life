@@ -79,7 +79,8 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 - `flow/GreetingDrafter` — the `draft_greeting` core (CR-g): one LLM turn via the `greeting-drafter`
   skill → a short greeting for `{person, occasion}`. No gather/media; returns plain text.
 - `web/ActionController` — `POST /agents/creator/actions/draft_greeting` (the inter-agent action);
-  always an `AgentActionResult`.
+  always an `AgentActionResult`. Extends the shared `AgentActionController` (`libs/agent-runtime`) for
+  the unknown-action + error envelope.
 - `http/CreatorProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/creator-profile`.
 - `http/CreatorCacheClient` — the CR-e persist: `POST /internal/trends` (batch trend cache) +
   `POST /internal/content-piece` (the draft), over `mcp-creator`.
