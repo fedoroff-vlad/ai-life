@@ -34,7 +34,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Disable the bus listener: this class doesn't exercise the consumer, and a
+// lingering listener over the shared singleton PG would steal events from
+// MessageCaptureConsumerIntegrationTest (which owns the only live LLM gateway).
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+                properties = "event-bus.enabled=false")
 class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

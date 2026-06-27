@@ -31,7 +31,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Tests aren't isolated across methods (shared SpringBootTest context + DB) — assertions
  * scope on per-test households to stay deterministic (mirrors mcp-wardrobe).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Disable the bus listener: this class doesn't exercise the consumer, and a
+// lingering listener over the shared singleton PG would compete with
+// BasketCapturedConsumerIntegrationTest for the same outbox events.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+                properties = "event-bus.enabled=false")
 class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

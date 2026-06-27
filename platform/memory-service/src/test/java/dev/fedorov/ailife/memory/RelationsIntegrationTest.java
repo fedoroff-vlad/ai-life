@@ -25,7 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * llm-gateway is needed. We still let memory-service auto-config its
  * LlmClient bean (it'll just sit idle).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Disable the bus listener: this class doesn't exercise the consumer, and a
+// lingering listener over the shared singleton PG would steal events from
+// MessageCaptureConsumerIntegrationTest (which owns the only live LLM gateway).
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+                properties = "event-bus.enabled=false")
 class RelationsIntegrationTest extends AbstractPostgresIntegrationTest {
 
 
