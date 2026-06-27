@@ -44,6 +44,7 @@
         <module>libs/platform-common</module>
         <module>libs/agent-runtime</module>
         <module>libs/doc-render</module>
+        <module>libs/test-support</module>
         <module>platform/llm-gateway</module>
         <module>platform/profile-service</module>
         <module>platform/orchestrator</module>
@@ -178,6 +179,12 @@
                 <groupId>dev.fedorov.ailife</groupId>
                 <artifactId>doc-render</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.fedorov.ailife</groupId>
+                <artifactId>test-support</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

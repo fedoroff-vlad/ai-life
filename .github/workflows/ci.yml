@@ -47,6 +47,10 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: enable testcontainers reuse
+        if: steps.detect.outputs.skip != 'true'
+        run: echo "testcontainers.reuse.enable=true" >> ~/.testcontainers.properties
+
       # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
       # MP-b). Without it that test self-skips; installing it here proves the real path.
       - name: install tesseract (OCR)
