@@ -10,6 +10,7 @@ import dev.fedorov.ailife.contracts.nutrition.SaveBasketInput;
 import dev.fedorov.ailife.contracts.nutrition.SetDietProfileInput;
 import dev.fedorov.ailife.mcp.nutrition.tools.NutritionMcpTools;
 import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,12 +32,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Tests aren't isolated across methods (shared SpringBootTest context + DB) — assertions
  * scope on per-test households to stay deterministic (mirrors mcp-wardrobe).
  */
-// Disable the bus listener: this class exercises the capture tools, which publish
-// basket.captured rows to the shared singleton outbox. A live (or lingering)
-// listener here competes with BasketCapturedConsumerIntegrationTest for those rows
-// and forwards them to this class's agent — which is dead once @AfterAll closes it.
-// The consumer test cleans the outbox per-test, so leaving these rows PENDING here
-// is harmless; what matters is not running a second, competing listener.
+// This class exercises the capture tools, which publish basket.captured rows to the
+// shared singleton outbox. Two precautions keep it from polluting
+// BasketCapturedConsumerIntegrationTest (which consumes that same topic over the same
+// PG): (1) disable the bus listener here so we don't run a second, competing consumer;
+// (2) wipe the rows we publish in @AfterEach so the consumer test's listener doesn't
+// choke on them at context startup (forwarding leftovers to an agent with no response
+// queued blocks the poller). We assert only on nutrition.* state, never on the outbox.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = "event-bus.enabled=false")
 class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
@@ -60,6 +62,14 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)",
                 householdId, "test household");
+    }
+
+    @AfterEach
+    void clearOutbox() {
+        // Our capture tools publish basket.captured rows that no listener drains here
+        // (listener disabled). Remove them so they don't pollute the shared outbox the
+        // consumer test reads. We never assert on the outbox in this class.
+        jdbc.update("DELETE FROM bus.outbox");
     }
 
     @Test
