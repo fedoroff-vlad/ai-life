@@ -6,7 +6,7 @@ Local development infrastructure + full-system compose for ai-life.
 
 | file | covers | when |
 |---|---|---|
-| `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
+| `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper + grafana (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
 | `docker-compose.yml` | everything in `dev.yml` (minus MinIO) **plus** all 7 platform services + 2 agents + 4 MCP servers | End-to-end smoke testing, Mac Studio deployment, validating a release. |
 
 Both files share `.env` and the same Postgres volume — they don't conflict, but
@@ -55,6 +55,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 |----------------------|------|---------------------------------------------------------------|
 | postgres             | 5432 | core DB (pgvector + pg_trgm; AGE later)                       |
 | radicale             | 5232 | CalDAV server (calendar source of truth)                      |
+| grafana              | 3000 | Zero-code finance dashboards over `finance.*` matviews (provisioned; see `grafana/`) |
 | minio                | 9000 / 9001 | S3-compatible object store / web console               |
 | gateway-telegram     | 8080 | Telegram webhook receiver — **the only externally-exposed app** |
 | llm-gateway          | 8081 | Provider-agnostic LLM channel                                 |

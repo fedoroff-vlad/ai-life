@@ -1,6 +1,6 @@
 # Finance domain
 
-Source of truth: **Postgres `finance.*`** (our own schema, not Firefly III). Money Pro = one-time CSV history import. Dashboards: Metabase/Grafana over `finance.*` + matviews.
+Source of truth: **Postgres `finance.*`** (our own schema, not Firefly III). Money Pro = one-time CSV history import. Dashboards: Grafana over `finance.*` + matviews — ✅ **shipped** (#196 PR1, zero-code: provisioned datasource + `Finance overview` dashboard in `infra/grafana/`; monthly trend + spending-by-category + balances + budget burn-down over the matviews). The Telegram HTML report skill (text-first monthly summary) is the next slice.
 
 ## Schema `finance` (020-finance.yml)
 - `fin_account` — id, owner_id, household_id (private/shared), name, type (card|cash|deposit|credit), currency, opening_balance, archived, metadata jsonb, created_at.

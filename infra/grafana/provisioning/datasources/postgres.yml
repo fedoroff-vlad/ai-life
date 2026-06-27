@@ -1,0 +1,20 @@
+# Provisioned read-only Postgres datasource for the finance dashboards.
+# Grafana expands ${VAR} from its container env (set in docker-compose) at load time.
+apiVersion: 1
+
+datasources:
+  - name: ailife-finance
+    uid: ailife-finance-pg
+    type: postgres
+    access: proxy
+    # Compose service name — identical in docker-compose.yml and docker-compose.dev.yml.
+    url: postgres:5432
+    user: ${POSTGRES_USER}
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ${POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
