@@ -1,0 +1,13 @@
+# File-based dashboard provider: load every dashboard JSON under the mounted folder.
+apiVersion: 1
+
+providers:
+  - name: ai-life
+    type: file
+    folder: ai-life
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

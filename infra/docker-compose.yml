@@ -136,6 +136,38 @@ services:
       retries: 5
       start_period: 120s
 
+  # Grafana — zero-code finance dashboards over the finance.* matviews (issue #196).
+  # Datasource + dashboards are provisioned from infra/grafana (no click-ops).
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ai-life-grafana
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ailife}
+      # Consumed by provisioning/datasources/postgres.yml via ${VAR} expansion.
+      POSTGRES_USER: ${POSTGRES_USER:-ailife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      POSTGRES_DB: ${POSTGRES_DB:-ailife}
+      GF_USERS_DEFAULT_THEME: light
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   # ---------- platform services ----------
 
   llm-gateway:
@@ -1143,3 +1175,4 @@ volumes:
   postgres-data:
   radicale-data:
   minio-data:
+  grafana-data:

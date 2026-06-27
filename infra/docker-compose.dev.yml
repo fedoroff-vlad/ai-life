@@ -1,5 +1,6 @@
 # Local development infrastructure only.
-# Brings up Postgres (with pgvector + pg_trgm), Radicale (CalDAV), MinIO (S3-compatible).
+# Brings up Postgres (with pgvector + pg_trgm), Radicale (CalDAV), MinIO (S3-compatible),
+# SearXNG, Whisper, and Grafana (zero-code finance dashboards over finance.* matviews).
 # Application services (gateway, orchestrator, agents, mcp-*) live in docker-compose.yml,
 # added in later PRs. Until then run apps from your IDE pointed at these ports.
 #
@@ -110,7 +111,39 @@ services:
       timeout: 5s
       retries: 5
 
+  # Grafana — zero-code finance dashboards over the finance.* matviews (issue #196).
+  # Provisioned from infra/grafana; open http://localhost:${GRAFANA_PORT:-3000}.
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ai-life-grafana
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-ailife}
+      POSTGRES_USER: ${POSTGRES_USER:-ailife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      POSTGRES_DB: ${POSTGRES_DB:-ailife}
+      GF_USERS_DEFAULT_THEME: light
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
   postgres-data:
   radicale-data:
   minio-data:
+  grafana-data:
