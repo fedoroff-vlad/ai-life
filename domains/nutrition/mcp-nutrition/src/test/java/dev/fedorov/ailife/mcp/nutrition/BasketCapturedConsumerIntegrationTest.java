@@ -4,20 +4,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,30 +33,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = "event-bus.poll-millis=500")
-@Testcontainers
-class BasketCapturedConsumerIntegrationTest {
+class BasketCapturedConsumerIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer agent;
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
+        registerDataSource(r);
         try {
             agent = new MockWebServer();
             agent.start();
         } catch (Exception e) {
             throw new IllegalStateException("failed to start mock", e);
-        }
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("mcp-nutrition.nutritionist-agent-url", () -> "http://localhost:" + agent.getPort());
+        }        r.add("mcp-nutrition.nutritionist-agent-url", () -> "http://localhost:" + agent.getPort());
     }
 
     @AfterAll
@@ -68,6 +57,11 @@ class BasketCapturedConsumerIntegrationTest {
     @Autowired OutboxPublisher publisher;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+
+    @BeforeAll
+    static void initSchema() {
+        applySchema("test-schema.sql");
+    }
 
     @Test
     void basketCapturedIsForwardedToTheAgentAndRowPublished() throws Exception {

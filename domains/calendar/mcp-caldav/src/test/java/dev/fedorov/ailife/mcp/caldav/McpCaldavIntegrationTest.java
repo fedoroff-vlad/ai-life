@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.calendar.SearchEventsInput;
 import dev.fedorov.ailife.contracts.calendar.UpdateEventInput;
 import dev.fedorov.ailife.mcp.caldav.config.McpCaldavProperties;
 import dev.fedorov.ailife.mcp.caldav.tools.CalendarMcpTools;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -35,16 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
-class McpCaldavIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
+class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Container
     static GenericContainer<?> radicale = new GenericContainer<>("tomsquest/docker-radicale:latest")
@@ -62,9 +53,7 @@ class McpCaldavIntegrationTest {
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        registerDataSource(registry);
         registry.add("caldav.url", () -> "http://" + radicale.getHost() + ":" + radicale.getMappedPort(5232));
     }
 
@@ -81,6 +70,7 @@ class McpCaldavIntegrationTest {
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)",
                 householdId, "test household");

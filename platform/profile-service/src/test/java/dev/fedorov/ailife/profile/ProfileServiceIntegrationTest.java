@@ -10,6 +10,8 @@ import dev.fedorov.ailife.profile.web.dto.CreateHouseholdRequest;
 import dev.fedorov.ailife.profile.web.dto.CreatePersonRequest;
 import dev.fedorov.ailife.profile.web.dto.CreateUserRequest;
 import dev.fedorov.ailife.profile.web.dto.UpdatePersonRequest;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,32 +23,17 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class ProfileServiceIntegrationTest {
+class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     @DynamicPropertySource
     static void wireDatasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        registerDataSource(registry);
     }
 
     @LocalServerPort
@@ -57,6 +44,11 @@ class ProfileServiceIntegrationTest {
 
     @Autowired
     ObjectMapper json;
+
+    @BeforeAll
+    static void initSchema() {
+        applySchema("test-schema.sql");
+    }
 
     @Test
     void householdAndUserLifecycle() {

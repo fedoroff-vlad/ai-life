@@ -22,13 +22,14 @@ import static org.awaitility.Awaitility.await;
 class EventBusIntegrationTest {
 
     @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16")
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
             .withDatabaseName("ailife")
             .withUsername("ailife")
             .withPassword("ailife")
             .withCopyFileToContainer(
                     MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
+                    "/docker-entrypoint-initdb.d/00-test-schema.sql")
+            .withReuse(true);
 
     private final DriverManagerDataSource ds = dataSource();
     private final JdbcTemplate jdbc = new JdbcTemplate(ds);

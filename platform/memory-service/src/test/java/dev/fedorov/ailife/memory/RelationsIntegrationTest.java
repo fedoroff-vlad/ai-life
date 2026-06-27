@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RelationDto;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,10 +15,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.util.UUID;
 
@@ -29,24 +26,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * LlmClient bean (it'll just sit idle).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class RelationsIntegrationTest {
+class RelationsIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        // llm-client points nowhere — relations endpoints don't call the LLM.
+        registerDataSource(registry);        // llm-client points nowhere — relations endpoints don't call the LLM.
         registry.add("ailife.llm-client.base-url", () -> "http://127.0.0.1:1");
     }
 
@@ -61,6 +46,7 @@ class RelationsIntegrationTest {
 
     @BeforeAll
     static void seedHouseholds(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         household = UUID.randomUUID();
         otherHousehold = UUID.randomUUID();
         maria = UUID.randomUUID();

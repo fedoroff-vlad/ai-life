@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.schedule.CreateScheduleRequest;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.scheduler.domain.ScheduleService;
 import dev.fedorov.ailife.scheduler.tick.ScheduleTick;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -22,10 +23,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -52,15 +49,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * contract.
  */
 @SpringBootTest(properties = "scheduler.tick-millis=3600000")
-@Testcontainers
-class E2EStage2FinanceWakeFlowTest {
+class E2EStage2FinanceWakeFlowTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer orchestrator;
     static MockWebServer financeAgent;
@@ -68,6 +58,7 @@ class E2EStage2FinanceWakeFlowTest {
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
+        registerDataSource(r);
         try {
             financeAgent = new MockWebServer();
             financeAgent.start();
@@ -76,11 +67,7 @@ class E2EStage2FinanceWakeFlowTest {
             orchestrator.start();
         } catch (Exception e) {
             throw new IllegalStateException("failed to start mock web servers", e);
-        }
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("scheduler.orchestrator-base-url",
+        }        r.add("scheduler.orchestrator-base-url",
                 () -> "http://localhost:" + orchestrator.getPort());
     }
 
@@ -119,6 +106,7 @@ class E2EStage2FinanceWakeFlowTest {
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", householdId, "h");
     }

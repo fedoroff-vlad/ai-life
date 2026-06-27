@@ -5,21 +5,21 @@ import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.notify.NotifyRequestedEvent;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.contracts.schedule.ScheduleFiredEvent;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -32,21 +32,15 @@ import static org.assertj.core.api.Assertions.assertThat;
                         "notifier.internal-api-token=test-token",
                         "event-bus.poll-millis=500"
                 })
-@Testcontainers
-class NotifyEventConsumerIntegrationTest {
+class NotifyEventConsumerIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer profile;
     static MockWebServer gateway;
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
+        registerDataSource(r);
         // MockWebServers must be alive before property bindings resolve.
         try {
             profile = new MockWebServer();
@@ -55,11 +49,7 @@ class NotifyEventConsumerIntegrationTest {
             gateway.start();
         } catch (Exception e) {
             throw new IllegalStateException("failed to start mocks", e);
-        }
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("notifier.profile-base-url", () -> "http://localhost:" + profile.getPort());
+        }        r.add("notifier.profile-base-url", () -> "http://localhost:" + profile.getPort());
         r.add("notifier.gateway-base-url", () -> "http://localhost:" + gateway.getPort());
     }
 
@@ -72,6 +62,11 @@ class NotifyEventConsumerIntegrationTest {
     @Autowired OutboxPublisher publisher;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
+
+    @BeforeAll
+    static void initSchema() {
+        applySchema("test-schema.sql");
+    }
 
     @BeforeEach
     void drain() throws InterruptedException {

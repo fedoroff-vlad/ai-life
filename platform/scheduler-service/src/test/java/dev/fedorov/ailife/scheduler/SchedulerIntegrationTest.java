@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.scheduler.domain.ScheduleRepository;
 import dev.fedorov.ailife.scheduler.domain.ScheduleService;
 import dev.fedorov.ailife.scheduler.tick.ScheduleTick;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -20,10 +21,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -35,22 +32,16 @@ import static org.assertj.core.api.Assertions.assertThat;
         // disable the @Scheduled tick — we invoke ScheduleTick manually
         "scheduler.tick-millis=3600000"
 })
-@Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class SchedulerIntegrationTest {
+class SchedulerIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer orchestrator;
     static UUID householdId;
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
+        registerDataSource(r);
         // MockWebServer must be alive before property bindings resolve —
         // @DynamicPropertySource runs before @BeforeAll, so we start it here.
         try {
@@ -58,16 +49,13 @@ class SchedulerIntegrationTest {
             orchestrator.start();
         } catch (Exception e) {
             throw new IllegalStateException("failed to start mock orchestrator", e);
-        }
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("scheduler.orchestrator-base-url",
+        }        r.add("scheduler.orchestrator-base-url",
                 () -> "http://localhost:" + orchestrator.getPort());
     }
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", householdId, "h");
     }

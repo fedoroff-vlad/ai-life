@@ -6,11 +6,14 @@ import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.message.MessageReceivedEvent;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,10 +23,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,15 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = "event-bus.poll-millis=500")
-@Testcontainers
-class MessageCaptureConsumerIntegrationTest {
+class MessageCaptureConsumerIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer llmGateway;
 
@@ -63,6 +55,7 @@ class MessageCaptureConsumerIntegrationTest {
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) throws IOException {
+        registerDataSource(r);
         llmGateway = new MockWebServer();
         llmGateway.setDispatcher(new Dispatcher() {
             private final ObjectMapper json = new ObjectMapper();
@@ -90,11 +83,7 @@ class MessageCaptureConsumerIntegrationTest {
                 }
             }
         });
-        llmGateway.start();
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-        r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        llmGateway.start();        r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
     @AfterAll
@@ -106,6 +95,11 @@ class MessageCaptureConsumerIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @LocalServerPort int port;
+
+    @BeforeAll
+    static void initSchema() {
+        applySchema("test-schema.sql");
+    }
 
     @Test
     void messageReceivedEventIsCapturedAndRowMarkedPublished() throws Exception {

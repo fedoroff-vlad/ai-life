@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.media;
 
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +17,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -29,25 +28,14 @@ import static org.springframework.http.client.MultipartBodyBuilder.PartBuilder;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
-class MediaServiceIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
+class MediaServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     @Container
     static MinIOContainer minio = new MinIOContainer("minio/minio:RELEASE.2023-09-04T19-57-37Z");
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+        registerDataSource(registry);
         registry.add("media.minio.endpoint", minio::getS3URL);
         registry.add("media.minio.access-key", minio::getUserName);
         registry.add("media.minio.secret-key", minio::getPassword);
@@ -62,6 +50,7 @@ class MediaServiceIntegrationTest {
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         household = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", household, "alpha");
     }
