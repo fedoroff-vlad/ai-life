@@ -9,6 +9,7 @@ import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -24,10 +25,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,18 +34,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class MemoryServiceIntegrationTest {
+// Disable the bus listener: this class doesn't exercise the consumer, and a
+// lingering listener over the shared singleton PG would steal events from
+// MessageCaptureConsumerIntegrationTest (which owns the only live LLM gateway).
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+                properties = "event-bus.enabled=false")
+class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     static MockWebServer llmGateway;
 
@@ -68,6 +60,7 @@ class MemoryServiceIntegrationTest {
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) throws IOException {
+        registerDataSource(registry);
         llmGateway = new MockWebServer();
         llmGateway.setDispatcher(new Dispatcher() {
             private final ObjectMapper json = new ObjectMapper();
@@ -100,11 +93,7 @@ class MemoryServiceIntegrationTest {
                 }
             }
         });
-        llmGateway.start();
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("ailife.llm-client.base-url",
+        llmGateway.start();        registry.add("ailife.llm-client.base-url",
                 () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -122,6 +111,7 @@ class MemoryServiceIntegrationTest {
 
     @BeforeAll
     static void seedHouseholds(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         household = UUID.randomUUID();
         otherHousehold = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", household, "alpha");

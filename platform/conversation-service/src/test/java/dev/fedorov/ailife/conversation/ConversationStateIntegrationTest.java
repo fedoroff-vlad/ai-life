@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.conversation.ConversationStateDto;
 import dev.fedorov.ailife.contracts.conversation.SetConversationStateRequest;
 import dev.fedorov.ailife.conversation.domain.ConversationStateService;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,37 +17,24 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class ConversationStateIntegrationTest {
+class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife").withUsername("ailife").withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", postgres::getJdbcUrl);
-        r.add("spring.datasource.username", postgres::getUsername);
-        r.add("spring.datasource.password", postgres::getPassword);
-    }
+        registerDataSource(r);    }
 
     static UUID householdId;
 
     @BeforeAll
     static void seed(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", householdId, "h");
     }

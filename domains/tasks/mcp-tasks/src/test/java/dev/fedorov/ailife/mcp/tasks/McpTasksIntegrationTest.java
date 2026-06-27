@@ -14,6 +14,7 @@ import dev.fedorov.ailife.contracts.tasks.UpsertProjectInput;
 import dev.fedorov.ailife.contracts.tasks.WeeklyReviewResult;
 import dev.fedorov.ailife.mcp.tasks.review.ReviewService;
 import dev.fedorov.ailife.mcp.tasks.tools.TasksMcpTools;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -28,10 +29,6 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -47,17 +44,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * scope on per-test households/projects to stay deterministic (mirrors mcp-finance).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class McpTasksIntegrationTest {
+class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     // Started in a static initializer so the port is known when Spring resolves the
     // @DynamicPropertySource supplier during context refresh (runs BEFORE @BeforeAll).
@@ -80,10 +68,7 @@ class McpTasksIntegrationTest {
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("mcp-tasks.scheduler-url",
+        registerDataSource(registry);        registry.add("mcp-tasks.scheduler-url",
                 () -> "http://localhost:" + scheduler.getPort());
     }
 
@@ -105,6 +90,7 @@ class McpTasksIntegrationTest {
 
     @BeforeAll
     static void seedHouseholds(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         otherHouseholdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)",

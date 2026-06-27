@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.wardrobe.StyleProfileDto;
 import dev.fedorov.ailife.contracts.wardrobe.UpdateItemInput;
 import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
 import dev.fedorov.ailife.mcp.wardrobe.tools.WardrobeMcpTools;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,10 +16,6 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -32,24 +29,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * scope on per-test households to stay deterministic (mirrors mcp-tasks).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class McpWardrobeIntegrationTest {
+class McpWardrobeIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+        registerDataSource(registry);    }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -61,6 +46,7 @@ class McpWardrobeIntegrationTest {
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)",
                 householdId, "test household");

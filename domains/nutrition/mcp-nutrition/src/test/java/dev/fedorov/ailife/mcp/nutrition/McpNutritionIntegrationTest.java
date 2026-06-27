@@ -9,6 +9,8 @@ import dev.fedorov.ailife.contracts.nutrition.MealLogDto;
 import dev.fedorov.ailife.contracts.nutrition.SaveBasketInput;
 import dev.fedorov.ailife.contracts.nutrition.SetDietProfileInput;
 import dev.fedorov.ailife.mcp.nutrition.tools.NutritionMcpTools;
+import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +18,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.MountableFile;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -34,25 +32,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Tests aren't isolated across methods (shared SpringBootTest context + DB) — assertions
  * scope on per-test households to stay deterministic (mirrors mcp-wardrobe).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
-class McpNutritionIntegrationTest {
+// This class exercises the capture tools, which publish basket.captured rows to the
+// shared singleton outbox. Two precautions keep it from polluting
+// BasketCapturedConsumerIntegrationTest (which consumes that same topic over the same
+// PG): (1) disable the bus listener here so we don't run a second, competing consumer;
+// (2) wipe the rows we publish in @AfterEach so the consumer test's listener doesn't
+// choke on them at context startup (forwarding leftovers to an agent with no response
+// queued blocks the poller). We assert only on nutrition.* state, never on the outbox.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+                properties = "event-bus.enabled=false")
+class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
-            .withDatabaseName("ailife")
-            .withUsername("ailife")
-            .withPassword("ailife")
-            .withCopyFileToContainer(
-                    MountableFile.forClasspathResource("test-schema.sql"),
-                    "/docker-entrypoint-initdb.d/00-test-schema.sql");
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
+        registerDataSource(registry);    }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -64,9 +58,18 @@ class McpNutritionIntegrationTest {
 
     @BeforeAll
     static void seedHousehold(@Autowired JdbcTemplate jdbc) {
+        applySchema("test-schema.sql");
         householdId = UUID.randomUUID();
         jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)",
                 householdId, "test household");
+    }
+
+    @AfterEach
+    void clearOutbox() {
+        // Our capture tools publish basket.captured rows that no listener drains here
+        // (listener disabled). Remove them so they don't pollute the shared outbox the
+        // consumer test reads. We never assert on the outbox in this class.
+        jdbc.update("DELETE FROM bus.outbox");
     }
 
     @Test
