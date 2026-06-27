@@ -10,7 +10,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -61,6 +61,18 @@ class BasketCapturedConsumerIntegrationTest extends AbstractPostgresIntegrationT
     @BeforeAll
     static void initSchema() {
         applySchema("test-schema.sql");
+    }
+
+    @BeforeEach
+    void cleanState() throws InterruptedException {
+        // The singleton PG is shared across modules/classes; sibling tests (e.g.
+        // McpNutritionIntegrationTest's capture tools) publish basket.captured rows
+        // that would otherwise linger PENDING and be drained here against the wrong
+        // agent. Start each test from an empty outbox so assertions see only our row.
+        jdbc.update("DELETE FROM bus.outbox");
+        // Drain any forward recorded by a prior method off the shared static agent.
+        //noinspection StatementWithEmptyBody
+        while (agent.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
     }
 
     @Test
