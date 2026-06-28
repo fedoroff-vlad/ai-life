@@ -147,6 +147,38 @@ LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_DEFAULT_MODEL=deepseek-chat
 ```
 
+## Golden tests (real model) — Stage 5
+
+The behavioral surface (intent routing, skill prompts, tool selection, synthesis) is validated on the
+**mock** provider in CI. Stage 5 (#199) adds opt-in **golden tests** that run the same surface against a
+**real model** and assert **structure, not text** (the router emits parseable routing JSON; the action is
+a contract value; a tool name is real; unambiguous requests route to the right action). They are
+`@Tag("golden")` + `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`, so a normal `mvn test` **skips** them — CI
+stays green without a model. First harness: `finance-agent`'s `GoldenRoutingTest`.
+
+Run them against local Ollama (free):
+
+```sh
+# 1. a model — local Ollama with qwen2.5:7b pulled (chat) + nomic-embed-text (embeddings).
+#    NOTE: point Ollama's model dir at the models ROOT (…/.ollama/models), not a sub-folder.
+ollama list            # must show qwen2.5:7b
+
+# 2. a llm-gateway pointed at it (bare JVM → Ollama on localhost):
+LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
+LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b \
+LLM_EMBEDDING_MODEL=nomic-embed-text LLM_GATEWAY_PORT=8081 \
+  java -jar platform/llm-gateway/target/llm-gateway.jar
+
+# 3. the golden tests, pointed at the gateway:
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/finance/finance-agent -Dtest=GoldenRoutingTest test
+```
+
+What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
+tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
+the analysis flow (the classifier prompt now pins the action to an exact enum). See `infra/.env.example`
+§"local Ollama (… golden tests)" for the env block.
+
 ## Run locally
 
 ```sh
