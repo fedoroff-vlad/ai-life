@@ -1,5 +1,8 @@
 package dev.fedorov.ailife.agents.finance.config;
 
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,6 +25,19 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mediaServiceWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
         return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
+    public MediaStoreClient mediaStoreClient(
+            @Qualifier("mediaServiceWebClient") WebClient mediaServiceWebClient) {
+        return new MediaStoreClient(mediaServiceWebClient, "finance");
+    }
+
+    @Bean
+    public DeliverablePublisher deliverablePublisher(MediaStoreClient mediaStoreClient,
+                                                     FinanceAgentProperties props) {
+        // Default editorial theme → the convenience ctor builds the renderer (no per-agent RenderConfig).
+        return new DeliverablePublisher(mediaStoreClient, props.getPublicMediaBaseUrl());
     }
 
     @Bean

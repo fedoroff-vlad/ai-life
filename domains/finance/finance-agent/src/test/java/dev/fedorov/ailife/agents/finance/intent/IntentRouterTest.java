@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.intent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
+import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -55,6 +56,7 @@ class IntentRouterTest {
     private final ToolDispatcher dispatcher = mock(ToolDispatcher.class);
     private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
+    private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -63,7 +65,7 @@ class IntentRouterTest {
             "You are the finance agent for the ai-life system.");
 
     private final IntentRouter router =
-            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, manifest, json);
+            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, manifest, json);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
@@ -206,6 +208,27 @@ class IntentRouterTest {
                 .verifyComplete();
 
         // Advisory is its own gather+synthesis flow — no tool dispatch.
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void llmPicksReportHandsOffToMonthlyReporter() {
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"report\"}")));
+        when(monthlyReporter.report(any(NormalizedMessage.class))).thenReturn(Mono.just(
+                new MonthlyReporter.ReportResult("Собрал отчёт за июнь.\n\nПолный отчёт: http://m/v1/media/x",
+                        "mock-large")));
+
+        StepVerifier.create(router.route(msg("отчёт за месяц")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("Полный отчёт");
+                    assertThat(r.invokedTool()).isEqualTo("report");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // The report path builds its own deliverable — no tool dispatch.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 

@@ -1,6 +1,6 @@
 # Finance domain
 
-Source of truth: **Postgres `finance.*`** (our own schema, not Firefly III). Money Pro = one-time CSV history import. Dashboards: Grafana over `finance.*` + matviews — ✅ **shipped** (#196 PR1, zero-code: provisioned datasource + `Finance overview` dashboard in `infra/grafana/`; monthly trend + spending-by-category + balances + budget burn-down over the matviews). The Telegram HTML report skill (text-first monthly summary) is the next slice.
+Source of truth: **Postgres `finance.*`** (our own schema, not Firefly III). Money Pro = one-time CSV history import. Dashboards: Grafana over `finance.*` + matviews — ✅ **shipped** (#196 PR1, zero-code: provisioned datasource + `Finance overview` dashboard in `infra/grafana/`; monthly trend + spending-by-category + balances + budget burn-down over the matviews). The Telegram HTML report skill (text-first monthly summary) is ✅ **shipped** (#196 PR2: `monthly-report` skill → `MonthlyReporter` on the Coordinator + `DeliverablePublisher`; current-month narrative + deterministic category breakdown → HTML → media-service → TG link; inline charts deferred to `chart-render`).
 
 ## Schema `finance` (020-finance.yml)
 - `fin_account` — id, owner_id, household_id (private/shared), name, type (card|cash|deposit|credit), currency, opening_balance, archived, metadata jsonb, created_at.
@@ -27,6 +27,7 @@ Principles: money is sensitive — respect owner/scope, don't show private accou
 - `recurring-due` — proactive reminder before a recurring line's `next_due`. ✅
 - `financial-advisor` — reactive spending **analysis** on request (summary + category trends + why a category grew + optimisation hints), text-first. **MVP now** — Coordinator gather (`spending_by_category` + balances) → LLM synthesis. (Chart image is a later add — see Vision below.)
 - `investment-advisor` — reactive **advisory** on request over the named symbols (stocks/funds/metals/crypto), **advisory-only — never trades**. ✅ Coordinator gather (`quote` per symbol via the sibling `mcp-market-data` capability) → LLM synthesis of considerations; routed via the `invest` classifier action. See [market-data.md](market-data.md).
+- `monthly-report` — reactive **monthly finance report** on request, the domain's first Telegram **deliverable** (#196). ✅ Coordinator gather (current month's `spending-by-category`) → LLM narrative → HTML report board (narrative + deterministic per-category breakdown) via the shared `DeliverablePublisher` (`libs/doc-render` → media-service → link); routed via the `report` classifier action. Text-first; inline charts ride in later with the deferred `chart-render` capability.
 
 ## MVP boundary & recorded vision (owner, 2026-06-20)
 The owner's full finance vision is recorded here so it is not lost. **Build now = MVP only:**
@@ -40,7 +41,7 @@ architectural home — none needs a new layer:
 | Vision item | Architectural home | Why deferred |
 |---|---|---|
 | **Year analysis with chart + %s** | `financial-advisor` skill + a shared **`chart-render` capability-MCP** (data → PNG for Telegram; reused by briefing) | chart rendering is a cross-domain capability, not finance-specific — build it once, shared. The text analysis ships first. |
-| **Report template** (periods, breakdowns, benchmarks, anomaly rules) | a finance `report` skill once the template is **designed** | owner flagged it needs a design discussion first — structure TBD. |
+| **Report template** (periods, breakdowns, benchmarks, anomaly rules) | the `monthly-report` skill (`MonthlyReporter`) | ✅ **text-first monthly summary shipped** (#196): current-month narrative + deterministic category breakdown → HTML → Telegram link. Remaining (deferred): arbitrary periods, benchmarks/anomaly rules, inline charts (`chart-render`). |
 | **Create / group spending categories from chat** | `upsert_category` (+ `parent_id` for groups) already exists; needs a thin agent skill | tool is ready; the chat-driven UX is a small follow-up. |
 | **Optimisation suggestions** | folded into `financial-advisor` synthesis | part of the analysis MVP (hints), deepened later. |
 | **Voice capture → transaction** | `mcp-media-processing` STT (MP-d2) → categorizer | STT engine (whisper) not built yet (MP-d2); receipts (OCR) cover the MVP. |

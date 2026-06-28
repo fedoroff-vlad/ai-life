@@ -51,6 +51,7 @@ finance-agent:
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   mcp-finance-url: ${MCP_FINANCE_URL:http://mcp-finance:8092}
   media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  public-media-base-url: ${FINANCE_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
   mcp-money-pro-import-url: ${MCP_MONEY_PRO_IMPORT_URL:http://mcp-money-pro-import:8094}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
   mcp-market-data-url: ${MARKET_DATA_URL:http://mcp-market-data:8100}
