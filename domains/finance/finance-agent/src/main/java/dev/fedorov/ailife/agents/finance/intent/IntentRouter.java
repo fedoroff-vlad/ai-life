@@ -101,7 +101,13 @@ public class IntentRouter {
             }
             String action = node.get("action").asText();
             if ("tool".equals(action)) {
-                return invokeTool(node, model);
+                return invokeTool(node.path("name").asText(), node.path("args"), model);
+            }
+            // Format-drift tolerance (Stage 5 golden finding): smaller models (e.g. qwen2.5:7b) often
+            // flatten the two-level shape to {"action":"<toolName>", "args":{…}} instead of
+            // {"action":"tool","name":"<toolName>"}. Accept it when the action *is* a known tool name.
+            if (isKnownTool(action, tools)) {
+                return invokeTool(action, node.path("args"), model);
             }
             if ("advice".equals(action)) {
                 // Spending analysis is multi-source synthesis, not a single tool
@@ -140,10 +146,19 @@ public class IntentRouter {
                 r.content() == null ? "" : r.content(), null, r.model()));
     }
 
-    private Mono<RouterResult> invokeTool(JsonNode node, String llmModel) {
-        String name = node.path("name").asText();
-        JsonNode argsNode = node.path("args");
-        String argsJson = argsNode.isMissingNode() || argsNode.isNull() ? "{}" : argsNode.toString();
+    /** True when {@code action} names one of the wired MCP tools (the flattened-shape case). */
+    private boolean isKnownTool(String action, List<ToolDefinition> tools) {
+        for (ToolDefinition t : tools) {
+            if (t.name().equals(action)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Mono<RouterResult> invokeTool(String name, JsonNode argsNode, String llmModel) {
+        String argsJson = argsNode == null || argsNode.isMissingNode() || argsNode.isNull()
+                ? "{}" : argsNode.toString();
         // ToolCallback.call is blocking (SSE under the hood) — same handling
         // as InternalToolsController.
         return Mono.fromCallable(() -> dispatcher.dispatch(name, argsJson))
@@ -187,7 +202,9 @@ public class IntentRouter {
      * template file) because it's tightly coupled to the parsing on the Java
      * side — the two evolve together.
      */
-    private String buildClassifierPrompt(List<ToolDefinition> tools) {
+    // Package-private (not private) so the @Tag("golden") real-model test can replay the exact
+    // classifier prompt against a live model and assert the raw output's structure — single-sourced.
+    String buildClassifierPrompt(List<ToolDefinition> tools) {
         StringBuilder sb = new StringBuilder();
         sb.append("You can either reply directly to the user or invoke one of these MCP tools.\n\n");
         sb.append("Available tools:\n");
@@ -225,6 +242,10 @@ public class IntentRouter {
         sb.append("  {\"action\":\"report\"}\n");
         sb.append("  {\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}\n");
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
+        sb.append("The \"action\" value MUST be exactly one of these literal strings: ");
+        sb.append("\"tool\", \"advice\", \"report\", \"invest\", \"chat\". Do NOT invent any other ");
+        sb.append("action value (not \"analysis\", not a tool name in the action field — a tool goes in ");
+        sb.append("\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n");
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
         sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
         sb.append("arguments. If they're just chatting, use action=chat with a helpful reply.\n");
