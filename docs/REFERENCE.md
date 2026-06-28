@@ -107,7 +107,7 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 | **2 — finance** | done | `finance.*`, `mcp-finance`, Money Pro CSV import, `finance-agent` + categorizer + receipt-parser, budgets + alerts, investment-advisor (advisory-only) |
 | **3 — tasks (GTD)** | done | `mcp-tasks` (full GTD), `tasks-agent`, weekly review cron, catch-all inbox |
 | **4 — memory + inter-agent** | done | memory-service (pgvector recall + scope), graph relations (SQL; AGE deferred), LISTEN/NOTIFY bus + outbox, conversation-state (route-lock / confirm), first Coordinator chains |
-| **5 — real LLM** | **blocked** | Langfuse tracing + Anthropic/openai-compatible/Ollama providers ready; **blocked on model access** → default provider is `mock`. Golden tests on real models wait on the unblock |
+| **5 — real LLM** | **in progress ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199))** | Langfuse tracing + Anthropic/openai-compatible/Ollama providers ready; **unblocked via local Ollama** (`qwen2.5:7b` + `nomic-embed-text`, free). First golden tests landed (`finance-agent` `GoldenRoutingTest`, opt-in `@Tag("golden")` + `GOLDEN_LLM`, structure-not-text) — validated the finance routing spine on the real model + fixed two format-drift findings. CI default stays `mock`; remaining: golden coverage for the other agents + orchestrator routing |
 | **6 — domain agents** | done (current domains) | researcher (+ `mcp-web`), stylist, nutrition (nutritionist + chef), creator — each MVP-complete. Future agents extracted to [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issues |
 
 ### Live domains (current)
@@ -129,7 +129,7 @@ ahead), `mcp-food-data`.
 
 ### Not done / deferred
 
-- **Real LLM (Stage 5)** — blocked on model access; everything runs on `mock`.
+- **Real LLM (Stage 5)** — in progress ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)): unblocked via local Ollama (`qwen2.5:7b`); first golden tests validate the finance routing spine on the real model. CI default still `mock`; broader golden coverage pending.
 - **GPU line** — real image-gen engine, virtual try-on (CatVTON), VLM-OCR (Unlimited-OCR) — wait on a GPU host.
 - **Apache AGE graph** — deferred (SQL `memory.relations` suffices).
 - **creator-deferred** — Threads/Instagram/Pinterest via `mcp-browser`, post imagery, scheduling/auto-posting.
@@ -149,10 +149,12 @@ mvn -T1C -DskipTests install   # fast local compile (respects the module DAG)
 
 ### Honest caveat first
 
-The system is wired **end-to-end**, but today it runs on a **mock LLM** (Stage 5 is blocked on model
-access). Routing, the database, MCP tools, the event bus, schedules, and the HTML deliverables all work
-for real — but **the language-model answers are deterministic stubs**, not "smart". To use it for real,
-point it at a real model — a single `.env` change in `llm-gateway`:
+The system is wired **end-to-end** and **CI runs on a mock LLM by default** (deterministic, free). Stage 5
+([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) is in progress: a **real model is now wired**
+via local Ollama (`qwen2.5:7b`), and opt-in golden tests validate the finance routing spine against it.
+Routing, the database, MCP tools, the event bus, schedules, and the HTML deliverables all work for real;
+on the mock provider the language-model answers are deterministic stubs. To run it "smart", point it at a
+real model — a single `.env` change in `llm-gateway`:
 
 - **free / local:** `LLM_PROVIDER=openai-compatible` → a local **Ollama** (the Mac Studio target), or
 - an **Anthropic** API key.
