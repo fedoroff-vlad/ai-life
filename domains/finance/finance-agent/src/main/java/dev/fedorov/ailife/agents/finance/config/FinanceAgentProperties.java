@@ -18,6 +18,7 @@ public class FinanceAgentProperties implements SharedClientProperties {
     private String memoryServiceUrl = "http://memory-service:8087";
     private String mcpFinanceUrl = "http://mcp-finance:8092";
     private String mediaServiceUrl = "http://media-service:8088";
+    private String publicMediaBaseUrl = "http://media-service:8088";
     private String mcpMoneyProImportUrl = "http://mcp-money-pro-import:8094";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpMarketDataUrl = "http://mcp-market-data:8100";
@@ -43,6 +44,11 @@ public class FinanceAgentProperties implements SharedClientProperties {
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) {
         this.mediaServiceUrl = mediaServiceUrl;
+    }
+
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {
+        this.publicMediaBaseUrl = publicMediaBaseUrl;
     }
 
     public String getMcpMoneyProImportUrl() { return mcpMoneyProImportUrl; }

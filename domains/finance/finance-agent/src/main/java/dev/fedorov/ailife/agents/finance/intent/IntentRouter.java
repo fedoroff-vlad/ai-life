@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
+import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -55,6 +56,7 @@ public class IntentRouter {
     private final ToolDispatcher dispatcher;
     private final FinancialAdvisor advisor;
     private final InvestmentAdvisor investmentAdvisor;
+    private final MonthlyReporter monthlyReporter;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
@@ -62,12 +64,14 @@ public class IntentRouter {
                         ToolDispatcher dispatcher,
                         FinancialAdvisor advisor,
                         InvestmentAdvisor investmentAdvisor,
+                        MonthlyReporter monthlyReporter,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.llm = llm;
         this.dispatcher = dispatcher;
         this.advisor = advisor;
         this.investmentAdvisor = investmentAdvisor;
+        this.monthlyReporter = monthlyReporter;
         this.manifest = manifest;
         this.json = json;
     }
@@ -112,6 +116,14 @@ public class IntentRouter {
                 // let the Coordinator-backed InvestmentAdvisor synthesize considerations.
                 return investmentAdvisor.advise(msg, readSymbols(node))
                         .map(a -> new RouterResult(a.text(), "invest", a.model()));
+            }
+            if ("report".equals(action)) {
+                // A persistent monthly report (HTML board → Telegram link), not a chat
+                // analysis — hand off to the Coordinator-backed MonthlyReporter, which
+                // gathers the month's spending, synthesizes a narrative, renders + stores
+                // the board and returns the link.
+                return monthlyReporter.report(msg)
+                        .map(r -> new RouterResult(r.text(), "report", r.model()));
             }
             // action=chat (or anything else we don't recognise): prefer the
             // structured 'text' field, else fall back to the raw body.
@@ -189,9 +201,14 @@ public class IntentRouter {
         }
         sb.append('\n');
         sb.append("There is also a built-in spending ANALYSIS flow (not a tool): use it when the ");
-        sb.append("user asks to analyse / summarise / review their own spending or wants ");
-        sb.append("recommendations over their finances (e.g. \"проанализируй траты\", \"сводка за месяц\", ");
-        sb.append("\"куда уходят деньги\", \"где можно сэкономить\"). It gathers the data itself.\n\n");
+        sb.append("user asks to analyse / review their own spending or wants ");
+        sb.append("recommendations over their finances (e.g. \"проанализируй траты\", ");
+        sb.append("\"куда уходят деньги\", \"где можно сэкономить\"). It gathers the data itself. ");
+        sb.append("Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.\n\n");
+        sb.append("There is also a built-in monthly REPORT flow (not a tool): use it when the user asks ");
+        sb.append("for a finance report or a month summary as a document (e.g. \"отчёт за месяц\", ");
+        sb.append("\"финансовый отчёт\", \"сводка за месяц\", \"отчитайся по тратам\"). It builds an HTML ");
+        sb.append("report of the current month's spending and returns a link. It gathers the data itself.\n\n");
         sb.append("There is also a built-in INVESTMENT ADVISORY flow (not a tool): use it when the user ");
         sb.append("asks for an opinion / outlook on stocks, funds/ETFs, metals, forex or crypto (e.g. ");
         sb.append("\"что думаешь про Apple и золото?\", \"стоит ли смотреть на биткоин?\"). It is ");
@@ -199,11 +216,13 @@ public class IntentRouter {
         sb.append("symbol and pass them in 'symbols': US stocks use a '.us' suffix (Apple→aapl.us), ");
         sb.append("indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, bitcoin→btcusd, ");
         sb.append("ether→ethusd. Include only assets the user actually named.\n\n");
-        sb.append("Decide: run a tool, run the spending analysis, run the investment advisory, or just talk?\n\n");
+        sb.append("Decide: run a tool, run the spending analysis, build the monthly report, ");
+        sb.append("run the investment advisory, or just talk?\n\n");
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
         sb.append("Use ONE of these shapes:\n");
         sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
         sb.append("  {\"action\":\"advice\"}\n");
+        sb.append("  {\"action\":\"report\"}\n");
         sb.append("  {\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}\n");
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
