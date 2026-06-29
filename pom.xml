@@ -79,6 +79,7 @@
         <module>shared/mcp/mcp-reddit</module>
         <module>shared/mcp/mcp-feeds</module>
         <module>shared/mcp/mcp-image-gen</module>
+        <module>shared/mcp/mcp-weather</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
 
