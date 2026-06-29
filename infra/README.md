@@ -90,6 +90,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-youtube          | 8110 | Video-trends capability-MCP (`youtube_trends` over YouTube Data API v3) |
 | mcp-reddit           | 8111 | Social-trends capability-MCP (`reddit_trends` over the Reddit API) |
 | mcp-feeds            | 8112 | Feeds capability-MCP (`feed_items` over RSS/Atom + public Telegram) |
+| mcp-weather          | 8113 | Weather capability-MCP (read-only `forecast` over Open-Meteo)     |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

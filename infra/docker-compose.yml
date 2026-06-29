@@ -603,6 +603,25 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-weather:
+    image: ai-life/mcp-weather:local
+    container_name: ai-life-mcp-weather
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-weather/Dockerfile
+    restart: unless-stopped
+    # No backing container — forecasts come from Open-Meteo over public HTTPS.
+    environment:
+      MCP_WEATHER_PORT: 8113
+      WEATHER_OPEN_METEO_URL: https://api.open-meteo.com
+      WEATHER_SOURCE: open-meteo
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8113/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-food-data:
     image: ai-life/mcp-food-data:local
     container_name: ai-life-mcp-food-data

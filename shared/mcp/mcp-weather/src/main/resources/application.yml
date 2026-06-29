@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: mcp-weather
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-weather
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared weather capability (read-only). forecast: today's high/low (°C), max
+          precipitation probability, max wind, and a condition label for a latitude/longitude
+          over Open-Meteo. Data only — composing it into a briefing is the caller's job.
+
+server:
+  port: ${MCP_WEATHER_PORT:8113}
+
+weather:
+  # Open-Meteo base URL (public HTTPS JSON endpoint; free, no key, no backing container).
+  open-meteo-url: ${WEATHER_OPEN_METEO_URL:https://api.open-meteo.com}
+  # Which forecast source to wire: open-meteo (default). Swappable later (keyed provider) via env.
+  source: ${WEATHER_SOURCE:open-meteo}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
