@@ -131,7 +131,11 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).
 - `wardrobe-auditor` (synthesis) — a KEEP/QUESTION/REMOVE verdict per catalogued garment + hero
   pieces + a one-sentence systemic-pattern diagnosis + power palette, judged against the profile.
-  Lives at [skills/stylist/wardrobe-auditor/SKILL.md](../skills/wardrobe-auditor/SKILL.md).
+  Lives at [skills/stylist/wardrobe-auditor/SKILL.md](../skills/wardrobe-auditor/SKILL.md). Validated
+  on a real model by the opt-in `flow.GoldenWardrobeAuditTest` (Stage 5 / #199): feeds a fixed wardrobe
+  (`WardrobeReadClient`/`DeliverablePublisher` mocked) through the real synthesis hop and asserts the
+  production `WardrobeAuditor` parses a non-empty verdict set (the success tally + link), skipped in CI
+  (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `capsule-advisor` (synthesis) — assembles an outfit capsule from the catalogued wardrobe, grounded
   in the style profile, occasion, season and trends; consumes the `Coordinator` `context`. Lives at
   [skills/stylist/capsule-advisor/SKILL.md](../skills/capsule-advisor/SKILL.md).
