@@ -44,10 +44,10 @@ import java.util.Map;
 public class AnthropicProvider implements LlmProvider {
 
     private static final String DEFAULT_BASE_URL = "https://api.anthropic.com";
-    private static final Duration TIMEOUT = Duration.ofSeconds(60);
 
     private final LlmGatewayProperties props;
     private final WebClient http;
+    private final Duration timeout;
 
     public AnthropicProvider(LlmGatewayProperties props, WebClient.Builder builder) {
         if (props.apiKey() == null || props.apiKey().isBlank()) {
@@ -55,6 +55,7 @@ public class AnthropicProvider implements LlmProvider {
                     "LLM_PROVIDER=anthropic requires LLM_API_KEY to be set");
         }
         this.props = props;
+        this.timeout = Duration.ofSeconds(props.requestTimeoutSeconds());
         String baseUrl = props.baseUrl() == null || props.baseUrl().isBlank()
                 ? DEFAULT_BASE_URL
                 : props.baseUrl();
@@ -79,7 +80,7 @@ public class AnthropicProvider implements LlmProvider {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(JsonNode.class)
-                .timeout(TIMEOUT)
+                .timeout(timeout)
                 .map(json -> parseResponse(json, model))
                 .onErrorMap(WebClientResponseException.class, AnthropicProvider::wrap);
     }

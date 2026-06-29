@@ -73,5 +73,8 @@ Skills live beside the agent under `domains/tasks/skills/<name>/SKILL.md`.
 - `inbox-clarify` — reactive (user-invoked, e.g. "разбери инбокс"): fetches the un-clarified inbox,
   the LLM returns structured proposals, the agent shows a confirm and **applies the `clarify_task`
   calls only after the user says "да"** (via the conversation route-lock / resume mechanism).
+  Validated on a real model by the opt-in `intent.GoldenInboxClarifyTest` (Stage 5 / #199): asserts
+  the LLM emits strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD statuses, skipped
+  in CI (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `next-action-suggester` — reactive (user-invoked, e.g. "что мне сейчас сделать"): fetches the open
   next-actions and ranks them by due date / priority / context. Read-only suggestion.

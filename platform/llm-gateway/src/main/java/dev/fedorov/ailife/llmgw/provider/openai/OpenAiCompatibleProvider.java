@@ -45,11 +45,11 @@ import java.util.Map;
 public class OpenAiCompatibleProvider implements LlmProvider {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Duration TIMEOUT = Duration.ofSeconds(60);
     private static final String SSE_DONE = "[DONE]";
 
     private final LlmGatewayProperties props;
     private final WebClient http;
+    private final Duration timeout;
 
     public OpenAiCompatibleProvider(LlmGatewayProperties props, WebClient.Builder builder) {
         if (props.baseUrl() == null || props.baseUrl().isBlank()) {
@@ -58,6 +58,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                             + "(e.g. http://ollama:11434/v1 or https://api.deepseek.com/v1)");
         }
         this.props = props;
+        this.timeout = Duration.ofSeconds(props.requestTimeoutSeconds());
         WebClient.Builder b = builder.clone().baseUrl(props.baseUrl());
         if (props.apiKey() != null && !props.apiKey().isBlank()) {
             b.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.apiKey());
@@ -79,7 +80,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(JsonNode.class)
-                .timeout(TIMEOUT)
+                .timeout(timeout)
                 .map(json -> parseChatResponse(json, model))
                 .onErrorMap(WebClientResponseException.class, OpenAiCompatibleProvider::wrap);
     }
@@ -111,7 +112,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(JsonNode.class)
-                .timeout(TIMEOUT)
+                .timeout(timeout)
                 .map(json -> parseEmbedResponse(json, model))
                 .onErrorMap(WebClientResponseException.class, OpenAiCompatibleProvider::wrap);
     }
