@@ -1,0 +1,76 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 061-calendar-feeds
+      author: ai-life
+      comment: |
+        Read-only ICS feed tokens (#195, automation track B). Each row is a secret
+        subscription token a household member adds to their Apple/Google/Yandex
+        calendar; calendar-web resolves the token → household at request time and
+        renders the ICS feed. Minted/listed/revoked via mcp-caldav /internal/feeds;
+        no env config, no restart. owner_id is reserved for future per-person
+        feeds (null today = the whole household's events). revoked_at != null hides
+        the token from resolution.
+      changes:
+        - createTable:
+            schemaName: calendar
+            tableName: calendar_feed
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_calendar_feed_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    nullable: true
+                    foreignKeyName: fk_calendar_feed_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: token
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: label
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: revoked_at
+                  type: timestamptz
+
+        - addUniqueConstraint:
+            schemaName: calendar
+            tableName: calendar_feed
+            columnNames: token
+            constraintName: uq_calendar_feed_token
+
+        - createIndex:
+            schemaName: calendar
+            tableName: calendar_feed
+            indexName: ix_calendar_feed_household
+            columns:
+              - column:
+                  name: household_id
