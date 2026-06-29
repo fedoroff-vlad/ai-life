@@ -111,6 +111,7 @@ LLM_PROVIDER=mock
 LLM_DEFAULT_MODEL=mock-large
 LLM_EMBEDDING_MODEL=mock-embed
 LLM_GATEWAY_PORT=8081
+# LLM_REQUEST_TIMEOUT_SECONDS=60          # optional, upstream chat/embed timeout (all providers); raise for slow local CPU models
 ```
 
 Anthropic profile:
@@ -155,8 +156,10 @@ The behavioral surface (intent routing, skill prompts, tool selection, synthesis
 a contract value; a tool name is real; unambiguous requests route to the right action). They are
 `@Tag("golden")` + `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`, so a normal `mvn test` **skips** them — CI
 stays green without a model. Harnesses: `orchestrator`'s `routing.GoldenRoutingTest` (top-of-spine
-agent routing across the 8 real manifests) and `finance-agent`'s `GoldenRoutingTest` (in-agent
-intent/tool routing).
+agent routing across the 8 real manifests), `finance-agent`'s `GoldenRoutingTest` (in-agent
+intent/tool routing), and `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill output — the
+`inbox-clarify` skill must return strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD
+statuses).
 
 Run them against local Ollama (free):
 
@@ -165,10 +168,11 @@ Run them against local Ollama (free):
 #    NOTE: point Ollama's model dir at the models ROOT (…/.ollama/models), not a sub-folder.
 ollama list            # must show qwen2.5:7b
 
-# 2. a llm-gateway pointed at it (bare JVM → Ollama on localhost):
+# 2. a llm-gateway pointed at it (bare JVM → Ollama on localhost). On a CPU box raise the upstream
+#    timeout — a 7B generating multi-item JSON (the skill golden tests) exceeds the 60 s default:
 LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
 LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b \
-LLM_EMBEDDING_MODEL=nomic-embed-text LLM_GATEWAY_PORT=8081 \
+LLM_EMBEDDING_MODEL=nomic-embed-text LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
   java -jar platform/llm-gateway/target/llm-gateway.jar
 
 # 3. the golden tests, pointed at the gateway:
@@ -176,13 +180,18 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl platform/orchestrator -Dtest=GoldenRoutingTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenRoutingTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/tasks/tasks-agent -Dtest=GoldenInboxClarifyTest test
 ```
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
 the analysis flow (the classifier prompt now pins the action to an exact enum). See `infra/.env.example`
 §"local Ollama (… golden tests)" for the env block. The orchestrator routing harness passed clean on
-`qwen2.5:7b` (no fixes) — the FAST-channel agent picker holds on the real model.
+`qwen2.5:7b` (no fixes) — the FAST-channel agent picker holds on the real model. The `inbox-clarify`
+skill harness surfaced one fix: a 7B generating the proposals JSON for a multi-item inbox blew past the
+gateway's previously-hardcoded 60 s upstream timeout — that timeout is now `LLM_REQUEST_TIMEOUT_SECONDS`
+(default 60); with it raised the model returns well-formed proposals (verbatim ids, valid statuses).
 
 ## Run locally
 

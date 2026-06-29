@@ -37,12 +37,20 @@ public class LlmGatewayProperties {
     /** Fallback for {@code max_tokens} when callers don't set one (Anthropic requires it). */
     private int maxTokens = 4096;
 
+    /**
+     * Upstream request timeout (seconds) for chat/embed calls. Default 60 suits cloud APIs;
+     * a slow local model (CPU Ollama generating long structured output) can legitimately need
+     * more — the Stage 5 golden tests bump this. Applies to every provider.
+     */
+    private int requestTimeoutSeconds = 60;
+
     public String provider() { return provider; }
     public String baseUrl() { return baseUrl; }
     public String apiKey() { return apiKey; }
     public String defaultModel() { return defaultModel; }
     public String anthropicVersion() { return anthropicVersion; }
     public int maxTokens() { return maxTokens; }
+    public int requestTimeoutSeconds() { return requestTimeoutSeconds; }
 
     public Map<LlmChannel, String> channelModels() {
         Map<LlmChannel, String> map = new EnumMap<>(LlmChannel.class);
@@ -62,4 +70,5 @@ public class LlmGatewayProperties {
     public void setEmbeddingModel(String embeddingModel) { this.embeddingModel = embeddingModel; }
     public void setAnthropicVersion(String anthropicVersion) { this.anthropicVersion = anthropicVersion; }
     public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
+    public void setRequestTimeoutSeconds(int requestTimeoutSeconds) { this.requestTimeoutSeconds = requestTimeoutSeconds; }
 }
