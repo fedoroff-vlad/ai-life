@@ -26,7 +26,7 @@ label — pick one up independently, don't reopen "Stage 6" as a bucket:
 ## UI & reporting (issues)
 The system has no UI of its own (entry is Telegram; deliverables are HTML boards). Read surfaces are
 tracked as their own issues:
-- **Calendar read-only web view** (Google/Yandex-calendar style over `calendar.events_cache` / Radicale; iOS = subscribe a CalDAV client today) — [#195](https://github.com/fedoroff-vlad/ai-life/issues/195).
+- ~~**Calendar read-only web view**~~ **DONE (#195)** — built as **per-person read-only ICS feeds**, not a custom web page (the tool that works across Apple **and** Google/Yandex, which only subscribe by ICS URL). New `platform/calendar-web` serves `GET /ics/{token}.ics` over `mcp-caldav`'s read passthroughs; feed tokens are minted/stored in `calendar.calendar_feed` (mcp-caldav `/internal/feeds`). **Fully automated:** calendar-agent auto-issues a feed on a user's first calendar message and replies with the subscribe link; a Tailscale Funnel sidecar (compose `tunnel` profile) gives the public HTTPS URL after a one-time `TS_AUTHKEY`. Per-person *content* filtering (own vs shared) is the only follow-up — feeds are household-level today.
 - **Finance report templates** — Grafana dashboards over `finance.*` + matviews, and a finance skill that renders an HTML report via `libs/doc-render` into Telegram (the deferred "report template" vision; charts ride in with `chart-render`) — [#196](https://github.com/fedoroff-vlad/ai-life/issues/196).
 
 ## Candidate shared capability-MCPs (built when the first consumer needs them)
