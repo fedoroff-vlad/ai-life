@@ -17,6 +17,13 @@ public class CalendarAgentProperties implements SharedClientProperties {
     private String mcpCaldavUrl = "http://mcp-caldav:8090";
     private String orchestratorUrl = "http://orchestrator:8083";
 
+    /**
+     * Public base URL of calendar-web (the Tailscale Funnel host, #195). When set, the agent
+     * auto-issues a read-only ICS feed on a user's first calendar message and appends the subscribe
+     * link ({@code <base>/ics/<token>.ics}). Blank (default) disables the nudge — no public URL to build.
+     */
+    private String publicFeedBaseUrl = "";
+
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
         this.profileServiceUrl = profileServiceUrl;
@@ -35,4 +42,7 @@ public class CalendarAgentProperties implements SharedClientProperties {
 
     public String getOrchestratorUrl() { return orchestratorUrl; }
     public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }
+
+    public String getPublicFeedBaseUrl() { return publicFeedBaseUrl; }
+    public void setPublicFeedBaseUrl(String publicFeedBaseUrl) { this.publicFeedBaseUrl = publicFeedBaseUrl; }
 }

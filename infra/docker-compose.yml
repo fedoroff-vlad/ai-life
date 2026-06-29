@@ -868,6 +868,9 @@ services:
       MEMORY_SERVICE_URL: http://memory-service:8087
       MCP_CALDAV_URL: http://mcp-caldav:8090
       MCP_ICS_IMPORT_URL: http://mcp-ics-import:8091
+      # Public calendar-web URL (the Tailscale Funnel host) — when set, the agent auto-issues an ICS
+      # feed on a user's first calendar message and replies with the subscribe link (#195).
+      CALENDAR_PUBLIC_BASE_URL: ${CALENDAR_PUBLIC_BASE_URL:-}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
       interval: 10s
