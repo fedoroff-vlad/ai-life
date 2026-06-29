@@ -157,9 +157,10 @@ a contract value; a tool name is real; unambiguous requests route to the right a
 `@Tag("golden")` + `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`, so a normal `mvn test` **skips** them — CI
 stays green without a model. Harnesses: `orchestrator`'s `routing.GoldenRoutingTest` (top-of-spine
 agent routing across the 8 real manifests), `finance-agent`'s `GoldenRoutingTest` (in-agent
-intent/tool routing), and `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill output — the
+intent/tool routing), `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill output — the
 `inbox-clarify` skill must return strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD
-statuses).
+statuses), and `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text synthesis — the
+`research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL).
 
 Run them against local Ollama (free):
 
@@ -182,6 +183,8 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenRoutingTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/tasks/tasks-agent -Dtest=GoldenInboxClarifyTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/researcher/researcher-agent -Dtest=GoldenResearchSynthesisTest test
 ```
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
@@ -192,6 +195,8 @@ the analysis flow (the classifier prompt now pins the action to an exact enum). 
 skill harness surfaced one fix: a 7B generating the proposals JSON for a multi-item inbox blew past the
 gateway's previously-hardcoded 60 s upstream timeout — that timeout is now `LLM_REQUEST_TIMEOUT_SECONDS`
 (default 60); with it raised the model returns well-formed proposals (verbatim ids, valid statuses).
+The `research` synthesis harness passed clean on `qwen2.5:7b` (no fixes) — the model grounds in the
+supplied corpus and cites only its links, no hallucinated URLs.
 
 ## Run locally
 
