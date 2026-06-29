@@ -62,3 +62,7 @@ in [orchestrator/application.yml](../../../platform/orchestrator/src/main/resour
 - `research` (intent-invoked) — synthesizes a concise answer with cited links from the pre-gathered
   corpus (search hits + fetched page text); groups video links separately; never invents
   facts/links. Lives at [skills/researcher/research/SKILL.md](../skills/research/SKILL.md).
+  Validated on a real model by the opt-in `flow.GoldenResearchSynthesisTest` (Stage 5 / #199): feeds a
+  fixed corpus (search/fetch mocked) through the real synthesis hop and asserts the answer is grounded
+  and cites **only** corpus links (the "never invent URLs" contract), skipped in CI (`GOLDEN_LLM` gate)
+  — see `platform/llm-gateway/README.md` §Golden tests.
