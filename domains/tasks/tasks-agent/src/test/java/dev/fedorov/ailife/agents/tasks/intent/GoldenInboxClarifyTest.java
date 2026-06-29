@@ -2,26 +2,19 @@ package dev.fedorov.ailife.agents.tasks.intent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.fedorov.ailife.agentruntime.skill.Skill;
-import dev.fedorov.ailife.agentruntime.skill.SkillParser;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.http.ClarifyClient;
 import dev.fedorov.ailife.agents.tasks.http.TaskReviewClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
-import dev.fedorov.ailife.contracts.agent.MessageScope;
-import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.tasks.WeeklyReviewResult;
+import dev.fedorov.ailife.golden.GoldenLlm;
+import dev.fedorov.ailife.golden.GoldenLlmTest;
 import dev.fedorov.ailife.llm.LlmClient;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -62,22 +55,23 @@ import static org.mockito.Mockito.when;
  * fixed inbox in and assert the structure of the real model's proposals as parsed by the production
  * {@link InboxClarifier}, never the wording.
  */
-@Tag("golden")
-@EnabledIfEnvironmentVariable(named = "GOLDEN_LLM", matches = "(?i)1|true|yes|on")
+@GoldenLlmTest
 class GoldenInboxClarifyTest {
 
     /** The GTD statuses the skill contract allows. */
     private static final Set<String> STATUSES = Set.of("next", "waiting", "scheduled", "dropped");
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
-    private final LlmClient llm = new LlmClient(WebClient.builder().baseUrl(gatewayUrl()).build());
+    private final LlmClient llm = GoldenLlm.client();
     private final TaskReviewClient review = mock(TaskReviewClient.class);
     private final ClarifyClient clarify = mock(ClarifyClient.class);
     private final AgentManifest manifest = new AgentManifest(
             "tasks", "tasks agent", "0.1.0", 8096,
             List.of(), List.of(),
-            List.<Map<String, String>>of(), List.<Map<String, String>>of(), agentBody());
-    private final SkillRegistry skills = new SkillRegistry(List.of(loadSkill()));
+            List.<Map<String, String>>of(), List.<Map<String, String>>of(),
+            GoldenLlm.agentBody(GoldenInboxClarifyTest.class.getClassLoader()));
+    private final SkillRegistry skills = new SkillRegistry(List.of(
+            GoldenLlm.skill(GoldenInboxClarifyTest.class.getClassLoader(), "skills/tasks/inbox-clarify/SKILL.md")));
     private final InboxClarifier clarifier =
             new InboxClarifier(llm, manifest, skills, review, clarify, json);
 
@@ -103,9 +97,9 @@ class GoldenInboxClarifyTest {
                         inboxItem(flights, "забронировать билеты на самолёт в июле")),
                 List.of(), List.of())));
 
-        IntentResponse r = clarifier.clarify(message(household, "разбери инбокс"))
+        IntentResponse r = clarifier.clarify(GoldenLlm.message(household, "разбери инбокс"))
                 .block(Duration.ofSeconds(120));
-        assertThat(r).as("null result — is llm-gateway up at %s?", gatewayUrl()).isNotNull();
+        assertThat(r).as("null result — is llm-gateway up at %s?", GoldenLlm.gatewayUrl()).isNotNull();
 
         JsonNode pending = r.pendingAction();
         if (pending == null || pending.path("proposals").isMissingNode()) {
@@ -135,49 +129,8 @@ class GoldenInboxClarifyTest {
         }
     }
 
-    private static NormalizedMessage message(UUID household, String text) {
-        return new NormalizedMessage(UUID.randomUUID(), household, MessageScope.PRIVATE,
-                text, List.of(), "telegram", "golden", Instant.now());
-    }
-
     private static TaskItemDto inboxItem(UUID id, String title) {
         return new TaskItemDto(id, null, null, null, title, "inbox",
                 null, null, null, null, null, "manual", null, null, null, Instant.now(), null);
-    }
-
-    /** The real inbox-clarify SKILL.md, packaged on the classpath at skills/tasks/<name>/SKILL.md. */
-    private static Skill loadSkill() {
-        try (InputStream in = GoldenInboxClarifyTest.class.getClassLoader()
-                .getResourceAsStream("skills/tasks/inbox-clarify/SKILL.md")) {
-            if (in == null) {
-                throw new IllegalStateException("inbox-clarify SKILL.md not on the test classpath");
-            }
-            return SkillParser.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to load inbox-clarify SKILL.md", e);
-        }
-    }
-
-    /** The real tasks system prompt — AGENT.md body (frontmatter stripped), loaded off the classpath. */
-    private static String agentBody() {
-        try (InputStream in = GoldenInboxClarifyTest.class.getClassLoader().getResourceAsStream("AGENT.md")) {
-            if (in == null) return "You are the tasks agent for the ai-life system.";
-            String md = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            if (md.startsWith("---")) {
-                int close = md.indexOf("\n---", 3);
-                if (close >= 0) {
-                    int bodyStart = md.indexOf('\n', close + 1);
-                    if (bodyStart >= 0) return md.substring(bodyStart + 1).strip();
-                }
-            }
-            return md.strip();
-        } catch (Exception e) {
-            return "You are the tasks agent for the ai-life system.";
-        }
-    }
-
-    private static String gatewayUrl() {
-        String url = System.getenv("GOLDEN_LLM_GATEWAY_URL");
-        return (url == null || url.isBlank()) ? "http://localhost:8081" : url.trim();
     }
 }

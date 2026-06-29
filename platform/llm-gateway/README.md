@@ -195,11 +195,11 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/nutrition/nutritionist-agent -Dtest=GoldenMealLogTest test
 ```
 
-> The golden tests share ~40 lines of scaffolding (the `@Tag`/`GOLDEN_LLM` gate, the gateway `LlmClient`,
-> the AGENT.md/SKILL.md classpath loaders, a `NormalizedMessage` builder). The **fixtures and assertions
-> are unique per surface by design** — each validates that surface's own contract (routing token vs JSON
-> shape vs grounded free-text). Extracting the shared scaffolding into a reusable `@GoldenLlmTest`
-> annotation + helper is a tracked follow-up; the per-test assertions stay bespoke.
+> The golden tests share their plumbing via **`libs/golden-test-support`** — the `@GoldenLlmTest` gate
+> annotation + a `GoldenLlm` helper (gateway `LlmClient`, AGENT.md/SKILL.md loaders, `NormalizedMessage`
+> builder). The **fixtures and assertions stay unique per surface by design** — each validates that
+> surface's own contract (routing token vs JSON shape vs grounded free-text), so only the plumbing is
+> shared, never the assertions.
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for

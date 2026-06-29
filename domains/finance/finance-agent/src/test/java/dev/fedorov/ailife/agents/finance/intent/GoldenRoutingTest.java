@@ -7,28 +7,22 @@ import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
-import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.golden.GoldenLlm;
+import dev.fedorov.ailife.golden.GoldenLlmTest;
 import dev.fedorov.ailife.llm.LlmClient;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -62,8 +56,7 @@ import static org.mockito.Mockito.when;
  * / {@code MonthlyReporter} / {@code ToolDispatcher}) are mocked — we assert which branch the real
  * model selected ({@code RouterResult.invokedTool}), not those flows' own output.
  */
-@Tag("golden")
-@EnabledIfEnvironmentVariable(named = "GOLDEN_LLM", matches = "(?i)1|true|yes|on")
+@GoldenLlmTest
 class GoldenRoutingTest {
 
     /** The contract actions the classifier prompt allows. */
@@ -88,14 +81,15 @@ class GoldenRoutingTest {
     private static final Set<String> TOOL_NAMES = TOOLS.stream().map(ToolDefinition::name).collect(java.util.stream.Collectors.toSet());
 
     private final ObjectMapper json = new ObjectMapper();
-    private final LlmClient llm = new LlmClient(WebClient.builder().baseUrl(gatewayUrl()).build());
+    private final LlmClient llm = GoldenLlm.client();
     private final ToolDispatcher dispatcher = mock(ToolDispatcher.class);
     private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
-            List.of(), List.of(), List.of(), List.of(), agentBody());
+            List.of(), List.of(), List.of(), List.of(),
+            GoldenLlm.agentBody(GoldenRoutingTest.class.getClassLoader()));
     private final IntentRouter router = new IntentRouter(
             llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, manifest, json);
 
@@ -169,7 +163,7 @@ class GoldenRoutingTest {
     }
 
     private void assertRoutesTo(String text, String expectedInvokedTool) {
-        IntentRouter.RouterResult r = router.route(message(text)).block(Duration.ofSeconds(60));
+        IntentRouter.RouterResult r = router.route(GoldenLlm.message(text)).block(Duration.ofSeconds(60));
         assertThat(r).as("null result for «%s»", text).isNotNull();
         assertThat(r.invokedTool())
                 .as("«%s» should route to '%s' but went to '%s' (text: %s)",
@@ -184,7 +178,7 @@ class GoldenRoutingTest {
                 LlmMessage.system(classifierPrompt),
                 LlmMessage.user(userText)));
         LlmChatResponse resp = llm.chat(req).block(Duration.ofSeconds(90));
-        assertThat(resp).as("no LLM response for «%s» — is llm-gateway up at %s?", userText, gatewayUrl()).isNotNull();
+        assertThat(resp).as("no LLM response for «%s» — is llm-gateway up at %s?", userText, GoldenLlm.gatewayUrl()).isNotNull();
         return resp.content() == null ? "" : resp.content();
     }
 
@@ -202,38 +196,9 @@ class GoldenRoutingTest {
         }
     }
 
-    private static NormalizedMessage message(String text) {
-        return new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
-                text, List.of(), "telegram", "golden", Instant.now());
-    }
-
     private static ToolDefinition tool(String name, String description) {
         return DefaultToolDefinition.builder()
                 .name(name).description(description)
                 .inputSchema("{\"type\":\"object\"}").build();
-    }
-
-    private static String gatewayUrl() {
-        String url = System.getenv("GOLDEN_LLM_GATEWAY_URL");
-        return (url == null || url.isBlank()) ? "http://localhost:8081" : url.trim();
-    }
-
-    /** The real finance system prompt — AGENT.md body (frontmatter stripped), loaded off the classpath. */
-    private static String agentBody() {
-        try (InputStream in = GoldenRoutingTest.class.getClassLoader().getResourceAsStream("AGENT.md")) {
-            if (in == null) return "You are the finance agent for the ai-life system.";
-            String md = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            // Strip the leading YAML frontmatter block (--- ... ---) → the markdown body is the system prompt.
-            if (md.startsWith("---")) {
-                int close = md.indexOf("\n---", 3);
-                if (close >= 0) {
-                    int bodyStart = md.indexOf('\n', close + 1);
-                    if (bodyStart >= 0) return md.substring(bodyStart + 1).strip();
-                }
-            }
-            return md.strip();
-        } catch (Exception e) {
-            return "You are the finance agent for the ai-life system.";
-        }
     }
 }

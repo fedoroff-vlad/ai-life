@@ -1,25 +1,20 @@
 package dev.fedorov.ailife.orchestrator.routing;
 
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
-import dev.fedorov.ailife.contracts.agent.MessageScope;
-import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.golden.GoldenLlm;
+import dev.fedorov.ailife.golden.GoldenLlmTest;
 import dev.fedorov.ailife.llm.LlmClient;
 import dev.fedorov.ailife.orchestrator.agent.AgentRegistry;
 import dev.fedorov.ailife.orchestrator.agent.AgentRegistryProperties;
 import dev.fedorov.ailife.orchestrator.memory.MemoryClient;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +36,7 @@ import static org.mockito.Mockito.when;
  *   # 2. a llm-gateway pointed at it (FAST channel resolves the classifier model):
  *   LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
  *   LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b LLM_GATEWAY_PORT=8081 \
- *     mvn -q -pl platform/llm-gateway -am spring-boot:run
+ *     mvn -q -pl platform/llm-gateway spring-boot:run
  *   # 3. the test, pointed at the gateway:
  *   GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
  *     mvn -q -pl platform/orchestrator -Dtest=GoldenRoutingTest test
@@ -52,8 +47,7 @@ import static org.mockito.Mockito.when;
  * AGENT.md} frontmatter — name + description + intent examples). Memory recall is stubbed empty so the
  * decision is driven only by the message + the manifests, never by injected long-term context.
  */
-@Tag("golden")
-@EnabledIfEnvironmentVariable(named = "GOLDEN_LLM", matches = "(?i)1|true|yes|on")
+@GoldenLlmTest
 class GoldenRoutingTest {
 
     /** The eight registered domain agents (mirrors each agent's AGENT.md frontmatter). */
@@ -62,7 +56,7 @@ class GoldenRoutingTest {
             "stylist", "nutritionist", "chef", "creator");
 
     private final MemoryClient memory = mock(MemoryClient.class);
-    private final LlmClient llm = new LlmClient(WebClient.builder().baseUrl(gatewayUrl()).build());
+    private final LlmClient llm = GoldenLlm.client();
     private final LlmIntentClassifier classifier = newClassifier();
 
     GoldenRoutingTest() {
@@ -102,7 +96,7 @@ class GoldenRoutingTest {
                 "Сколько я потратил на продукты в этом месяце?",
                 "Что мне надеть на собеседование?",
                 "спасибо, отлично")) {
-            String agent = classifier.classify(message(msg)).block(Duration.ofSeconds(90));
+            String agent = classifier.classify(GoldenLlm.message(msg)).block(Duration.ofSeconds(90));
             assertThat(agent)
                     .as("classifier returned an unknown agent for «%s»", msg)
                     .isIn(KNOWN_AGENTS);
@@ -110,7 +104,7 @@ class GoldenRoutingTest {
     }
 
     private void assertRoutesTo(String text, String expectedAgent) {
-        String agent = classifier.classify(message(text)).block(Duration.ofSeconds(90));
+        String agent = classifier.classify(GoldenLlm.message(text)).block(Duration.ofSeconds(90));
         assertThat(agent)
                 .as("«%s» should route to '%s' but went to '%s'", text, expectedAgent, agent)
                 .isEqualTo(expectedAgent);
@@ -182,15 +176,5 @@ class GoldenRoutingTest {
                 .toList();
         return new AgentManifest(name, description, "0.1.0", 0,
                 List.of(), List.of(), List.of(), intents, "You are the " + name + " agent.");
-    }
-
-    private static NormalizedMessage message(String text) {
-        return new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
-                text, List.of(), "telegram", "golden", Instant.now());
-    }
-
-    private static String gatewayUrl() {
-        String url = System.getenv("GOLDEN_LLM_GATEWAY_URL");
-        return (url == null || url.isBlank()) ? "http://localhost:8081" : url.trim();
     }
 }

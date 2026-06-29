@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>golden-test-support</artifactId>
+    <name>ai-life :: libs :: golden-test-support</name>
+    <description>Shared scaffolding for the Stage 5 @Tag("golden") real-model tests (#199):
+        the GOLDEN_LLM gate annotation + a gateway LlmClient / AGENT.md+SKILL.md loaders /
+        NormalizedMessage builder. Per-test fixtures and assertions stay in each test.</description>
+
+    <dependencies>
+        <!-- Brings LlmClient + WebClient + contracts (NormalizedMessage) + SkillParser transitively. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>agent-runtime</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <!-- For the @Tag / @EnabledIfEnvironmentVariable meta-annotation. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>
