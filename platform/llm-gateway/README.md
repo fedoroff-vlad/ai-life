@@ -159,8 +159,11 @@ stays green without a model. Harnesses: `orchestrator`'s `routing.GoldenRoutingT
 agent routing across the 8 real manifests), `finance-agent`'s `GoldenRoutingTest` (in-agent
 intent/tool routing), `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill output — the
 `inbox-clarify` skill must return strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD
-statuses), and `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text synthesis — the
-`research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL).
+statuses), `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text synthesis — the
+`research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL),
+and `finance-agent`'s `advisor.GoldenAdvisorSynthesisTest` (grounded synthesis — the `financial-advisor`
+skill must name the real top category + currency from the supplied spend windows, never an analysis
+invented from thin air).
 
 Run them against local Ollama (free):
 
@@ -185,6 +188,8 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/tasks/tasks-agent -Dtest=GoldenInboxClarifyTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/researcher/researcher-agent -Dtest=GoldenResearchSynthesisTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/finance/finance-agent -Dtest=GoldenAdvisorSynthesisTest test
 ```
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
@@ -196,7 +201,10 @@ skill harness surfaced one fix: a 7B generating the proposals JSON for a multi-i
 gateway's previously-hardcoded 60 s upstream timeout — that timeout is now `LLM_REQUEST_TIMEOUT_SECONDS`
 (default 60); with it raised the model returns well-formed proposals (verbatim ids, valid statuses).
 The `research` synthesis harness passed clean on `qwen2.5:7b` (no fixes) — the model grounds in the
-supplied corpus and cites only its links, no hallucinated URLs.
+supplied corpus and cites only its links, no hallucinated URLs. The `financial-advisor` synthesis
+harness also passed clean — the model returns a full grounded analysis (top categories, deltas vs the
+prior window, hints) over the supplied spend data; the one adjustment was test-side (accept the `€`
+symbol as well as the `EUR` code — both satisfy the "show the currency" rule).
 
 ## Run locally
 
