@@ -123,7 +123,10 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
 
 - `meal-logger` (`domains/nutrition/skills/meal-logger/SKILL.md`) — strict-JSON meal extraction
   (description, items, best-effort КБЖУ), shared by both the photo (caption instruction) and typed
-  (LLM system prompt) paths.
+  (LLM system prompt) paths. Validated on a real model by the opt-in `foodlog.GoldenMealLogTest`
+  (Stage 5 / #199): runs the typed path through the real extract and asserts the production `FoodLogger`
+  parses a `LogMealInput` with a usable description + structured signal (items or a positive kcal),
+  skipped in CI (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `diet-profiler` (`domains/nutrition/skills/diet-profiler/SKILL.md`) — strict-JSON diet-profile
   extraction (scope self|household, macro goals, restrictions, tastes) from a typed message.
 - `nutrition-analyst` (`domains/nutrition/skills/nutrition-analyst/SKILL.md`) — synthesises a

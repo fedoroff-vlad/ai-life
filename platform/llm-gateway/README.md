@@ -161,9 +161,10 @@ intent/tool routing), `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill out
 `inbox-clarify` skill must return strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD
 statuses), `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text synthesis — the
 `research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL),
-and `finance-agent`'s `advisor.GoldenAdvisorSynthesisTest` (grounded synthesis — the `financial-advisor`
+`finance-agent`'s `advisor.GoldenAdvisorSynthesisTest` (grounded synthesis — the `financial-advisor`
 skill must name the real top category + currency from the supplied spend windows, never an analysis
-invented from thin air).
+invented from thin air), and `nutritionist-agent`'s `foodlog.GoldenMealLogTest` (JSON extract — the
+`meal-logger` skill must turn a typed meal into a parseable entry with a usable description + macros).
 
 Run them against local Ollama (free):
 
@@ -190,7 +191,15 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/researcher/researcher-agent -Dtest=GoldenResearchSynthesisTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenAdvisorSynthesisTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/nutrition/nutritionist-agent -Dtest=GoldenMealLogTest test
 ```
+
+> The golden tests share ~40 lines of scaffolding (the `@Tag`/`GOLDEN_LLM` gate, the gateway `LlmClient`,
+> the AGENT.md/SKILL.md classpath loaders, a `NormalizedMessage` builder). The **fixtures and assertions
+> are unique per surface by design** — each validates that surface's own contract (routing token vs JSON
+> shape vs grounded free-text). Extracting the shared scaffolding into a reusable `@GoldenLlmTest`
+> annotation + helper is a tracked follow-up; the per-test assertions stay bespoke.
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
