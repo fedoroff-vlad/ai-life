@@ -76,9 +76,10 @@ public class FoodLogger {
 
     /** A typed meal description → one LLM extract → write. */
     public Mono<IntentResponse> logText(NormalizedMessage msg) {
+        // temperature=0: extraction must be deterministic/faithful, not creative.
         LlmChatRequest request = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(skillBody()),
-                LlmMessage.user(msg.text())));
+                LlmMessage.user(msg.text())), 0.0);
         return llm.chat(request)
                 .flatMap(r -> write(msg, null, "text", r.content(), r.model()))
                 .onErrorResume(e -> {

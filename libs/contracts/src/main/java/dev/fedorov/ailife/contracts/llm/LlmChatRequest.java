@@ -24,4 +24,13 @@ public record LlmChatRequest(
     public static LlmChatRequest of(LlmChannel channel, List<LlmMessage> messages) {
         return new LlmChatRequest(channel, messages, null, null);
     }
+
+    /**
+     * A request pinned to a {@code temperature} — use {@code 0.0} for deterministic <b>extraction</b>
+     * skills (a typed message → strict JSON), where faithful, repeatable output matters more than
+     * variety. The provider passes it through to the upstream API.
+     */
+    public static LlmChatRequest of(LlmChannel channel, List<LlmMessage> messages, Double temperature) {
+        return new LlmChatRequest(channel, messages, null, temperature);
+    }
 }
