@@ -80,7 +80,7 @@ confirms the **video-transcript follow-up** (yt-dlp / Agent-Reach) is genuinely 
 - Apache AGE Docker build sometimes unstable — plan B: Neo4j Community.
 - Radicale + Apple Calendar — aggressive subscription caching; verify interval.
 - Money Pro CSV format varies by version — tolerant parser with preview.
-- Mock-LLM determinism must not hide real bugs — golden-test output structure, not text.
+- ~~Mock-LLM determinism must not hide real bugs — golden-test output structure, not text.~~ **ADDRESSED (#199):** opt-in golden tests (`@GoldenLlmTest`/`GOLDEN_LLM`, CI-skipped) validate all 8 agents + the orchestrator against a real model (local Ollama `qwen2.5:7b`), asserting structure not text — routing, JSON-skill output, and synthesis. Shared scaffolding in `libs/golden-test-support`; runbook in `platform/llm-gateway/README.md` §Golden tests.
 
 ## MVP verification
 docker-compose up brings up all infra. `mvn verify` green. Bot answers `/start` (registers core.users). "запиши ДР Маши 15 июля" → event in Radicale, visible in Apple Calendar via subscription. Voice "потратил 1500 в Ленте на еду" → tx in finance.transactions, category Еда. Money Pro CSV: dry-run preview → confirm → history in DB, idempotent on re-run. Day before birthday → Telegram message with gift suggestion. Langfuse shows LLM traces (once real LLM connected).
