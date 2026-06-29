@@ -163,8 +163,10 @@ statuses), `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text sy
 `research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL),
 `finance-agent`'s `advisor.GoldenAdvisorSynthesisTest` (grounded synthesis — the `financial-advisor`
 skill must name the real top category + currency from the supplied spend windows, never an analysis
-invented from thin air), and `nutritionist-agent`'s `foodlog.GoldenMealLogTest` (JSON extract — the
-`meal-logger` skill must turn a typed meal into a parseable entry with a usable description + macros).
+invented from thin air), `nutritionist-agent`'s `foodlog.GoldenMealLogTest` (JSON extract — the `meal-logger` skill must turn a
+typed meal into a parseable entry with a usable description + macros), and `chef-agent`'s
+`flow.GoldenRecipeCardTest` (grounded synthesis — the `recipe-finder` card must pick from the supplied
+recipe hits, not invent a dish). They share their plumbing via `libs/golden-test-support`.
 
 Run them against local Ollama (free):
 
@@ -193,6 +195,8 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenAdvisorSynthesisTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/nutrition/nutritionist-agent -Dtest=GoldenMealLogTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/nutrition/chef-agent -Dtest=GoldenRecipeCardTest test
 ```
 
 > The golden tests share their plumbing via **`libs/golden-test-support`** — the `@GoldenLlmTest` gate
