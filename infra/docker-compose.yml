@@ -1171,8 +1171,56 @@ services:
       retries: 10
       start_period: 30s
 
+  # Read-only calendar view (#195): per-person ICS feeds over mcp-caldav. No DB, no write path.
+  calendar-web:
+    image: ai-life/calendar-web:local
+    container_name: ai-life-calendar-web
+    build:
+      context: ..
+      dockerfile: platform/calendar-web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mcp-caldav:
+        condition: service_healthy
+    environment:
+      CALENDAR_WEB_PORT: 8113
+      MCP_CALDAV_URL: http://mcp-caldav:8090
+      CALENDAR_WEB_PAST_DAYS: ${CALENDAR_WEB_PAST_DAYS:-31}
+      CALENDAR_WEB_FUTURE_DAYS: ${CALENDAR_WEB_FUTURE_DAYS:-366}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8113/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Public HTTPS for calendar-web via Tailscale Funnel (#195). Off by default — enabled with the
+  # "tunnel" profile once TS_AUTHKEY is set (one-time): `docker compose --profile tunnel up`.
+  # The feed URL is then https://ai-life-calendar.<your-tailnet>.ts.net/ics/<token>.ics
+  tailscale-calendar:
+    image: tailscale/tailscale:latest
+    container_name: ai-life-tailscale-calendar
+    hostname: ai-life-calendar
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      calendar-web:
+        condition: service_healthy
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_EXTRA_ARGS: --reset
+    volumes:
+      - tailscale-calendar-state:/var/lib/tailscale
+      - ./tailscale/calendar-serve.json:/config/serve.json:ro
+    cap_add:
+      - net_admin
+      - sys_module
+
 volumes:
   postgres-data:
   radicale-data:
   minio-data:
   grafana-data:
+  tailscale-calendar-state:

@@ -55,11 +55,25 @@ CALENDAR_WEB_FEEDS_1_LABEL=Maria
 > calendar). Per-person private/shared filtering is a follow-up — `events_cache` carries `person_id` but
 > no visibility flag yet.
 
+## Public HTTPS — bundled Tailscale Funnel (one-time setup, then automatic)
+
+Google/Yandex must reach this service over **public HTTPS** (a token, not a login, guards each feed). A
+**Tailscale Funnel** sidecar (`tailscale-calendar`) ships in `infra/docker-compose.yml` behind the
+`tunnel` profile — it comes up with the stack, no domain or cert needed:
+
+1. Create a free [Tailscale](https://tailscale.com) account → generate an **auth key**
+   ([admin → keys](https://login.tailscale.com/admin/settings/keys)).
+2. Put it in `.env`: `TS_AUTHKEY=tskey-auth-…`.
+3. Start with the profile: `docker compose --profile tunnel up`.
+
+The stable public URL is then `https://ai-life-calendar.<your-tailnet>.ts.net` → feeds at
+`https://ai-life-calendar.<your-tailnet>.ts.net/ics/<token>.ics`. That's the only one-time step; after
+it, everything (incl. the tunnel) comes up with the project. (No Tailscale account / `--profile tunnel`
+→ the sidecar simply doesn't start; calendar-web still runs locally on 8113.)
+
 ## Subscribe your calendar (zero build on the client side)
 
-Expose this service over **public HTTPS** (Google/Yandex must reach it; a token, not a login, guards it).
-Easiest without a domain/cert: a tunnel — **Cloudflare Tunnel** or **Tailscale Funnel** — to
-`http://localhost:8113`. Then add `https://<your-host>/ics/<token>.ics`:
+With the feed URL in hand, add `https://<your-host>/ics/<token>.ics`:
 
 - **Apple Calendar** — File → New Calendar Subscription → paste the URL (or on iOS: Settings → Calendar →
   Accounts → Add → Other → Add Subscribed Calendar).
