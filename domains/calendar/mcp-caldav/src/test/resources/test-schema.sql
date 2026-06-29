@@ -13,6 +13,24 @@ CREATE TABLE IF NOT EXISTS core.households (
     created_at  timestamptz  NOT NULL DEFAULT now()
 );
 
+-- Minimal core.users — only needed as the FK target for calendar_feed.owner_id (#195).
+CREATE TABLE IF NOT EXISTS core.users (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid()
+);
+
+-- Read-only ICS feed tokens (#195) — mirrors features/061-calendar-feeds.yml.
+CREATE TABLE IF NOT EXISTS calendar.calendar_feed (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id uuid NOT NULL REFERENCES core.households(id),
+    owner_id     uuid REFERENCES core.users(id),
+    token        varchar(128) NOT NULL,
+    label        varchar(128) NOT NULL,
+    created_at   timestamptz  NOT NULL DEFAULT now(),
+    revoked_at   timestamptz,
+    CONSTRAINT uq_calendar_feed_token UNIQUE (token)
+);
+CREATE INDEX IF NOT EXISTS ix_calendar_feed_household ON calendar.calendar_feed (household_id);
+
 CREATE TABLE IF NOT EXISTS calendar.events_cache (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id    uuid NOT NULL REFERENCES core.households(id),

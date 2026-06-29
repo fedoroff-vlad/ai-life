@@ -21,12 +21,18 @@ All tool method descriptions are in English (token economy).
 |--------|-------------------|--------------------------------------------------------------------|
 | POST   | `/internal/event` | Create an event deterministically (body `CreateEventInput` → `CalendarEventDto`, 400 on bad input). |
 | GET    | `/internal/events?householdId=&from=&to=` | Read events whose start is within `[from, to)` (ISO-8601 instants) for the household → `List<CalendarEventDto>`, ordered by start; reads from cache only. |
+| POST   | `/internal/feeds` | Mint a read-only ICS feed token (body `CreateFeedInput{householdId, ownerId?, label}` → `CalendarFeedDto`). Token generated server-side (#195). |
+| GET    | `/internal/feeds/{token}` | Resolve a token → `CalendarFeedDto` (404 if unknown or revoked). Used by `calendar-web`. |
+| GET    | `/internal/feeds?householdId=` | List a household's feeds (incl. revoked), newest first. |
+| DELETE | `/internal/feeds/{id}` | Revoke a feed by id (204; 404 if unknown/already revoked). |
 
 Passthroughs to the `createEvent` / `listEvents` tools for callers that already have the
 concrete fields and don't need an LLM to pick the tool — the official deterministic
 inter-service surface (doctrine #201). Consumers: calendar-agent's `create_event` action
 (Stage 4 / C1 task-to-event chain); `platform/calendar-web` (read-only view + per-person ICS
-feed, #195) reads via `GET /internal/events`. Mirrors mcp-finance's `POST /internal/transaction`.
+feed, #195) reads via `GET /internal/events` and resolves feed tokens via `GET /internal/feeds/{token}`;
+calendar-agent mints/lists/revokes feeds on a user's "give me my calendar link" request. Mirrors
+mcp-finance's `POST /internal/transaction`.
 
 ## Architecture
 
@@ -84,6 +90,8 @@ and runs an end-to-end CRUD flow asserting both the Radicale upstream and the ca
 - `tools/ToolsConfig` — exposes them via `MethodToolCallbackProvider`.
 - `web/InternalEventController` — `POST /internal/event` passthrough to `createEvent` (non-MCP; for deterministic agent callers).
 - `web/InternalEventsReadController` — `GET /internal/events?householdId&from&to` read passthrough to `listEvents` (non-MCP; for `calendar-web`'s read view / ICS feed).
+- `feed/FeedService` + `domain/CalendarFeed` + `domain/CalendarFeedRepository` — read-only ICS feed tokens (#195): mint (server-side secret), resolve (un-revoked), list, revoke.
+- `web/InternalFeedController` — `/internal/feeds` mint / resolve / list / revoke (non-MCP).
 
 ## Schema
 [010-calendar.yml](../../infra/liquibase/features/010-calendar.yml) — `calendar.events_cache`

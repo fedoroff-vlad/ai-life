@@ -1,7 +1,9 @@
 package dev.fedorov.ailife.mcp.caldav;
 
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
+import dev.fedorov.ailife.contracts.calendar.CalendarFeedDto;
 import dev.fedorov.ailife.contracts.calendar.CreateEventInput;
+import dev.fedorov.ailife.contracts.calendar.CreateFeedInput;
 import dev.fedorov.ailife.contracts.calendar.ListEventsInput;
 import dev.fedorov.ailife.contracts.calendar.SearchEventsInput;
 import dev.fedorov.ailife.contracts.calendar.UpdateEventInput;
@@ -200,5 +202,51 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
                         .build())
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void feedMintResolveListRevokeFlow() {
+        CalendarFeedDto feed = client().post().uri("/internal/feeds")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new CreateFeedInput(householdId, null, "Vlad"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarFeedDto.class)
+                .returnResult().getResponseBody();
+        assertThat(feed).isNotNull();
+        assertThat(feed.token()).isNotBlank();
+        assertThat(feed.householdId()).isEqualTo(householdId);
+        assertThat(feed.label()).isEqualTo("Vlad");
+
+        // resolve by token
+        client().get().uri("/internal/feeds/" + feed.token())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarFeedDto.class)
+                .value(f -> assertThat(f.householdId()).isEqualTo(householdId));
+
+        // list for the household contains it
+        List<CalendarFeedDto> feeds = client().get()
+                .uri(b -> b.path("/internal/feeds").queryParam("householdId", householdId).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(CalendarFeedDto.class)
+                .returnResult().getResponseBody();
+        assertThat(feeds).extracting(CalendarFeedDto::id).contains(feed.id());
+
+        // revoke → the token no longer resolves
+        client().delete().uri("/internal/feeds/" + feed.id())
+                .exchange()
+                .expectStatus().isNoContent();
+        client().get().uri("/internal/feeds/" + feed.token())
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    void resolveUnknownTokenIs404() {
+        client().get().uri("/internal/feeds/definitely-not-a-real-token")
+                .exchange()
+                .expectStatus().isNotFound();
     }
 }
