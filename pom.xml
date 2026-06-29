@@ -55,6 +55,7 @@
         <module>platform/memory-service</module>
         <module>platform/media-service</module>
         <module>platform/conversation-service</module>
+        <module>platform/calendar-web</module>
         <module>domains/calendar/calendar-agent</module>
         <module>domains/calendar/mcp-caldav</module>
         <module>domains/calendar/mcp-ics-import</module>

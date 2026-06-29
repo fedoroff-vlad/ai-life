@@ -27,7 +27,7 @@ ai-life/
 ├── platform/                cross-cutting SERVICES (the brain + infra):
 │                            orchestrator, gateway-telegram, llm-gateway, memory-service,
 │                            profile-service, scheduler-service, notifier-service,
-│                            media-service, conversation-service
+│                            media-service, conversation-service, calendar-web (read-only ICS feeds)
 ├── domains/                 one self-contained folder per specialist (agent + its MCP(s) + skills):
 │   ├── calendar/            calendar-agent, mcp-caldav, mcp-ics-import, skills/
 │   ├── finance/             finance-agent, mcp-finance, mcp-money-pro-import, skills/
