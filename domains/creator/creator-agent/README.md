@@ -97,7 +97,10 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 
 - `creator-profiler` (`domains/creator/skills/creator-profiler/SKILL.md`) — strict-JSON creator-track
   extraction (scope self|household, niche, audience, tone, platforms, goals, guardrails) from a typed
-  message.
+  message. Validated on a real model by the opt-in `profile.GoldenCreatorProfileTest` (Stage 5 / #199):
+  runs the typed track description through the real extract and asserts the production `CreatorProfiler`
+  parses a `SetCreatorProfileInput` with a niche + at least one other field, skipped in CI
+  (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `content-strategist` (`domains/creator/skills/content-strategist/SKILL.md`) — synthesises a content
   plan (3–5 trends + 10 ideas + 2–3 drafts + per-platform format tips) from the gathered trend corpus;
   grounded in the corpus, respects guardrails, plain readable text for the HTML board.

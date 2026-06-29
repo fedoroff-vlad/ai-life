@@ -166,9 +166,11 @@ skill must name the real top category + currency from the supplied spend windows
 invented from thin air), `nutritionist-agent`'s `foodlog.GoldenMealLogTest` (JSON extract — the `meal-logger` skill must turn a
 typed meal into a parseable entry with a usable description + macros), `chef-agent`'s
 `flow.GoldenRecipeCardTest` (grounded synthesis — the `recipe-finder` card must pick from the supplied
-recipe hits, not invent a dish), and `stylist-agent`'s `flow.GoldenWardrobeAuditTest` (JSON synthesis —
+recipe hits, not invent a dish), `stylist-agent`'s `flow.GoldenWardrobeAuditTest` (JSON synthesis —
 the `wardrobe-auditor` must return a parseable KEEP/QUESTION/REMOVE verdict set over the catalogued
-garments). They share their plumbing via `libs/golden-test-support`.
+garments), and `creator-agent`'s `profile.GoldenCreatorProfileTest` (JSON extract — the
+`creator-profiler` must turn a typed track description into a parseable profile). **All 8 domain agents
+plus the orchestrator now have golden coverage.** They share their plumbing via `libs/golden-test-support`.
 
 Run them against local Ollama (free):
 
@@ -201,6 +203,8 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/nutrition/chef-agent -Dtest=GoldenRecipeCardTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/stylist/stylist-agent -Dtest=GoldenWardrobeAuditTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/creator/creator-agent -Dtest=GoldenCreatorProfileTest test
 ```
 
 > The golden tests share their plumbing via **`libs/golden-test-support`** — the `@GoldenLlmTest` gate
