@@ -74,7 +74,11 @@ the **ration → recipes hub action** (CH-b2):
 
 - `recipe-finder` (`domains/nutrition/skills/recipe-finder/SKILL.md`) — turns a recipe request + the
   web search hits into a short recipe card (which dishes to cook + how), grounded in the hits, never
-  inventing URLs (the agent renders the real links).
+  inventing URLs (the agent renders the real links). Validated on a real model by the opt-in
+  `flow.GoldenRecipeCardTest` (Stage 5 / #199): feeds fixed recipe hits (search/publisher mocked)
+  through the real synthesis hop and asserts the card grounds in the supplied recipes (a distinctive
+  title marker survives), skipped in CI (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md`
+  §Golden tests.
 
 ## AGENT.md
 
