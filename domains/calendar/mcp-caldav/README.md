@@ -20,11 +20,13 @@ All tool method descriptions are in English (token economy).
 | method | path              | purpose                                                            |
 |--------|-------------------|--------------------------------------------------------------------|
 | POST   | `/internal/event` | Create an event deterministically (body `CreateEventInput` → `CalendarEventDto`, 400 on bad input). |
+| GET    | `/internal/events?householdId=&from=&to=` | Read events whose start is within `[from, to)` (ISO-8601 instants) for the household → `List<CalendarEventDto>`, ordered by start; reads from cache only. |
 
-Passthrough straight to the `createEvent` tool for callers that already have the
-concrete fields and don't need an LLM to pick the tool — first consumer is
-calendar-agent's `create_event` action (Stage 4 / C1 task-to-event chain). Mirrors
-mcp-finance's `POST /internal/transaction`.
+Passthroughs to the `createEvent` / `listEvents` tools for callers that already have the
+concrete fields and don't need an LLM to pick the tool — the official deterministic
+inter-service surface (doctrine #201). Consumers: calendar-agent's `create_event` action
+(Stage 4 / C1 task-to-event chain); `platform/calendar-web` (read-only view + per-person ICS
+feed, #195) reads via `GET /internal/events`. Mirrors mcp-finance's `POST /internal/transaction`.
 
 ## Architecture
 
@@ -81,6 +83,7 @@ and runs an end-to-end CRUD flow asserting both the Radicale upstream and the ca
 - `tools/CalendarMcpTools` — the 5 `@Tool` methods.
 - `tools/ToolsConfig` — exposes them via `MethodToolCallbackProvider`.
 - `web/InternalEventController` — `POST /internal/event` passthrough to `createEvent` (non-MCP; for deterministic agent callers).
+- `web/InternalEventsReadController` — `GET /internal/events?householdId&from&to` read passthrough to `listEvents` (non-MCP; for `calendar-web`'s read view / ICS feed).
 
 ## Schema
 [010-calendar.yml](../../infra/liquibase/features/010-calendar.yml) — `calendar.events_cache`

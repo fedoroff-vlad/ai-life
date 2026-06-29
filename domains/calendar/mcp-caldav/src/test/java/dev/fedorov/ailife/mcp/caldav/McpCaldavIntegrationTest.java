@@ -167,4 +167,38 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
                 Integer.class, created.id());
         assertThat(rows).isEqualTo(1);
     }
+
+    @Test
+    void internalEventsGetReturnsEventsInWindow() {
+        Instant start = Instant.parse("2028-03-15T09:00:00Z");
+        tools.createEvent(new CreateEventInput(
+                householdId, "Dentist appointment", null, null,
+                start, start.plus(1, ChronoUnit.HOURS), null, null, null));
+
+        List<CalendarEventDto> events = client().get()
+                .uri(b -> b.path("/internal/events")
+                        .queryParam("householdId", householdId)
+                        .queryParam("from", "2028-03-01T00:00:00Z")
+                        .queryParam("to", "2028-04-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(events).isNotNull();
+        assertThat(events).extracting(CalendarEventDto::summary).contains("Dentist appointment");
+    }
+
+    @Test
+    void internalEventsGetRejectsBadInstants() {
+        client().get()
+                .uri(b -> b.path("/internal/events")
+                        .queryParam("householdId", householdId)
+                        .queryParam("from", "not-a-date")
+                        .queryParam("to", "2028-04-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
 }
