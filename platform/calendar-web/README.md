@@ -35,7 +35,12 @@ The feed window is `[now-pastDays, now+futureDays)` (defaults 31 / 366 days). Ev
 | `CALENDAR_WEB_PAST_DAYS` | `31` | how far back the feed spans |
 | `CALENDAR_WEB_FUTURE_DAYS` | `366` | how far ahead the feed spans |
 
-**Feeds** are env-bound (Spring relaxed list binding), one per member — no DB, nothing to manage:
+**Feed resolution (track B):** a request token is resolved first against the **persistent store**
+(`mcp-caldav` `GET /internal/feeds/{token}` — minted on demand, no restart to add a member), then against
+the **static env feeds** below as a fallback. Unknown either way → 404. Most feeds are minted (e.g. the
+calendar-agent auto-issues one on a user's first event); env feeds remain for static/manual setups.
+
+**Env feeds** are env-bound (Spring relaxed list binding), one per member — no DB needed for this path:
 
 ```
 CALENDAR_WEB_FEEDS_0_TOKEN=<long-random-secret>   # sits in the public ICS URL → must be unguessable
