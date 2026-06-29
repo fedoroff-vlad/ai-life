@@ -154,7 +154,9 @@ The behavioral surface (intent routing, skill prompts, tool selection, synthesis
 **real model** and assert **structure, not text** (the router emits parseable routing JSON; the action is
 a contract value; a tool name is real; unambiguous requests route to the right action). They are
 `@Tag("golden")` + `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`, so a normal `mvn test` **skips** them — CI
-stays green without a model. First harness: `finance-agent`'s `GoldenRoutingTest`.
+stays green without a model. Harnesses: `orchestrator`'s `routing.GoldenRoutingTest` (top-of-spine
+agent routing across the 8 real manifests) and `finance-agent`'s `GoldenRoutingTest` (in-agent
+intent/tool routing).
 
 Run them against local Ollama (free):
 
@@ -171,13 +173,16 @@ LLM_EMBEDDING_MODEL=nomic-embed-text LLM_GATEWAY_PORT=8081 \
 
 # 3. the golden tests, pointed at the gateway:
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl platform/orchestrator -Dtest=GoldenRoutingTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenRoutingTest test
 ```
 
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
 the analysis flow (the classifier prompt now pins the action to an exact enum). See `infra/.env.example`
-§"local Ollama (… golden tests)" for the env block.
+§"local Ollama (… golden tests)" for the env block. The orchestrator routing harness passed clean on
+`qwen2.5:7b` (no fixes) — the FAST-channel agent picker holds on the real model.
 
 ## Run locally
 
