@@ -1,0 +1,23 @@
+server:
+  port: ${CALENDAR_WEB_PORT:8113}
+
+spring:
+  application:
+    name: calendar-web
+
+calendar-web:
+  mcp-caldav-url: ${MCP_CALDAV_URL:http://mcp-caldav:8090}
+  past-days: ${CALENDAR_WEB_PAST_DAYS:31}
+  future-days: ${CALENDAR_WEB_FUTURE_DAYS:366}
+  # Feeds are env-bound (Spring relaxed list binding), one per household member, e.g.:
+  #   CALENDAR_WEB_FEEDS_0_TOKEN=<long-random-secret>
+  #   CALENDAR_WEB_FEEDS_0_HOUSEHOLD_ID=<uuid>
+  #   CALENDAR_WEB_FEEDS_0_LABEL=Vlad
+  #   CALENDAR_WEB_FEEDS_1_TOKEN=...  (etc.)
+  feeds: []
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
