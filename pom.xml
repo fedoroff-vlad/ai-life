@@ -45,6 +45,7 @@
         <module>libs/agent-runtime</module>
         <module>libs/doc-render</module>
         <module>libs/test-support</module>
+        <module>libs/golden-test-support</module>
         <module>platform/llm-gateway</module>
         <module>platform/profile-service</module>
         <module>platform/orchestrator</module>
