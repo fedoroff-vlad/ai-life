@@ -59,10 +59,12 @@ Assert **structure, not wording** (roadmap §Risks).
 - **BR-c1 — `geocode` tool in `mcp-weather`.** ✅ **DONE.** `geocode(name, language)` → `GeoLocation`
   {name/country/lat/lon/timezone} over Open-Meteo Geocoding (free, no key) + `/internal/geocode`
   passthrough. The city→coordinates step the profiler needs.
-- **BR-c2 — `briefing-agent` scaffold + `briefing-profiler` skill.** New `domains/briefing/briefing-agent`
-  (port 8115). Binds `mcp-briefing` + `mcp-weather`. A profile cue → `briefing-profiler` extract (incl.
-  **city → geocode**) → upsert via `/internal/briefing-profile`. Registered in orchestrator as
-  `briefing`. + `GoldenBriefingProfileTest`.
+- **BR-c2 — `briefing-agent` scaffold + `briefing-profiler` skill.** ✅ **DONE.** `domains/briefing/briefing-agent`
+  (port 8115). Binds `mcp-briefing` + `mcp-weather` + `mcp-web`. A preferences cue → `briefing-profiler`
+  extract → **city → geocode** (`mcp-weather /internal/geocode`, soft-fail) → upsert via
+  `/internal/briefing-profile`. Chat fallback for the rest. Registered in orchestrator as `briefing`.
+  Tests: `BriefingProfilerTest` (4, MockWebServer) + `ManifestControllerTest` (1) + `GoldenBriefingProfileTest`
+  (opt-in real Ollama).
 - **BR-d — `digest` flow.** Resolve the profile → gather the enabled sections (weather via profile
   lat/lon, calendar-today via `mcp-caldav /internal`, finance snapshot via `mcp-finance /internal`,
   news via `mcp-web.web_search` per interest) in parallel on the `Coordinator` → one `briefing-composer`
