@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.mcp.weather.engine;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -56,9 +57,12 @@ public class OpenMeteoWeatherSource implements WeatherSource {
             Map.entry(99, "Thunderstorm with heavy hail"));
 
     private final WebClient http;
+    private final WebClient geocode;
 
-    public OpenMeteoWeatherSource(@Qualifier("openMeteoWebClient") WebClient http) {
+    public OpenMeteoWeatherSource(@Qualifier("openMeteoWebClient") WebClient http,
+                                  @Qualifier("geocodeWebClient") WebClient geocode) {
         this.http = http;
+        this.geocode = geocode;
     }
 
     @Override
@@ -77,6 +81,51 @@ public class OpenMeteoWeatherSource implements WeatherSource {
                 .bodyToMono(JsonNode.class)
                 .timeout(Duration.ofSeconds(10))
                 .map(json -> parse(latitude, longitude, json));
+    }
+
+    @Override
+    public Mono<GeoLocation> geocode(String name, String language) {
+        String q = name == null ? "" : name.trim();
+        return geocode.get()
+                .uri(uri -> {
+                    uri.path("/v1/search")
+                            .queryParam("name", q)
+                            .queryParam("count", 1)
+                            .queryParam("format", "json");
+                    if (language != null && !language.isBlank()) {
+                        uri.queryParam("language", language.trim());
+                    }
+                    return uri.build();
+                })
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .timeout(Duration.ofSeconds(10))
+                .map(OpenMeteoWeatherSource::parseGeocode);
+    }
+
+    /** Read the first {@code results} entry. Absent/empty results → a GeoLocation with null fields. */
+    private static GeoLocation parseGeocode(JsonNode root) {
+        JsonNode results = root == null ? null : root.path("results");
+        if (results == null || !results.isArray() || results.isEmpty()) {
+            return new GeoLocation(null, null, null, null, null);
+        }
+        JsonNode top = results.get(0);
+        return new GeoLocation(
+                str(top, "name"),
+                str(top, "country"),
+                dblField(top, "latitude"),
+                dblField(top, "longitude"),
+                str(top, "timezone"));
+    }
+
+    private static String str(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isMissingNode() || v.isNull() ? null : v.asText();
+    }
+
+    private static Double dblField(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        return v.isMissingNode() || v.isNull() || !v.isNumber() ? null : v.asDouble();
     }
 
     /** Read index 0 of each {@code daily} array (today). Absent arrays/values → null fields. */

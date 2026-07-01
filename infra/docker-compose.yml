@@ -614,6 +614,7 @@ services:
     environment:
       MCP_WEATHER_PORT: 8113
       WEATHER_OPEN_METEO_URL: https://api.open-meteo.com
+      WEATHER_GEOCODE_URL: https://geocoding-api.open-meteo.com
       WEATHER_SOURCE: open-meteo
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8113/actuator/health"]

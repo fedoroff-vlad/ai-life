@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.mcp.weather.tools;
 
+import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import dev.fedorov.ailife.mcp.weather.engine.WeatherSource;
 import org.springframework.ai.tool.annotation.Tool;
@@ -29,5 +30,19 @@ public class WeatherMcpTools {
             """)
     public Weather forecast(double latitude, double longitude) {
         return source.forecast(latitude, longitude).block();
+    }
+
+    @Tool(description = """
+            Resolve a stated place or city name to coordinates. Pass the name (e.g. 'Москва', 'Berlin')
+            and an optional ISO-639 language hint for the canonical name. Returns the best match's
+            latitude/longitude (feed them to `forecast`), canonical name, country, and IANA timezone;
+            fields are null when no match is found. Use this to turn a user's stated city into the
+            coordinates the weather forecast needs.
+            """)
+    public GeoLocation geocode(String name, String language) {
+        if (name == null || name.isBlank()) {
+            return new GeoLocation(null, null, null, null, null);
+        }
+        return source.geocode(name, language).block();
     }
 }
