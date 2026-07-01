@@ -39,7 +39,7 @@ flowchart TD
     end
     subgraph MCPS[MCP servers]
       DM[domain-MCP owns a schema:<br/>caldav, finance, tasks, wardrobe, nutrition, creator]
-      CM[capability-MCP no schema:<br/>media-processing, web, market-data, image-gen, youtube/reddit/feeds, food-data]
+      CM[capability-MCP no schema:<br/>media-processing, web, market-data, weather, image-gen, youtube/reddit/feeds, food-data]
     end
     SVC[shared services<br/>memory · profile · scheduler · notifier · llm-gateway · conversation · media]
     PG[(Postgres 16<br/>pgvector + AGE + pg_trgm)]
@@ -122,14 +122,20 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 - **creator** — `mcp-creator` + `creator-agent` + sources `mcp-youtube` / `mcp-reddit` / `mcp-feeds`
   (+ `mcp-web`). Creator track, trend → ideas → drafts synthesis (HTML board), trend/draft cache, and the
   inter-agent greeting chain `calendar.birthday → creator.draft_greeting → notifier`.
+- **briefing** — 🚧 **in progress** ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186), first future-agent).
+  `mcp-briefing` (per-person `briefing_profile`: location/interests/sections/schedule) + `briefing-agent` +
+  shared `mcp-weather` (forecast + geocode over Open-Meteo). **Done:** the personalization store + the NL
+  config flow (`briefing-profiler` — golden-verified on local Ollama). **Pending:** the digest itself
+  (multi-domain read coordinator: weather + calendar + finance + news → one synthesis → HTML board →
+  scheduled notifier delivery). PR-sliced in [briefing.md](../plans/briefing.md).
 
 Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper sidecar + vision-caption),
-`mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-image-gen` (scaffolded, stub engine — real GPU engine
-ahead), `mcp-food-data`.
+`mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-weather` (Open-Meteo forecast + geocode),
+`mcp-image-gen` (scaffolded, stub engine — real GPU engine ahead), `mcp-food-data`.
 
 ### Not done / deferred
 
-- **Real LLM (Stage 5)** — in progress ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)): unblocked via local Ollama (`qwen2.5:7b`); first golden tests validate the finance routing spine on the real model. CI default still `mock`; broader golden coverage pending.
+- **Real LLM (Stage 5)** — **unblocked / closed** ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) via local Ollama (`qwen2.5:7b`). Opt-in, CI-skipped **golden tests** (structure-not-text) now cover all 8 agents + the orchestrator, sharing `libs/golden-test-support`. CI default stays `mock` (fast, no model); golden runs on demand against a running llm-gateway (`GOLDEN_LLM=1`).
 - **GPU line** — real image-gen engine, virtual try-on (CatVTON), VLM-OCR (Unlimited-OCR) — wait on a GPU host.
 - **Apache AGE graph** — deferred (SQL `memory.relations` suffices).
 - **creator-deferred** — Threads/Instagram/Pinterest via `mcp-browser`, post imagery, scheduling/auto-posting.

@@ -13,7 +13,7 @@
 Extracted from Stage 6 (the current domain agents are done). Each future agent is now tracked as its
 own GitHub issue under the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent)
 label — pick one up independently, don't reopen "Stage 6" as a bucket:
-- **briefing-agent** (morning digest: weather + calendar + finance + news) — high (wow) — [#186](https://github.com/fedoroff-vlad/ai-life/issues/186)
+- **briefing-agent** (morning digest: weather + calendar + finance + news) — high (wow) — [#186](https://github.com/fedoroff-vlad/ai-life/issues/186) — **🚧 IN PROGRESS (owner-chosen first future-agent, 2026-06-29).** Personalization-first: per-person `briefing_profile` + NL config skill + golden-tests-from-the-start. Merged through BR-c2 (PR235–238): `mcp-weather` (8113, forecast + geocode over Open-Meteo) + `mcp-briefing` (8114, the prefs store) + `briefing-agent` (8115) with the `briefing-profiler` config flow (golden-verified on local Ollama). Remaining: BR-d digest gather→synthesize, BR-e HTML board, BR-f scheduler wake + delivery + E2E. PR-sliced in [briefing.md](briefing.md).
 - **health-agent** (Apple Health) — med — [#187](https://github.com/fedoroff-vlad/ai-life/issues/187)
 - **docs-agent** (receipts/contracts archive, OCR + search) — med — [#188](https://github.com/fedoroff-vlad/ai-life/issues/188)
 - **family-memory-agent** — med — [#189](https://github.com/fedoroff-vlad/ai-life/issues/189)
