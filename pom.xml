@@ -71,6 +71,7 @@
         <module>domains/nutrition/chef-agent</module>
         <module>domains/creator/mcp-creator</module>
         <module>domains/creator/creator-agent</module>
+        <module>domains/briefing/mcp-briefing</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>

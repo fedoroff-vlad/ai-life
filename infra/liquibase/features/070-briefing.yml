@@ -1,0 +1,89 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 070-briefing
+      author: ai-life
+      comment: |
+        Briefing domain opener: source-of-truth table for mcp-briefing
+        (plans/briefing.md). One table — briefing_profile (one per person's
+        morning-digest preferences).
+
+        briefing_profile is keyed (household_id, owner_id) so a person has at most
+        one profile (null owner = household default) — mirrors creator_profile /
+        diet_profile / style_profile. location is a stated preference (label +
+        geocoded lat/lon + IANA timezone), not device GPS. interests (news topics)
+        and sections (enabled keys: weather|agenda|finance|news) are jsonb arrays.
+        schedule_time ("HH:mm") + schedule_enabled drive the per-person morning wake.
+      changes:
+        - createTable:
+            schemaName: briefing
+            tableName: briefing_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_briefing_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_briefing_profile_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: location_label
+                  type: text
+              - column:
+                  name: latitude
+                  type: double precision
+              - column:
+                  name: longitude
+                  type: double precision
+              - column:
+                  name: timezone
+                  type: varchar(64)
+              - column:
+                  name: interests
+                  type: jsonb
+              - column:
+                  name: sections
+                  type: jsonb
+              - column:
+                  name: schedule_time
+                  type: varchar(8)
+              - column:
+                  name: schedule_enabled
+                  type: boolean
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: briefing
+            tableName: briefing_profile
+            indexName: ux_briefing_profile_household_owner
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: owner_id

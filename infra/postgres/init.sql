@@ -18,5 +18,6 @@ CREATE SCHEMA IF NOT EXISTS tasks;
 CREATE SCHEMA IF NOT EXISTS wardrobe;
 CREATE SCHEMA IF NOT EXISTS nutrition;
 CREATE SCHEMA IF NOT EXISTS creator;
+CREATE SCHEMA IF NOT EXISTS briefing;
 
 -- Schemas are populated by Liquibase changelogs (infra/liquibase/features/*).

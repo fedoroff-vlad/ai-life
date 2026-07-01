@@ -25,29 +25,52 @@ Everything here reuses an existing pattern — flag nothing new:
 - Weather is the only missing external surface → a **capability-MCP** (`mcp-weather`), schema-less,
   bound by the agent over MCP/SSE — exactly the `mcp-market-data` / `mcp-web` shape.
 
+## Personalization — first-class, not deferred (owner steer 2026-06-29)
+The briefing is **per-person** and configurable in natural language, on the **same pattern** as the
+diet / style / creator tracks — no new layer. A `briefing_profile` keyed `(household, owner)` holds:
+- **location** `{label, latitude, longitude, timezone}` — the user states a city in chat; the
+  `briefing-profiler` skill extracts it and we **geocode** it to lat/lon via Open-Meteo's free
+  Geocoding API (a `geocode` tool added to `mcp-weather`). No device GPS — it's a stated preference.
+- **interests** `string[]` — news topics (e.g. `["AI", "finance"]`) → `mcp-web.web_search` per topic.
+- **sections** — toggles for `weather | agenda | finance | news` (**all four in the MVP**, owner 2026-06-29).
+- **schedule** `{time, timezone, enabled}` — when the proactive wake fires (BR-f).
+
+The config UX is a skill: the user writes "по утрам в 8:00 показывай погоду в Москве, новости про ИИ
+и финансы, мою повестку и траты за вчера" → `briefing-profiler` → strict-JSON extract → upsert the
+profile via `mcp-briefing`. Mirrors `creator-profiler`. The digest synthesis is a second skill,
+`briefing-composer`.
+
+## Golden tests — from the start (real LLM now available)
+Real model access is unblocked (local Ollama `qwen2.5:7b` via llm-gateway). Each LLM seam gets an
+**opt-in `@GoldenLlmTest`** (`libs/golden-test-support`, gated by `GOLDEN_LLM` — NOT in the default
+fast CI, which stays on the mock LLM): `GoldenBriefingProfileTest` (profiler JSON structure),
+`GoldenBriefingComposerTest` (digest structure), and a `briefing` routing golden in orchestrator.
+Assert **structure, not wording** (roadmap §Risks).
+
 ## PR slices
-- **BR-a — `mcp-weather` capability-MCP.** ✅ **(this PR)** New `shared/mcp/mcp-weather` (port 8113).
-  Tool `forecast(latitude, longitude)` → today's `Weather{tempMax/Min, precipitationProbability,
-  windSpeedMax, weatherCode, summary, date}` over **Open-Meteo** (free, no API key, no quota) behind
-  a swappable `WeatherSource` (`weather.source=open-meteo` default). `/internal/forecast` HTTP
-  passthrough (MockWebServer-testable; MCP/SSE can't be mocked). No DB, no backing container. Mirrors
-  `mcp-market-data`. Lat/lon are caller-supplied (the agent resolves them from config/profile later)
-  — keeps the capability narrow and schema-less.
-- **BR-b — `briefing-agent` scaffold + digest flow.** New `domains/briefing/briefing-agent`
-  (port 8114). Binds `mcp-weather` + `mcp-web`; reads calendar-today via `mcp-caldav /internal` and a
-  finance snapshot via `mcp-finance /internal`. A `digest` trigger gathers all four on the
-  `Coordinator` → one synthesis via a `briefing-composer` SKILL → reply text. Registered in
-  orchestrator as `briefing`. (No render yet.)
-- **BR-c — HTML digest board.** Map the synthesis → a `doc-render` `Doc` (sections: weather / agenda /
-  finance / news with provenance links) → store in media-service → reply with the link.
-- **BR-d — scheduler wake + delivery + E2E closer.** A default morning schedule wakes the agent; the
-  digest is pushed via `notifier-service`. `E2EBriefingWakeFlowTest` (scheduler → orchestrator →
-  briefing trigger → notifier), asserting the contracts survive each hop.
+- **BR-a — `mcp-weather` capability-MCP.** ✅ **DONE (PR #235).** `shared/mcp/mcp-weather` (port 8113);
+  `forecast(latitude, longitude)` → today's `Weather` over **Open-Meteo** (free, no key) behind a
+  swappable `WeatherSource`; `/internal/forecast` passthrough. No DB, no backing container.
+- **BR-b — `mcp-briefing` domain-MCP + `briefing` schema.** ✅ **DONE.** `domains/briefing/mcp-briefing`
+  (port **8114**). `briefing.briefing_profile` (location/interests/sections/schedule, keyed
+  `(household, owner)`) + `setBriefingProfile` / `getBriefingProfile` / `listScheduledProfiles` tools +
+  `/internal/briefing-profile` upsert/resolve (+ `/scheduled`). Liquibase `070-briefing.yml`. Mirrors
+  `mcp-creator`. The personalization store. (`briefing-agent` → port **8115** in BR-c.)
+- **BR-c — `briefing-agent` scaffold + `briefing-profiler` skill.** New `domains/briefing/briefing-agent`.
+  Binds `mcp-briefing`. A profile cue → `briefing-profiler` extract (incl. **city → geocode** via a new
+  `mcp-weather.geocode` tool) → upsert. Registered in orchestrator as `briefing`. + `GoldenBriefingProfileTest`.
+- **BR-d — `digest` flow.** Resolve the profile → gather the enabled sections (weather via profile
+  lat/lon, calendar-today via `mcp-caldav /internal`, finance snapshot via `mcp-finance /internal`,
+  news via `mcp-web.web_search` per interest) in parallel on the `Coordinator` → one `briefing-composer`
+  synthesis → reply text. + `GoldenBriefingComposerTest`.
+- **BR-e — HTML digest board.** Map the synthesis → a `doc-render` `Doc` (weather / agenda / finance /
+  news sections + provenance links) → store in media-service → reply with the link.
+- **BR-f — scheduler wake + delivery + E2E closer.** The profile `schedule` drives a per-person
+  morning wake → orchestrator → briefing trigger → `notifier-service`. `E2EBriefingWakeFlowTest`
+  (scheduler → orchestrator → briefing → notifier), asserting the contracts survive each hop.
 
 ## Deferred
 - **`chart-render` capability** (data → PNG/SVG) — the finance snapshot sparkline / week-ahead bar.
   First shared with finance year-analysis; out of the MVP critical path.
-- **Per-person digests** (own vs household agenda) — tracks the same calendar visibility gap as
-  feeds; household-level for now.
-- **Configurable sections / per-user schedule + location** — a `briefing` profile (like diet/style/
-  creator tracks) once the MVP proves the wire. MVP reads location from agent config.
+- **Per-person _content_ filtering** (own vs shared agenda) — tracks the same calendar visibility gap
+  as feeds; household-level for now.
