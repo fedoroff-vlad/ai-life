@@ -175,16 +175,22 @@ plus the orchestrator now have golden coverage.** They share their plumbing via 
 Run them against local Ollama (free):
 
 ```sh
-# 1. a model — local Ollama with qwen2.5:7b pulled (chat) + nomic-embed-text (embeddings).
-#    NOTE: point Ollama's model dir at the models ROOT (…/.ollama/models), not a sub-folder.
-ollama list            # must show qwen2.5:7b
+# 1. bring Ollama up. The CLI `ollama serve` resolves models from the default root
+#    (…/.ollama/models) — no OLLAMA_MODELS override needed (that misconfig is specific to the
+#    tray app, not the CLI). Leave it running in its own terminal / background:
+ollama serve &                 # starts the daemon on 127.0.0.1:11434
+ollama list                    # must show qwen2.5:7b (chat) + nomic-embed-text (embeddings)
+#    If a model is missing: `ollama pull qwen2.5:7b` / `ollama pull nomic-embed-text`.
 
-# 2. a llm-gateway pointed at it (bare JVM → Ollama on localhost). On a CPU box raise the upstream
-#    timeout — a 7B generating multi-item JSON (the skill golden tests) exceeds the 60 s default:
+# 2. build + start a llm-gateway pointed at it (bare JVM → Ollama on localhost). On a CPU box raise
+#    the upstream timeout — a 7B generating multi-item JSON (the skill golden tests) exceeds the 60 s
+#    default. (`java` must be on PATH; from a bare shell without it, use "$JAVA_HOME/bin/java".)
+mvn -q -pl platform/llm-gateway -am -DskipTests package     # builds target/llm-gateway.jar
 LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
 LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b \
 LLM_EMBEDDING_MODEL=nomic-embed-text LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
   java -jar platform/llm-gateway/target/llm-gateway.jar
+#    Wait for health: curl -s http://localhost:8081/actuator/health   # {"status":"UP"}
 
 # 3. the golden tests, pointed at the gateway:
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
@@ -205,6 +211,8 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/stylist/stylist-agent -Dtest=GoldenWardrobeAuditTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/creator/creator-agent -Dtest=GoldenCreatorProfileTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/briefing/briefing-agent -Dtest=GoldenBriefingProfileTest test
 ```
 
 > The golden tests share their plumbing via **`libs/golden-test-support`** — the `@GoldenLlmTest` gate
@@ -230,9 +238,12 @@ symbol as well as the `EUR` code — both satisfy the "show the currency" rule).
 ## Run locally
 
 ```sh
-mvn -B -pl platform/llm-gateway -am spring-boot:run
-# or
-mvn -B -pl platform/llm-gateway -am package && \
+# Build deps first (-am), then run the single module WITHOUT -am. `-am spring-boot:run` fails with
+# "Unable to find a suitable main class" — with -am the run goal targets the parent reactor (no main).
+mvn -B -pl platform/llm-gateway -am -DskipTests install
+mvn -B -pl platform/llm-gateway spring-boot:run
+# or run the packaged jar:
+mvn -B -pl platform/llm-gateway -am -DskipTests package && \
 java -jar platform/llm-gateway/target/llm-gateway.jar
 ```
 
