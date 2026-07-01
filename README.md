@@ -4,7 +4,7 @@ Personal AI agents system for a 2-person household.
 Telegram entry → orchestrator → domain agents → narrow MCP servers → Postgres.
 Local-first deployment (target: Mac Studio 128 GB), Java / Spring Boot.
 
-> **Status:** Foundation (Stage 0–4) closed; **Stage 6 domain agents complete** — calendar, finance, tasks, researcher, stylist, nutrition (nutritionist + chef), creator, all MVP-done. **Stage 5 (real LLM) UNBLOCKED ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199), closed)** — validated on local Ollama (`qwen2.5:7b`): opt-in, CI-skipped **golden tests** (structure-not-text) cover the whole behavioural surface — agent + tool routing, JSON-skill output, free-text synthesis — across all 8 agents + the orchestrator, sharing `libs/golden-test-support`. Latest reporting follow-up: finance ships a Telegram monthly report ([#196](https://github.com/fedoroff-vlad/ai-life/issues/196): Grafana dashboards + `monthly-report` skill). Next is owner's pick — a future agent (each a [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue) or a UI/reporting follow-up (e.g. calendar web view #195). See [`docs/REFERENCE.md`](docs/REFERENCE.md) for the overview, [`plans/STATUS.md`](plans/STATUS.md) for in-flight detail, and [`CLAUDE.md`](CLAUDE.md) for conventions + authorization.
+> **Status:** Foundation (Stage 0–4) closed; **Stage 6 domain agents complete** — calendar, finance, tasks, researcher, stylist, nutrition (nutritionist + chef), creator, all MVP-done. **Stage 5 (real LLM) UNBLOCKED ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199), closed)** — validated on local Ollama (`qwen2.5:7b`): opt-in, CI-skipped **golden tests** (structure-not-text) cover the whole behavioural surface — agent + tool routing, JSON-skill output, free-text synthesis — across all 8 agents + the orchestrator, sharing `libs/golden-test-support`. Latest reporting follow-up: finance ships a Telegram monthly report ([#196](https://github.com/fedoroff-vlad/ai-life/issues/196): Grafana dashboards + `monthly-report` skill). **In flight:** the first future agent, **briefing-agent** ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186), morning digest) — personalization store + NL config flow done (mcp-weather + mcp-briefing + briefing-agent, golden-verified on local Ollama); the digest gather→synthesize + scheduled delivery are next. Owner's future-agent order: briefing → docs (#188) → health (#187) → family-memory (#189). See [`docs/REFERENCE.md`](docs/REFERENCE.md) for the overview, [`plans/STATUS.md`](plans/STATUS.md) for in-flight detail, and [`CLAUDE.md`](CLAUDE.md) for conventions + authorization.
 
 ## Stack
 - Java 21 LTS, Maven 3.9+, Spring Boot 3.4.x, Spring AI (MCP).
@@ -35,9 +35,10 @@ ai-life/
 │   ├── researcher/          researcher-agent
 │   ├── stylist/             stylist-agent, mcp-wardrobe, skills/
 │   ├── nutrition/           nutritionist-agent, chef-agent, mcp-nutrition, skills/
-│   └── creator/             creator-agent, mcp-creator, skills/
+│   ├── creator/             creator-agent, mcp-creator, skills/
+│   └── briefing/            briefing-agent, mcp-briefing, skills/ (🚧 in progress, #186)
 ├── shared/                  shared RUNTIME capabilities any agent binds:
-│   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen,
+│   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)
 └── infra/                   docker-compose, liquibase, postgres init, .env.example
 ```
