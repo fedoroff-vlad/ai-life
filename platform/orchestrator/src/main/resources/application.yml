@@ -30,6 +30,8 @@ orchestrator:
       base-url: ${CHEF_AGENT_URL:http://chef-agent:8106}
     - name: creator
       base-url: ${CREATOR_AGENT_URL:http://creator-agent:8109}
+    - name: briefing
+      base-url: ${BRIEFING_AGENT_URL:http://briefing-agent:8115}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
