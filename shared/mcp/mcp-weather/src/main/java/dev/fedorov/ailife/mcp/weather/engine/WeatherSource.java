@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.mcp.weather.engine;
 
+import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import reactor.core.publisher.Mono;
 
@@ -13,4 +14,11 @@ import reactor.core.publisher.Mono;
 public interface WeatherSource {
 
     Mono<Weather> forecast(double latitude, double longitude);
+
+    /**
+     * Resolve a stated place/city name to a {@link GeoLocation} (coordinates + canonical name +
+     * timezone). {@code language} is an optional ISO-639 hint. Returns a {@link GeoLocation} with null
+     * fields when the source finds no match (not an error).
+     */
+    Mono<GeoLocation> geocode(String name, String language);
 }

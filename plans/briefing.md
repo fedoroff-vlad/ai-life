@@ -56,9 +56,13 @@ Assert **structure, not wording** (roadmap §Risks).
   `(household, owner)`) + `setBriefingProfile` / `getBriefingProfile` / `listScheduledProfiles` tools +
   `/internal/briefing-profile` upsert/resolve (+ `/scheduled`). Liquibase `070-briefing.yml`. Mirrors
   `mcp-creator`. The personalization store. (`briefing-agent` → port **8115** in BR-c.)
-- **BR-c — `briefing-agent` scaffold + `briefing-profiler` skill.** New `domains/briefing/briefing-agent`.
-  Binds `mcp-briefing`. A profile cue → `briefing-profiler` extract (incl. **city → geocode** via a new
-  `mcp-weather.geocode` tool) → upsert. Registered in orchestrator as `briefing`. + `GoldenBriefingProfileTest`.
+- **BR-c1 — `geocode` tool in `mcp-weather`.** ✅ **DONE.** `geocode(name, language)` → `GeoLocation`
+  {name/country/lat/lon/timezone} over Open-Meteo Geocoding (free, no key) + `/internal/geocode`
+  passthrough. The city→coordinates step the profiler needs.
+- **BR-c2 — `briefing-agent` scaffold + `briefing-profiler` skill.** New `domains/briefing/briefing-agent`
+  (port 8115). Binds `mcp-briefing` + `mcp-weather`. A profile cue → `briefing-profiler` extract (incl.
+  **city → geocode**) → upsert via `/internal/briefing-profile`. Registered in orchestrator as
+  `briefing`. + `GoldenBriefingProfileTest`.
 - **BR-d — `digest` flow.** Resolve the profile → gather the enabled sections (weather via profile
   lat/lon, calendar-today via `mcp-caldav /internal`, finance snapshot via `mcp-finance /internal`,
   news via `mcp-web.web_search` per interest) in parallel on the `Coordinator` → one `briefing-composer`

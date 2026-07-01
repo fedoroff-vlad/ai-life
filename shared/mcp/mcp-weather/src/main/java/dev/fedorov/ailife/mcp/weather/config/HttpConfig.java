@@ -16,4 +16,13 @@ public class HttpConfig {
                 .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-weather 0.0.1")
                 .build();
     }
+
+    /** Resolves a city name to coordinates via Open-Meteo Geocoding ({@code /v1/search?name=...}). */
+    @Bean
+    public WebClient geocodeWebClient(McpWeatherProperties props, WebClient.Builder builder) {
+        return builder.clone()
+                .baseUrl(props.getGeocodeUrl())
+                .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-weather 0.0.1")
+                .build();
+    }
 }
