@@ -30,6 +30,7 @@ agent:
 docs-agent:
   mcp-docs-url: ${MCP_DOCS_URL:http://mcp-docs:8116}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+  public-media-base-url: ${DOCS_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}

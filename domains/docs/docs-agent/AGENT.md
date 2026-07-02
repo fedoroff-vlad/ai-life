@@ -8,6 +8,7 @@ mcp:
   - mcp-media-processing
 skills:
   - doc-archiver
+  - doc-finder
 intents:
   - example: Сохрани этот документ в архив (photo attached)
     description: Archive an inbound document photo — OCR, extract metadata, store it.
@@ -15,6 +16,10 @@ intents:
     description: Archive a document photo with the user's caption as a hint.
   - example: Save this warranty (photo attached)
     description: Archive a document photo into the personal archive.
+  - example: Найди мой договор аренды
+    description: Find an archived document by "find my X" — search the archive and return the matches with open links.
+  - example: Где гарантия на холодильник?
+    description: Find an archived document and return an open link to it.
 ---
 
 You are the docs agent for the ai-life system — a personal document archive. You help a household keep

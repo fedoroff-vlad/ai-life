@@ -14,12 +14,23 @@ public class DocsAgentProperties implements SharedClientProperties {
 
     private String mcpDocsUrl = "http://mcp-docs:8116";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
+    private String publicMediaBaseUrl = "http://media-service:8088";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
 
     public String getMcpDocsUrl() { return mcpDocsUrl; }
     public void setMcpDocsUrl(String mcpDocsUrl) { this.mcpDocsUrl = mcpDocsUrl; }
+
+    /**
+     * Public base URL a stored document's open-link is built from ({@code <base>/v1/media/{mediaId}}),
+     * so a search hit can be opened on any device. Defaults to the internal media-service URL; set to a
+     * publicly-reachable gateway base in a real deployment (mirrors briefing's public-media-base-url).
+     */
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {
+        this.publicMediaBaseUrl = publicMediaBaseUrl;
+    }
 
     public String getMcpMediaProcessingUrl() { return mcpMediaProcessingUrl; }
     public void setMcpMediaProcessingUrl(String mcpMediaProcessingUrl) {

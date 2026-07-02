@@ -33,6 +33,6 @@ class ManifestControllerTest {
         assertThat(manifest).isNotNull();
         assertThat(manifest.name()).isEqualTo("docs");
         assertThat(manifest.mcp()).contains("mcp-docs", "mcp-media-processing");
-        assertThat(manifest.skills()).contains("doc-archiver");
+        assertThat(manifest.skills()).contains("doc-archiver", "doc-finder");
     }
 }
