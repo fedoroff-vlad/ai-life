@@ -62,12 +62,16 @@ wording**.
   → reply lists the matches (title, type, date, party) each with an open link
   (`<public-media-base>/v1/media/{mediaId}`). Trigram search only here; the memory-service semantic
   recall lands in D-e. Tests: `DocFinderTest` (2, MockWebServer) + `GoldenDocFinderTest` (opt-in).
-- **D-e — semantic index via memory-service (closer). ⬜ NEXT.** On `saveDocument` the agent writes the OCR
-  text to memory-service scoped `docs` (`ownerId`, `kind=document`, `refId=documentId`), so
-  `doc-finder` recall returns fuzzy matches the trigram search misses. Soft-fail on the memory write
-  (the document is still saved + text-searchable). Mandatory **E2E closer**
-  `E2EDocsIngestSearchFlowTest`: inbound photo → agent → ocr passthrough (MockWebServer forward) →
-  save → search returns it, asserting the `libs/contracts` DTOs survive each hop. **Closes #188.**
+- **D-e — semantic index via memory-service (closer). ✅ DONE (PR #256).** On `saveDocument` the agent
+  seeds the OCR text to memory-service scoped `docs` (`ownerId`, metadata `{kind:document,
+  refId:documentId}`) via the new shared `MemoryClient.remember` (`POST /v1/memories`), so `doc-finder`
+  runs the trigram search **and** a memory-service recall in parallel — recall hits resolve their
+  `refId` to rows via `GET /internal/documents/{id}`, merged + de-duplicated by id — returning fuzzy
+  matches the literal trigram search misses. Both the seed and each search source soft-fail
+  independently (the document is still saved + text-searchable if memory is down). E2E closer
+  `E2EDocsIngestSearchFlowTest`: inbound photo → ocr → save → seed, then a search where the trigram
+  returns nothing and the document is recovered purely by the semantic path, asserting the
+  `libs/contracts` DTOs survive each hop. **Closes #188.**
 
 ## Deferred
 - **PDF / multi-page documents.** `mcp-media-processing.ocr` decodes a single image via `ImageIO`;

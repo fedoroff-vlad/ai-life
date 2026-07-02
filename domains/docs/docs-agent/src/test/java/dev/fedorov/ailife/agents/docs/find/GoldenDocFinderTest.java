@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.docs.find;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
@@ -43,6 +44,7 @@ class GoldenDocFinderTest {
 
     private final ObjectMapper json = new ObjectMapper();
     private final DocumentClient documents = mock(DocumentClient.class);
+    private final MemoryClient memory = mock(MemoryClient.class);
     private final AgentManifest manifest = new AgentManifest(
             "docs", "docs agent", "0.1.0", 8117,
             List.of(), List.of(),
@@ -52,7 +54,7 @@ class GoldenDocFinderTest {
             GoldenLlm.skill(GoldenDocFinderTest.class.getClassLoader(),
                     "skills/docs/doc-finder/SKILL.md")));
     private final DocFinder finder =
-            new DocFinder(documents, GoldenLlm.client(), skills, manifest, json, new DocsAgentProperties());
+            new DocFinder(documents, memory, GoldenLlm.client(), skills, manifest, json, new DocsAgentProperties());
 
     /**
      * STRUCTURE — the real model, given the real finder prompt and a "find my X" request, must distil a
@@ -67,6 +69,7 @@ class GoldenDocFinderTest {
         when(documents.search(any(), any(), any(), any())).thenReturn(Mono.just(List.of(new DocumentDto(
                 UUID.randomUUID(), household, user, "media-1", "contract", "Договор аренды",
                 "ООО Ромашка", LocalDate.of(2026, 1, 15), null, null, "договор аренды", null, Instant.now()))));
+        when(memory.recall(any(), any(), any(), any())).thenReturn(Mono.just(List.of()));
 
         var msg = GoldenLlm.message(household, user, "найди мой договор аренды квартиры за прошлый год");
 

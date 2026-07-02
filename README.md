@@ -37,7 +37,7 @@ ai-life/
 │   ├── nutrition/           nutritionist-agent, chef-agent, mcp-nutrition, skills/
 │   ├── creator/             creator-agent, mcp-creator, skills/
 │   ├── briefing/            briefing-agent, mcp-briefing, skills/ (✅ done, #186)
-│   └── docs/                docs-agent, mcp-docs, skills/ (🚧 D-a..D-d done, #188)
+│   └── docs/                docs-agent, mcp-docs, skills/ (✅ done, #188)
 ├── shared/                  shared RUNTIME capabilities any agent binds:
 │   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)

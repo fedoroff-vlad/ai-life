@@ -37,6 +37,15 @@ public class DocumentClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
+    /** One archived document by id (D-e: resolving a semantic-recall hit's {@code refId}). */
+    public Mono<DocumentDto> get(UUID id) {
+        return http.get()
+                .uri("/internal/documents/{id}", id)
+                .retrieve()
+                .bodyToMono(DocumentDto.class)
+                .timeout(Duration.ofSeconds(10));
+    }
+
     /** Free-text search over a household's documents (D-d); an empty result is an empty list. */
     public Mono<List<DocumentDto>> search(UUID householdId, String query, String docType, Integer limit) {
         return http.get()

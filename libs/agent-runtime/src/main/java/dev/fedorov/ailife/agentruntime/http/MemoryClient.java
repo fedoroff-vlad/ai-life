@@ -1,9 +1,11 @@
 package dev.fedorov.ailife.agentruntime.http;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agentruntime.config.AgentRuntimeProperties;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
+import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.message.MessageReceivedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,6 +114,38 @@ public class MemoryClient {
                     return Mono.empty();
                 })
                 .subscribe();
+    }
+
+    /**
+     * Durably index a piece of text at memory-service's semantic store
+     * ({@code POST /v1/memories}) so a later {@link #recall} can surface it. Unlike
+     * {@link #observe} — which asks memory-service to EXTRACT durable facts from a piece of
+     * dialogue — this stores {@code text} verbatim under {@code source} with optional
+     * {@code metadata} (e.g. a {@code {kind, refId}} back-pointer to the owning row), because
+     * the caller already holds the exact corpus to embed (a document's OCR text, say).
+     *
+     * <p>Enrichment, not the source of truth: returns a {@code Mono<Void>} that soft-fails to
+     * empty on any error / 500 ms timeout so the caller can compose it into a write flow without
+     * a memory-service outage sinking the primary write. Empty (no-op) on missing household or
+     * blank text — same posture as {@link #recall}.
+     */
+    public Mono<Void> remember(UUID householdId, UUID userId, String source, String text, JsonNode metadata) {
+        if (householdId == null || text == null || text.isBlank()) {
+            return Mono.empty();
+        }
+        return http.post()
+                .uri("/v1/memories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new WriteMemoryRequest(householdId, userId, null, source, text, metadata))
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(TIMEOUT)
+                .then()
+                .onErrorResume(e -> {
+                    log.warn("memory remember failed for household={} source={}: {}",
+                            householdId, source, e.toString());
+                    return Mono.empty();
+                });
     }
 
     private static PersonRelationsResponse emptyRelations(UUID personId) {
