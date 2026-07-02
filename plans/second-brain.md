@@ -138,10 +138,12 @@ adds behaviour-change logic — a consumer of the second brain exactly like ever
 exist so its corpus is ready when it lands.
 
 ## Phased slices (each = one small vertical slice / PR unless noted)
-- **SB-1 — `memory.note` store + notes CRUD on memory-service.** New `memory.note` table (Liquibase
-  `090-memory-note.yml`, `memory` schema). `POST/GET/PUT/DELETE /v1/notes` + the `NoteDto` contract per
-  the Note-format manifest above. No embedding/graph wiring yet — just the durable authored row.
-  Slice-tested.
+- **SB-1 — `memory.note` store + notes CRUD on memory-service. ✅ DONE (PR #260).** `memory.note` table
+  (Liquibase `090-memory-note.yml`, existing `memory` schema) + `NoteDto`/`WriteNoteRequest` contracts +
+  `NoteRow`/`NoteRepository`/`NoteService`/`NoteController` = `POST/GET/PUT/DELETE /v1/notes` (+ list).
+  Per the manifest: `id`≠`title` anchor, null owner = household-shared, blank `type`→`fact`, null
+  `source`→`user`, tags/frontmatter jsonb. No embedding/graph wiring yet — just the durable authored row.
+  `NotesIntegrationTest` (6, Testcontainers); full memory-service suite green.
 - **SB-2 — auto-seed recall on note write.** On create/update, embed `body_md` into `memory.memories`
   (`source=note`, `{kind:note, refId}`); on delete, forget it. Reuses `EmbeddingClient` + `MemoryService`.
   This makes notes recallable via the existing `/v1/memories/recall`. Mirrors docs-agent D-e's seed,
