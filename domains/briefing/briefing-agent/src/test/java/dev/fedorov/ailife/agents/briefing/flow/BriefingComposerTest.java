@@ -9,6 +9,7 @@ import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
@@ -50,6 +51,7 @@ class BriefingComposerTest {
     static MockWebServer mcpCaldav;
     static MockWebServer mcpFinance;
     static MockWebServer mcpWeb;
+    static MockWebServer mediaService;
     static MockWebServer llmGateway;
 
     @BeforeAll
@@ -59,12 +61,14 @@ class BriefingComposerTest {
         mcpCaldav = new MockWebServer();
         mcpFinance = new MockWebServer();
         mcpWeb = new MockWebServer();
+        mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
         mcpBriefing.start();
         mcpWeather.start();
         mcpCaldav.start();
         mcpFinance.start();
         mcpWeb.start();
+        mediaService.start();
         llmGateway.start();
     }
 
@@ -75,6 +79,7 @@ class BriefingComposerTest {
         mcpCaldav.shutdown();
         mcpFinance.shutdown();
         mcpWeb.shutdown();
+        mediaService.shutdown();
         llmGateway.shutdown();
     }
 
@@ -85,6 +90,8 @@ class BriefingComposerTest {
         r.add("briefing-agent.mcp-caldav-url", () -> "http://localhost:" + mcpCaldav.getPort());
         r.add("briefing-agent.mcp-finance-url", () -> "http://localhost:" + mcpFinance.getPort());
         r.add("briefing-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
+        r.add("briefing-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("briefing-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -114,13 +121,22 @@ class BriefingComposerTest {
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Доброе утро! Погода ясная, есть встречи и расходы.", "stop",
                 new LlmUsage(200, 80, 280)))));
+        UUID storedId = UUID.randomUUID();
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                storedId, householdId, userId, "file", "text/html", 4096, "sha", "briefing", Instant.now()))));
 
         NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
                 "собери мне брифинг на сегодня", List.of(), "telegram", "80", Instant.now());
 
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
-        assertThat(resp.text()).isEqualTo("Доброе утро! Погода ясная, есть встречи и расходы.");
+        // The synthesized text plus the stored board link (BR-e).
+        assertThat(resp.text()).contains("Доброе утро! Погода ясная, есть встречи и расходы.")
+                .contains(storedId.toString());
+
+        // The rendered board (text/html) was uploaded to media-service.
+        RecordedRequest mediaReq = mediaService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(mediaReq.getPath()).isEqualTo("/v1/media");
 
         // The one synthesis turn carried every gathered section (weather + agenda + finance + news).
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
@@ -149,13 +165,17 @@ class BriefingComposerTest {
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Сегодня: приём и расходы на транспорт.", "stop",
                 new LlmUsage(120, 40, 160)))));
+        UUID storedId = UUID.randomUUID();
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                storedId, householdId, userId, "file", "text/html", 2048, "sha", "briefing", Instant.now()))));
 
         NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
                 "брифинг на сегодня", List.of(), "telegram", "81", Instant.now());
 
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
-        assertThat(resp.text()).isEqualTo("Сегодня: приём и расходы на транспорт.");
+        assertThat(resp.text()).contains("Сегодня: приём и расходы на транспорт.")
+                .contains(storedId.toString());
 
         // Weather + news were skipped entirely (no coords / no interests) — those servers got no request.
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
@@ -19,6 +20,7 @@ import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
+import dev.fedorov.ailife.docrender.Doc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -43,7 +45,10 @@ import java.util.Set;
  * parallel over the deterministic {@code /internal/*} read passthroughs — weather for the profile's
  * geocoded coordinates, today's agenda from mcp-caldav, yesterday's spend snapshot from mcp-finance, and
  * news headlines from mcp-web (one search per interest) — then (3) folds them into a {@code context} and
- * runs <b>one</b> {@code briefing-composer} LLM synthesis on the shared {@link Coordinator}.
+ * runs <b>one</b> {@code briefing-composer} LLM synthesis on the shared {@link Coordinator}, and (4)
+ * renders the synthesis into an HTML digest board (the synthesized text as a section + the news links as
+ * grounded provenance) via the shared {@link DeliverablePublisher}, stores it in media-service, and
+ * appends the open-link to the reply (BR-e). A store failure soft-fails to the text-only reply.
  *
  * <p><b>Token economy is structural:</b> steps 1–2 are plain HTTP (no model cost); only step 3 hits the
  * LLM, synthesizing a pre-gathered corpus rather than "browsing". Per-source soft-fail is built into the
@@ -61,6 +66,8 @@ public class BriefingComposer {
     /** Bound the news fan-out so the digest stays cheap + fast (one search per topic). */
     private static final int MAX_TOPICS = 3;
     private static final int NEWS_PER_TOPIC = 3;
+    /** Cap the board's provenance link list (the gathered news headlines). */
+    private static final int MAX_LINKS = 8;
 
     private final Coordinator coordinator;
     private final BriefingProfileClient profiles;
@@ -68,6 +75,7 @@ public class BriefingComposer {
     private final CalendarEventsClient calendar;
     private final FinanceSnapshotClient finance;
     private final NewsSearchClient news;
+    private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -78,6 +86,7 @@ public class BriefingComposer {
                             CalendarEventsClient calendar,
                             FinanceSnapshotClient finance,
                             NewsSearchClient news,
+                            DeliverablePublisher publisher,
                             SkillRegistry skills,
                             AgentManifest manifest,
                             ObjectMapper json) {
@@ -87,6 +96,7 @@ public class BriefingComposer {
         this.calendar = calendar;
         this.finance = finance;
         this.news = news;
+        this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -147,11 +157,68 @@ public class BriefingComposer {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .map(r -> reply(r.text(), r.llmModel()))
+                .flatMap(r -> publishBoard(msg, today, r.text(), r.gathered())
+                        .map(link -> reply(withLink(r.text(), link), r.llmModel()))
+                        .onErrorResume(e -> {
+                            // A media/render hiccup must not sink the digest — hand back the text alone.
+                            log.warn("briefing board store failed: {}", e.toString());
+                            return Mono.just(reply(r.text(), r.llmModel()));
+                        }))
                 .onErrorResume(e -> {
                     log.warn("briefing synthesis failed: {}", e.toString());
                     return Mono.just(reply("Собрал данные, но не смог оформить брифинг. Попробуйте позже.", null));
                 });
+    }
+
+    /** Render the synthesized text (+ the gathered news links as provenance) to an HTML board, store it. */
+    private Mono<String> publishBoard(NormalizedMessage msg, LocalDate today, String text, JsonNode gathered) {
+        Doc.Builder b = Doc.builder("Брифинг на сегодня")
+                .kicker("Утро · Брифинг · " + today)
+                .subtitle("Погода · повестка · финансы · новости")
+                .section("Сегодня", DeliverablePublisher.splitParagraphs(text));
+        for (Doc.LinkItem l : newsLinks(gathered)) {
+            b.link(l.label(), l.url(), l.note());
+        }
+        return publisher.publish(msg.householdId(), msg.userId(), b.build());
+    }
+
+    /** Flatten {@code context.news[].hits[]} into a deduped, capped provenance link list for the board. */
+    private List<Doc.LinkItem> newsLinks(JsonNode gathered) {
+        List<Doc.LinkItem> links = new ArrayList<>();
+        if (gathered == null) {
+            return links;
+        }
+        JsonNode newsArr = gathered.get("news");
+        if (newsArr == null || !newsArr.isArray()) {
+            return links;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (JsonNode topic : newsArr) {
+            JsonNode hits = topic.get("hits");
+            if (hits == null || !hits.isArray()) {
+                continue;
+            }
+            for (JsonNode hit : hits) {
+                String url = hit.hasNonNull("url") ? hit.get("url").asText() : null;
+                if (url == null || url.isBlank() || !seen.add(url)) {
+                    continue;
+                }
+                String title = hit.hasNonNull("title") ? hit.get("title").asText() : url;
+                String snippet = hit.hasNonNull("snippet") ? hit.get("snippet").asText() : null;
+                links.add(new Doc.LinkItem(title, url, snippet));
+                if (links.size() >= MAX_LINKS) {
+                    return links;
+                }
+            }
+        }
+        return links;
+    }
+
+    private static String withLink(String text, String link) {
+        if (link == null || link.isBlank()) {
+            return text;
+        }
+        return text + "\n\nОткрыть брифинг: " + link;
     }
 
     /** One search per interest, folded into an array of {@code {topic, hits:[{title, url, snippet}]}}. */

@@ -73,8 +73,12 @@ Assert **structure, not wording** (roadmap §Risks).
   coordinates and news needs ≥1 interest else those steps skip; household-scoped agenda/finance for now.
   `flow/BriefingComposer` + `briefing-composer` SKILL. Tests: `BriefingComposerTest` (2, MockWebServer) +
   `GoldenBriefingComposerTest` (opt-in real Ollama, cites only corpus links).
-- **BR-e — HTML digest board.** Map the synthesis → a `doc-render` `Doc` (weather / agenda / finance /
-  news sections + provenance links) → store in media-service → reply with the link.
+- **BR-e — HTML digest board.** ✅ **DONE.** The `briefing-composer` synthesis → a `doc-render` `Doc`
+  (synthesized text as a section + the gathered news headlines as grounded provenance links) via the
+  shared `DeliverablePublisher` → stored in media-service → the open-link appended to the reply. A
+  render/store hiccup soft-fails to the text-only reply. Same board seam as creator/chef/nutrition
+  (`MediaStoreClient` + `DeliverablePublisher`, default editorial theme). `flow/BriefingComposer`
+  (`publishBoard`/`newsLinks`). Covered by `BriefingComposerTest` (board stored + link in reply).
 - **BR-f — scheduler wake + delivery + E2E closer.** The profile `schedule` drives a per-person
   morning wake → orchestrator → briefing trigger → `notifier-service`. `E2EBriefingWakeFlowTest`
   (scheduler → orchestrator → briefing → notifier), asserting the contracts survive each hop.

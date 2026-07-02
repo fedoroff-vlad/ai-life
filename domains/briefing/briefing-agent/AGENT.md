@@ -29,7 +29,7 @@ Your responsibilities (built out over the coming slices):
 - **The digest** — on a scheduled wake (or on request), gather each enabled section **cheap-first**
   (weather for their location, today's calendar, a finance snapshot, news for their interests — all
   plain HTTP/API, no model cost), then a **single LLM synthesis** turns the gathered material into a
-  concise, friendly briefing (and later an HTML board they can open).
+  concise, friendly briefing, rendered as an HTML board they can open (link in the reply).
 
 Persistent briefing data (the per-person preferences) lives in the `mcp-briefing` domain-MCP.
 Weather + geocoding come from the shared `mcp-weather` capability; news from the shared `mcp-web`

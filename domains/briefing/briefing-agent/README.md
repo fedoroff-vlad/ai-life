@@ -7,10 +7,10 @@ multi-domain **read** coordinator (gather → synthesize on the shared `Coordina
 `mcp-briefing` domain-MCP; binds the shared `mcp-weather` (weather + geocoding) and `mcp-web` (news).
 Routes via the orchestrator (registered as `briefing`). See [plans/briefing.md](../../../plans/briefing.md).
 
-## Status (through BR-d)
+## Status (through BR-e)
 
 Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as system prompt) + the
-**briefing-preferences flow** (BR-c) + the **digest flow** (BR-d):
+**briefing-preferences flow** (BR-c) + the **digest flow** (BR-d) + its **HTML board** (BR-e):
 - **BR-c — briefing profile. DONE.** A typed config message with a preferences cue ("настрой брифинг",
   "показывай мне утром…", "set up my briefing") → one LLM extract via the `briefing-profiler` SKILL →
   if a city was stated, one `mcp-weather` geocode resolves it to coordinates + timezone → upsert the
@@ -22,13 +22,18 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
   today's agenda from `mcp-caldav`, yesterday's spend snapshot from `mcp-finance`, news from `mcp-web`
   — one search per interest) → **one** `briefing-composer` LLM synthesis on the shared `Coordinator`.
   Per-source soft-fail; weather needs coordinates and news needs ≥1 interest, else those steps skip.
-  Household-scoped agenda/finance for now. `flow/BriefingComposer`. The digest is text-only here — an
-  HTML board (BR-e) + scheduled wake/delivery (BR-f) come next.
+  Household-scoped agenda/finance for now. `flow/BriefingComposer`.
+- **BR-e — HTML digest board. DONE.** The synthesis is rendered to an HTML board via the shared
+  `libs/doc-render` (`DeliverablePublisher` → the synthesized text as a section + the gathered news
+  headlines as grounded provenance links), stored in media-service, and the open-link is appended to
+  the reply. A render/store hiccup soft-fails to the text-only reply. Same board seam as
+  creator/chef/nutrition. Scheduled per-profile wake + delivery (BR-f) come next.
 
 ## Endpoints
 
 - `POST /agents/briefing/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's
-  entry point. Digest cue → briefing-composer; preferences cue → briefing-profiler; else chat.
+  entry point. Digest cue → briefing-composer (reply = digest text + HTML board link); preferences cue
+  → briefing-profiler; else chat.
 - `GET /agents/briefing/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 
 ## Env
@@ -41,6 +46,8 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web/news capability (BR-d news gather) |
 | `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | calendar domain-MCP — today's agenda (`/internal/events`, BR-d) |
 | `MCP_FINANCE_URL` | `http://mcp-finance:8092` | finance domain-MCP — spend snapshot (`/internal/spending-by-category`, BR-d) |
+| `MEDIA_SERVICE_URL` | `http://media-service:8088` | stores the rendered HTML digest board (BR-e) |
+| `BRIEFING_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | public base for the board open-link (`<base>/v1/media/{id}`, BR-e) |
 | `BRIEFING_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the eager MCP-SSE binding off in dev |
 | `BRIEFING_AGENT_MEMORY_RECALL_K` | `5` | memory recall fan-out |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway (chat) |
@@ -51,15 +58,17 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - `BriefingAgentApplication` — `@Import(AgentRuntimeConfig)` + `@EnableConfigurationProperties`.
 - `config/BriefingAgentProperties` — the outbound base URLs (`briefing-agent.*`).
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency (`mcpBriefing`, `mcpWeather`,
-  `mcpWeb`, `mcpCaldav`, `mcpFinance`); the shared `profile/notifier/memory` clients come from `agent-runtime`.
+  `mcpWeb`, `mcpCaldav`, `mcpFinance`, `mediaService`) + the `MediaStoreClient` / `DeliverablePublisher`
+  beans (BR-e board); the shared `profile/notifier/memory` clients come from `agent-runtime`.
 - `web/IntentController` — `POST /agents/briefing/intent`; digest cue → composer, preferences cue →
   profiler, else chat.
 - `web/ManifestController` — `GET /agents/briefing/manifest`.
 - `chat/BriefingChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `profile/BriefingProfiler` — the preferences flow: cue → LLM extract via `briefing-profiler` SKILL →
   geocode the city → upsert via `/internal/briefing-profile`.
-- `flow/BriefingComposer` — the digest flow (BR-d): resolve the profile → gather the enabled sections in
-  parallel on the `Coordinator` → one `briefing-composer` synthesis.
+- `flow/BriefingComposer` — the digest flow (BR-d/e): resolve the profile → gather the enabled sections in
+  parallel on the `Coordinator` → one `briefing-composer` synthesis → render an HTML board (news links as
+  provenance) via `DeliverablePublisher`, store in media-service, append the open-link to the reply.
 - `http/BriefingProfileClient` — `POST/GET /internal/briefing-profile` on `mcp-briefing`.
 - `http/GeocodeClient` — `POST /internal/geocode` on `mcp-weather` (city → coords + timezone; soft-fail).
 - `http/ForecastClient` — `POST /internal/forecast` on `mcp-weather` (today's weather for the profile coords).

@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.briefing.flow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
@@ -65,6 +66,7 @@ class GoldenBriefingComposerTest {
     private final CalendarEventsClient calendar = mock(CalendarEventsClient.class);
     private final FinanceSnapshotClient finance = mock(FinanceSnapshotClient.class);
     private final NewsSearchClient news = mock(NewsSearchClient.class);
+    private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
     private final AgentManifest manifest = new AgentManifest(
             "briefing", "briefing agent", "0.1.0", 8115,
             List.of(), List.of(),
@@ -74,7 +76,7 @@ class GoldenBriefingComposerTest {
             GoldenLlm.skill(GoldenBriefingComposerTest.class.getClassLoader(),
                     "skills/briefing/briefing-composer/SKILL.md")));
     private final BriefingComposer composer =
-            new BriefingComposer(coordinator, profiles, forecast, calendar, finance, news, skills, manifest, json);
+            new BriefingComposer(coordinator, profiles, forecast, calendar, finance, news, publisher, skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete four-section corpus, must
@@ -101,6 +103,9 @@ class GoldenBriefingComposerTest {
                 new SpendingByCategoryRow(UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
         when(news.search(anyString(), anyInt())).thenReturn(Mono.just(new WebSearchResult("AI", List.of(
                 new WebSearchHit("Новый ИИ-прорыв", NEWS_URL, "Исследователи представили новую модель.")))));
+        // The board store is out of scope here — fail it so the reply is the pure model synthesis, whose
+        // link provenance we assert (the happy-path board link is covered by BriefingComposerTest).
+        when(publisher.publish(any(), any(), any())).thenReturn(Mono.error(new RuntimeException("media off in golden")));
 
         IntentResponse resp = composer.digest(GoldenLlm.message(household, user, "собери мне брифинг на сегодня"))
                 .block(Duration.ofSeconds(150));
