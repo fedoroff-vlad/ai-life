@@ -86,11 +86,16 @@ Assert **structure, not wording** (roadmap §Risks).
     `TriggerControllerTest` (owner path + household fan-out + unknown kind). Orchestrator dispatch is
     already generic (by agent name → `/agents/<name>/triggers/<kind>`), so a manually-created schedule
     already drives this end to end.
-  - **BR-f2 — schedule registration + E2E closer (next).** `mcp-briefing` registers/updates/deletes a
-    per-profile cron in scheduler-service (agent=`briefing`, kind=`briefing.digest`, payload `{ownerId}`,
-    cron from the profile's `schedule` time+timezone) on `setBriefingProfile`, storing the `schedule_id`.
-    `E2EBriefingWakeFlowTest` (scheduler → orchestrator → briefing → notifier), asserting the contracts
-    survive each hop. Closes the briefing project.
+  - **BR-f2 — schedule registration + E2E closer. ✅ DONE.** `mcp-briefing.setBriefingProfile`
+    registers/updates/deletes a per-profile cron in scheduler-service (agent=`briefing`,
+    kind=`briefing.digest`, payload `{ownerId}`, cron from the profile's `schedule` time+timezone
+    converted to UTC via `toUtcDailyCron`) and stores the returned `schedule_id` on the row
+    (migration `070-briefing-schedule-id`). Register-before-delete + soft-fail mirror mcp-finance's
+    `set_budget`; DST caveat noted (fixed-UTC cron drifts an hour across transitions — MVP-acceptable).
+    New `scheduler/SchedulerClient` + `config/{McpBriefingProperties,HttpConfig}`. Tests: the register/
+    replace/delete lifecycle in `McpBriefingIntegrationTest`, `CronConversionTest` (UTC conversion), and
+    the mandatory closer `E2EBriefingWakeFlowTest` (scheduler → orchestrator → briefing-agent trigger,
+    asserting the `{ownerId}` payload survives each hop). **Closes the briefing project (#186).**
 
 ## Deferred
 - **`chart-render` capability** (data → PNG/SVG) — the finance snapshot sparkline / week-ahead bar.

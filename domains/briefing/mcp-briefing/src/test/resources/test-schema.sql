@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS briefing.briefing_profile (
     sections          jsonb,
     schedule_time     varchar(8),
     schedule_enabled  boolean,
+    schedule_id       uuid,
     notes             text,
     updated_at        timestamptz  NOT NULL DEFAULT now()
 );

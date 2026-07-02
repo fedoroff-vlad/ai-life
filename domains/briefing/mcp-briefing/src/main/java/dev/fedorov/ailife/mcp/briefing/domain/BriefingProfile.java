@@ -54,6 +54,10 @@ public class BriefingProfile {
     @Column(name = "schedule_enabled")
     private Boolean scheduleEnabled;
 
+    /** Id of the auto-registered briefing.digest cron in scheduler-service (BR-f2); internal, not in the DTO. */
+    @Column(name = "schedule_id")
+    private UUID scheduleId;
+
     @Column
     private String notes;
 
@@ -86,6 +90,7 @@ public class BriefingProfile {
     public JsonNode getSections() { return sections; }
     public String getScheduleTime() { return scheduleTime; }
     public Boolean getScheduleEnabled() { return scheduleEnabled; }
+    public UUID getScheduleId() { return scheduleId; }
     public String getNotes() { return notes; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -97,6 +102,7 @@ public class BriefingProfile {
     public void setSections(JsonNode sections) { this.sections = sections; }
     public void setScheduleTime(String scheduleTime) { this.scheduleTime = scheduleTime; }
     public void setScheduleEnabled(Boolean scheduleEnabled) { this.scheduleEnabled = scheduleEnabled; }
+    public void setScheduleId(UUID scheduleId) { this.scheduleId = scheduleId; }
     public void setNotes(String notes) { this.notes = notes; }
 
     public BriefingProfileDto toDto() {
