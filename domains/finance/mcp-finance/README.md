@@ -195,8 +195,9 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   `spending_by_category` tool (same `[from, to)` window + `kind` default of
   `expense`, empty string = all kinds; rows ordered by absolute spend
   descending). The deterministic gather path finance-agent's `financial-advisor`
-  flow calls to build a spending snapshot before the LLM synthesis. The MCP tool
-  stays the entry point for an LLM-driven question.
+  flow calls to build a spending snapshot before the LLM synthesis; `briefing-agent`
+  also reads it for yesterday's spend snapshot in its morning digest (BR-d). The MCP
+  tool stays the entry point for an LLM-driven question.
 - `POST /internal/basket-captured` (body `BasketCapturedEvent`) → 202 | 400 on
   missing `householdId`. Durable async drop-point for the **`basket.captured`**
   fan-out (IA-a): the DB-less finance-agent posts a recognised grocery basket

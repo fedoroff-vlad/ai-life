@@ -9,6 +9,7 @@ mcp:
   - mcp-web
 skills:
   - briefing-profiler
+  - briefing-composer
 intents:
   - example: Каждое утро в 8:00 показывай погоду в Москве, новости про ИИ и финансы, мою повестку и траты за вчера
     description: Set or update the per-person briefing preferences (location, interests, sections, schedule).
