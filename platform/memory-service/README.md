@@ -27,11 +27,15 @@ into a "second brain" (SB-2 will auto-seed a note's body into recall, SB-3 its
 - `POST /v1/observations` — body [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`householdId` + `text` required). The durable async **drop-point** for DB-less producers (orchestrator, agents): publishes the event onto the bus (`bus.outbox`) and returns **202** immediately — the expensive LLM extraction runs later on the consumer (`MessageCaptureHandler`) with at-least-once retry. One HTTP call, no producer-side DB; durable + structured (status-tracked outbox, not a cache that turns into a dump). 400 on missing householdId / blank text. This is the "easy push" any component uses to feed memory-from-chat.
 - **Bus consumer (`message.received`, MFC-b):** memory-service also listens on the event bus and runs the same capture off the user's request path. A producer (orchestrator) publishes a [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`message.received`) to `bus.outbox`; `MessageCaptureHandler` drains it → `CaptureService`. Retry policy mirrors notifier's consumer: a parse/validation failure is permanent (logged, row accepted); a transient write failure (embed 5xx / DB blip) re-throws so the row stays `PENDING` for the next poll. Extraction itself never throws, so an llm-gateway outage during extraction just yields zero facts (row settles `PUBLISHED`). Single-consumer bus → foreign topics are drained but ignored. **The orchestrator producer side is the next slice** — until then the topic is only exercised by direct outbox publish (and the synchronous `POST /v1/capture`).
 
-### Notes (second-brain substrate, SB-1)
+### Notes (second-brain substrate, SB-1/SB-2)
 Authored, durable, markdown notes — the knowledge-base tier the epic evolves memory-service into.
 The source of truth is the `memory.note` row; markdown is the interchange form (frontmatter → columns
-+ a `frontmatter` jsonb bag; `id`, not `title`, is the stable link/`refId` anchor). CRUD only for now —
-no embedding/graph wiring (SB-2/SB-3 add the auto-seed on write).
++ a `frontmatter` jsonb bag; `id`, not `title`, is the stable link/`refId` anchor). **SB-2 recall seed:**
+on create/update the note's `title`+`body_md` is embedded into `memory.memories` (`source=note`,
+`metadata {kind:note, refId}`) so the note is recallable via `/v1/memories/recall`; on delete the seed is
+forgotten; an update re-seeds (one memory per note). The seed is **best-effort** — the note row is
+committed first, so an llm-gateway/embed outage leaves the note un-indexed but never fails the write.
+(SB-3 will add the `[[wiki-links]]` → `memory.relations` seed.)
 - `POST /v1/notes` — body [WriteNoteRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/note/WriteNoteRequest.java) (`householdId` + `title` required; null `ownerId` = household-shared; blank `type` → `fact`, null `source` → `user`). Returns `NoteDto`.
 - `GET /v1/notes/{id}` — `NoteDto` (404 if absent).
 - `GET /v1/notes?householdId=<uuid>&limit=<n>` — most-recent notes in a household (by `updated_at`; default 20, max 100). Returns `NoteDto[]`.
@@ -76,7 +80,8 @@ no embedding/graph wiring (SB-2/SB-3 add the auto-seed on write).
 - `service/RelationService` — write/forget/personRelations + field validation.
 - `web/RelationController` — `/v1/relations` + `/v1/graph/person/{id}/relations`.
 - `domain/NoteRow` (+ `NoteRepository`) — JdbcTemplate over `memory.note` (SB-1); `tags`/`frontmatter` as jsonb; `insert`/`update`/`findById`/`listByHousehold`/`deleteById`.
-- `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`.
+- `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`. SB-2: `reseed` embeds `title`+`body` into `memory.memories` via `MemoryService.write` (`source=note`, `{kind,refId}`) on create/update and `forget` drops it on delete — best-effort, never fails the note write.
+- `MemoryRepository.deleteBySourceRef(source, refId)` / `MemoryService.forgetBySourceRef` — delete the recall seed a source row (a note) owns, by its `metadata.refId`; used to re-seed on update and clean up on delete.
 - `web/NoteController` — `/v1/notes` create/get/list/update/delete.
 
 ## Schema
