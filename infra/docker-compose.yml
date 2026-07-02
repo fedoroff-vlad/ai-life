@@ -392,6 +392,7 @@ services:
       CHEF_AGENT_URL: http://chef-agent:8106
       CREATOR_AGENT_URL: http://creator-agent:8109
       BRIEFING_AGENT_URL: http://briefing-agent:8115
+      DOCS_AGENT_URL: http://docs-agent:8117
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1278,6 +1279,43 @@ services:
       BRIEFING_AGENT_MEMORY_RECALL_K: ${BRIEFING_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8115/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  docs-agent:
+    image: ai-life/docs-agent:local
+    container_name: ai-life-docs-agent
+    build:
+      context: ..
+      dockerfile: domains/docs/docs-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-docs:
+        condition: service_healthy
+      mcp-media-processing:
+        condition: service_healthy
+    environment:
+      DOCS_AGENT_PORT: 8117
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_DOCS_URL: http://mcp-docs:8116
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      DOCS_AGENT_MCP_CLIENT_ENABLED: ${DOCS_AGENT_MCP_CLIENT_ENABLED:-true}
+      DOCS_AGENT_MEMORY_RECALL_K: ${DOCS_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8117/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
