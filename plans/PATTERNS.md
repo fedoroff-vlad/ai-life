@@ -151,7 +151,9 @@ GIN index).
 | `040-049` | stylist | `wardrobe.*` (garments, style profile) |
 | `050-059` | nutrition | `nutrition.*` (meal log, diet profile; Phase 2 pantry, recipes) |
 | `060-069` | creator | `creator.*` (creator_profile, trend cache, idea/draft history) |
-| `070-079` | _next domain_ (reserved) | — |
+| `070-079` | briefing | `briefing.*` (briefing_profile, schedule) |
+| `080-089` | docs | `docs.*` (document archive + metadata) |
+| `090-099` | _next domain_ (reserved) | — |
 
 Rules:
 - **Pick the lowest free slot inside your range** — don't leave gaps unless you
