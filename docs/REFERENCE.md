@@ -124,10 +124,12 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
   inter-agent greeting chain `calendar.birthday → creator.draft_greeting → notifier`.
 - **briefing** — 🚧 **in progress** ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186), first future-agent).
   `mcp-briefing` (per-person `briefing_profile`: location/interests/sections/schedule) + `briefing-agent` +
-  shared `mcp-weather` (forecast + geocode over Open-Meteo). **Done:** the personalization store + the NL
-  config flow (`briefing-profiler` — golden-verified on local Ollama). **Pending:** the digest itself
-  (multi-domain read coordinator: weather + calendar + finance + news → one synthesis → HTML board →
-  scheduled notifier delivery). PR-sliced in [briefing.md](../plans/briefing.md).
+  shared `mcp-weather` (forecast + geocode over Open-Meteo). **Done:** the personalization store, the NL
+  config flow (`briefing-profiler`), the **digest** (multi-domain read coordinator: weather + calendar +
+  finance + news → one synthesis on the `Coordinator`), its **HTML board** (doc-render → media-service →
+  link), and the **proactive wake receiver** (`/agents/briefing/triggers/briefing.digest` → notifier) —
+  golden-verified on local Ollama. **Pending (BR-f2):** `mcp-briefing` registering the per-profile cron in
+  scheduler-service on set + the `E2EBriefingWakeFlowTest` closer. PR-sliced in [briefing.md](../plans/briefing.md).
 
 Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper sidecar + vision-caption),
 `mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-weather` (Open-Meteo forecast + geocode),
