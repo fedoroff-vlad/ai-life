@@ -93,6 +93,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | mcp-weather          | 8113 | Weather capability-MCP (read-only `forecast` over Open-Meteo)     |
 | mcp-briefing         | 8114 | Briefing domain-MCP (per-person digest prefs: location/interests/sections/schedule) |
 | briefing-agent       | 8115 | Morning-digest agent (binds mcp-briefing + mcp-weather + mcp-web)  |
+| mcp-docs             | 8116 | Docs domain-MCP (document archive: store + metadata + text search) |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
