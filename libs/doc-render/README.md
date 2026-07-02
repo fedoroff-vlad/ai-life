@@ -39,7 +39,8 @@ and hand the user a link.
 
 ## Consumers
 stylist (analysis / capsule / audit / gap boards), nutritionist (nutrition-analysis + basket-breakdown
-boards), chef (recipe card). The verdict tones double for nutrition "good/watch/cut".
+boards), chef (recipe card), briefing (morning digest board — text section + news provenance links, BR-e).
+The verdict tones double for nutrition "good/watch/cut".
 
 ## Field generalisation
 The model is the stylist board lifted intact. The generic **`links` list landed with the chef's
