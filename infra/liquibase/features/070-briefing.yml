@@ -87,3 +87,25 @@ databaseChangeLog:
                   name: household_id
               - column:
                   name: owner_id
+
+  - changeSet:
+      id: 070-briefing-schedule-id
+      author: ai-life
+      comment: |
+        Per-profile morning-wake schedule id (BR-f2), set by mcp-briefing when
+        `setBriefingProfile` persists a profile with schedule_enabled=true and a
+        schedule_time: it registers a briefing.digest cron in scheduler-service
+        and stores the returned id here. Nullable so a transient scheduler outage
+        doesn't break the profile write — we accept "no cron yet" over rolling the
+        profile back (mirrors finance.fin_budget.schedule_id / PR27b).
+
+        No FK to core.schedules: scheduler-service owns its own row lifecycle and a
+        deleted schedule row must not cascade-corrupt a briefing profile.
+      changes:
+        - addColumn:
+            schemaName: briefing
+            tableName: briefing_profile
+            columns:
+              - column:
+                  name: schedule_id
+                  type: uuid

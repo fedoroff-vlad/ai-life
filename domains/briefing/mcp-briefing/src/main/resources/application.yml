@@ -24,6 +24,9 @@ spring:
           enabled sections weather|agenda|finance|news, and the morning schedule). The
           gather → synthesize digest flow lives in briefing-agent; this MCP just persists.
 
+mcp-briefing:
+  scheduler-url: ${SCHEDULER_URL:http://scheduler-service:8085}
+
 server:
   port: ${MCP_BRIEFING_PORT:8114}
 
