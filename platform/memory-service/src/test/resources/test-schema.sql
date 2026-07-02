@@ -1,5 +1,6 @@
--- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations, 007-bus}.yml just
--- enough to run memory-service integration tests. Kept minimal so drift surfaces as a failing test.
+-- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations, 007-bus,
+-- 090-memory-note}.yml just enough to run memory-service integration tests. Kept minimal so drift
+-- surfaces as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -63,3 +64,21 @@ CREATE INDEX IF NOT EXISTS ix_relations_subject
     ON memory.relations (household_id, subject_type, subject_id);
 CREATE INDEX IF NOT EXISTS ix_relations_object
     ON memory.relations (household_id, object_type, object_id);
+
+CREATE TABLE IF NOT EXISTS memory.note (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id  uuid NOT NULL REFERENCES core.households(id),
+    owner_id      uuid,
+    title         text        NOT NULL,
+    type          varchar(32) NOT NULL DEFAULT 'fact',
+    tags          jsonb       NOT NULL DEFAULT '[]'::jsonb,
+    source        varchar(64) NOT NULL DEFAULT 'user',
+    person_id     uuid,
+    body_md       text,
+    frontmatter   jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_note_household ON memory.note (household_id);
+CREATE INDEX IF NOT EXISTS ix_note_person    ON memory.note (person_id);
