@@ -35,6 +35,7 @@
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>
+    <include file="features/090-memory-note.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):
     <include file="features/006-audit.yml"  relativeToChangelogFile="true"/>
