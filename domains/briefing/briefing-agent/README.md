@@ -7,10 +7,11 @@ multi-domain **read** coordinator (gather → synthesize on the shared `Coordina
 `mcp-briefing` domain-MCP; binds the shared `mcp-weather` (weather + geocoding) and `mcp-web` (news).
 Routes via the orchestrator (registered as `briefing`). See [plans/briefing.md](../../../plans/briefing.md).
 
-## Status (through BR-e)
+## Status (through BR-f trigger receiver)
 
 Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as system prompt) + the
-**briefing-preferences flow** (BR-c) + the **digest flow** (BR-d) + its **HTML board** (BR-e):
+**briefing-preferences flow** (BR-c) + the **digest flow** (BR-d) + its **HTML board** (BR-e) + the
+**proactive wake receiver** (BR-f, part 1):
 - **BR-c — briefing profile. DONE.** A typed config message with a preferences cue ("настрой брифинг",
   "показывай мне утром…", "set up my briefing") → one LLM extract via the `briefing-profiler` SKILL →
   if a city was stated, one `mcp-weather` geocode resolves it to coordinates + timezone → upsert the
@@ -27,13 +28,20 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
   `libs/doc-render` (`DeliverablePublisher` → the synthesized text as a section + the gathered news
   headlines as grounded provenance links), stored in media-service, and the open-link is appended to
   the reply. A render/store hiccup soft-fails to the text-only reply. Same board seam as
-  creator/chef/nutrition. Scheduled per-profile wake + delivery (BR-f) come next.
+  creator/chef/nutrition.
+- **BR-f (trigger receiver) — DONE.** A `briefing.digest` wake from scheduler-service (via orchestrator)
+  reuses the same `BriefingComposer` digest flow (empty user text) and delivers the result via
+  notifier-service — to the profile owner when the payload names one, else to every household user.
+  Per-user notifier failures are logged, not fatal (202 either way). `web/TriggerController`. Wiring the
+  per-profile schedule into scheduler-service (from the profile's `schedule`) + the E2E closer come next.
 
 ## Endpoints
 
 - `POST /agents/briefing/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's
   entry point. Digest cue → briefing-composer (reply = digest text + HTML board link); preferences cue
   → briefing-profiler; else chat.
+- `POST /agents/briefing/triggers/{kind}` (body `AgentWakeRequest`) → 202 — the proactive wake entry
+  (BR-f). `kind = briefing.digest`: compose the digest for the payload's `ownerId` + deliver via notifier.
 - `GET /agents/briefing/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 
 ## Env
@@ -62,6 +70,8 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
   beans (BR-e board); the shared `profile/notifier/memory` clients come from `agent-runtime`.
 - `web/IntentController` — `POST /agents/briefing/intent`; digest cue → composer, preferences cue →
   profiler, else chat.
+- `web/TriggerController` — `POST /agents/briefing/triggers/{kind}` (BR-f); `briefing.digest` → reuse the
+  composer digest flow → deliver via notifier (owner, or household fan-out when no `ownerId`).
 - `web/ManifestController` — `GET /agents/briefing/manifest`.
 - `chat/BriefingChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `profile/BriefingProfiler` — the preferences flow: cue → LLM extract via `briefing-profiler` SKILL →

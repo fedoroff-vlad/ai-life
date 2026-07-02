@@ -10,6 +10,9 @@ mcp:
 skills:
   - briefing-profiler
   - briefing-composer
+triggers:
+  - kind: briefing.digest
+    description: Fired by scheduler-service on the per-person morning schedule. Payload carries {ownerId} (whose briefing_profile to compose); the agent gathers the enabled sections, synthesizes the digest, renders the board, and delivers it via notifier-service.
 intents:
   - example: Каждое утро в 8:00 показывай погоду в Москве, новости про ИИ и финансы, мою повестку и траты за вчера
     description: Set or update the per-person briefing preferences (location, interests, sections, schedule).
