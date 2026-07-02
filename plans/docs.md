@@ -38,7 +38,7 @@ fast CI): `GoldenDocArchiverTest` (metadata-extract JSON structure) and `GoldenD
 wording**.
 
 ## PR slices
-- **D-a — `mcp-docs` domain-MCP + `docs` schema.** New `domains/docs/mcp-docs` (port **8116**).
+- **D-a — `mcp-docs` domain-MCP + `docs` schema.** ✅ **DONE (PR #249).** New `domains/docs/mcp-docs` (port **8116**).
   `docs.document` keyed `id`, scoped `(household, owner)`: `media_id`, `doc_type`
   (receipt|contract|warranty|note|other), `title`, `party` (merchant / counterparty), `doc_date`,
   `amount` + `currency` (nullable — only receipts/invoices), `ocr_text`, `tags text[]`, `created_at`.
@@ -46,21 +46,23 @@ wording**.
   `searchDocuments(query, docType?, limit)` (pg_trgm over title+party+ocr_text). `/internal/*`
   passthroughs for each (deterministic agent→MCP). Liquibase `080-docs.yml` (`docs` schema + the
   table + a `gin_trgm_ops` index on the searchable text). Mirrors `mcp-creator`. No agent binding yet.
-- **D-b — `/internal/ocr` passthrough on `mcp-media-processing`.** Small twin of `/internal/caption`:
-  `POST /internal/ocr` `{mediaId}` → the `ocr` tool → `OcrResult`. The MockWebServer-testable
-  transport docs-agent calls deterministically (MCP/SSE can't be mocked). Update the media README.
-- **D-c — `docs-agent` scaffold + `doc-archiver` ingest skill.** New `domains/docs/docs-agent`
+- **D-b — `/internal/ocr` passthrough on `mcp-media-processing`.** ✅ **DONE (PR #250).** Small twin of `/internal/caption`:
+  `POST /internal/ocr` `{mediaId}` → the `ocr` tool → `OcrResult` (`contracts/media/OcrInput`). The
+  MockWebServer-testable transport docs-agent calls deterministically (MCP/SSE can't be mocked). Media
+  README updated. `InternalOcrControllerTest` (stub OCR engine, native-free).
+- **D-c — `docs-agent` scaffold + `doc-archiver` ingest skill.** ✅ **DONE (PR #254).** New `domains/docs/docs-agent`
   (port **8117**). Binds `mcp-docs` + `mcp-media-processing`. An inbound message carrying a document
-  photo → `ocr` via `/internal/ocr` → `doc-archiver` LLM extract (doc_type/title/party/date/amount
-  from the OCR text + the user's caption hint, strict JSON) → `saveDocument` via
-  `/internal/documents`. Reply confirms what was filed + the stored-blob link. Registered in
-  orchestrator as `docs`. Tests: `DocArchiverTest` (MockWebServer) + `ManifestControllerTest` +
-  `GoldenDocArchiverTest` (opt-in).
-- **D-d — `doc-finder` search skill.** A "find my X" cue → `doc-finder` extracts a query + optional
-  doc_type filter (strict JSON) → `searchDocuments` via `/internal/search` (+ a memory-service recall
-  for semantic hits, soft-fail) → reply lists the matches (title, date, party) each with its open
-  link. Tests: `DocFinderTest` (MockWebServer) + `GoldenDocFinderTest` (opt-in).
-- **D-e — semantic index via memory-service (closer).** On `saveDocument` the agent writes the OCR
+  photo (`image` attachment) → `ocr` via `/internal/ocr` → `doc-archiver` LLM extract (doc_type/title/
+  party/date/amount/currency/tags from the OCR text + the user's caption hint, strict JSON, temp=0) →
+  `saveDocument` via `/internal/documents` (full OCR text stored as the search corpus). Reply confirms
+  what was filed. Non-photo → chat fallback. Registered in orchestrator as `docs`. Tests:
+  `DocArchiverTest` (3, MockWebServer) + `ManifestControllerTest` + `GoldenDocArchiverTest` (opt-in).
+- **D-d — `doc-finder` search skill.** ✅ **DONE (PR #255).** A "find my X" cue → `doc-finder` distils a query +
+  optional doc_type filter (strict JSON, temp=0) → `searchDocuments` via `/internal/documents/search`
+  → reply lists the matches (title, type, date, party) each with an open link
+  (`<public-media-base>/v1/media/{mediaId}`). Trigram search only here; the memory-service semantic
+  recall lands in D-e. Tests: `DocFinderTest` (2, MockWebServer) + `GoldenDocFinderTest` (opt-in).
+- **D-e — semantic index via memory-service (closer). ⬜ NEXT.** On `saveDocument` the agent writes the OCR
   text to memory-service scoped `docs` (`ownerId`, `kind=document`, `refId=documentId`), so
   `doc-finder` recall returns fuzzy matches the trigram search misses. Soft-fail on the memory write
   (the document is still saved + text-searchable). Mandatory **E2E closer**
