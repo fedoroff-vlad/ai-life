@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.docs.archive;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
 import dev.fedorov.ailife.agents.docs.http.OcrClient;
@@ -45,6 +46,7 @@ class GoldenDocArchiverTest {
     private final ObjectMapper json = new ObjectMapper();
     private final OcrClient ocr = mock(OcrClient.class);
     private final DocumentClient documents = mock(DocumentClient.class);
+    private final MemoryClient memory = mock(MemoryClient.class);
     private final AgentManifest manifest = new AgentManifest(
             "docs", "docs agent", "0.1.0", 8117,
             List.of(), List.of(),
@@ -54,7 +56,7 @@ class GoldenDocArchiverTest {
             GoldenLlm.skill(GoldenDocArchiverTest.class.getClassLoader(),
                     "skills/docs/doc-archiver/SKILL.md")));
     private final DocArchiver archiver =
-            new DocArchiver(ocr, documents, GoldenLlm.client(), skills, manifest, json);
+            new DocArchiver(ocr, documents, memory, GoldenLlm.client(), skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real archiver prompt and a concrete document's OCR text,
@@ -77,6 +79,7 @@ class GoldenDocArchiverTest {
                     in.title(), in.party(), in.docDate(), in.amount(), in.currency(), in.ocrText(),
                     in.tags(), Instant.now()));
         });
+        when(memory.remember(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         var msg = GoldenLlm.message(household, user, "вот гарантия на холодильник, сохрани");
 

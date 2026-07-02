@@ -27,7 +27,7 @@ Search is a `pg_trgm` `ILIKE` over `title + party + ocr_text`, index-accelerated
 | method | path | body / params | returns | purpose |
 |--------|------|---------------|---------|---------|
 | POST | `/internal/documents` | `SaveDocumentInput` | `DocumentDto` (400 on missing `householdId`/`mediaId`) | deterministic archive (docs-agent ingest, D-c). |
-| GET | `/internal/documents/{id}` | — | `DocumentDto` (404 if absent) | one document by id. |
+| GET | `/internal/documents/{id}` | — | `DocumentDto` (404 if absent) | one document by id (docs-agent resolves a semantic-recall hit's `refId` here, D-e). |
 | GET | `/internal/documents` | `householdId`, `docType?`, `limit?` | `DocumentDto[]` | most-recent list. |
 | GET | `/internal/documents/search` | `householdId`, `query`, `docType?`, `limit?` | `DocumentDto[]` | free-text search (docs-agent search, D-d). |
 

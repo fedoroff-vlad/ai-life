@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.docs.find;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
@@ -13,23 +14,31 @@ import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Answers "find my X" over the document archive (D-d).
  *
  * <p>Pipeline: one llm-gateway {@code DEFAULT} turn with the {@code doc-finder} SKILL distills the
  * user's request into a short search {@code query} plus an optional {@code docType} filter (strict
- * JSON) → {@code mcp-docs}'s {@code GET /internal/documents/search} runs the household-scoped trigram
- * search → the reply lists the matches (title / type / date / party) each with an open link to the
- * stored blob. A blank query (the model couldn't distil one) falls back to the raw user text so a
- * plain "договор аренды" still searches. Every stage soft-fails to a friendly message.
+ * JSON) → two searches run in parallel: {@code mcp-docs}'s {@code GET /internal/documents/search}
+ * (household-scoped trigram) and a {@code memory-service} semantic recall (D-e — fuzzy "find my X"
+ * that the literal trigram match misses) whose {@code refId} back-pointers are resolved to their
+ * document rows → the merged, de-duplicated hits are listed (title / type / date / party) each with an
+ * open link to the stored blob. A blank query (the model couldn't distil one) falls back to the raw
+ * user text so a plain "договор аренды" still searches. Every stage soft-fails to a friendly message.
  */
 @Component
 public class DocFinder {
@@ -37,17 +46,21 @@ public class DocFinder {
     private static final Logger log = LoggerFactory.getLogger(DocFinder.class);
     private static final String SKILL_NAME = "doc-finder";
     private static final int LIMIT = 5;
+    /** The memory-service scope doc-archiver seeds documents under (D-e); must match {@code DocArchiver}. */
+    private static final String MEMORY_SOURCE = "docs";
 
     private final DocumentClient documents;
+    private final MemoryClient memory;
     private final LlmClient llm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
     private final String publicMediaBaseUrl;
 
-    public DocFinder(DocumentClient documents, LlmClient llm, SkillRegistry skills,
+    public DocFinder(DocumentClient documents, MemoryClient memory, LlmClient llm, SkillRegistry skills,
                      AgentManifest manifest, ObjectMapper json, DocsAgentProperties props) {
         this.documents = documents;
+        this.memory = memory;
         this.llm = llm;
         this.skills = skills;
         this.manifest = manifest;
@@ -78,12 +91,70 @@ public class DocFinder {
             return Mono.just(reply("Что искать в архиве? Напишите, например: «найди договор аренды».", model));
         }
         String docType = draft == null ? null : text(draft, "docType");
-        return documents.search(msg.householdId(), query.trim(), docType, LIMIT)
-                .map(hits -> reply(formatHits(hits), model))
+        String q = query.trim();
+        // Trigram (literal) and semantic (meaning) searches run in parallel; each soft-fails to an
+        // empty list so one source being down still returns whatever the other found.
+        Mono<List<DocumentDto>> trigram = documents.search(msg.householdId(), q, docType, LIMIT)
                 .onErrorResume(e -> {
                     log.warn("search_documents failed: {}", e.toString());
-                    return Mono.just(reply("Не удалось выполнить поиск по архиву. Попробуйте позже.", null));
+                    return Mono.just(List.of());
                 });
+        Mono<List<DocumentDto>> semantic = semanticHits(msg.householdId(), q, docType);
+        return Mono.zip(trigram, semantic)
+                .map(t -> reply(formatHits(merge(t.getT1(), t.getT2())), model));
+    }
+
+    /**
+     * Fuzzy recall via memory-service: embed the query, take the {@code docs}-scoped hits, resolve each
+     * one's {@code refId} back-pointer to its document row (D-e). Soft-fails to an empty list — semantic
+     * recall is a bonus on top of the trigram search, never a hard dependency.
+     */
+    private Mono<List<DocumentDto>> semanticHits(UUID householdId, String query, String docType) {
+        return memory.recall(householdId, null, null, query)   // household-scoped, matching the trigram search
+                .flatMapMany(Flux::fromIterable)
+                .map(this::refId)
+                .filter(id -> id != null)
+                .distinct()
+                .flatMap(id -> documents.get(id).onErrorResume(e -> {
+                    log.warn("resolve semantic hit {} failed: {}", id, e.toString());
+                    return Mono.empty();
+                }))
+                .filter(d -> docType == null || docType.equalsIgnoreCase(d.docType()))
+                .collectList()
+                .onErrorReturn(List.of());
+    }
+
+    /** A recall hit's document id: only {@code docs}-scoped, {@code kind=document} memories carry a {@code refId}. */
+    private UUID refId(RecallMemoryHit hit) {
+        if (hit == null || hit.memory() == null || !MEMORY_SOURCE.equals(hit.memory().source())) {
+            return null;
+        }
+        JsonNode meta = hit.memory().metadata();
+        if (meta == null || !"document".equals(text(meta, "kind"))) {
+            return null;
+        }
+        String ref = text(meta, "refId");
+        if (ref == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(ref);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Trigram hits first (relevance-ranked), then any semantic-only extras, de-duplicated by id, capped. */
+    private static List<DocumentDto> merge(List<DocumentDto> trigram, List<DocumentDto> semantic) {
+        Map<UUID, DocumentDto> byId = new LinkedHashMap<>();
+        for (DocumentDto d : trigram) {
+            if (d != null && d.id() != null) byId.putIfAbsent(d.id(), d);
+        }
+        for (DocumentDto d : semantic) {
+            if (d != null && d.id() != null) byId.putIfAbsent(d.id(), d);
+        }
+        List<DocumentDto> merged = new ArrayList<>(byId.values());
+        return merged.size() > LIMIT ? merged.subList(0, LIMIT) : merged;
     }
 
     private String formatHits(List<DocumentDto> hits) {

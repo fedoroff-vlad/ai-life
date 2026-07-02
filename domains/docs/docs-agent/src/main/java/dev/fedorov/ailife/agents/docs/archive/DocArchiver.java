@@ -2,6 +2,8 @@ package dev.fedorov.ailife.agents.docs.archive;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
@@ -9,6 +11,7 @@ import dev.fedorov.ailife.agents.docs.http.OcrClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
@@ -44,18 +47,22 @@ public class DocArchiver {
     private static final String SKILL_NAME = "doc-archiver";
     /** Cap the OCR text we store/prompt with so a huge multi-page scan can't blow up the row/turn. */
     private static final int MAX_OCR_CHARS = 20_000;
+    /** memory-service scope for the semantic index of archived documents (D-e). */
+    private static final String MEMORY_SOURCE = "docs";
 
     private final OcrClient ocr;
     private final DocumentClient documents;
+    private final MemoryClient memory;
     private final LlmClient llm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
-    public DocArchiver(OcrClient ocr, DocumentClient documents, LlmClient llm,
+    public DocArchiver(OcrClient ocr, DocumentClient documents, MemoryClient memory, LlmClient llm,
                        SkillRegistry skills, AgentManifest manifest, ObjectMapper json) {
         this.ocr = ocr;
         this.documents = documents;
+        this.memory = memory;
         this.llm = llm;
         this.skills = skills;
         this.manifest = manifest;
@@ -82,12 +89,34 @@ public class DocArchiver {
             JsonNode draft = parseDraft(r.content());
             SaveDocumentInput input = buildInput(msg, mediaId, ocrText, draft);
             return documents.save(input)
-                    .map(saved -> reply(successText(saved.docType(), saved.title()), r.model()))
+                    // D-e: seed memory-service so doc-finder's semantic recall can surface this
+                    // document by meaning, not just the trigram text match. Soft-fails internally —
+                    // the document is already saved + text-searchable, so a memory outage is harmless.
+                    .flatMap(saved -> memory
+                            .remember(saved.householdId(), saved.ownerId(), MEMORY_SOURCE,
+                                    indexText(saved, ocrText), memoryMetadata(saved))
+                            .thenReturn(reply(successText(saved.docType(), saved.title()), r.model())))
                     .onErrorResume(e -> {
                         log.warn("save_document failed for media {}: {}", mediaId, e.toString());
                         return Mono.just(reply("Не смог сохранить документ в архив. Попробуйте позже.", null));
                     });
         });
+    }
+
+    /** The corpus we embed: the full OCR text, falling back to the title so a text-less scan is still findable. */
+    private static String indexText(DocumentDto saved, String ocrText) {
+        String text = blankToNull(ocrText);
+        return text != null ? text : saved.title();
+    }
+
+    /** A {@code {kind, refId}} back-pointer (+ light metadata) so a recall hit resolves to its document row. */
+    private ObjectNode memoryMetadata(DocumentDto saved) {
+        ObjectNode meta = json.createObjectNode();
+        meta.put("kind", "document");
+        meta.put("refId", saved.id().toString());
+        if (saved.docType() != null) meta.put("docType", saved.docType());
+        if (saved.title() != null) meta.put("title", saved.title());
+        return meta;
     }
 
     private SaveDocumentInput buildInput(NormalizedMessage msg, String mediaId, String ocrText, JsonNode draft) {
