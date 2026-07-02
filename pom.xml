@@ -74,6 +74,7 @@
         <module>domains/briefing/mcp-briefing</module>
         <module>domains/briefing/briefing-agent</module>
         <module>domains/docs/mcp-docs</module>
+        <module>domains/docs/docs-agent</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>
