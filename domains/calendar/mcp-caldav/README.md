@@ -31,6 +31,7 @@ concrete fields and don't need an LLM to pick the tool — the official determin
 inter-service surface (doctrine #201). Consumers: calendar-agent's `create_event` action
 (Stage 4 / C1 task-to-event chain); `platform/calendar-web` (read-only view + per-person ICS
 feed, #195) reads via `GET /internal/events` and resolves feed tokens via `GET /internal/feeds/{token}`;
+`briefing-agent` reads today's agenda via `GET /internal/events` for its morning digest (BR-d);
 calendar-agent mints/lists/revokes feeds on a user's "give me my calendar link" request. Mirrors
 mcp-finance's `POST /internal/transaction`.
 

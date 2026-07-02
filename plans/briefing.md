@@ -65,10 +65,14 @@ Assert **structure, not wording** (roadmap §Risks).
   `/internal/briefing-profile`. Chat fallback for the rest. Registered in orchestrator as `briefing`.
   Tests: `BriefingProfilerTest` (4, MockWebServer) + `ManifestControllerTest` (1) + `GoldenBriefingProfileTest`
   (opt-in real Ollama).
-- **BR-d — `digest` flow.** Resolve the profile → gather the enabled sections (weather via profile
-  lat/lon, calendar-today via `mcp-caldav /internal`, finance snapshot via `mcp-finance /internal`,
-  news via `mcp-web.web_search` per interest) in parallel on the `Coordinator` → one `briefing-composer`
-  synthesis → reply text. + `GoldenBriefingComposerTest`.
+- **BR-d — `digest` flow.** ✅ **DONE.** A produce-now cue → resolve the profile (self → household-default
+  → all-sections default) → gather the enabled sections in parallel on the `Coordinator` (weather via
+  profile lat/lon on `mcp-weather /internal/forecast`, today's agenda via `mcp-caldav /internal/events`,
+  yesterday's spend via `mcp-finance /internal/spending-by-category`, news via `mcp-web /internal/search`
+  per interest) → one `briefing-composer` synthesis → reply text. Per-source soft-fail; weather needs
+  coordinates and news needs ≥1 interest else those steps skip; household-scoped agenda/finance for now.
+  `flow/BriefingComposer` + `briefing-composer` SKILL. Tests: `BriefingComposerTest` (2, MockWebServer) +
+  `GoldenBriefingComposerTest` (opt-in real Ollama, cites only corpus links).
 - **BR-e — HTML digest board.** Map the synthesis → a `doc-render` `Doc` (weather / agenda / finance /
   news sections + provenance links) → store in media-service → reply with the link.
 - **BR-f — scheduler wake + delivery + E2E closer.** The profile `schedule` drives a per-person
