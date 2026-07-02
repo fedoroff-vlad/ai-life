@@ -1,0 +1,104 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 090-memory-note
+      author: ai-life
+      comment: |
+        The authored-notes tier of the "second brain" substrate (epic #257, SB-1).
+        Lives in the existing `memory` schema alongside `memories` (pgvector) and
+        `relations` (graph) — we EVOLVE memory-service, we do NOT stand up a second
+        store. A note is the durable, human-authored, markdown unit; SB-2 will
+        auto-seed its body into memory.memories (recall) and SB-3 its [[wiki-links]]
+        into memory.relations (graph). This slice is just the row + CRUD.
+
+        Note-format manifest (see plans/second-brain.md): the source of truth is this
+        row; markdown is the interchange form. `id` (not `title`) is the stable anchor
+        for links/refId. `owner_id` NULL = household-shared. `tags`/`frontmatter` are
+        jsonb (consistent with this repo's jsonb-heavy style + a future GIN on tags).
+      changes:
+        - createTable:
+            schemaName: memory
+            tableName: note
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_note_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+              - column:
+                  name: title
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: varchar(32)
+                  defaultValue: fact
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tags
+                  type: jsonb
+                  defaultValueComputed: "'[]'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: varchar(64)
+                  defaultValue: user
+                  constraints:
+                    nullable: false
+              - column:
+                  name: person_id
+                  type: uuid
+              - column:
+                  name: body_md
+                  type: text
+              - column:
+                  name: frontmatter
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: memory
+            tableName: note
+            indexName: ix_note_household
+            columns:
+              - column:
+                  name: household_id
+
+        - createIndex:
+            schemaName: memory
+            tableName: note
+            indexName: ix_note_person
+            columns:
+              - column:
+                  name: person_id

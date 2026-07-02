@@ -1,13 +1,17 @@
 # platform/memory-service
 
-pgvector-backed long-term recall + single-hop relation graph. `POST /v1/memories`
-writes a piece of text + metadata after embedding it via llm-gateway; `POST
-/v1/memories/recall` returns top-k cosine-nearest hits within a scope filter;
-`DELETE /v1/memories/{id}` forgets. `POST /v1/relations` writes one structured
-edge ("Maria likes books"); `GET /v1/graph/person/{id}/relations?householdId=…`
+pgvector-backed long-term recall + single-hop relation graph + the authored-notes
+tier of the **second-brain substrate** (epic [#257](https://github.com/fedoroff-vlad/ai-life/issues/257)).
+`POST /v1/memories` writes a piece of text + metadata after embedding it via
+llm-gateway; `POST /v1/memories/recall` returns top-k cosine-nearest hits within a
+scope filter; `DELETE /v1/memories/{id}` forgets. `POST /v1/relations` writes one
+structured edge ("Maria likes books"); `GET /v1/graph/person/{id}/relations?householdId=…`
 returns the person's outgoing + incoming edges. `POST /v1/capture` is the
 memory-from-chat path: it runs the LLM over a message to extract durable facts
-and stores them as memories.
+and stores them as memories. `/v1/notes` is CRUD over `memory.note`, the durable,
+human-authored, markdown unit of the knowledge base — the substrate we **evolve**
+into a "second brain" (SB-2 will auto-seed a note's body into recall, SB-3 its
+`[[wiki-links]]` into the graph).
 
 ## Port: `8087` (`MEMORY_PORT`)
 
@@ -22,6 +26,17 @@ and stores them as memories.
 - `POST /v1/capture` — body [CaptureRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/CaptureRequest.java) (`householdId` + `text` required; `userId`/`personId` scope the stored memories). **Synchronous:** runs the LLM `FactExtractor` over the message, writes each extracted durable fact as a memory (`source = "chat-capture"`), and returns the written `MemoryDto[]` (empty list when nothing durable was found). 400 on missing householdId / blank text. **Best-effort:** a malformed LLM reply or parse failure yields zero facts, never an error. For direct/manual/debug use. **Relation capture (MFC-c):** the same call also runs `RelationExtractor` and writes resolved edges to `memory.relations` as a **best-effort side effect** — it never throws and is not reflected in the returned `MemoryDto[]` (which stays memories-only). A `"self"` edge anchors on the `userId` (`subjectType = "user"`); a named subject is resolved to a `core.people` UUID via profile-service (`subjectType = "person"`). An edge whose subject cannot be anchored (no `userId` for a self-edge, or an unresolved name) is **dropped** — we do not auto-create people from chat. Objects are stored free-text (`objectType = "label"`, `objectLabel` = the phrase).
 - `POST /v1/observations` — body [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`householdId` + `text` required). The durable async **drop-point** for DB-less producers (orchestrator, agents): publishes the event onto the bus (`bus.outbox`) and returns **202** immediately — the expensive LLM extraction runs later on the consumer (`MessageCaptureHandler`) with at-least-once retry. One HTTP call, no producer-side DB; durable + structured (status-tracked outbox, not a cache that turns into a dump). 400 on missing householdId / blank text. This is the "easy push" any component uses to feed memory-from-chat.
 - **Bus consumer (`message.received`, MFC-b):** memory-service also listens on the event bus and runs the same capture off the user's request path. A producer (orchestrator) publishes a [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`message.received`) to `bus.outbox`; `MessageCaptureHandler` drains it → `CaptureService`. Retry policy mirrors notifier's consumer: a parse/validation failure is permanent (logged, row accepted); a transient write failure (embed 5xx / DB blip) re-throws so the row stays `PENDING` for the next poll. Extraction itself never throws, so an llm-gateway outage during extraction just yields zero facts (row settles `PUBLISHED`). Single-consumer bus → foreign topics are drained but ignored. **The orchestrator producer side is the next slice** — until then the topic is only exercised by direct outbox publish (and the synchronous `POST /v1/capture`).
+
+### Notes (second-brain substrate, SB-1)
+Authored, durable, markdown notes — the knowledge-base tier the epic evolves memory-service into.
+The source of truth is the `memory.note` row; markdown is the interchange form (frontmatter → columns
++ a `frontmatter` jsonb bag; `id`, not `title`, is the stable link/`refId` anchor). CRUD only for now —
+no embedding/graph wiring (SB-2/SB-3 add the auto-seed on write).
+- `POST /v1/notes` — body [WriteNoteRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/note/WriteNoteRequest.java) (`householdId` + `title` required; null `ownerId` = household-shared; blank `type` → `fact`, null `source` → `user`). Returns `NoteDto`.
+- `GET /v1/notes/{id}` — `NoteDto` (404 if absent).
+- `GET /v1/notes?householdId=<uuid>&limit=<n>` — most-recent notes in a household (by `updated_at`; default 20, max 100). Returns `NoteDto[]`.
+- `PUT /v1/notes/{id}` — replace the mutable fields (title/type/tags/source/personId/bodyMd/frontmatter), bump `updated_at`. `NoteDto` (404 if absent).
+- `DELETE /v1/notes/{id}` — 204 / 404.
 
 ### Relations (single-hop graph)
 - `POST /v1/relations` — body: [WriteRelationRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteRelationRequest.java) (`householdId`, `subjectType` + `subjectId`, `edge`, `objectType` + optional `objectId` + `objectLabel`, optional `confidence`, `source`, `metadata`). Returns `RelationDto`.
@@ -60,10 +75,14 @@ and stores them as memories.
 - `domain/RelationRepository` — JdbcTemplate over `memory.relations`. `outgoingForPerson` / `incomingForPerson` both filter by `household_id`.
 - `service/RelationService` — write/forget/personRelations + field validation.
 - `web/RelationController` — `/v1/relations` + `/v1/graph/person/{id}/relations`.
+- `domain/NoteRow` (+ `NoteRepository`) — JdbcTemplate over `memory.note` (SB-1); `tags`/`frontmatter` as jsonb; `insert`/`update`/`findById`/`listByHousehold`/`deleteById`.
+- `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`.
+- `web/NoteController` — `/v1/notes` create/get/list/update/delete.
 
 ## Schema
 - [004-memory.yml](../../infra/liquibase/features/004-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
 - [005-memory-relations.yml](../../infra/liquibase/features/005-memory-relations.yml) — `memory.relations` (single-hop edges). `subject_type`/`subject_id` + `edge` + `object_type`/`object_id`/`object_label` (the label is always present even when `object_id` is null, so display works for free-text objects like "loose-leaf tea"). Indexes on `(household_id, subject_type, subject_id)` and `(household_id, object_type, object_id)`.
+- [090-memory-note.yml](../../infra/liquibase/features/090-memory-note.yml) — `memory.note` (second-brain SB-1): the authored notes tier. Scope `household_id` + nullable `owner_id`; `title`, `type` (default `fact`), `tags`/`frontmatter` jsonb, `source` (default `user`), nullable `person_id`, `body_md`, `created_at`/`updated_at`. Indexes on `household_id` and `person_id`. Test mirror kept in `src/test/resources/test-schema.sql`.
 
 ## Dim mismatch (the one gotcha)
 The column is `vector(384)` and the mock provider emits 384-dim. When Stage 5
