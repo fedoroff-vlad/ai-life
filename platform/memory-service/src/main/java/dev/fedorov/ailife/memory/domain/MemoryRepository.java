@@ -100,6 +100,17 @@ public class MemoryRepository {
     }
 
     /**
+     * Delete the memories an agent seeded for a specific source row (their
+     * {@code metadata.refId} back-pointer). Used to re-seed / forget the single
+     * memory that mirrors a {@code memory.note} row (SB-2). Returns rows removed.
+     */
+    public int deleteBySourceRef(String source, UUID refId) {
+        return jdbc.update(
+                "DELETE FROM memory.memories WHERE source = ? AND metadata->>'refId' = ?",
+                source, refId.toString());
+    }
+
+    /**
      * Top-k recall by cosine distance (smaller = more similar). Scope filter:
      * household required; user and person narrow further when set in the request.
      * Returns hits ordered by ascending distance.

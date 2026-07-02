@@ -53,6 +53,15 @@ public class MemoryService {
         return repo.deleteById(id);
     }
 
+    /**
+     * Forget the memory (if any) seeded for a given source row — its
+     * {@code metadata.refId} back-pointer. Used by {@code NoteService} to re-seed
+     * on note update and to clean up on note delete (SB-2). Returns rows removed.
+     */
+    public int forgetBySourceRef(String source, UUID refId) {
+        return repo.deleteBySourceRef(source, refId);
+    }
+
     private int clampK(Integer k) {
         int effective = (k == null || k <= 0) ? props.getDefaultK() : k;
         return Math.min(effective, props.getMaxK());

@@ -144,10 +144,13 @@ exist so its corpus is ready when it lands.
   Per the manifest: `id`≠`title` anchor, null owner = household-shared, blank `type`→`fact`, null
   `source`→`user`, tags/frontmatter jsonb. No embedding/graph wiring yet — just the durable authored row.
   `NotesIntegrationTest` (6, Testcontainers); full memory-service suite green.
-- **SB-2 — auto-seed recall on note write.** On create/update, embed `body_md` into `memory.memories`
-  (`source=note`, `{kind:note, refId}`); on delete, forget it. Reuses `EmbeddingClient` + `MemoryService`.
-  This makes notes recallable via the existing `/v1/memories/recall`. Mirrors docs-agent D-e's seed,
-  now server-side and authoritative. Repository/integration-tested.
+- **SB-2 — auto-seed recall on note write. ✅ DONE (PR #262).** On create/update `NoteService.reseed`
+  embeds `title`+`body_md` into `memory.memories` (`source=note`, `{kind:note, refId}`) via
+  `MemoryService.write`; on delete `forget` drops it via the new `MemoryService.forgetBySourceRef`
+  (`metadata.refId` match) — an update re-seeds (one memory per note). Best-effort: the note row commits
+  first, so an embed/llm-gateway outage never fails the write. Notes are now recallable via the existing
+  `/v1/memories/recall`. `NoteSeedIntegrationTest` (3, mock embedder): seed+recall, re-seed-once on
+  update, forget-on-delete.
 - **SB-3 — `[[wiki-links]]` → relations + backlinks.** Parse `[[target]]` tokens on write → upsert
   `memory.relations` edges (`subject_type=note`); add `note` as a relation subject/object type;
   `GET /v1/notes/{id}/backlinks`. Reuses `RelationService`. Link a `[[Person Name]]` to `core.people`
