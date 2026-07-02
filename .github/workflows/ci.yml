@@ -60,32 +60,39 @@ jobs:
       # PR: incremental build via GIB (only modules changed vs the base + their
       # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)
       # — main remains the authoritative full-suite run.
+      # PR only: pre-install the test-helper libs + their full upstream (-am) into the local
+      # .m2 so the incremental GIB verify can resolve *test*-scope dependencies of any reactor
+      # module. GIB computes its reactor over compile/runtime edges, so a test-scope dep is
+      # never pulled in: a PR touching contracts drags e.g. event-bus in as a dependent and
+      # Maven fails resolving event-bus's test-scope `test-support`; likewise an agent's
+      # `golden-test-support` (and its own compile chain agent-runtime -> doc-render). Installing
+      # both helper libs with -am puts them and everything they need in .m2, so every such
+      # resolution succeeds. Cheap + robust, and it doesn't run their tests (-DskipTests). This
+      # is only needed on PRs that don't also add a module (a module add edits the root pom ->
+      # GIB builds all anyway).
+      - name: pre-install test-helper libs (PR incremental resolution)
+        if: steps.detect.outputs.skip != 'true' && github.event_name == 'pull_request'
+        run: mvn -B -ntp -q -DskipTests -pl libs/test-support,libs/golden-test-support -am install
+
+      # PR: incremental build via GIB (only modules changed vs the base + their
+      # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)
+      # — main remains the authoritative full-suite run.
       - name: maven verify
         if: steps.detect.outputs.skip != 'true'
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # buildUpstream=always pulls the changed modules' upstream libs into the same
-            # reactor, so their compile-scope SNAPSHOTs resolve intra-build (no install needed).
-            #
-            # forceBuildModules='test-support|golden-test-support' keeps the test-helper libs in
-            # the reactor on EVERY incremental build. GIB computes "upstream" over compile/runtime
-            # edges only, so a *test*-scope dependency of an upstream lib is never pulled: a PR that
-            # touches contracts / a widely-depended lib drags e.g. event-bus in as an upstream, and
-            # Maven then fails resolving event-bus's test-scope test-support (not in the reactor,
-            # not installed). Forcing the two test-helper libs in makes them resolvable. This
-            # surfaced on the first contracts-touching PR that doesn't also add a module (a module
-            # add edits the root pom -> GIB builds all).
-            #
-            # argsForUpstreamModules=maven.test.skip=true then builds upstream libs main-only
-            # (jar for downstream to compile against), skipping their test compile+run — an upstream
-            # lib is a dependency here, not the thing under test; its own tests run on main and on
-            # any PR that actually changes it (then it's in the changed set, not upstream).
+            # reactor, so their compile-scope SNAPSHOTs resolve intra-build. Test-scope deps of
+            # reactor modules resolve from .m2 (the pre-install step above).
+            # argsForUpstreamModules=maven.test.skip=true builds upstream libs main-only (jar for
+            # downstream to compile against), skipping their test compile+run — an upstream lib is
+            # a dependency here, not the thing under test; its own tests run on main and on any PR
+            # that actually changes it (then it's in the changed set, not upstream).
             mvn -B -ntp \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
               -Dgib.buildUpstream=always \
-              -Dgib.forceBuildModules='test-support|golden-test-support' \
               -Dgib.argsForUpstreamModules='maven.test.skip=true' \
               verify
           else
