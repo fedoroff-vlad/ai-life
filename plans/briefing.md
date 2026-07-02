@@ -79,9 +79,18 @@ Assert **structure, not wording** (roadmap §Risks).
   render/store hiccup soft-fails to the text-only reply. Same board seam as creator/chef/nutrition
   (`MediaStoreClient` + `DeliverablePublisher`, default editorial theme). `flow/BriefingComposer`
   (`publishBoard`/`newsLinks`). Covered by `BriefingComposerTest` (board stored + link in reply).
-- **BR-f — scheduler wake + delivery + E2E closer.** The profile `schedule` drives a per-person
-  morning wake → orchestrator → briefing trigger → `notifier-service`. `E2EBriefingWakeFlowTest`
-  (scheduler → orchestrator → briefing → notifier), asserting the contracts survive each hop.
+- **BR-f — scheduler wake + delivery + E2E closer.** Split for safety:
+  - **BR-f1 — trigger receiver. ✅ DONE.** `POST /agents/briefing/triggers/{kind}` (`web/TriggerController`).
+    A `briefing.digest` wake reuses the `BriefingComposer` digest flow (empty user text) and delivers via
+    `notifier-service` — to the payload's `ownerId`, else household fan-out. Manifest trigger declared.
+    `TriggerControllerTest` (owner path + household fan-out + unknown kind). Orchestrator dispatch is
+    already generic (by agent name → `/agents/<name>/triggers/<kind>`), so a manually-created schedule
+    already drives this end to end.
+  - **BR-f2 — schedule registration + E2E closer (next).** `mcp-briefing` registers/updates/deletes a
+    per-profile cron in scheduler-service (agent=`briefing`, kind=`briefing.digest`, payload `{ownerId}`,
+    cron from the profile's `schedule` time+timezone) on `setBriefingProfile`, storing the `schedule_id`.
+    `E2EBriefingWakeFlowTest` (scheduler → orchestrator → briefing → notifier), asserting the contracts
+    survive each hop. Closes the briefing project.
 
 ## Deferred
 - **`chart-render` capability** (data → PNG/SVG) — the finance snapshot sparkline / week-ahead bar.
