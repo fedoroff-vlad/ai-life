@@ -66,11 +66,19 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # buildUpstream=always pulls the changed modules' upstream libs into the same
             # reactor, so their SNAPSHOTs resolve intra-build (no install needed on a clean CI).
+            # argsForUpstreamModules=maven.test.skip=true builds those upstream libs main-only
+            # (jar for downstream to compile against) and skips their test compile+run — an
+            # upstream lib is a dependency here, not the thing under test, and its own tests
+            # already run on main + on any PR that actually changes it. Without this a PR that
+            # touches contracts / a widely-depended lib drags e.g. event-bus into the reactor as
+            # an upstream and fails resolving event-bus's *test*-scope test-support (which GIB
+            # does not pull), or needlessly spins that lib's Testcontainers test.
             mvn -B -ntp \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
               -Dgib.buildUpstream=always \
+              -Dgib.argsForUpstreamModules='maven.test.skip=true' \
               verify
           else
             mvn -B -ntp verify
