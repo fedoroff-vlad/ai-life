@@ -885,6 +885,30 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-docs:
+    image: ai-life/mcp-docs:local
+    container_name: ai-life-mcp-docs
+    build:
+      context: ..
+      dockerfile: domains/docs/mcp-docs/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      MCP_DOCS_PORT: 8116
+      MCP_DOCS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_DOCS_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_DOCS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8116/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   # ---------- agents ----------
 
   calendar-agent:

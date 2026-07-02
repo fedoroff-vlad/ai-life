@@ -1,0 +1,103 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 080-docs
+      author: ai-life
+      comment: |
+        Docs domain opener: source-of-truth table for mcp-docs (plans/docs.md).
+        One table — document (the personal document archive: receipts, contracts,
+        warranties, notes).
+
+        Append-only (unlike the per-person profile stores there is no upsert key — a
+        household has many documents), scoped (household_id, owner_id) with a null
+        owner = household-shared. The blob lives in media-service; media_id references
+        it (we never re-store bytes). doc_type is a coarse class
+        (receipt|contract|warranty|note|other); title/party/doc_date/amount/currency
+        are the extracted metadata (amount/currency only for money documents).
+        ocr_text is the full recognised text and the search corpus; tags is a jsonb
+        array of labels.
+      changes:
+        - createTable:
+            schemaName: docs
+            tableName: document
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_document_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_document_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: media_id
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: doc_type
+                  type: varchar(32)
+              - column:
+                  name: title
+                  type: text
+              - column:
+                  name: party
+                  type: text
+              - column:
+                  name: doc_date
+                  type: date
+              - column:
+                  name: amount
+                  type: numeric(18,2)
+              - column:
+                  name: currency
+                  type: varchar(8)
+              - column:
+                  name: ocr_text
+                  type: text
+              - column:
+                  name: tags
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: docs
+            tableName: document
+            indexName: ix_document_household_created
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: created_at
+
+        # Trigram index over the concatenated searchable text so searchDocuments'
+        # ILIKE '%q%' + similarity() ranking is index-accelerated (pg_trgm is created
+        # in infra/postgres/init.sql). Raw SQL: Liquibase's createIndex can't express
+        # an expression index with an operator class.
+        - sql:
+            sql: |
+              CREATE INDEX ix_document_search
+                ON docs.document
+                USING GIN ((coalesce(title, '') || ' ' || coalesce(party, '') || ' ' || coalesce(ocr_text, '')) gin_trgm_ops);
+            stripComments: false
