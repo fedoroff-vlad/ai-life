@@ -124,6 +124,7 @@ algorithms (centrality, shortest path); (c) row count exceeds ~100k and SQL
 joins start to hurt.
 
 ## Roadmap (deferred)
+- **Ambient / intuitive capture (planned, next):** extend the memory-from-chat path (`CaptureService`) with a **third output** — curated **ambient notes**. A `NoteWorthinessExtractor` decides, from an ordinary message, what is worth a note and about whom (resolved via `ProfileClient`), dedups against existing notes, and writes via `NoteService` (`source=ambient`), so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). Not built yet.
 - PR17: first cross-agent chain (`calendar.birthday_upcoming → memory recall + person relations → gift-recommender`).
 - Future: Apache AGE upgrade (per promotion criteria above).
 - Future: bulk re-embed endpoint when we change provider/dim (Stage 5).

@@ -225,9 +225,16 @@ exist so its corpus is ready when it lands.
   weekly), best-effort + off the reply path — the "ensure on first use" shape calendar uses for ICS
   feeds, so no manual setup. `SchedulerClientTest` (registers-when-absent / skips-when-present /
   soft-fail); compose + `.env.example` wired. **Proactive resurfacing is now complete (R-a/R-b/R-c).**
+- **Ambient / intuitive capture** — fill the note tier *without* the "запомни" keyword: the system
+  decides, from ordinary conversation, **what** is worth keeping and **about whom**, dedups, and records
+  (explicit fixation → auto-save, important inferred → approve, trivial → ignore). Evolves
+  memory-from-chat (`CaptureService`) with a third output. **🚧 NOW (owner-picked next work after
+  resurfacing, 2026-07-03).** Authority + phased plan (AC-1..5): **[ambient-capture.md](ambient-capture.md)**.
+  It's the *input/quality* half of the owner's north-star; the *output* half (memory-driven orchestration)
+  is a separate follow-on track (item 3 / inter-agent).
 - **`coach-agent` (self-improvement)** — its own future domain that reads this substrate (goals /
   journal / reflections); out of this epic, but the note `type`s above are pre-stocked for it (see Repo
-  layout).
+  layout). Deferred until ambient capture lands (owner order).
 
 ## Golden tests — from the start
 Real model access is unblocked (local Ollama `qwen2.5:7b` via llm-gateway). Each LLM seam gets an

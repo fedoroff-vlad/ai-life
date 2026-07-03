@@ -60,6 +60,20 @@ The brain stays intuitive **because the rules are data-driven** (the LLM classif
 
 **Autonomy rule (applies to both):** propose autonomously, but perform any **outbound** external action only after user confirmation (conversation-state).
 
+## Memory: intake & memory-driven reasoning (north-star)
+The brain is only as good as what it remembers. Two directions, both over the second-brain substrate
+([second-brain.md](second-brain.md) — `memory.note` + pgvector recall + `[[wiki-link]]` graph):
+- **Intake (quality in).** Memory fills three ways: explicit ("запомни …" → notes-agent), agent-seeded
+  (e.g. docs writes a note), and **ambient / intuitive** — from *ordinary* conversation the system decides
+  what is worth keeping and about whom, dedups, and records (explicit fixation → auto-save; important
+  inferred → approve; trivial → ignore). Ambient capture evolves memory-from-chat (`CaptureService`), off
+  the reply path. Plan: [ambient-capture.md](ambient-capture.md).
+- **Reasoning (quality out) — the north-star.** Because routing already reads *memory-service recall as
+  classification context* (see the doctrine above), a well-curated brain lets the LLM **pull the right
+  agents from the data** and synthesize one answer in one shot (agent-led coordination via the hub). This
+  is the payoff good intake unlocks; it is a follow-on track, not a new planner — the orchestrator stays a
+  thin, data-driven router.
+
 ## Principles
 - **Monorepo ≠ monolith.** Each service = own Spring Boot app, own Dockerfile, own application.yml, own liquibase changelog. Depends only on `libs/*`. Deploys independently.
 - **Polyglot by design — choose the language per layer, integrate over HTTP/MCP.** The HTTP/MCP boundaries + one-container-per-service shape exist precisely so each piece uses the best tool regardless of language; the stack already runs non-Java services (Postgres, Radicale=Python, MinIO=Go, SearXNG=Python, Langfuse, Grafana). The decision is **per layer**, not global: (1) **core** — orchestrator, agents, domain logic — stays **Java** (where the maintainer is productive, type-safe, on the existing foundation; "the maintainer understands it" *is* maintainability). (2) **ML inference** (whisper, vision try-on, image-gen) — **never rewrite**: run the upstream project as a GPU service and bind a thin capability-MCP. (3) **Off-the-shelf apps** (Grafana, SearXNG) — run as containers, integrate. (4) The **one place another language wins**: a capability-MCP that is a *thin wrapper over that language's native ecosystem* where Java would need JNI/subprocess — there a small Python (FastAPI + MCP SDK) service can beat Java, decided *at that leaf*. Polyglot has real cost (toolchains, CI, ops), so: **keep the spine Java; reach for another language only at a leaf that wraps its native ecosystem; always prefer "run upstream + thin client" over "rewrite" — in any language.**
