@@ -15,6 +15,13 @@ public class NotesAgentProperties implements SharedClientProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
+    /** A resurfacing wake surfaces a note untouched for at least this many days (R-b). */
+    private int resurfaceOlderThanDays = 30;
+
+    public int getResurfaceOlderThanDays() { return resurfaceOlderThanDays; }
+    public void setResurfaceOlderThanDays(int resurfaceOlderThanDays) {
+        this.resurfaceOlderThanDays = resurfaceOlderThanDays;
+    }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {

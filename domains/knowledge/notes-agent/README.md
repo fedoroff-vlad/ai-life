@@ -7,9 +7,16 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4)
+## Status (SB-4 + resurfacing R-b)
 
-Scaffold + the **capture** and **recall** flows.
+Scaffold + the **capture**, **recall**, and **proactive-resurfacing** flows.
+
+- **Resurface (R-b)** — a `notes.resurface` scheduler wake (declared in `AGENT.md`) → `NoteResurfacer`
+  pulls one stale note the owner hasn't revisited in a while (memory-service
+  `GET /v1/notes/resurface`, staleness window `NOTES_RESURFACE_OLDER_THAN_DAYS`) → delivers a gentle
+  "🧠 Из твоих заметок: «…»" reminder via notifier-service (to the note's owner if set, else fanned out
+  to the household). Best-effort: nothing stale (`204`) is a silent no-op; the wake always returns 202
+  so the schedule advances. The cron that fires this wake is registered in R-c.
 
 - **Capture (note-writer)** — a "запомни …" cue → one llm-gateway turn with the `note-writer` SKILL
   distils a structured note (title / type / tags / body, strict JSON, temperature=0) → `POST /v1/notes`
@@ -28,6 +35,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 | method | path | purpose |
 |--------|------|---------|
 | POST | `/agents/notes/intent` | orchestrator entry. "запомни …" cue → `note-writer` capture; "что я думал про …" cue → `note-finder` recall; else the chat fallback. |
+| POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
 
 ## Skills
@@ -43,6 +51,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 |---|---|---|
 | `NOTES_AGENT_PORT` | `8118` | HTTP port. |
 | `NOTES_AGENT_MEMORY_RECALL_K` | `5` | memory-recall fan-in (shared agent-runtime). |
+| `NOTES_RESURFACE_OLDER_THAN_DAYS` | `30` | a resurface wake surfaces a note untouched for at least this many days. |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway for the note structure / query distil. |
 | `MEMORY_SERVICE_URL` | `http://memory-service:8087` | the knowledge base — `/v1/notes` (store, get, backlinks) + `/v1/memories/recall`. |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` | internal | shared agent-runtime clients. |
@@ -51,8 +60,10 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 
 - `NotesAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/NotesAgentProperties` — `notes-agent.*` base URLs (implements `SharedClientProperties`).
-- `http/NoteClient` — `/v1/notes` create / get / backlinks over the shared `memoryServiceWebClient`.
+- `http/NoteClient` — `/v1/notes` create / get / backlinks / **resurface** over the shared `memoryServiceWebClient`.
+- `flow/NoteResurfacer` — the R-b proactive flow: `NoteClient.resurface` → format a reminder → deliver via notifier (owner if set, else household fan-out); best-effort, no-op when nothing is stale.
 - `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title.
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` — recall cue → find, capture cue → write, else chat; `web/ManifestController`.
+- `web/TriggerController` — `POST /agents/notes/triggers/{kind}`; `notes.resurface` → `NoteResurfacer` (202), unbound kind → 404.
