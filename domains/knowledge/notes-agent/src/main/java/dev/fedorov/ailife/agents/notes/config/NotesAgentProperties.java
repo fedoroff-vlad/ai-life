@@ -15,13 +15,22 @@ public class NotesAgentProperties implements SharedClientProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
+    private String schedulerUrl = "http://scheduler-service:8085";
     /** A resurfacing wake surfaces a note untouched for at least this many days (R-b). */
     private int resurfaceOlderThanDays = 30;
+    /** Spring 6-field cron for the auto-registered household resurface schedule (R-c). */
+    private String resurfaceCron = "0 0 10 * * MON";
 
     public int getResurfaceOlderThanDays() { return resurfaceOlderThanDays; }
     public void setResurfaceOlderThanDays(int resurfaceOlderThanDays) {
         this.resurfaceOlderThanDays = resurfaceOlderThanDays;
     }
+
+    public String getSchedulerUrl() { return schedulerUrl; }
+    public void setSchedulerUrl(String schedulerUrl) { this.schedulerUrl = schedulerUrl; }
+
+    public String getResurfaceCron() { return resurfaceCron; }
+    public void setResurfaceCron(String resurfaceCron) { this.resurfaceCron = resurfaceCron; }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {

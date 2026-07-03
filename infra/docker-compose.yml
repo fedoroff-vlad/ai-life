@@ -1340,13 +1340,18 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
     environment:
       NOTES_AGENT_PORT: 8118
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      SCHEDULER_URL: http://scheduler-service:8085
       NOTES_AGENT_MEMORY_RECALL_K: ${NOTES_AGENT_MEMORY_RECALL_K:-5}
+      NOTES_RESURFACE_OLDER_THAN_DAYS: ${NOTES_RESURFACE_OLDER_THAN_DAYS:-30}
+      NOTES_RESURFACE_CRON: ${NOTES_RESURFACE_CRON:-0 0 10 * * MON}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8118/actuator/health"]
       interval: 10s

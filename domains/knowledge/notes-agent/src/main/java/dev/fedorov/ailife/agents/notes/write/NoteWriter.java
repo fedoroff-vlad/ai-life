@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.notes.http.NoteClient;
+import dev.fedorov.ailife.agents.notes.http.SchedulerClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -41,14 +42,16 @@ public class NoteWriter {
     private static final int TITLE_FALLBACK_CHARS = 60;
 
     private final NoteClient notes;
+    private final SchedulerClient scheduler;
     private final LlmClient llm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
-    public NoteWriter(NoteClient notes, LlmClient llm, SkillRegistry skills, AgentManifest manifest,
-                      ObjectMapper json) {
+    public NoteWriter(NoteClient notes, SchedulerClient scheduler, LlmClient llm, SkillRegistry skills,
+                      AgentManifest manifest, ObjectMapper json) {
         this.notes = notes;
+        this.scheduler = scheduler;
         this.llm = llm;
         this.skills = skills;
         this.manifest = manifest;
@@ -76,7 +79,13 @@ public class NoteWriter {
         JsonNode draft = parseDraft(llmContent);
         WriteNoteRequest req = buildRequest(msg, userText, draft);
         return notes.create(req)
-                .map(saved -> reply(successText(saved.title()), model))
+                .map(saved -> {
+                    // R-c: on a successful capture, make sure the household has a resurface cron. Idempotent
+                    // + best-effort + off the reply path — the note is already saved, so a scheduler blip
+                    // never affects the confirmation.
+                    scheduler.ensureResurfaceSchedule(msg.householdId()).subscribe();
+                    return reply(successText(saved.title()), model);
+                })
                 .onErrorResume(e -> {
                     log.warn("create note failed: {}", e.toString());
                     return Mono.just(reply("Не смог записать заметку в базу. Попробуйте позже.", null));
