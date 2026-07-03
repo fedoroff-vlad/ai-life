@@ -183,9 +183,16 @@ exist so its corpus is ready when it lands.
   resolves a note recall hit → `getNote` → the note's frontmatter → the document row. E2E
   `E2EDocsIngestSearchFlowTest` reworked over the note tier; `DocArchiverTest`/`DocFinderTest` green.
   Next consumers adopt the same seam, one per PR.
-- **SB-6 — family/people slice (closes #189).** People notes (`#person`, resolved to `core.people`),
-  `GiftRecommender` reads the curated person notes as a gather source. E2E closer proving a curated
-  preference note flows into a gift suggestion. **Closes #189.**
+- **SB-6 — family/people slice (closes #189). ✅ DONE.** No new store surface — the `#person →
+  core.people` linkage is SB-3's existing `[[wiki-link]]`→person resolution (a `note→person` edge), and
+  SB-5's `getNote` resolves the edge back to the note. `GiftRecommender` (calendar-agent) gains a
+  **`personNotes`** gather source: `memory.personRelations(person).incoming` → the `note→person` edges →
+  `getNote` each → trimmed to title/type/tags/body, folded into the coordinator context so curated
+  preferences ("любит пионы, не срезку") beat the noisy chat-capture facts. Only improves the gift
+  inputs — the gift/greeting logic is untouched (per the epic's boundaries). Soft-fails: no curated
+  notes just falls back to the memories/relations gather. Closer `giftRecommendPullsCuratedPersonNoteIntoSynthesis`
+  in `TriggerControllerTest` proves a curated preference note reaches the synthesis prompt + fans out.
+  **Closes #189.**
 - **SB-7 — markdown export (vault seam for a future UI).** `GET /v1/notes/export` → a zip / folder of
   `.md` files with frontmatter + `[[links]]` intact (round-trippable). The hand-off point for attaching
   any Obsidian-like frontend later.

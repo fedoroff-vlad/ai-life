@@ -14,11 +14,14 @@ import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
+import dev.fedorov.ailife.contracts.memory.RelationDto;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
@@ -34,7 +37,12 @@ import java.util.UUID;
  *       returns the relationship-tiered rule, falling back to the household "Gifts"
  *       envelope (D3d);</li>
  *   <li><b>memories</b> — long-term recall about the person from memory-service;</li>
- *   <li><b>relations</b> — the person's graph relations (when any exist).</li>
+ *   <li><b>relations</b> — the person's graph relations (when any exist);</li>
+ *   <li><b>personNotes</b> — the owner's <em>curated</em> second-brain notes about the person
+ *       (second-brain SB-6): notes whose {@code [[wiki-link]]} resolved to this person
+ *       ({@code note→person} edge, SB-3) fetched back as their title/body. Curated preferences
+ *       ("любит пионы, не срезку") beat the noisy chat-capture facts — this only improves the
+ *       gather inputs; it does not change the gift logic.</li>
  * </ul>
  * The {@link Coordinator} folds the successful sources into a {@code context} object and
  * asks the LLM to synthesize budget-aware gift ideas from {@code [AGENT.md, SKILL.md]} +
@@ -81,6 +89,7 @@ public class GiftRecommender {
         gather.put("budget", fetchGiftBudget(household, person));
         gather.put("memories", fetchMemories(household, personId, person));
         gather.put("relations", fetchRelations(household, personId));
+        gather.put("personNotes", fetchPersonNotes(household, personId));
 
         ObjectNode payload = json.createObjectNode();
         payload.set("payload", req.payload() == null ? json.createObjectNode() : req.payload());
@@ -134,6 +143,44 @@ public class GiftRecommender {
                 .flatMap(rel -> (rel.outgoing().isEmpty() && rel.incoming().isEmpty())
                         ? Mono.empty()
                         : Mono.just((JsonNode) json.valueToTree(rel)));
+    }
+
+    /**
+     * The owner's curated second-brain notes about this person (SB-6). A note links to the person
+     * via a {@code [[wiki-link]]} that SB-3 resolved to a {@code note→person} edge, so the person's
+     * {@code incoming} relations name the source notes; each is fetched back (SB-5 {@code getNote})
+     * and trimmed to its title/type/tags/body for the synthesis. Only emitted when there's at least
+     * one note — an empty result is omitted by the coordinator. Soft-fails: no curated notes just
+     * means the LLM falls back to the memories/relations gather as before.
+     */
+    private Mono<JsonNode> fetchPersonNotes(UUID household, UUID personId) {
+        if (household == null || personId == null) return Mono.empty();
+        return memory.personRelations(household, personId)
+                .flatMapMany(rel -> Flux.fromIterable(rel.incoming()))
+                .filter(r -> "note".equals(r.subjectType()) && r.subjectId() != null)
+                .map(RelationDto::subjectId)
+                .distinct()
+                .flatMap(memory::getNote)
+                .map(this::personNoteView)
+                .collectList()
+                .filter(notes -> !notes.isEmpty())
+                .map(notes -> (JsonNode) json.valueToTree(notes));
+    }
+
+    /** Trim a note to the fields the synthesis needs — title / type / tags / body. */
+    private JsonNode personNoteView(NoteDto note) {
+        ObjectNode view = json.createObjectNode();
+        view.put("title", note.title());
+        if (note.type() != null && !note.type().isBlank()) {
+            view.put("type", note.type());
+        }
+        if (note.tags() != null && !note.tags().isEmpty()) {
+            view.set("tags", json.valueToTree(note.tags()));
+        }
+        if (note.bodyMd() != null && !note.bodyMd().isBlank()) {
+            view.put("body", note.bodyMd());
+        }
+        return view;
     }
 
     /**
