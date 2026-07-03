@@ -193,9 +193,15 @@ exist so its corpus is ready when it lands.
   notes just falls back to the memories/relations gather. Closer `giftRecommendPullsCuratedPersonNoteIntoSynthesis`
   in `TriggerControllerTest` proves a curated preference note reaches the synthesis prompt + fans out.
   **Closes #189.**
-- **SB-7 — markdown export (vault seam for a future UI).** `GET /v1/notes/export` → a zip / folder of
-  `.md` files with frontmatter + `[[links]]` intact (round-trippable). The hand-off point for attaching
-  any Obsidian-like frontend later.
+- **SB-7 — markdown export (vault seam for a future UI). ✅ DONE — epic closer.** `GET
+  /v1/notes/export?householdId=…` streams an `application/zip` of one `.md` per note: YAML frontmatter
+  (manifest fields from the columns + the open `frontmatter` jsonb bag, `id` the durable round-trip
+  anchor) + the body verbatim (`[[wiki-links]]` + `#tags` intact). Filenames are the sanitised titles
+  (Obsidian `[[Title]]` resolves; duplicates get a ` (n)` suffix). New: `note/NoteMarkdown` (pure render +
+  filename), `service/NoteExporter` (zip the household), `NoteRepository.listAllByHousehold` (uncapped,
+  title-ordered). `NoteExportIntegrationTest` (Testcontainers) proves round-trip (frontmatter `id` = the
+  row, body/link preserved) + household isolation. Bulk *import* (the inverse) stays deferred. **Closes
+  the epic #257.**
 
 ## Deferred (out of the epic, note when a consumer needs one)
 - **Real UI / vault two-way sync.** Endpoints (SB-7 export + SB-1 CRUD) are the seam; a live editor or
