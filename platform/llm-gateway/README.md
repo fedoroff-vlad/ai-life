@@ -176,19 +176,21 @@ orchestrator now has golden coverage.** They share their plumbing via `libs/gold
 
 Run them against local Ollama (free):
 
-**Fast path — [`scripts/golden.sh`](../../scripts/golden.sh)** (one command; instant on reuse). It
-ensures a warm Ollama-backed gateway on `:8081` (resolving the JDK via `$JAVA_HOME/bin/java` when `java`
-isn't on PATH — the default on a bare Git Bash shell), then runs the tests with `GOLDEN_LLM=true`. The
-gateway is left running, so the *next* run skips startup entirely:
+**Fast path — [`scripts/golden.sh`](../../scripts/golden.sh)** (one command; instant on reuse). It brings
+up the whole local stack — `ollama serve` on `:11434` (only if it isn't already running) and an
+Ollama-backed gateway on `:8081` (resolving the JDK via `$JAVA_HOME/bin/java` when `java` isn't on PATH —
+the default on a bare Git Bash shell) — then runs the tests with `GOLDEN_LLM=true`. Both are left
+running, so the *next* run skips startup entirely:
 
 ```sh
-ollama serve &                 # once: Ollama on :11434 (needs qwen2.5:7b + nomic-embed-text)
 scripts/golden.sh -pl domains/knowledge/notes-agent -Dtest='GoldenNoteWriterTest,GoldenNoteFinderTest'
-scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest    # reuses the warm gateway → instant
-scripts/golden.sh down         # stop the background gateway when you're done
+scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest    # reuses the warm stack → instant
+scripts/golden.sh down         # stop the gateway (and Ollama, if the script started it)
 ```
 
-Under the hood it is the manual flow below — reach for these when you need to tweak a step:
+The models (`qwen2.5:7b` + `nomic-embed-text`) must be pulled already — the script checks and, if one is
+missing, prints the `ollama pull` to run rather than downloading multi-GB blobs behind your back. Under
+the hood it is the manual flow below — reach for these when you need to tweak a step:
 
 ```sh
 # 1. bring Ollama up. The CLI `ollama serve` resolves models from the default root
