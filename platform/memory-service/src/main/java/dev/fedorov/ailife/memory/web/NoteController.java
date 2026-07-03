@@ -3,7 +3,9 @@ package dev.fedorov.ailife.memory.web;
 import dev.fedorov.ailife.contracts.note.NoteBacklinksResponse;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
+import dev.fedorov.ailife.memory.service.NoteExporter;
 import dev.fedorov.ailife.memory.service.NoteService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,9 +31,11 @@ import java.util.UUID;
 public class NoteController {
 
     private final NoteService service;
+    private final NoteExporter exporter;
 
-    public NoteController(NoteService service) {
+    public NoteController(NoteService service, NoteExporter exporter) {
         this.service = service;
+        this.exporter = exporter;
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -50,6 +54,19 @@ public class NoteController {
     public ResponseEntity<List<NoteDto>> list(@RequestParam("householdId") UUID householdId,
                                               @RequestParam(value = "limit", required = false) Integer limit) {
         return ResponseEntity.ok(service.list(householdId, limit));
+    }
+
+    /**
+     * SB-7 vault export: every note in the household as a zip of {@code .md} files (frontmatter +
+     * body, {@code [[links]]} intact) — the round-trippable hand-off for a future UI/vault sync.
+     */
+    @GetMapping(path = "/export", produces = "application/zip")
+    public ResponseEntity<byte[]> export(@RequestParam("householdId") UUID householdId) {
+        byte[] vault = exporter.exportVault(householdId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"notes-vault.zip\"")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(vault);
     }
 
     @GetMapping("/{id}/backlinks")

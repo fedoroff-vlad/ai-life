@@ -115,6 +115,19 @@ public class NoteRepository {
                 """, rowMapper, householdId, limit);
     }
 
+    /**
+     * Every note in a household, uncapped — the SB-7 markdown-vault export. Ordered by title
+     * (then {@code created_at}) for a stable, human-browsable vault rather than the recency order
+     * the paged {@link #listByHousehold} uses.
+     */
+    public List<NoteRow> listAllByHousehold(UUID householdId) {
+        return jdbc.query("SELECT " + COLUMNS + """
+                 FROM memory.note
+                 WHERE household_id = ?
+                 ORDER BY lower(title), created_at
+                """, rowMapper, householdId);
+    }
+
     public boolean deleteById(UUID id) {
         return jdbc.update("DELETE FROM memory.note WHERE id = ?", id) > 0;
     }
