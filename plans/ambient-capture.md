@@ -50,14 +50,15 @@ never blocks the message).
 
 ## Phases (each a small vertical slice / PR unless noted)
 
-### AC-1 — decision engine (extract + classify), no writes yet
+### AC-1 — decision engine (extract + classify), no writes yet ✅ DONE
 New `platform/memory-service/.../capture/NoteWorthinessExtractor` — mirrors `FactExtractor` (LlmClient
 DEFAULT channel, strict-JSON, lenient parse, best-effort → empty on junk). From a message it emits 0..N
-candidates: `{title, type, body, subject, importance, explicitFixation}` where `type` ∈
+`NoteCandidate`s: `{title, type, body, subject, importance, explicitFixation}` where `type` ∈
 `person|fact|idea|goal|journal|reflection` (the note-manifest types), `subject` = `"self"` | a person name
-| null, `importance` marks how note-worthy, `explicitFixation` marks the presence of a fixation cue. No
-writes — just extraction + the three-way classification. Unit test + opt-in golden test (structure, not
-wording).
+| null, `importance` marks how note-worthy, `explicitFixation` marks the presence of a fixation cue.
+`NoteCandidate.outcome()` derives the three-way `CaptureOutcome` (`EXPLICIT_FIXATION` / `IMPORTANT_INFERRED`
+/ `TRIVIAL`). No writes — just extraction + classification. `NoteWorthinessExtractorTest` (11 cases) +
+opt-in `GoldenNoteWorthinessTest`.
 
 ### AC-2 — write the unambiguous (explicit fixation) + attribution
 Explicit-fixation candidates → a curated note via `NoteService.create` (already auto-seeds recall SB-2 +
