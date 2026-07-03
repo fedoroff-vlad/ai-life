@@ -16,6 +16,7 @@ import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -47,8 +49,10 @@ public class DocArchiver {
     private static final String SKILL_NAME = "doc-archiver";
     /** Cap the OCR text we store/prompt with so a huge multi-page scan can't blow up the row/turn. */
     private static final int MAX_OCR_CHARS = 20_000;
-    /** memory-service scope for the semantic index of archived documents (D-e). */
-    private static final String MEMORY_SOURCE = "docs";
+    /** {@code source} of the second-brain note an archived document seeds (SB-5 universal write seam). */
+    private static final String NOTE_SOURCE = "docs-agent";
+    /** A document is reference material — the second-brain note {@code type} (see the note manifest). */
+    private static final String NOTE_TYPE = "reference";
 
     private final OcrClient ocr;
     private final DocumentClient documents;
@@ -89,12 +93,13 @@ public class DocArchiver {
             JsonNode draft = parseDraft(r.content());
             SaveDocumentInput input = buildInput(msg, mediaId, ocrText, draft);
             return documents.save(input)
-                    // D-e: seed memory-service so doc-finder's semantic recall can surface this
-                    // document by meaning, not just the trigram text match. Soft-fails internally —
-                    // the document is already saved + text-searchable, so a memory outage is harmless.
+                    // SB-5: seed the archived document into the second-brain as an authored note
+                    // (memory-service /v1/notes) rather than a raw memory row. The note auto-seeds recall
+                    // (SB-2) so doc-finder still surfaces it by meaning, but it now lands in the ONE store
+                    // every agent reads. Soft-fails internally — the document is already saved +
+                    // text-searchable, so a memory-service outage is harmless.
                     .flatMap(saved -> memory
-                            .remember(saved.householdId(), saved.ownerId(), MEMORY_SOURCE,
-                                    indexText(saved, ocrText), memoryMetadata(saved))
+                            .note(buildNote(saved, ocrText))
                             .thenReturn(reply(successText(saved.docType(), saved.title()), r.model())))
                     .onErrorResume(e -> {
                         log.warn("save_document failed for media {}: {}", mediaId, e.toString());
@@ -103,20 +108,58 @@ public class DocArchiver {
         });
     }
 
+    /**
+     * The second-brain note an archived document seeds (SB-5). The body is the OCR corpus (so recall +
+     * a future markdown export carry the text); the {@code frontmatter} holds a {@code {kind:document,
+     * refId}} back-pointer so a note recall hit resolves back to the {@code docs.document} row that owns
+     * the blob + structured fields (doc-finder reads it).
+     */
+    private WriteNoteRequest buildNote(DocumentDto saved, String ocrText) {
+        return new WriteNoteRequest(
+                saved.householdId(),
+                saved.ownerId(),               // seeded under the sender; recall/search stay household-scoped
+                noteTitle(saved),
+                NOTE_TYPE,
+                noteTags(saved),
+                NOTE_SOURCE,
+                null,                          // personId — a document is not a person note
+                indexText(saved, ocrText),     // body = the OCR corpus (recall + export)
+                noteFrontmatter(saved));       // {kind:document, refId, …} back-pointer
+    }
+
+    /** memory.note requires a non-blank title; fall back to the doc-type label, then a generic word. */
+    private static String noteTitle(DocumentDto saved) {
+        if (saved.title() != null && !saved.title().isBlank()) {
+            return saved.title();
+        }
+        String label = docTypeLabel(saved.docType());
+        return label != null ? label : "документ";
+    }
+
+    /** Coarse tags for the note: always {@code document}, plus the doc-type when known. */
+    private static List<String> noteTags(DocumentDto saved) {
+        List<String> tags = new ArrayList<>();
+        tags.add("document");
+        if (saved.docType() != null && !saved.docType().isBlank()) {
+            tags.add(saved.docType().trim().toLowerCase());
+        }
+        return tags;
+    }
+
     /** The corpus we embed: the full OCR text, falling back to the title so a text-less scan is still findable. */
     private static String indexText(DocumentDto saved, String ocrText) {
         String text = blankToNull(ocrText);
         return text != null ? text : saved.title();
     }
 
-    /** A {@code {kind, refId}} back-pointer (+ light metadata) so a recall hit resolves to its document row. */
-    private ObjectNode memoryMetadata(DocumentDto saved) {
-        ObjectNode meta = json.createObjectNode();
-        meta.put("kind", "document");
-        meta.put("refId", saved.id().toString());
-        if (saved.docType() != null) meta.put("docType", saved.docType());
-        if (saved.title() != null) meta.put("title", saved.title());
-        return meta;
+    /** A {@code {kind, refId}} back-pointer (+ light metadata) so a note recall hit resolves to its document row. */
+    private ObjectNode noteFrontmatter(DocumentDto saved) {
+        ObjectNode fm = json.createObjectNode();
+        fm.put("kind", "document");
+        fm.put("refId", saved.id().toString());
+        if (saved.docType() != null) fm.put("docType", saved.docType());
+        if (saved.title() != null) fm.put("title", saved.title());
+        return fm;
     }
 
     private SaveDocumentInput buildInput(NormalizedMessage msg, String mediaId, String ocrText, JsonNode draft) {

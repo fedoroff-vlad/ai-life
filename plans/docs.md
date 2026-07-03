@@ -72,6 +72,12 @@ wording**.
   `E2EDocsIngestSearchFlowTest`: inbound photo → ocr → save → seed, then a search where the trigram
   returns nothing and the document is recovered purely by the semantic path, asserting the
   `libs/contracts` DTOs survive each hop. **Closes #188.**
+  - **Superseded by SB-5 (second-brain #257).** The raw `memory.memories` seed above was re-pointed at
+    the **note tier**: docs-agent now writes an authored note (`MemoryClient.note` → `POST /v1/notes`,
+    `source=docs-agent`, `frontmatter={kind:document, refId}`) that auto-seeds recall (SB-2), and
+    `doc-finder` resolves a `{kind:note, refId}` recall hit → `getNote` → the note's frontmatter
+    `{kind:document, refId}` → the document row. Same E2E, now over the unified store. See
+    [second-brain.md](second-brain.md) §SB-5.
 
 ## Deferred
 - **PDF / multi-page documents.** `mcp-media-processing.ocr` decodes a single image via `ImageIO`;

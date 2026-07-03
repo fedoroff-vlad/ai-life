@@ -172,10 +172,17 @@ exist so its corpus is ready when it lands.
   orchestrator registry, compose (8118), `.env.example`, infra port table. Tests: `NoteWriterTest`/
   `NoteFinderTest` (MockWebServer), `ManifestControllerTest`, `E2ENotesCaptureRecallFlowTest` (capture→
   recall across real HTTP), golden `GoldenNoteWriterTest`/`GoldenNoteFinderTest` (`@GoldenLlmTest`).
-- **SB-5 — universal write seam (agents feed the brain).** Generalise the docs-agent D-e pattern:
-  agents that learn durable facts write notes (or upgrade their `memory-service` seed to a note with
-  `kind`/`refId`). Start by pointing docs-agent's seed at the note tier; document the seam in
-  `libs/agent-runtime` so new agents adopt it. One consumer per PR.
+- **SB-5 — universal write seam (agents feed the brain). ✅ DONE.** The shared note-write seam lives on
+  `MemoryClient` in `libs/agent-runtime`: `note(WriteNoteRequest) → Mono<NoteDto>` (the note-tier analog
+  of `remember` — capture an authored note at `/v1/notes` that memory-service auto-seeds into recall +
+  graph server-side; carry a `{kind, refId}` back-pointer in `frontmatter`) + `getNote(id)` (resolve a
+  `{kind:note, refId}` recall hit back to its domain row). Both soft-fail (3s timeout, downgrade to
+  empty) so enrichment never sinks the caller's primary write. **First consumer — docs-agent:**
+  `DocArchiver` now seeds an archived document as a note (`source=docs-agent`, `type=reference`, body =
+  OCR text, `frontmatter={kind:document, refId}`) instead of a raw `memory.memories` row, and `DocFinder`
+  resolves a note recall hit → `getNote` → the note's frontmatter → the document row. E2E
+  `E2EDocsIngestSearchFlowTest` reworked over the note tier; `DocArchiverTest`/`DocFinderTest` green.
+  Next consumers adopt the same seam, one per PR.
 - **SB-6 — family/people slice (closes #189).** People notes (`#person`, resolved to `core.people`),
   `GiftRecommender` reads the curated person notes as a gather source. E2E closer proving a curated
   preference note flows into a gift suggestion. **Closes #189.**

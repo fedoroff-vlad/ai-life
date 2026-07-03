@@ -5,23 +5,30 @@ Personal **document-archive** specialist (port **8117**). Ingests a document pho
 `docs`; owns `mcp-docs`; binds the shared `mcp-media-processing` (OCR). Plan:
 [plans/docs.md](../../../plans/docs.md).
 
-## Status (D-e)
+## Status (SB-5)
 
-Scaffold + the **ingest** and **search** flows, with **semantic recall** (D-e) layered onto both.
+Scaffold + the **ingest** and **search** flows, with **semantic recall** layered onto both. As of the
+second-brain **SB-5** (epic #257) the semantic seed is an authored **note** in the shared substrate, not
+a raw `memory.memories` row — docs-agent is the first consumer of the universal note-write seam
+(`MemoryClient.note`/`getNote` in `libs/agent-runtime`).
 
-- **Ingest (D-c, +D-e seed)** — an inbound message with an `image` attachment → `doc-archiver`: OCR the
-  photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with the `doc-archiver`
-  SKILL extracts the metadata (doc_type / title / party / date / amount / currency / tags) from the OCR
-  text + the user's caption → archive via `mcp-docs` `POST /internal/documents`, storing the full OCR
-  text as the search corpus → **seed the OCR text into memory-service** (`POST /v1/memories`, scope
-  `docs`, metadata `{kind:document, refId}`) so search can find it by meaning → confirm what was filed.
-  The seed soft-fails: the document is already saved + text-searchable.
-- **Search (D-d, +D-e recall)** — a "find my X" cue → `doc-finder`: one llm-gateway turn with the
+- **Ingest (D-c, +SB-5 note seed)** — an inbound message with an `image` attachment → `doc-archiver`:
+  OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with the
+  `doc-archiver` SKILL extracts the metadata (doc_type / title / party / date / amount / currency / tags)
+  from the OCR text + the user's caption → archive via `mcp-docs` `POST /internal/documents`, storing the
+  full OCR text as the search corpus → **seed the document into the second-brain as a note**
+  (`MemoryClient.note` → `POST /v1/notes`, `source=docs-agent`, `type=reference`, body = OCR text,
+  `frontmatter={kind:document, refId}`) so it lands in the one store every agent reads and memory-service
+  auto-seeds it into recall (SB-2) → confirm what was filed. The note seed soft-fails: the document is
+  already saved + text-searchable.
+- **Search (D-d, +SB-5 recall)** — a "find my X" cue → `doc-finder`: one llm-gateway turn with the
   `doc-finder` SKILL distils a search query + optional docType filter → **two searches in parallel** —
   `mcp-docs` `GET /internal/documents/search` (household-scoped trigram) **and** a memory-service
-  semantic recall whose `refId` hits resolve to their rows via `GET /internal/documents/{id}` — merged
-  + de-duplicated → the reply lists the hits (title / type / date / party) each with an open link to the
-  stored blob. Each source soft-fails independently.
+  semantic recall over the second-brain: a `{kind:note, refId}` recall hit is fetched
+  (`MemoryClient.getNote` → `GET /v1/notes/{id}`) and its `frontmatter` `{kind:document, refId}`
+  back-pointer resolves to the document row (`GET /internal/documents/{id}`) — merged + de-duplicated →
+  the reply lists the hits (title / type / date / party) each with an open link to the stored blob. Each
+  source soft-fails independently.
 
 Otherwise a message falls through to a chat fallback. Every stage soft-fails to a friendly reply.
 
@@ -60,10 +67,12 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `http/OcrClient` — `POST /internal/ocr` → `OcrResult` (mirrors finance `CaptionClient`).
 - `http/DocumentClient` — `POST /internal/documents` → `DocumentDto` (mirrors `BriefingProfileClient`).
 - `archive/DocArchiver` — the ingest flow: OCR → LLM metadata extract (`doc-archiver` SKILL,
-  temperature=0) → `saveDocument` (stores the full OCR text) → memory-service seed (`MemoryClient.remember`,
-  scope `docs`, `{kind:document, refId}`); soft-fails per stage.
+  temperature=0) → `saveDocument` (stores the full OCR text) → second-brain note seed
+  (`MemoryClient.note`, `source=docs-agent`, body = OCR text, `frontmatter={kind:document, refId}`);
+  soft-fails per stage.
 - `find/DocFinder` — the search flow: LLM query distil (`doc-finder` SKILL, temperature=0) → parallel
-  trigram `searchDocuments` + memory-service `recall` (D-e; `refId` → `DocumentClient.get`), merged +
+  trigram `searchDocuments` + memory-service `recall` (SB-5; a `{kind:note, refId}` hit →
+  `MemoryClient.getNote` → its `frontmatter` `{kind:document, refId}` → `DocumentClient.get`), merged +
   de-duplicated → a hit list with open links; each source soft-fails independently.
 - `chat/DocsChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` — image attachment → archive, "find my X" cue → search, else chat;

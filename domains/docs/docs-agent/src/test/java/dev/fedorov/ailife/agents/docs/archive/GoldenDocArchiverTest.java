@@ -79,7 +79,7 @@ class GoldenDocArchiverTest {
                     in.title(), in.party(), in.docDate(), in.amount(), in.currency(), in.ocrText(),
                     in.tags(), Instant.now()));
         });
-        when(memory.remember(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(memory.note(any())).thenReturn(Mono.empty());   // SB-5: the seed is now a note write
 
         var msg = GoldenLlm.message(household, user, "вот гарантия на холодильник, сохрани");
 

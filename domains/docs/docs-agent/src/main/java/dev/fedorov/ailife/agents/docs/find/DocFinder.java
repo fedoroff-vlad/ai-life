@@ -15,6 +15,7 @@ import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +35,10 @@ import java.util.UUID;
  * <p>Pipeline: one llm-gateway {@code DEFAULT} turn with the {@code doc-finder} SKILL distills the
  * user's request into a short search {@code query} plus an optional {@code docType} filter (strict
  * JSON) → two searches run in parallel: {@code mcp-docs}'s {@code GET /internal/documents/search}
- * (household-scoped trigram) and a {@code memory-service} semantic recall (D-e — fuzzy "find my X"
- * that the literal trigram match misses) whose {@code refId} back-pointers are resolved to their
- * document rows → the merged, de-duplicated hits are listed (title / type / date / party) each with an
+ * (household-scoped trigram) and a {@code memory-service} semantic recall (SB-5 — fuzzy "find my X"
+ * that the literal trigram match misses) over the second-brain: a note recall hit is fetched and its
+ * {@code frontmatter} {@code {kind:document, refId}} back-pointer resolves to the document row → the
+ * merged, de-duplicated hits are listed (title / type / date / party) each with an
  * open link to the stored blob. A blank query (the model couldn't distil one) falls back to the raw
  * user text so a plain "договор аренды" still searches. Every stage soft-fails to a friendly message.
  */
@@ -46,8 +48,11 @@ public class DocFinder {
     private static final Logger log = LoggerFactory.getLogger(DocFinder.class);
     private static final String SKILL_NAME = "doc-finder";
     private static final int LIMIT = 5;
-    /** The memory-service scope doc-archiver seeds documents under (D-e); must match {@code DocArchiver}. */
-    private static final String MEMORY_SOURCE = "docs";
+    /** memory-service tags the recall seed of a note carries (SB-2); a note hit is {@code source=note, kind=note}. */
+    private static final String NOTE_MEMORY_SOURCE = "note";
+    private static final String NOTE_KIND = "note";
+    /** The {@code frontmatter.kind} a doc-archiver note carries, so we keep only document notes. */
+    private static final String DOCUMENT_KIND = "document";
 
     private final DocumentClient documents;
     private final MemoryClient memory;
@@ -105,40 +110,61 @@ public class DocFinder {
     }
 
     /**
-     * Fuzzy recall via memory-service: embed the query, take the {@code docs}-scoped hits, resolve each
-     * one's {@code refId} back-pointer to its document row (D-e). Soft-fails to an empty list — semantic
-     * recall is a bonus on top of the trigram search, never a hard dependency.
+     * Fuzzy recall via memory-service over the second-brain (SB-5): embed the query, take the note hits,
+     * fetch each note and resolve its {@code frontmatter}'s {@code {kind:document, refId}} back-pointer to
+     * the document row (doc-archiver now seeds a note, not a raw memory — a recall hit is {@code
+     * source=note, kind=note} pointing at the note, whose frontmatter points at the document). Notes that
+     * are not document notes are skipped. Soft-fails to an empty list — semantic recall is a bonus on top
+     * of the trigram search, never a hard dependency.
      */
     private Mono<List<DocumentDto>> semanticHits(UUID householdId, String query, String docType) {
         return memory.recall(householdId, null, null, query)   // household-scoped, matching the trigram search
                 .flatMapMany(Flux::fromIterable)
-                .map(this::refId)
+                .map(this::noteId)
                 .filter(id -> id != null)
                 .distinct()
-                .flatMap(id -> documents.get(id).onErrorResume(e -> {
-                    log.warn("resolve semantic hit {} failed: {}", id, e.toString());
-                    return Mono.empty();
+                .flatMap(noteId -> memory.getNote(noteId).flatMap(note -> {
+                    UUID docId = documentRef(note);
+                    if (docId == null) {
+                        return Mono.<DocumentDto>empty();   // not a document note — skip
+                    }
+                    return documents.get(docId).onErrorResume(e -> {
+                        log.warn("resolve semantic hit doc {} failed: {}", docId, e.toString());
+                        return Mono.empty();
+                    });
                 }))
                 .filter(d -> docType == null || docType.equalsIgnoreCase(d.docType()))
                 .collectList()
                 .onErrorReturn(List.of());
     }
 
-    /** A recall hit's document id: only {@code docs}-scoped, {@code kind=document} memories carry a {@code refId}. */
-    private UUID refId(RecallMemoryHit hit) {
-        if (hit == null || hit.memory() == null || !MEMORY_SOURCE.equals(hit.memory().source())) {
+    /** A recall hit's note id: only {@code source=note}, {@code kind=note} memories carry the {@code refId}. */
+    private UUID noteId(RecallMemoryHit hit) {
+        if (hit == null || hit.memory() == null || !NOTE_MEMORY_SOURCE.equals(hit.memory().source())) {
             return null;
         }
         JsonNode meta = hit.memory().metadata();
-        if (meta == null || !"document".equals(text(meta, "kind"))) {
+        if (meta == null || !NOTE_KIND.equals(text(meta, "kind"))) {
             return null;
         }
-        String ref = text(meta, "refId");
-        if (ref == null) {
+        return parseUuid(text(meta, "refId"));
+    }
+
+    /** The document id a doc-archiver note back-points at ({@code frontmatter.{kind:document, refId}}); null otherwise. */
+    private UUID documentRef(NoteDto note) {
+        if (note == null || note.frontmatter() == null
+                || !DOCUMENT_KIND.equals(text(note.frontmatter(), "kind"))) {
+            return null;
+        }
+        return parseUuid(text(note.frontmatter(), "refId"));
+    }
+
+    private static UUID parseUuid(String s) {
+        if (s == null) {
             return null;
         }
         try {
-            return UUID.fromString(ref);
+            return UUID.fromString(s);
         } catch (IllegalArgumentException e) {
             return null;
         }
