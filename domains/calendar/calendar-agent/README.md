@@ -45,10 +45,15 @@ recall→LLM path it runs the budget-aware `GiftRecommender`, which uses the sha
 **budget** (finance-agent's `get_gift_budget` via the orchestrator invoke hub — the
 person's `relationship`, when set, is forwarded so finance returns the
 relationship-tiered rule, else the "Gifts" envelope, D3d),
-**memories** (recall), and **relations**, then synthesizes budget-aware ideas from
-`[AGENT.md, SKILL.md]` + `{payload(person), context}`. Each gather step soft-fails
-independently — a finance outage just drops the budget constraint. **Delivery is two
-notifications per member (D3e): a deterministic birthday reminder, then the gift ideas.**
+**memories** (recall), **relations**, and **personNotes** — the owner's *curated*
+second-brain notes about the person (second-brain SB-6): notes whose `[[wiki-link]]`
+resolved to this person (`note→person` edge, SB-3) are read back (SB-5 `getNote`) and
+trimmed to their title/body, so curated preferences beat the noisy chat-capture facts.
+Then it synthesizes budget-aware ideas from `[AGENT.md, SKILL.md]` +
+`{payload(person), context}`. Each gather step soft-fails independently — a finance
+outage just drops the budget constraint, no curated notes just falls back to the
+memories/relations gather. **Delivery is two notifications per member (D3e): a
+deterministic birthday reminder, then the gift ideas.**
 
 **`birthday.greet` delegates the greeting to the creator agent (CR-g2):** instead of the
 generic recall→LLM path it runs `BirthdayGreeter`, which invokes `creator.draft_greeting`

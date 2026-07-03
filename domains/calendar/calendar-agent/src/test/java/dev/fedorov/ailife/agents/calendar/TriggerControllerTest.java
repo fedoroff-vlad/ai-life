@@ -10,6 +10,7 @@ import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RelationDto;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
@@ -30,6 +31,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -342,6 +344,69 @@ class TriggerControllerTest {
     }
 
     @Test
+    void giftRecommendPullsCuratedPersonNoteIntoSynthesis() throws Exception {
+        // SB-6 closer (#189): a curated second-brain note about the person flows into the gift ideas.
+        UUID householdId = UUID.randomUUID();
+        UUID personId = UUID.randomUUID();
+        UUID noteId = UUID.randomUUID();
+        UUID vladId = UUID.randomUUID();
+
+        profileDispatcher.person = new PersonDto(
+                personId, householdId, "Мама", "parent", "ru-RU",
+                json.createArrayNode(), null, null, Instant.now());
+        profileDispatcher.householdMembers = List.of(
+                new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
+
+        // The person's incoming graph edge is a note→person link (SB-3), naming the source note…
+        memoryDispatcher.relations = new PersonRelationsResponse(
+                personId,
+                List.of(),
+                List.of(new RelationDto(
+                        UUID.randomUUID(), householdId, "note", noteId, "links_to",
+                        "person", personId, "Мама", 1.0f, "note", null, Instant.now())));
+        // …and the note itself carries the curated preference the owner authored.
+        memoryDispatcher.notesById = Map.of(noteId, new NoteDto(
+                noteId, householdId, null, "Мама — что любит", "person",
+                List.of("person", "gift"), "user", personId,
+                "Любит пионы 🌸. Предпочитает в горшке, не срезку.",
+                json.createObjectNode(), Instant.now(), Instant.now()));
+
+        orchestratorDispatcher.giftBudget = json.createObjectNode()
+                .put("hasGiftBudget", true).put("amount", 20000).put("currency", "RUB");
+
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "1. Пионы в горшке...\n2. ...\n3. ...", "stop",
+                        new LlmUsage(120, 40, 160)))));
+
+        var payload = json.createObjectNode().put("personId", personId.toString());
+        var wake = new AgentWakeRequest(
+                UUID.randomUUID(), householdId, "calendar", "gift.recommend", payload);
+
+        http.post().uri("/agents/calendar/triggers/gift.recommend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(wake)
+                .exchange()
+                .expectStatus().isAccepted();
+
+        // The curated note's body reached the synthesis prompt as the personNotes gather source.
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(llmReq).isNotNull();
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body)
+                .contains("personNotes")                 // the new gather source
+                .contains("Мама — что любит")            // note title
+                .contains("не срезку");                  // curated preference from the note body
+
+        // Ideas still fan out (reminder first, then gifts).
+        assertThat(notifier.takeRequest(2, TimeUnit.SECONDS)).isNotNull();
+        RecordedRequest gifts = notifier.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(gifts).isNotNull();
+        assertThat(gifts.getBody().readUtf8()).contains("Пионы в горшке");
+    }
+
+    @Test
     void memoryServiceFailureDoesNotBlockSkill() throws Exception {
         // memory-service returns 500 on every endpoint → MemoryClient soft-fails to empty.
         memoryDispatcher.simulate5xx = true;
@@ -540,19 +605,22 @@ class TriggerControllerTest {
     }
 
     /**
-     * Routes {@code POST /v1/memories/recall} and
-     * {@code GET /v1/graph/person/{id}/relations}. Seeded per test; defaults to empty
-     * lists. {@code simulate5xx} flips both endpoints to 500 to test soft-fail.
+     * Routes {@code POST /v1/memories/recall}, {@code GET /v1/graph/person/{id}/relations} and
+     * {@code GET /v1/notes/{id}} (SB-6 curated person notes). Seeded per test; defaults to empty
+     * lists / 404 for an unseeded note. {@code simulate5xx} flips every endpoint to 500 to test
+     * soft-fail.
      */
     private static class MemoryDispatcher extends Dispatcher {
         private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
         volatile List<RecallMemoryHit> recallHits = List.of();
         volatile PersonRelationsResponse relations;
+        volatile Map<UUID, NoteDto> notesById = Map.of();
         volatile boolean simulate5xx;
 
         void reset() {
             recallHits = List.of();
             relations = null;
+            notesById = Map.of();
             simulate5xx = false;
         }
 
@@ -575,6 +643,15 @@ class TriggerControllerTest {
                     return new MockResponse()
                             .setHeader("content-type", "application/json")
                             .setBody(M.writeValueAsString(body));
+                }
+                if (path.startsWith("/v1/notes/")) {
+                    UUID id = UUID.fromString(path.substring("/v1/notes/".length()));
+                    NoteDto note = notesById.get(id);
+                    return note == null
+                            ? new MockResponse().setResponseCode(404)
+                            : new MockResponse()
+                                    .setHeader("content-type", "application/json")
+                                    .setBody(M.writeValueAsString(note));
                 }
             } catch (Exception e) {
                 return new MockResponse().setResponseCode(500).setBody(e.toString());
