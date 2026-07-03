@@ -169,10 +169,28 @@ typed meal into a parseable entry with a usable description + macros), `chef-age
 recipe hits, not invent a dish), `stylist-agent`'s `flow.GoldenWardrobeAuditTest` (JSON synthesis —
 the `wardrobe-auditor` must return a parseable KEEP/QUESTION/REMOVE verdict set over the catalogued
 garments), and `creator-agent`'s `profile.GoldenCreatorProfileTest` (JSON extract — the
-`creator-profiler` must turn a typed track description into a parseable profile). **All 8 domain agents
-plus the orchestrator now have golden coverage.** They share their plumbing via `libs/golden-test-support`.
+`creator-profiler` must turn a typed track description into a parseable profile). Later agents follow the
+same pattern — `docs-agent` (`GoldenDocArchiverTest`/`GoldenDocFinderTest`) and `notes-agent`
+(`GoldenNoteWriterTest`/`GoldenNoteFinderTest`, second-brain SB-4). **Every domain agent plus the
+orchestrator now has golden coverage.** They share their plumbing via `libs/golden-test-support`.
 
 Run them against local Ollama (free):
+
+**Fast path — [`scripts/golden.sh`](../../scripts/golden.sh)** (one command; instant on reuse). It brings
+up the whole local stack — `ollama serve` on `:11434` (only if it isn't already running) and an
+Ollama-backed gateway on `:8081` (resolving the JDK via `$JAVA_HOME/bin/java` when `java` isn't on PATH —
+the default on a bare Git Bash shell) — then runs the tests with `GOLDEN_LLM=true`. Both are left
+running, so the *next* run skips startup entirely:
+
+```sh
+scripts/golden.sh -pl domains/knowledge/notes-agent -Dtest='GoldenNoteWriterTest,GoldenNoteFinderTest'
+scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest    # reuses the warm stack → instant
+scripts/golden.sh down         # stop the gateway (and Ollama, if the script started it)
+```
+
+The models (`qwen2.5:7b` + `nomic-embed-text`) must be pulled already — the script checks and, if one is
+missing, prints the `ollama pull` to run rather than downloading multi-GB blobs behind your back. Under
+the hood it is the manual flow below — reach for these when you need to tweak a step:
 
 ```sh
 # 1. bring Ollama up. The CLI `ollama serve` resolves models from the default root
@@ -213,6 +231,10 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/creator/creator-agent -Dtest=GoldenCreatorProfileTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/briefing/briefing-agent -Dtest=GoldenBriefingProfileTest test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/docs/docs-agent -Dtest='GoldenDocArchiverTest,GoldenDocFinderTest' test
+GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
+  mvn -q -pl domains/knowledge/notes-agent -Dtest='GoldenNoteWriterTest,GoldenNoteFinderTest' test
 ```
 
 > The golden tests share their plumbing via **`libs/golden-test-support`** — the `@GoldenLlmTest` gate
