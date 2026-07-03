@@ -33,6 +33,9 @@ class NotesIntegrationTest extends AbstractPostgresIntegrationTest {
     static void wire(DynamicPropertyRegistry registry) {
         registerDataSource(registry);
         registry.add("ailife.llm-client.base-url", () -> "http://127.0.0.1:1");
+        // The SB-2 recall seed and SB-3 link resolution are best-effort; point both at a
+        // fast-failing address so this SB-1 CRUD test never blocks on an external call.
+        registry.add("memory.profile-base-url", () -> "http://127.0.0.1:1");
     }
 
     @Autowired JdbcTemplate jdbc;

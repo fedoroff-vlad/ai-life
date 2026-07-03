@@ -10,8 +10,9 @@ returns the person's outgoing + incoming edges. `POST /v1/capture` is the
 memory-from-chat path: it runs the LLM over a message to extract durable facts
 and stores them as memories. `/v1/notes` is CRUD over `memory.note`, the durable,
 human-authored, markdown unit of the knowledge base — the substrate we **evolve**
-into a "second brain" (SB-2 will auto-seed a note's body into recall, SB-3 its
-`[[wiki-links]]` into the graph).
+into a "second brain": on write a note's body auto-seeds recall (SB-2) and its
+`[[wiki-links]]` project into the relation graph (SB-3); `GET /v1/notes/{id}/backlinks`
+reads the notes that link to it.
 
 ## Port: `8087` (`MEMORY_PORT`)
 
@@ -27,17 +28,22 @@ into a "second brain" (SB-2 will auto-seed a note's body into recall, SB-3 its
 - `POST /v1/observations` — body [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`householdId` + `text` required). The durable async **drop-point** for DB-less producers (orchestrator, agents): publishes the event onto the bus (`bus.outbox`) and returns **202** immediately — the expensive LLM extraction runs later on the consumer (`MessageCaptureHandler`) with at-least-once retry. One HTTP call, no producer-side DB; durable + structured (status-tracked outbox, not a cache that turns into a dump). 400 on missing householdId / blank text. This is the "easy push" any component uses to feed memory-from-chat.
 - **Bus consumer (`message.received`, MFC-b):** memory-service also listens on the event bus and runs the same capture off the user's request path. A producer (orchestrator) publishes a [MessageReceivedEvent](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/message/MessageReceivedEvent.java) (`message.received`) to `bus.outbox`; `MessageCaptureHandler` drains it → `CaptureService`. Retry policy mirrors notifier's consumer: a parse/validation failure is permanent (logged, row accepted); a transient write failure (embed 5xx / DB blip) re-throws so the row stays `PENDING` for the next poll. Extraction itself never throws, so an llm-gateway outage during extraction just yields zero facts (row settles `PUBLISHED`). Single-consumer bus → foreign topics are drained but ignored. **The orchestrator producer side is the next slice** — until then the topic is only exercised by direct outbox publish (and the synchronous `POST /v1/capture`).
 
-### Notes (second-brain substrate, SB-1/SB-2)
+### Notes (second-brain substrate, SB-1/SB-2/SB-3)
 Authored, durable, markdown notes — the knowledge-base tier the epic evolves memory-service into.
 The source of truth is the `memory.note` row; markdown is the interchange form (frontmatter → columns
 + a `frontmatter` jsonb bag; `id`, not `title`, is the stable link/`refId` anchor). **SB-2 recall seed:**
 on create/update the note's `title`+`body_md` is embedded into `memory.memories` (`source=note`,
 `metadata {kind:note, refId}`) so the note is recallable via `/v1/memories/recall`; on delete the seed is
-forgotten; an update re-seeds (one memory per note). The seed is **best-effort** — the note row is
-committed first, so an llm-gateway/embed outage leaves the note un-indexed but never fails the write.
-(SB-3 will add the `[[wiki-links]]` → `memory.relations` seed.)
+forgotten; an update re-seeds (one memory per note). **SB-3 graph seed:** the body's `[[wiki-links]]` are
+parsed and projected into `memory.relations` as edges with `subject_type=note`, `subject_id=<note>`,
+`edge=links_to`, `source=note` — each target resolves to a note (by title, case-insensitive) →
+`object_type=note`, else to a person (profile-service) → `object_type=person`, else a dangling
+`object_type=label` stub. An update re-seeds the edges (old dropped by subject); delete forgets them.
+Both seeds are **best-effort** — the note row is committed first, so an llm-gateway/profile-service outage
+leaves the note un-indexed/un-linked but never fails the write.
 - `POST /v1/notes` — body [WriteNoteRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/note/WriteNoteRequest.java) (`householdId` + `title` required; null `ownerId` = household-shared; blank `type` → `fact`, null `source` → `user`). Returns `NoteDto`.
 - `GET /v1/notes/{id}` — `NoteDto` (404 if absent).
+- `GET /v1/notes/{id}/backlinks` — [NoteBacklinksResponse](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/note/NoteBacklinksResponse.java): the notes whose `[[wiki-links]]` point at this one (note→note edges, newest first). 404 if the note is absent.
 - `GET /v1/notes?householdId=<uuid>&limit=<n>` — most-recent notes in a household (by `updated_at`; default 20, max 100). Returns `NoteDto[]`.
 - `PUT /v1/notes/{id}` — replace the mutable fields (title/type/tags/source/personId/bodyMd/frontmatter), bump `updated_at`. `NoteDto` (404 if absent).
 - `DELETE /v1/notes/{id}` — 204 / 404.
@@ -76,13 +82,14 @@ committed first, so an llm-gateway/embed outage leaves the note un-indexed but n
 - `domain/MemoryRepository` — JdbcTemplate over `memory.memories`. **JPA was deliberately skipped** — pgvector mapping in JPA requires a custom Hibernate type and we don't need ORM features here.
 - `service/MemoryService` — orchestrates write/recall/forget; clamps `k`, validates non-blank text, asserts embedding dim matches `memory.dim`.
 - `web/MemoryController` — REST endpoints from the Memories block above.
-- `domain/RelationRepository` — JdbcTemplate over `memory.relations`. `outgoingForPerson` / `incomingForPerson` both filter by `household_id`.
-- `service/RelationService` — write/forget/personRelations + field validation.
+- `domain/RelationRepository` — JdbcTemplate over `memory.relations`. `outgoingForPerson` / `incomingForPerson` both filter by `household_id`. SB-3: `deleteBySubjectNote` (drop a note's link edges for re-seed/cleanup) + `backlinkNoteIds` (note ids linking to a given note).
+- `service/RelationService` — write/forget/personRelations + field validation. SB-3: `forgetNoteLinks` / `noteBacklinkIds` delegate to the repo.
 - `web/RelationController` — `/v1/relations` + `/v1/graph/person/{id}/relations`.
-- `domain/NoteRow` (+ `NoteRepository`) — JdbcTemplate over `memory.note` (SB-1); `tags`/`frontmatter` as jsonb; `insert`/`update`/`findById`/`listByHousehold`/`deleteById`.
-- `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`. SB-2: `reseed` embeds `title`+`body` into `memory.memories` via `MemoryService.write` (`source=note`, `{kind,refId}`) on create/update and `forget` drops it on delete — best-effort, never fails the note write.
+- `domain/NoteRow` (+ `NoteRepository`) — JdbcTemplate over `memory.note` (SB-1); `tags`/`frontmatter` as jsonb; `insert`/`update`/`findById`/`listByHousehold`/`deleteById`. SB-3: `findIdByTitle` resolves a `[[wiki-link]]` target to a note id (case-insensitive, most-recent wins).
+- `note/WikiLinkParser` — SB-3: extracts `[[target]]` tokens from a body (alias `[[target|display]]` keeps the target; blanks dropped, deduped case-insensitively preserving order). Pure/stateless.
+- `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`. SB-2: `reseed` embeds `title`+`body` into `memory.memories` via `MemoryService.write` (`source=note`, `{kind,refId}`) on create/update and `forget` drops it on delete. SB-3: `reseedLinks` re-projects the body's `[[wiki-links]]` into `memory.relations` (note→note/person/label edges) on create/update, `forget` drops them, and `backlinks` reads the reverse — all best-effort, never fails the note write.
 - `MemoryRepository.deleteBySourceRef(source, refId)` / `MemoryService.forgetBySourceRef` — delete the recall seed a source row (a note) owns, by its `metadata.refId`; used to re-seed on update and clean up on delete.
-- `web/NoteController` — `/v1/notes` create/get/list/update/delete.
+- `web/NoteController` — `/v1/notes` create/get/list/update/delete + `GET /{id}/backlinks`.
 
 ## Schema
 - [004-memory.yml](../../infra/liquibase/features/004-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
