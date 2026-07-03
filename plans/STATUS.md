@@ -11,6 +11,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Next (queue — detail deferred until picked)
 - **AC-3 → AC-5** — dedup on write (~0.15 cosine) → approval of inferred facts (needs conversation-state) → merge/supersede. See [ambient-capture.md](ambient-capture.md).
+- **⛰️ Platform migration: Java 25 + Spring Boot 4 + Spring AI 2** — owner-scheduled (2026-07-03) **after the ambient-capture / second-memory stage completes**, as its own dedicated stage (Java 25 as an isolated first slice, then Boot 4 + Spring AI 2). Scope + rationale + gating: [migration-25-boot4.md](migration-25-boot4.md).
 - **health-agent (#187)** — future-agent build order (briefing → docs → **health** → family-memory); **deferred, owner redesigning the scope.**
 - **coach-agent** — deferred, spec-first, after ambient capture lands.
 - **conversation-state / inter-agent (owner item 3)** — the memory-driven-orchestration *output* side (read memory → pick agents → one-shot); AC-4 depends on its pending-confirmation primitive. See [stage4.md](stage4.md), [architecture.md](architecture.md) §Orchestrator routing.
