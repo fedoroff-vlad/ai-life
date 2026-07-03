@@ -55,4 +55,19 @@ public class NoteClient {
                 .bodyToMono(NoteBacklinksResponse.class)
                 .timeout(Duration.ofSeconds(10));
     }
+
+    /**
+     * One stale note worth resurfacing for the household — the proactive-resurfacing wake source
+     * ({@code GET /v1/notes/resurface}). A {@code 204} (nothing stale) yields an empty {@link Mono}.
+     */
+    public Mono<NoteDto> resurface(UUID householdId, int olderThanDays) {
+        return http.get()
+                .uri(uri -> uri.path("/v1/notes/resurface")
+                        .queryParam("householdId", householdId)
+                        .queryParam("olderThanDays", olderThanDays)
+                        .build())
+                .retrieve()
+                .bodyToMono(NoteDto.class)
+                .timeout(Duration.ofSeconds(10));
+    }
 }
