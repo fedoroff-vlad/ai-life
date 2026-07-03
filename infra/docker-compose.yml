@@ -393,6 +393,7 @@ services:
       CREATOR_AGENT_URL: http://creator-agent:8109
       BRIEFING_AGENT_URL: http://briefing-agent:8115
       DOCS_AGENT_URL: http://docs-agent:8117
+      NOTES_AGENT_URL: http://notes-agent:8118
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1316,6 +1317,38 @@ services:
       DOCS_AGENT_MEMORY_RECALL_K: ${DOCS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8117/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Second-brain / notes agent (#257, SB-4): "запомни …" / "что я думал про …" over memory-service.
+  # Owns no MCP — the knowledge base is memory-service (/v1/notes + recall + [[wiki-link]] graph).
+  notes-agent:
+    image: ai-life/notes-agent:local
+    container_name: ai-life-notes-agent
+    build:
+      context: ..
+      dockerfile: domains/knowledge/notes-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+    environment:
+      NOTES_AGENT_PORT: 8118
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      NOTES_AGENT_MEMORY_RECALL_K: ${NOTES_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8118/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10

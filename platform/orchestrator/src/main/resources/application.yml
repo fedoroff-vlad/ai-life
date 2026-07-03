@@ -34,6 +34,8 @@ orchestrator:
       base-url: ${BRIEFING_AGENT_URL:http://briefing-agent:8115}
     - name: docs
       base-url: ${DOCS_AGENT_URL:http://docs-agent:8117}
+    - name: notes
+      base-url: ${NOTES_AGENT_URL:http://notes-agent:8118}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
