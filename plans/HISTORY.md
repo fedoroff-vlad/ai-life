@@ -24,6 +24,8 @@ done". For the *authoritative detail* of any item, follow its link to the **doma
 | 2026-07-02→07-03 | second-brain epic (#257): notes+vector+graph substrate on memory-service (SB-1…7); absorbed #189 | [second-brain.md](second-brain.md) |
 | 2026-07-03 | proactive resurfacing: scheduler wake surfacing a stale note ("полгода назад ты отмечал X") | [second-brain.md](second-brain.md) |
 | 2026-07-03 | ambient capture AC-1: `NoteWorthinessExtractor` decision engine (extract+classify, no writes) — PR#274 | [ambient-capture.md](ambient-capture.md) |
+| 2026-07-03 | ambient capture AC-2: `CaptureService` writes explicit-fixation notes + attribution (flag-gated) — PR#278 | [ambient-capture.md](ambient-capture.md) |
+| 2026-07-03 | docs restructure: STATUS.md → live-only + HISTORY.md archive; JVM/Boot/AI migration plan recorded — PR#275/276/277 | [STATUS.md](STATUS.md), [migration-25-boot4.md](migration-25-boot4.md) |
 
 ---
 

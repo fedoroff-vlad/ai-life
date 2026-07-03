@@ -228,8 +228,8 @@ exist so its corpus is ready when it lands.
 - **Ambient / intuitive capture** — fill the note tier *without* the "запомни" keyword: the system
   decides, from ordinary conversation, **what** is worth keeping and **about whom**, dedups, and records
   (explicit fixation → auto-save, important inferred → approve, trivial → ignore). Evolves
-  memory-from-chat (`CaptureService`) with a third output. **📐 NOW — concept + phased plan locked
-  (owner-picked next work after resurfacing, 2026-07-03); AC-1 is the next code slice.** Authority +
+  memory-from-chat (`CaptureService`) with a third output. **🚧 IN PROGRESS — AC-1 (decision engine) +
+  AC-2 (write explicit-fixation + attribution) shipped; AC-3 dedup next.** Authority +
   phased plan (AC-1..5): **[ambient-capture.md](ambient-capture.md)**.
   It's the *input/quality* half of the owner's north-star; the *output* half (memory-driven orchestration)
   is a separate follow-on track (item 3 / inter-agent).
