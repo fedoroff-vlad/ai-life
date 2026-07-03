@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.notes.write;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.notes.http.NoteClient;
+import dev.fedorov.ailife.agents.notes.http.SchedulerClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
@@ -40,6 +41,7 @@ class GoldenNoteWriterTest {
 
     private final ObjectMapper json = new ObjectMapper();
     private final NoteClient notes = mock(NoteClient.class);
+    private final SchedulerClient scheduler = mock(SchedulerClient.class);
     private final AgentManifest manifest = new AgentManifest(
             "notes", "notes agent", "0.1.0", 8118,
             List.of(), List.of(),
@@ -49,7 +51,7 @@ class GoldenNoteWriterTest {
             GoldenLlm.skill(GoldenNoteWriterTest.class.getClassLoader(),
                     "skills/knowledge/note-writer/SKILL.md")));
     private final NoteWriter writer =
-            new NoteWriter(notes, GoldenLlm.client(), skills, manifest, json);
+            new NoteWriter(notes, scheduler, GoldenLlm.client(), skills, manifest, json);
 
     @Test
     void structuresANoteWithTitleAndBody() {
@@ -62,6 +64,7 @@ class GoldenNoteWriterTest {
                     in.type(), in.tags(), in.source(), in.personId(), in.bodyMd(), in.frontmatter(),
                     Instant.now(), Instant.now()));
         });
+        when(scheduler.ensureResurfaceSchedule(any())).thenReturn(Mono.empty());   // R-c side effect, no-op here
 
         var msg = GoldenLlm.message(household, user,
                 "запомни, что мама любит пионы в горшке, а не срезку");

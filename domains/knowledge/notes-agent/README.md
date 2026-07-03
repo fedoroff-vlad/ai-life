@@ -16,7 +16,12 @@ Scaffold + the **capture**, **recall**, and **proactive-resurfacing** flows.
   `GET /v1/notes/resurface`, staleness window `NOTES_RESURFACE_OLDER_THAN_DAYS`) → delivers a gentle
   "🧠 Из твоих заметок: «…»" reminder via notifier-service (to the note's owner if set, else fanned out
   to the household). Best-effort: nothing stale (`204`) is a silent no-op; the wake always returns 202
-  so the schedule advances. The cron that fires this wake is registered in R-c.
+  so the schedule advances.
+- **Cron auto-registration (R-c)** — on a successful capture, `NoteWriter` fires `SchedulerClient`
+  `ensureResurfaceSchedule`: it lists the household's schedules and, only if no `notes.resurface` cron
+  exists yet, registers one (`POST /v1/schedules`, `NOTES_RESURFACE_CRON`, default weekly). Idempotent,
+  best-effort, off the reply path — the same "ensure on first use" shape calendar uses to auto-issue an
+  ICS feed. No manual setup: capturing your first note wires up the weekly resurfacing wake.
 
 - **Capture (note-writer)** — a "запомни …" cue → one llm-gateway turn with the `note-writer` SKILL
   distils a structured note (title / type / tags / body, strict JSON, temperature=0) → `POST /v1/notes`
@@ -52,17 +57,21 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 | `NOTES_AGENT_PORT` | `8118` | HTTP port. |
 | `NOTES_AGENT_MEMORY_RECALL_K` | `5` | memory-recall fan-in (shared agent-runtime). |
 | `NOTES_RESURFACE_OLDER_THAN_DAYS` | `30` | a resurface wake surfaces a note untouched for at least this many days. |
+| `NOTES_RESURFACE_CRON` | `0 0 10 * * MON` | Spring 6-field cron for the auto-registered household resurface wake (weekly, Mon 10:00). |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway for the note structure / query distil. |
-| `MEMORY_SERVICE_URL` | `http://memory-service:8087` | the knowledge base — `/v1/notes` (store, get, backlinks) + `/v1/memories/recall`. |
+| `MEMORY_SERVICE_URL` | `http://memory-service:8087` | the knowledge base — `/v1/notes` (store, get, backlinks, resurface) + `/v1/memories/recall`. |
+| `SCHEDULER_URL` | `http://scheduler-service:8085` | scheduler-service — auto-register the household resurface cron (R-c). |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` | internal | shared agent-runtime clients. |
 
 ## Key classes
 
 - `NotesAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/NotesAgentProperties` — `notes-agent.*` base URLs (implements `SharedClientProperties`).
+- `config/OutboundHttpConfig` — the `schedulerWebClient` bean (its own base URL; the profile/notifier/memory clients come from `agent-runtime`).
 - `http/NoteClient` — `/v1/notes` create / get / backlinks / **resurface** over the shared `memoryServiceWebClient`.
+- `http/SchedulerClient` — R-c: idempotent `ensureResurfaceSchedule(household)` (list → create only if no `notes.resurface` cron yet) over `schedulerWebClient`; best-effort, soft-fails.
 - `flow/NoteResurfacer` — the R-b proactive flow: `NoteClient.resurface` → format a reminder → deliver via notifier (owner if set, else household fan-out); best-effort, no-op when nothing is stale.
-- `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title.
+- `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title. On a successful capture it also fires `SchedulerClient.ensureResurfaceSchedule` (R-c, fire-and-forget).
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` — recall cue → find, capture cue → write, else chat; `web/ManifestController`.

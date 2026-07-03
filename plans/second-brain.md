@@ -218,8 +218,13 @@ exist so its corpus is ready when it lands.
   trigger receiver (`web/TriggerController` → `flow/NoteResurfacer`: wake → `NoteClient.resurface` →
   format a "🧠 Из твоих заметок: «…»" reminder → notifier, owner-or-household fan-out; best-effort, no-op
   on nothing-stale) + declares the trigger in `AGENT.md`; `NOTES_RESURFACE_OLDER_THAN_DAYS` (default 30)
-  sets the window. `TriggerResurfaceTest` (owner delivery / 204 no-op / unknown-kind 404); **R-c** —
-  scheduler-service auto-registers the household resurface cron (mirrors briefing BR-f2).
+  sets the window. `TriggerResurfaceTest` (owner delivery / 204 no-op / unknown-kind 404); **R-c ✅** —
+  notes-agent auto-registers the household resurface cron on first capture: `NoteWriter` fires
+  `SchedulerClient.ensureResurfaceSchedule` (idempotent — lists the household's schedules, creates a
+  `notes.resurface` cron via `POST /v1/schedules` only if none exists; `NOTES_RESURFACE_CRON`, default
+  weekly), best-effort + off the reply path — the "ensure on first use" shape calendar uses for ICS
+  feeds, so no manual setup. `SchedulerClientTest` (registers-when-absent / skips-when-present /
+  soft-fail); compose + `.env.example` wired. **Proactive resurfacing is now complete (R-a/R-b/R-c).**
 - **`coach-agent` (self-improvement)** — its own future domain that reads this substrate (goals /
   journal / reflections); out of this epic, but the note `type`s above are pre-stocked for it (see Repo
   layout).
