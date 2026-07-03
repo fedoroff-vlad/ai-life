@@ -3,9 +3,14 @@ package dev.fedorov.ailife.memory.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
+import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
+import dev.fedorov.ailife.contracts.note.NoteBacklinksResponse;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.domain.NoteRepository;
+import dev.fedorov.ailife.memory.domain.NoteRow;
+import dev.fedorov.ailife.memory.http.ProfileClient;
+import dev.fedorov.ailife.memory.note.WikiLinkParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,11 +25,14 @@ import java.util.UUID;
  * is embedded into {@code memory.memories} (via {@link MemoryService},
  * {@code source=note}, {@code {kind:note, refId}}) so the note is recallable through
  * the existing {@code /v1/memories/recall}; on delete the seed is forgotten. SB-3
- * will add the {@code [[wiki-links]]} → {@code memory.relations} seed.
+ * adds a <b>graph seed</b> too: {@code [[wiki-links]]} in the body project into
+ * {@code memory.relations} edges (subject = this note; target resolves to a note by
+ * title, a person, else a dangling {@code label}) so backlinks come from the existing
+ * relation store.
  *
- * <p>The seed is <b>best-effort</b>: the note row is the source of truth and is
- * committed first, so an embedding/llm-gateway outage never fails a note write — it
- * just leaves the note un-indexed until the next successful write.
+ * <p>Both seeds are <b>best-effort</b>: the note row is the source of truth and is
+ * committed first, so an embedding/llm-gateway/graph outage never fails a note write —
+ * it just leaves the note un-indexed/un-linked until the next successful write.
  */
 @Service
 public class NoteService {
@@ -37,14 +45,26 @@ public class NoteService {
     static final int MAX_LIMIT = 100;
     /** memory-service source tag for the recall seed of a note (SB-2). */
     static final String MEMORY_SOURCE = "note";
+    /** Relation source tag + edge/subject types for a note's {@code [[wiki-link]]} edges (SB-3). */
+    static final String RELATION_SOURCE = "note";
+    static final String LINK_SUBJECT_TYPE = "note";
+    static final String LINK_EDGE = "links_to";
+    static final String OBJECT_NOTE = "note";
+    static final String OBJECT_PERSON = "person";
+    static final String OBJECT_LABEL = "label";
 
     private final NoteRepository repo;
     private final MemoryService memory;
+    private final RelationService relations;
+    private final ProfileClient profile;
     private final ObjectMapper json;
 
-    public NoteService(NoteRepository repo, MemoryService memory, ObjectMapper json) {
+    public NoteService(NoteRepository repo, MemoryService memory, RelationService relations,
+                       ProfileClient profile, ObjectMapper json) {
         this.repo = repo;
         this.memory = memory;
+        this.relations = relations;
+        this.profile = profile;
         this.json = json;
     }
 
@@ -61,6 +81,7 @@ public class NoteService {
                 req.bodyMd(),
                 req.frontmatter()).toDto();
         reseed(dto);
+        reseedLinks(dto);
         return dto;
     }
 
@@ -78,6 +99,7 @@ public class NoteService {
                 .map(row -> {
                     NoteDto dto = row.toDto();
                     reseed(dto);
+                    reseedLinks(dto);
                     return dto;
                 });
     }
@@ -96,6 +118,7 @@ public class NoteService {
     }
 
     public boolean forget(UUID id) {
+        Optional<NoteRow> existing = repo.findById(id);
         boolean deleted = repo.deleteById(id);
         if (deleted) {
             try {
@@ -103,8 +126,27 @@ public class NoteService {
             } catch (RuntimeException e) {
                 log.warn("note-seed cleanup failed for note {}: {}", id, e.toString());
             }
+            existing.ifPresent(row -> {
+                try {
+                    relations.forgetNoteLinks(row.householdId(), id);
+                } catch (RuntimeException e) {
+                    log.warn("note-link cleanup failed for note {}: {}", id, e.toString());
+                }
+            });
         }
         return deleted;
+    }
+
+    /** The other notes whose {@code [[wiki-links]]} point at this note (SB-3 backlinks). */
+    public Optional<NoteBacklinksResponse> backlinks(UUID id) {
+        return repo.findById(id).map(row -> {
+            List<NoteDto> sources = relations.noteBacklinkIds(row.householdId(), id).stream()
+                    .map(repo::findById)
+                    .flatMap(Optional::stream)
+                    .map(NoteRow::toDto)
+                    .toList();
+            return new NoteBacklinksResponse(id, sources);
+        });
     }
 
     /**
@@ -125,6 +167,50 @@ public class NoteService {
         } catch (RuntimeException e) {
             log.warn("note-seed failed for note {}: {}", note.id(), e.toString());
         }
+    }
+
+    /**
+     * Replace this note's {@code [[wiki-link]]} edges: drop the previous ones and
+     * project the current body's links into {@code memory.relations}. Each distinct
+     * target resolves to a note (by title) or a person, else stays a dangling
+     * {@code label} edge. Best-effort — a failure is logged and swallowed so the note
+     * write still succeeds (the row is already committed).
+     */
+    private void reseedLinks(NoteDto note) {
+        try {
+            relations.forgetNoteLinks(note.householdId(), note.id());
+            for (String target : WikiLinkParser.parse(note.bodyMd())) {
+                writeLinkEdge(note, target);
+            }
+        } catch (RuntimeException e) {
+            log.warn("note-link seed failed for note {}: {}", note.id(), e.toString());
+        }
+    }
+
+    /** Resolve one {@code [[target]]} to an edge (note → note/person/label) and write it. */
+    private void writeLinkEdge(NoteDto note, String target) {
+        Optional<UUID> targetNote = repo.findIdByTitle(note.householdId(), target);
+        String objectType;
+        UUID objectId;
+        if (targetNote.isPresent()) {
+            if (targetNote.get().equals(note.id())) {
+                return; // a note linking to itself carries no signal — skip.
+            }
+            objectType = OBJECT_NOTE;
+            objectId = targetNote.get();
+        } else {
+            UUID personId = profile.resolvePersonId(note.householdId(), target);
+            if (personId != null) {
+                objectType = OBJECT_PERSON;
+                objectId = personId;
+            } else {
+                objectType = OBJECT_LABEL; // dangling link — kept as a labelled stub edge.
+                objectId = null;
+            }
+        }
+        relations.write(new WriteRelationRequest(
+                note.householdId(), LINK_SUBJECT_TYPE, note.id(), LINK_EDGE,
+                objectType, objectId, target, 1.0f, RELATION_SOURCE, null));
     }
 
     /** The corpus we embed: the title plus the body (body carries the substance; title adds signal). */

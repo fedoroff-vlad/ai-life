@@ -98,6 +98,32 @@ public class RelationRepository {
         return jdbc.update("DELETE FROM memory.relations WHERE id = ?", id) > 0;
     }
 
+    /**
+     * Drop all edges a note owns as their subject (SB-3 {@code [[wiki-link]]} seed).
+     * Used to re-seed on note update and to clean up on delete, mirroring the
+     * memory-seed's {@code deleteBySourceRef}.
+     */
+    public int deleteBySubjectNote(UUID householdId, UUID noteId) {
+        return jdbc.update("""
+                DELETE FROM memory.relations
+                 WHERE household_id = ? AND subject_type = 'note' AND subject_id = ?
+                """, householdId, noteId);
+    }
+
+    /**
+     * Note ids that link <em>to</em> this note (SB-3 backlinks): the subjects of
+     * note→note edges whose object is this note. Newest edge first, de-duplicated.
+     */
+    public List<UUID> backlinkNoteIds(UUID householdId, UUID noteId) {
+        return jdbc.queryForList("""
+                SELECT subject_id FROM memory.relations
+                 WHERE household_id = ? AND object_type = 'note' AND object_id = ?
+                   AND subject_type = 'note'
+                 GROUP BY subject_id
+                 ORDER BY max(created_at) DESC
+                """, UUID.class, householdId, noteId);
+    }
+
     /** Edges where the person is the subject. Newest first. */
     public List<RelationDto> outgoingForPerson(UUID householdId, UUID personId) {
         return jdbc.query("""

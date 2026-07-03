@@ -38,6 +38,16 @@ public class RelationService {
         return repo.deleteById(id);
     }
 
+    /** Drop the {@code [[wiki-link]]} edges a note owns as subject (SB-3 re-seed / cleanup). */
+    public int forgetNoteLinks(UUID householdId, UUID noteId) {
+        return repo.deleteBySubjectNote(householdId, noteId);
+    }
+
+    /** Note ids that link to this note — the SB-3 backlinks source set, newest first. */
+    public List<UUID> noteBacklinkIds(UUID householdId, UUID noteId) {
+        return repo.backlinkNoteIds(householdId, noteId);
+    }
+
     public PersonRelationsResponse personRelations(UUID householdId, UUID personId) {
         if (householdId == null || personId == null) {
             throw new IllegalArgumentException("householdId and personId must both be non-null");

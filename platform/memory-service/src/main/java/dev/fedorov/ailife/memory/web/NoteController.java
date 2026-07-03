@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.memory.web;
 
+import dev.fedorov.ailife.contracts.note.NoteBacklinksResponse;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.service.NoteService;
@@ -19,8 +20,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * CRUD over the authored-notes tier of the second-brain substrate (SB-1,
- * epic #257). No embedding/graph wiring yet — SB-2/SB-3 add the auto-seed on write.
+ * CRUD over the authored-notes tier of the second-brain substrate (SB-1, epic #257).
+ * On write the body auto-seeds recall (SB-2) and {@code [[wiki-link]]} graph edges
+ * (SB-3); {@code GET /{id}/backlinks} reads the notes that link here.
  */
 @RestController
 @RequestMapping(path = "/v1/notes", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -48,6 +50,13 @@ public class NoteController {
     public ResponseEntity<List<NoteDto>> list(@RequestParam("householdId") UUID householdId,
                                               @RequestParam(value = "limit", required = false) Integer limit) {
         return ResponseEntity.ok(service.list(householdId, limit));
+    }
+
+    @GetMapping("/{id}/backlinks")
+    public ResponseEntity<NoteBacklinksResponse> backlinks(@PathVariable UUID id) {
+        return service.backlinks(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)

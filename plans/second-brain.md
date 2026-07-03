@@ -151,10 +151,16 @@ exist so its corpus is ready when it lands.
   first, so an embed/llm-gateway outage never fails the write. Notes are now recallable via the existing
   `/v1/memories/recall`. `NoteSeedIntegrationTest` (3, mock embedder): seed+recall, re-seed-once on
   update, forget-on-delete.
-- **SB-3 — `[[wiki-links]]` → relations + backlinks.** Parse `[[target]]` tokens on write → upsert
-  `memory.relations` edges (`subject_type=note`); add `note` as a relation subject/object type;
-  `GET /v1/notes/{id}/backlinks`. Reuses `RelationService`. Link a `[[Person Name]]` to `core.people`
-  when it resolves (else keep a `label` edge).
+- **SB-3 — `[[wiki-links]]` → relations + backlinks. ✅ DONE.** On create/update `NoteService.reseedLinks`
+  parses the body via `WikiLinkParser` and re-projects each distinct `[[target]]` into a `memory.relations`
+  edge (`subject_type=note`, `subject_id=<note>`, `edge=links_to`, `source=note`): target resolves to a
+  note by title (case-insensitive) → `object_type=note`, else a person via profile-service →
+  `object_type=person`, else a dangling `object_type=label` stub. An update drops the note's old edges by
+  subject and re-seeds; delete forgets them — best-effort (never fails the note write). `GET
+  /v1/notes/{id}/backlinks` (`NoteBacklinksResponse`) reads the reverse note→note edges. New:
+  `RelationRepository.deleteBySubjectNote`/`backlinkNoteIds`, `RelationService.forgetNoteLinks`/
+  `noteBacklinkIds`, `NoteRepository.findIdByTitle`. `WikiLinkParserTest` (5, unit) +
+  `NoteLinksIntegrationTest` (6, Testcontainers: note/person/label edges, backlinks, re-seed, forget).
 - **SB-4 — `notes-agent` (conversational front).** New `domains/knowledge/notes-agent` registered as
   `notes` in orchestrator. Skills: `note-writer` ("запомни …" → structured note: title/tags/body, strict
   JSON, temp=0 → `POST /v1/notes`) and `note-finder` ("что я думал про …" → recall + backlinks →

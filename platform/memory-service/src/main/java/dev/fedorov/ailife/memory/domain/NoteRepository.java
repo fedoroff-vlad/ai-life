@@ -87,6 +87,24 @@ public class NoteRepository {
         }
     }
 
+    /**
+     * Resolve a {@code [[wiki-link]]} target to a note id by title within a household
+     * (case-insensitive; most-recently-updated wins on duplicate titles). SB-3 link
+     * resolution. Empty when no note carries that title.
+     */
+    public Optional<UUID> findIdByTitle(UUID householdId, String title) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject("""
+                    SELECT id FROM memory.note
+                     WHERE household_id = ? AND lower(title) = lower(?)
+                     ORDER BY updated_at DESC
+                     LIMIT 1
+                    """, UUID.class, householdId, title));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
     /** Most-recent notes in a household (by {@code updated_at}). */
     public List<NoteRow> listByHousehold(UUID householdId, int limit) {
         return jdbc.query("SELECT " + COLUMNS + """
