@@ -4,7 +4,7 @@ Personal AI agents system. Telegram → orchestrator → domain agents → narro
 
 ## Session start — fixed reading order (do NOT deviate)
 1. This file (`CLAUDE.md`).
-2. `plans/STATUS.md` — current in-flight branch + next concrete steps.
+2. `plans/STATUS.md` — current in-flight slice + next steps (live only; kept lean). Shipped-work detail is NOT here — it lives in `plans/HISTORY.md` (archive, out of this reading order) and the domain plan/module README. Don't load HISTORY.md unless you need "when/what was done".
 3. `plans/INDEX.md` — map of `plans/`; pick ONE domain file relevant to the task.
 4. The single relevant `plans/<domain>.md` (e.g. `calendar.md`). Never load more than one domain file per task.
 5. **Module README first, source code second.** Before reading any `.java` in a module, read that module's `README.md` (`<module>/README.md`). It lists purpose, port, env, endpoints/tools, and a one-line index of key classes. Open a class only when the README points you there or you need its actual behaviour, not its existence.
