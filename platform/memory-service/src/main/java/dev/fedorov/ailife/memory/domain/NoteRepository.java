@@ -128,6 +128,24 @@ public class NoteRepository {
                 """, rowMapper, householdId);
     }
 
+    /**
+     * One random note in the household whose last touch is older than {@code olderThan} — the
+     * proactive-resurfacing candidate (a note the owner hasn't revisited in a while). Random so
+     * repeated wakes vary; empty when nothing is that stale.
+     */
+    public Optional<NoteRow> resurfaceCandidate(UUID householdId, java.time.Instant olderThan) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject("SELECT " + COLUMNS + """
+                     FROM memory.note
+                     WHERE household_id = ? AND updated_at < ?
+                     ORDER BY random()
+                     LIMIT 1
+                    """, rowMapper, householdId, java.sql.Timestamp.from(olderThan)));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
     public boolean deleteById(UUID id) {
         return jdbc.update("DELETE FROM memory.note WHERE id = ?", id) > 0;
     }
