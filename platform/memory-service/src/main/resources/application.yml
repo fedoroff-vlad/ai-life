@@ -18,6 +18,8 @@ memory:
   max-k: ${MEMORY_MAX_K:50}
   dim: ${MEMORY_EMBED_DIM:384}
   profile-base-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  ambient-capture:
+    enabled: ${MEMORY_AMBIENT_CAPTURE_ENABLED:false}
 
 management:
   endpoints:

@@ -4,9 +4,14 @@ import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
+import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
+import dev.fedorov.ailife.memory.capture.CaptureOutcome;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
+import dev.fedorov.ailife.memory.capture.NoteCandidate;
+import dev.fedorov.ailife.memory.capture.NoteWorthinessExtractor;
 import dev.fedorov.ailife.memory.capture.RelationExtractor;
+import dev.fedorov.ailife.memory.config.MemoryServiceProperties;
 import dev.fedorov.ailife.memory.http.ProfileClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,18 +25,20 @@ import java.util.UUID;
  * memory-from-chat (Stage 4): turn a piece of dialogue into stored memories and
  * graph edges.
  *
- * <p>Two outputs from one message:
+ * <p>Three outputs from one message:
  * <ul>
  *   <li>Free-text <b>memories</b> via {@link FactExtractor} → {@link MemoryService}
  *       (the primary fuel; the {@code POST /v1/capture} response).</li>
  *   <li>Structured <b>relations</b> via {@link RelationExtractor} → person resolution
  *       → {@link RelationService} (the graph half, MFC-c).</li>
+ *   <li>Curated <b>ambient notes</b> via {@link NoteWorthinessExtractor} → {@link NoteService}
+ *       (the high-signal note tier, AC-2 — flag-gated, off by default).</li>
  * </ul>
  *
- * Relation capture is a best-effort <b>side effect</b>: it never throws and never
- * blocks the memory write or the triggering bus message. An edge whose subject
- * cannot be anchored on a real entity (no speaker for a "self" edge, or an
- * unresolved person name) is dropped — we do not auto-create people from chat.
+ * Both the relation and note outputs are best-effort <b>side effects</b>: they never throw and never
+ * block the memory write or the triggering bus message. An edge/note whose subject cannot be anchored on
+ * a real entity (no speaker for a "self" edge, or an unresolved person name) is still handled sanely — we
+ * do not auto-create people from chat (an unresolved name stays a dangling {@code [[link]]}).
  */
 @Service
 public class CaptureService {
@@ -41,25 +48,37 @@ public class CaptureService {
     /** Provenance tag for memories/relations learned from dialogue (vs explicit writes). */
     static final String CAPTURE_SOURCE = "chat-capture";
 
+    /** Provenance for an ambiently-captured explicit-fixation note — user-authored, just not via notes-agent. */
+    static final String NOTE_SOURCE_USER = "user";
+
     /** Subject sentinel the extractor uses for a statement about the speaker. */
     private static final String SELF = "self";
 
     private final FactExtractor extractor;
     private final RelationExtractor relationExtractor;
+    private final NoteWorthinessExtractor noteExtractor;
     private final MemoryService memories;
     private final RelationService relations;
+    private final NoteService notes;
     private final ProfileClient profile;
+    private final MemoryServiceProperties props;
 
     public CaptureService(FactExtractor extractor,
                           RelationExtractor relationExtractor,
+                          NoteWorthinessExtractor noteExtractor,
                           MemoryService memories,
                           RelationService relations,
-                          ProfileClient profile) {
+                          NoteService notes,
+                          ProfileClient profile,
+                          MemoryServiceProperties props) {
         this.extractor = extractor;
         this.relationExtractor = relationExtractor;
+        this.noteExtractor = noteExtractor;
         this.memories = memories;
         this.relations = relations;
+        this.notes = notes;
         this.profile = profile;
+        this.props = props;
     }
 
     public List<MemoryDto> capture(CaptureRequest req) {
@@ -76,6 +95,7 @@ public class CaptureService {
                     CAPTURE_SOURCE, fact, null)));
         }
         captureRelations(req);
+        captureNotes(req);
         return written;
     }
 
@@ -120,5 +140,69 @@ public class CaptureService {
                 req.householdId(), subjectType, subjectId, rel.edge(),
                 "label", null, rel.object(), null, CAPTURE_SOURCE, null));
         return true;
+    }
+
+    /**
+     * Ambient note capture (AC-2) — best-effort, flag-gated, never throws. Only <b>explicit-fixation</b>
+     * candidates are written now (the user asked); important-but-inferred facts wait for the approval flow
+     * (AC-4) and trivial ones are ignored.
+     */
+    private void captureNotes(CaptureRequest req) {
+        if (!props.getAmbientCapture().isEnabled()) {
+            return;
+        }
+        try {
+            int written = 0;
+            for (NoteCandidate candidate : noteExtractor.extract(req.text())) {
+                if (candidate.outcome() == CaptureOutcome.EXPLICIT_FIXATION && writeNote(req, candidate)) {
+                    written++;
+                }
+            }
+            if (written > 0) {
+                log.debug("captured {} ambient note(s) from message", written);
+            }
+        } catch (Exception e) {
+            log.warn("ambient note capture failed: {}", e.toString());
+        }
+    }
+
+    /**
+     * Write one explicit-fixation candidate as a curated note (auto-seeds recall + graph via
+     * {@link NoteService}). Attribution: a {@code "self"} candidate is owner-scoped; a named subject is
+     * resolved to a {@code core.people} UUID (best-effort) and gets a {@code [[name]]} link appended so the
+     * note→person edge projects — an unresolved name stays a dangling link, the note is still saved. Returns
+     * false when skipped (blank title).
+     */
+    private boolean writeNote(CaptureRequest req, NoteCandidate candidate) {
+        if (candidate.title() == null || candidate.title().isBlank()) {
+            log.debug("skipping ambient note — blank title");
+            return false;
+        }
+        UUID personId = null;
+        String body = candidate.body();
+        if (!candidate.isSelf() && candidate.subject() != null) {
+            personId = profile.resolvePersonId(req.householdId(), candidate.subject());
+            body = appendWikiLink(body, candidate.subject());
+        }
+        notes.create(new WriteNoteRequest(
+                req.householdId(),
+                req.userId(),            // owner-scoped: the capturing user owns the note
+                candidate.title(),
+                candidate.type(),        // NoteService defaults a blank type to "fact"
+                null,                    // tags — the extractor doesn't produce them
+                NOTE_SOURCE_USER,
+                personId,
+                body,
+                null));                  // frontmatter
+        return true;
+    }
+
+    /** Append a {@code [[name]]} wiki-link to a body so SB-3 projects a note→person edge (idempotent). */
+    private static String appendWikiLink(String body, String name) {
+        String link = "[[" + name.trim() + "]]";
+        if (body == null || body.isBlank()) {
+            return link;
+        }
+        return body.contains(link) ? body : body + "\n" + link;
     }
 }
