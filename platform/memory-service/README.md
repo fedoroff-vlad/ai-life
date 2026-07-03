@@ -66,17 +66,18 @@ leaves the note un-indexed/un-linked but never fails the write.
 | `MEMORY_MAX_K` | `50` | Hard cap on top-k. |
 | `MEMORY_EMBED_DIM` | `384` | Must match both the `vector(N)` column and the active embedding provider. |
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | profile-service base URL — relation capture resolves person names to `core.people` UUIDs. |
+| `MEMORY_AMBIENT_CAPTURE_ENABLED` | `false` | Ambient note capture (AC-2): when true, `CaptureService` also promotes explicit-fixation chat into curated `memory.note`s. Opt-in. |
 
 ## Key classes
 - `MemoryServiceApplication`.
-- `config/MemoryServiceProperties` — `memory.{default-k, max-k, dim}`.
+- `config/MemoryServiceProperties` — `memory.{default-k, max-k, dim, profile-base-url, ambient-capture.enabled}`.
 - `embed/EmbeddingClient` — wraps `LlmClient.embed`, returns `float[]` for one text.
 - `capture/FactExtractor` — wraps `LlmClient.chat` (DEFAULT channel) to pull durable facts out of a message; lenient JSON parsing (strips markdown fences / leading prose) and best-effort (bad reply → empty list, never throws).
 - `capture/RelationExtractor` — relation counterpart of `FactExtractor`: pulls structured edges (`subject —edge→ object`) for the person graph. Same DEFAULT channel + lenient/best-effort parsing; subject `"self"` marks a statement about the speaker. Returns `capture/ExtractedRelation` triples.
 - `capture/NoteWorthinessExtractor` — **ambient-capture decision engine** (AC-1): the curated-note counterpart of `FactExtractor`. From an ordinary message (no "запомни" keyword required) it decides what is worth a note and about whom, emitting `capture/NoteCandidate`s. Same DEFAULT channel + lenient/best-effort parsing (bad reply → empty list, never throws). Extract + classify only; a later phase (AC-2) persists the survivors via `NoteService`.
 - `capture/NoteCandidate` — one note-worthy candidate `{title, type, body, subject, importance, explicitFixation}`; `subject` = `"self"` | a person name | null. `outcome()` derives the three-way `capture/CaptureOutcome` — `EXPLICIT_FIXATION` (fixation cue → auto-save), `IMPORTANT_INFERRED` (system-noticed → approve first), `TRIVIAL` (ignore).
 - `http/ProfileClient` — resolves a chat-derived person label → `core.people` UUID via profile-service `GET /v1/people/by-household/{id}` (case-insensitive `displayName` match). Best-effort: `null` on no match / lookup failure. Never auto-creates a person.
-- `service/CaptureService` — memory-from-chat: extract facts via `FactExtractor` → write each via `MemoryService` (`source = "chat-capture"`); **also** extract relations via `RelationExtractor`, resolve the subject (`"self"` → `userId`, else `ProfileClient`), and write resolved edges via `RelationService` as a best-effort side effect (never throws).
+- `service/CaptureService` — memory-from-chat, **three outputs from one message**: (1) facts via `FactExtractor` → `MemoryService` (`source = "chat-capture"`); (2) relations via `RelationExtractor` → subject resolved (`"self"` → `userId`, else `ProfileClient`) → `RelationService`; (3) **ambient notes (AC-2, flag-gated)** via `NoteWorthinessExtractor` → for each **explicit-fixation** candidate a curated note via `NoteService.create` (`source = "user"`) — `"self"` → owner-scoped, a name → `ProfileClient.resolvePersonId` sets `personId` + appends `[[name]]` (unresolved name stays a dangling link, note still saved). Outputs (2) and (3) are best-effort side effects — never throw, never block the memory write. Note capture is off unless `memory.ambient-capture.enabled`; important-but-inferred candidates are not written yet (approval flow = AC-4).
 - `config/HttpConfig` — `profileWebClient` bean (base URL from `memory.profile-base-url`).
 - `web/CaptureController` — `POST /v1/capture` (sync extract+write) and `POST /v1/observations` (durable async drop-point → publishes `message.received` to the bus via `OutboxPublisher`, 202).
 - `bus/MessageCaptureHandler` — bus consumer for `message.received` → `CaptureService` (MFC-b); transient-failure-throws / permanent-failure-accepts retry policy.
@@ -126,7 +127,7 @@ algorithms (centrality, shortest path); (c) row count exceeds ~100k and SQL
 joins start to hurt.
 
 ## Roadmap (deferred)
-- **Ambient / intuitive capture (in progress):** extend the memory-from-chat path (`CaptureService`) with a **third output** — curated **ambient notes**. `NoteWorthinessExtractor` decides, from an ordinary message, what is worth a note and about whom, dedups against existing notes, and writes via `NoteService`, so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1 (decision engine — extract + classify, no writes) landed;** AC-2 (write explicit-fixation + attribution) next.
+- **Ambient / intuitive capture (in progress):** the memory-from-chat path (`CaptureService`) now has a **third output** — curated **ambient notes** — so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1 (decision engine) + AC-2 (write explicit-fixation + attribution, flag-gated) landed.** Next: AC-3 dedup-on-write (skip a near-duplicate note), then AC-4 approval of important-but-inferred candidates (needs conversation-state).
 - PR17: first cross-agent chain (`calendar.birthday_upcoming → memory recall + person relations → gift-recommender`).
 - Future: Apache AGE upgrade (per promotion criteria above).
 - Future: bulk re-embed endpoint when we change provider/dim (Stage 5).

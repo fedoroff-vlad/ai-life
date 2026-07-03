@@ -25,6 +25,9 @@ public class MemoryServiceProperties {
      */
     private String profileBaseUrl = "http://profile-service:8082";
 
+    /** Ambient / intuitive capture (AC-2+): fill the note tier from ordinary chat. */
+    private final AmbientCapture ambientCapture = new AmbientCapture();
+
     public int getDefaultK() { return defaultK; }
     public void setDefaultK(int defaultK) { this.defaultK = defaultK; }
     public int getMaxK() { return maxK; }
@@ -33,4 +36,17 @@ public class MemoryServiceProperties {
     public void setDim(int dim) { this.dim = dim; }
     public String getProfileBaseUrl() { return profileBaseUrl; }
     public void setProfileBaseUrl(String profileBaseUrl) { this.profileBaseUrl = profileBaseUrl; }
+    public AmbientCapture getAmbientCapture() { return ambientCapture; }
+
+    /**
+     * Ambient-capture toggle (plans/ambient-capture.md). When enabled, {@code CaptureService} also
+     * promotes note-worthy chat into curated {@code memory.note}s. Off by default — this is opt-in
+     * until the intake quality is trusted.
+     */
+    public static class AmbientCapture {
+        private boolean enabled = false;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    }
 }

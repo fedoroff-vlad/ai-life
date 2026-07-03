@@ -60,13 +60,17 @@ DEFAULT channel, strict-JSON, lenient parse, best-effort → empty on junk). Fro
 / `TRIVIAL`). No writes — just extraction + classification. `NoteWorthinessExtractorTest` (11 cases) +
 opt-in `GoldenNoteWorthinessTest`.
 
-### AC-2 — write the unambiguous (explicit fixation) + attribution
+### AC-2 — write the unambiguous (explicit fixation) + attribution ✅ DONE
 Explicit-fixation candidates → a curated note via `NoteService.create` (already auto-seeds recall SB-2 +
 `[[wiki-link]]` graph SB-3). Attribution: `subject == "self"` → owner-scoped (`ownerId = userId`, keep the
 `type`, e.g. `goal`/`journal`); a name → `ProfileClient.resolvePersonId` (reuse) sets `personId` **and**
 appends `\n[[<name>]]` so SB-3 projects a note→person edge (what `GiftRecommender` reads); an unresolved
 name stays a dangling `[[<name>]]` link, note still saved; never auto-create a person. Gated by
-`memory.ambient-capture.enabled`. This is already a working intuitive capture for the explicit cases.
+`memory.ambient-capture.enabled` (off by default). Important-but-inferred candidates are **not** written
+here — they wait for AC-4's approval flow. Wired as the third best-effort output of `CaptureService`
+(`captureNotes`); `NOTE_SOURCE_USER = "user"`. `CaptureServiceTest` +7 cases (flag gating, self/named/
+unresolved attribution, inferred-not-written, blank-title skip, write-failure-never-breaks). This is a
+working intuitive capture for the explicit cases.
 
 ### AC-3 — dedup on write ("scan memory: duplicate or unique?")
 Before `create`, `MemoryService.recall(household, ownerId, personId, title+body)` → filter to `source=note`
