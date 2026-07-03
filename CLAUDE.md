@@ -22,6 +22,13 @@ Every module has a `README.md` at its root. Every PR that changes a module's **p
 
 At every **stage/domain closer**, do a quick freshness pass: root README + `plans/{STATUS,roadmap,architecture,INDEX}.md` + the closed domain's module READMEs (status headers especially).
 
+## STATUS / HISTORY discipline — non-negotiable
+`plans/STATUS.md` is **live-only** and stays lean — it's read in full at every session start (reading-order step 2), so bloat there taxes every session (it once grew to 300KB / ~78k tokens of shipped-work log; that must not recur).
+- STATUS holds **only what is in flight or the next slice/stage**: the current `## Now` bullet(s), a terse `## Next` queue, open `## Deferred` items, the workflow reminder. Nothing already shipped.
+- **At the end of every PR, move the finished work OUT of STATUS into `plans/HISTORY.md`** — add a terse timeline row (`date · milestone · → domain plan + PR`) and, if the prose is worth keeping, append it to HISTORY's verbatim archive. **Never let `## Now` accumulate `✅ DONE` bullets** — that append-only drift is exactly what bloated STATUS.
+- **Detail lives at the source, not in STATUS/HISTORY.** The authoritative "what was done" is the **domain plan file** (`plans/<domain>.md`) + the **module README**. STATUS and HISTORY *link* to them ("go to the source"); they do not duplicate the detail.
+- `plans/HISTORY.md` is the archive and is **NOT in the session reading order** — do not load it unless you specifically need "when/what was done", and then follow its links to the domain source rather than reading it wholesale.
+
 ## Work style — minimise overthinking
 - One PR = one small vertical slice. If a task needs >~5 files changed, STOP and propose splitting before writing code.
 - Don't restate the plan or re-derive the architecture. Assume the plan is correct and act.
