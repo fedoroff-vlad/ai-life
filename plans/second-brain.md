@@ -161,10 +161,17 @@ exist so its corpus is ready when it lands.
   `RelationRepository.deleteBySubjectNote`/`backlinkNoteIds`, `RelationService.forgetNoteLinks`/
   `noteBacklinkIds`, `NoteRepository.findIdByTitle`. `WikiLinkParserTest` (5, unit) +
   `NoteLinksIntegrationTest` (6, Testcontainers: note/person/label edges, backlinks, re-seed, forget).
-- **SB-4 — `notes-agent` (conversational front).** New `domains/knowledge/notes-agent` registered as
-  `notes` in orchestrator. Skills: `note-writer` ("запомни …" → structured note: title/tags/body, strict
-  JSON, temp=0 → `POST /v1/notes`) and `note-finder` ("что я думал про …" → recall + backlinks →
-  reply). Golden-tested from the start (`@GoldenLlmTest`).
+- **SB-4 — `notes-agent` (conversational front). ✅ DONE.** New `domains/knowledge/notes-agent` (port
+  **8118**, registered as `notes`; owns no MCP — binds memory-service via the shared runtime clients +
+  a thin `NoteClient` over the same `memoryServiceWebClient`). `IntentController` routes a "что я думал
+  про …" cue → `NoteFinder`, a "запомни …" cue → `NoteWriter`, else `NotesChat`. **note-writer**
+  ("запомни …" → `note-writer` SKILL, strict JSON title/type/tags/body, temp=0 → `POST /v1/notes`;
+  falls back to the user's words for the title). **note-finder** ("что я думал про …" → `note-finder`
+  SKILL query distil, temp=0 → `MemoryClient.recall` → resolve `{kind:note, refId}` hits via `GET
+  /v1/notes/{id}` → list, top hit enriched with `GET /v1/notes/{id}/backlinks`). Wired into root pom,
+  orchestrator registry, compose (8118), `.env.example`, infra port table. Tests: `NoteWriterTest`/
+  `NoteFinderTest` (MockWebServer), `ManifestControllerTest`, `E2ENotesCaptureRecallFlowTest` (capture→
+  recall across real HTTP), golden `GoldenNoteWriterTest`/`GoldenNoteFinderTest` (`@GoldenLlmTest`).
 - **SB-5 — universal write seam (agents feed the brain).** Generalise the docs-agent D-e pattern:
   agents that learn durable facts write notes (or upgrade their `memory-service` seed to a note with
   `kind`/`refId`). Start by pointing docs-agent's seed at the note tier; document the seam in
