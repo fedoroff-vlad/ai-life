@@ -7,6 +7,8 @@ import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.message.MessageReceivedEvent;
+import dev.fedorov.ailife.contracts.note.NoteDto;
+import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,6 +35,12 @@ public class MemoryClient {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryClient.class);
     private static final Duration TIMEOUT = Duration.ofMillis(500);
+    /**
+     * A note write embeds + graph-projects server-side (SB-2/SB-3), so it needs more headroom than the
+     * 500 ms enrichment budget — but it is still best-effort (the caller's primary write already
+     * landed), so we cap it rather than block the reply indefinitely.
+     */
+    private static final Duration NOTE_TIMEOUT = Duration.ofSeconds(3);
     private static final ParameterizedTypeReference<List<RecallMemoryHit>> HIT_LIST =
             new ParameterizedTypeReference<>() {};
 
@@ -144,6 +152,61 @@ public class MemoryClient {
                 .onErrorResume(e -> {
                     log.warn("memory remember failed for household={} source={}: {}",
                             householdId, source, e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /**
+     * The <b>universal write seam</b> (second-brain SB-5): durably capture an authored NOTE at
+     * memory-service's second-brain tier ({@code POST /v1/notes}) — the note-tier analog of
+     * {@link #remember}. Where {@code remember} drops an opaque {@code memory.memories} row, a note is a
+     * first-class {@code memory.note} (title + body + frontmatter + tags) that memory-service auto-seeds
+     * into recall (SB-2) and whose {@code [[wiki-links]]} it projects into the graph (SB-3). An agent that
+     * learns a durable, human-readable fact writes a note here instead of a raw memory, so it lands in the
+     * one store every agent reads. Carry a {@code {kind, refId}} back-pointer in {@code frontmatter} so a
+     * later recall hit (which returns {@code {kind:note, refId:noteId}}) can be resolved — via
+     * {@link #getNote} — back to the domain row the note was seeded from.
+     *
+     * <p>Enrichment posture, same soft-fail contract as {@link #remember}: returns the created
+     * {@link NoteDto}, downgrading to empty on any error / {@link #NOTE_TIMEOUT} so a memory-service
+     * outage never sinks the caller's primary write. Empty (no-op) on a missing household or blank title
+     * (memory-service requires both).
+     */
+    public Mono<NoteDto> note(WriteNoteRequest req) {
+        if (req == null || req.householdId() == null || req.title() == null || req.title().isBlank()) {
+            return Mono.empty();
+        }
+        return http.post()
+                .uri("/v1/notes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .retrieve()
+                .bodyToMono(NoteDto.class)
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("note write failed for household={} source={}: {}",
+                            req.householdId(), req.source(), e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /**
+     * The read half of the note seam: resolve a note by id ({@code GET /v1/notes/{id}}). An agent that
+     * recalls a note hit ({@code {kind:note, refId}}) fetches the note here to read its own
+     * {@code frontmatter} back-pointer and reach the domain row it was seeded from (SB-5 finder path).
+     * Soft-fails to empty (a stale/absent note simply drops out of the results), {@link #NOTE_TIMEOUT}.
+     */
+    public Mono<NoteDto> getNote(UUID id) {
+        if (id == null) {
+            return Mono.empty();
+        }
+        return http.get()
+                .uri("/v1/notes/{id}", id)
+                .retrieve()
+                .bodyToMono(NoteDto.class)
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("note fetch failed for id={}: {}", id, e.toString());
                     return Mono.empty();
                 });
     }
