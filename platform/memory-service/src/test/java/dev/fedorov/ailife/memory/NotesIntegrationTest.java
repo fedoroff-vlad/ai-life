@@ -176,6 +176,52 @@ class NotesIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void resurfaceReturnsAStaleNoteButNotAFreshOneAnd204WhenNothingStale() {
+        // Nothing stale yet in a brand-new household → 204.
+        UUID emptyHousehold = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", emptyHousehold, "gamma");
+        client().get()
+                .uri(uri -> uri.path("/v1/notes/resurface").queryParam("householdId", emptyHousehold).build())
+                .exchange().expectStatus().isNoContent();
+
+        // One old note (backdated) + one fresh note in the same household.
+        NoteDto stale = create(new WriteNoteRequest(emptyHousehold, null, "старая заметка", "fact",
+                null, "user", null, "давно записано", null));
+        jdbc.update("UPDATE memory.note SET updated_at = now() - interval '30 days' WHERE id = ?", stale.id());
+        create(new WriteNoteRequest(emptyHousehold, null, "свежая заметка", "fact",
+                null, "user", null, "только что", null));
+
+        // olderThanDays=7 → only the backdated note qualifies; the fresh one is excluded.
+        NoteDto surfaced = client().get()
+                .uri(uri -> uri.path("/v1/notes/resurface")
+                        .queryParam("householdId", emptyHousehold)
+                        .queryParam("olderThanDays", 7).build())
+                .exchange().expectStatus().isOk()
+                .expectBody(NoteDto.class).returnResult().getResponseBody();
+
+        assertThat(surfaced).isNotNull();
+        assertThat(surfaced.id()).isEqualTo(stale.id());
+        assertThat(surfaced.title()).isEqualTo("старая заметка");
+    }
+
+    @Test
+    void resurfaceDoesNotLeakAcrossHouseholds() {
+        UUID hhA = UUID.randomUUID();
+        UUID hhB = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hhA, "res-a");
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hhB, "res-b");
+
+        NoteDto onlyInA = create(new WriteNoteRequest(hhA, null, "A-note", "fact", null, "user", null, "a", null));
+        jdbc.update("UPDATE memory.note SET updated_at = now() - interval '60 days' WHERE id = ?", onlyInA.id());
+
+        // Household B has no stale note → 204, and A's note never surfaces for B.
+        client().get()
+                .uri(uri -> uri.path("/v1/notes/resurface")
+                        .queryParam("householdId", hhB).queryParam("olderThanDays", 1).build())
+                .exchange().expectStatus().isNoContent();
+    }
+
+    @Test
     void createRejectsMissingTitle() {
         var bad = new WriteNoteRequest(household, null, "  ", "fact", null, "user", null, null, null);
         client().post().uri("/v1/notes")

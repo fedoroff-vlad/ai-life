@@ -211,7 +211,13 @@ exist so its corpus is ready when it lands.
 - **Note versioning / history.** Edits overwrite for the MVP; an append-only revision log is later.
 - **Bulk import** of an existing markdown vault (the inverse of SB-7 export).
 - **Proactive resurfacing** ("ты полгода назад отметил X") — a scheduler wake over stale/relevant
-  notes; the briefing-style proactive path, after the read/write core is proven.
+  notes; the briefing-style proactive path. **🚧 NOW being built (owner-picked next work, 2026-07-03),
+  post-epic.** Slices: **R-a ✅** — memory-service `GET /v1/notes/resurface?householdId&olderThanDays`
+  returns one *random* note untouched past a cutoff (`NoteRepository.resurfaceCandidate` +
+  `NoteService.resurface`; 204 when nothing stale); **R-b** — `notes-agent` gains a `notes.resurface`
+  trigger receiver (mirrors briefing BR-f1: wake → fetch candidate → phrase → notifier fan-out) +
+  declares the trigger in AGENT.md; **R-c** — scheduler-service auto-registers the household resurface
+  cron (mirrors briefing BR-f2).
 - **`coach-agent` (self-improvement)** — its own future domain that reads this substrate (goals /
   journal / reflections); out of this epic, but the note `type`s above are pre-stocked for it (see Repo
   layout).

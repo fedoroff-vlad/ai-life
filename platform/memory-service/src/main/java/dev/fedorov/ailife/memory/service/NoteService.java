@@ -43,6 +43,8 @@ public class NoteService {
     static final String DEFAULT_SOURCE = "user";
     static final int DEFAULT_LIMIT = 20;
     static final int MAX_LIMIT = 100;
+    /** A note is a resurfacing candidate once it's gone this long without a touch (proactive resurfacing). */
+    static final int DEFAULT_RESURFACE_DAYS = 7;
     /** memory-service source tag for the recall seed of a note (SB-2). */
     static final String MEMORY_SOURCE = "note";
     /** Relation source tag + edge/subject types for a note's {@code [[wiki-link]]} edges (SB-3). */
@@ -115,6 +117,20 @@ public class NoteService {
         return repo.listByHousehold(householdId, clampLimit(limit)).stream()
                 .map(row -> row.toDto())
                 .toList();
+    }
+
+    /**
+     * Pick one note worth resurfacing for the household — a random note untouched for at least
+     * {@code olderThanDays} (null/≤0 → {@value #DEFAULT_RESURFACE_DAYS}). Empty when nothing is that
+     * stale. Backs the proactive-resurfacing wake (the scheduler-driven "полгода назад ты отмечал …").
+     */
+    public Optional<NoteDto> resurface(UUID householdId, Integer olderThanDays) {
+        if (householdId == null) {
+            throw new IllegalArgumentException("householdId is required");
+        }
+        int days = (olderThanDays == null || olderThanDays <= 0) ? DEFAULT_RESURFACE_DAYS : olderThanDays;
+        java.time.Instant cutoff = java.time.Instant.now().minus(days, java.time.temporal.ChronoUnit.DAYS);
+        return repo.resurfaceCandidate(householdId, cutoff).map(NoteRow::toDto);
     }
 
     public boolean forget(UUID id) {

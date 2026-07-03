@@ -57,6 +57,19 @@ public class NoteController {
     }
 
     /**
+     * Proactive-resurfacing candidate: one random note in the household untouched for at least
+     * {@code olderThanDays} (default a week) — the "полгода назад ты отмечал …" wake source.
+     * {@code 200} with the note, {@code 204} when nothing is that stale.
+     */
+    @GetMapping("/resurface")
+    public ResponseEntity<NoteDto> resurface(@RequestParam("householdId") UUID householdId,
+                                             @RequestParam(value = "olderThanDays", required = false) Integer olderThanDays) {
+        return service.resurface(householdId, olderThanDays)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /**
      * SB-7 vault export: every note in the household as a zip of {@code .md} files (frontmatter +
      * body, {@code [[links]]} intact) — the round-trippable hand-off for a future UI/vault sync.
      */
