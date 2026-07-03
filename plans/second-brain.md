@@ -211,8 +211,8 @@ exist so its corpus is ready when it lands.
 - **Note versioning / history.** Edits overwrite for the MVP; an append-only revision log is later.
 - **Bulk import** of an existing markdown vault (the inverse of SB-7 export).
 - **Proactive resurfacing** ("ты полгода назад отметил X") — a scheduler wake over stale/relevant
-  notes; the briefing-style proactive path. **🚧 NOW being built (owner-picked next work, 2026-07-03),
-  post-epic.** Slices: **R-a ✅** — memory-service `GET /v1/notes/resurface?householdId&olderThanDays`
+  notes; the briefing-style proactive path. **✅ DONE (owner-picked first post-epic work, 2026-07-03).**
+  Slices: **R-a ✅** — memory-service `GET /v1/notes/resurface?householdId&olderThanDays`
   returns one *random* note untouched past a cutoff (`NoteRepository.resurfaceCandidate` +
   `NoteService.resurface`; 204 when nothing stale); **R-b ✅** — `notes-agent` gained a `notes.resurface`
   trigger receiver (`web/TriggerController` → `flow/NoteResurfacer`: wake → `NoteClient.resurface` →
@@ -228,8 +228,9 @@ exist so its corpus is ready when it lands.
 - **Ambient / intuitive capture** — fill the note tier *without* the "запомни" keyword: the system
   decides, from ordinary conversation, **what** is worth keeping and **about whom**, dedups, and records
   (explicit fixation → auto-save, important inferred → approve, trivial → ignore). Evolves
-  memory-from-chat (`CaptureService`) with a third output. **🚧 NOW (owner-picked next work after
-  resurfacing, 2026-07-03).** Authority + phased plan (AC-1..5): **[ambient-capture.md](ambient-capture.md)**.
+  memory-from-chat (`CaptureService`) with a third output. **📐 NOW — concept + phased plan locked
+  (owner-picked next work after resurfacing, 2026-07-03); AC-1 is the next code slice.** Authority +
+  phased plan (AC-1..5): **[ambient-capture.md](ambient-capture.md)**.
   It's the *input/quality* half of the owner's north-star; the *output* half (memory-driven orchestration)
   is a separate follow-on track (item 3 / inter-agent).
 - **`coach-agent` (self-improvement)** — its own future domain that reads this substrate (goals /
