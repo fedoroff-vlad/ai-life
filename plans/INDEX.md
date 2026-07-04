@@ -10,7 +10,7 @@ Never load more than one domain file per task. Do not re-read a file you already
 | `calendar.md` | calendar domain: `mcp-caldav`, `calendar-agent`, Radicale, ICS import, birthday/gift skills, `calendar.*` schema | Any calendar work |
 | `finance.md` | finance domain: `mcp-finance`, `finance-agent`, Money Pro import, `finance.*` schema, skills | Any finance work |
 | `tasks.md` | tasks/GTD domain: `mcp-tasks`, `tasks-agent`, `tasks.*` schema (projects + items + contexts), inbox/clarify flow, skills | Any tasks/GTD work |
-| `stage4.md` | Stage 4 plan: memory (done) + the open inter-agent half — conversation-state, event-bus, cross-agent chains, multi-agent orchestration | Any Stage-4 (dialog state / inter-agent / event-bus) work |
+| `stage4.md` | Stage 4 plan: memory (done) + inter-agent — conversation-state, event-bus, cross-agent chains all built; **memory-driven multi-agent orchestration now in flight (#290): `coordinator-agent` + the read-only `brief` cross-agent query** | Any Stage-4 (dialog state / inter-agent / event-bus / coordinator / multi-domain) work |
 | `platform.md` | shared services: orchestrator, gateway-telegram, llm-gateway, memory-service, scheduler, notifier; `memory/audit/bus/media` schemas | Working on a platform/shared service |
 | `media.md` | shared media-understanding capability-MCP (`mcp-media-processing`): OCR/STT/vision-caption over media-service bytes, `shared/mcp/`, agent binding | Any media-understanding (OCR/STT/caption) work |
 | `research.md` | web research specialist (`researcher-agent`) + shared `mcp-web` capability-MCP (`web_search` + `fetch_url` over SearXNG); cheap-first token economy | Any web-search / research / page-fetch work |

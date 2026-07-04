@@ -50,7 +50,7 @@ The brain stays intuitive **because the rules are data-driven** (the LLM classif
 1. **Active `route-lock`** (an open confirmation owns the conversation) → `resume` the locked agent, **bypass classification** (Track A / A2).
 2. Else **classify intent** (FAST channel, few-shot from manifests + memory-service recall as context):
    - single clear domain → route to that one agent;
-   - complex / multi-domain → **agent-led coordination**: route to a coordinator agent that gathers the rest through the hub (`/v1/agents/invoke`) or the bus (Track D);
+   - complex / multi-domain → **agent-led coordination**: route to a coordinator agent that gathers the rest through the hub (`/v1/agents/invoke`) or the bus (Track D) — **built: `coordinator-agent` (#290)**, picked purely by manifest, reads the second brain + gathers specialists' read-only `brief` answers, synthesizes one reply;
    - small-talk / unmatched-but-actionable → catch-all (`tasks` inbox); pure small-talk → echo.
 3. An agent may return a `pendingAction` → the orchestrator **locks** the conversation for confirmation.
 
@@ -96,7 +96,8 @@ ai-life/
 │   ├── llm-client/          # client to llm-gateway (channel-based)
 │   ├── event-bus/           # Postgres LISTEN/NOTIFY adapter
 │   ├── platform-common/     # security, logging, metrics, errors
-│   └── agent-runtime/       # AGENT.md/SKILL.md loaders + SkillRegistry + shared ProfileClient/NotifierClient/MemoryClient (agents @Import this)
+│   ├── agent-runtime/       # AGENT.md/SKILL.md loaders + SkillRegistry + shared ProfileClient/NotifierClient/MemoryClient + Coordinator (gather→synthesize) + BriefResponder (read-only cross-agent query) (agents @Import this)
+│   └── doc-render/          # shared HTML deliverable renderer (briefing/stylist/nutrition boards)
 ├── infra/
 │   ├── docker-compose.yml          # all services
 │   ├── docker-compose.dev.yml      # infra only (PG/Radicale/MinIO/Langfuse)
@@ -111,7 +112,11 @@ ai-life/
 │   ├── researcher/ { researcher-agent }
 │   ├── stylist/    { stylist-agent, mcp-wardrobe, skills/ }
 │   ├── nutrition/  { nutritionist-agent, chef-agent, mcp-nutrition, skills/ }
-│   └── creator/    { creator-agent, mcp-creator, skills/ }
+│   ├── creator/    { creator-agent, mcp-creator, skills/ }
+│   ├── briefing/   { briefing-agent, mcp-briefing, skills/ }
+│   ├── docs/       { docs-agent, mcp-docs, skills/ }
+│   ├── knowledge/  { notes-agent }                    # second-brain front, no own MCP
+│   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
     ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds, …
     └── skills/ cross-cutting skills
