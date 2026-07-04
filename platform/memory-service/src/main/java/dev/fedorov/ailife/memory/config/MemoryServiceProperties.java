@@ -46,7 +46,16 @@ public class MemoryServiceProperties {
     public static class AmbientCapture {
         private boolean enabled = false;
 
+        /**
+         * AC-3 dedup threshold: before writing an ambient note, its {@code source=note} neighbours are
+         * recalled; if the nearest one is within this cosine distance the write is skipped as a
+         * near-duplicate. Smaller = stricter (only near-identical text dedups).
+         */
+        private double dedupDistance = 0.15;
+
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public double getDedupDistance() { return dedupDistance; }
+        public void setDedupDistance(double dedupDistance) { this.dedupDistance = dedupDistance; }
     }
 }

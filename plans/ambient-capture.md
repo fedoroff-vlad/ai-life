@@ -72,11 +72,14 @@ here — they wait for AC-4's approval flow. Wired as the third best-effort outp
 unresolved attribution, inferred-not-written, blank-title skip, write-failure-never-breaks). This is a
 working intuitive capture for the explicit cases.
 
-### AC-3 — dedup on write ("scan memory: duplicate or unique?")
-Before `create`, `MemoryService.recall(household, ownerId, personId, title+body)` → filter to `source=note`
-hits (reuse the `NoteFinder.refId` pattern) → if the nearest note's cosine `distance <
-memory.ambient-capture.dedup-distance` (~0.15), **skip** (log); else create. Stops the same fact piling up
-on repeated mentions.
+### AC-3 — dedup on write ("scan memory: duplicate or unique?") ✅ DONE
+Before `create`, `CaptureService.isDuplicate` runs `MemoryService.recall(household, userId, personId,
+title+body)` → filters to `source=note` hits → if the nearest note's cosine `distance <
+memory.ambient-capture.dedup-distance` (default 0.15), **skip** (log); else create. Query mirrors
+`NoteService`'s seed corpus (`title + "\n\n" + body`) so distances are comparable. Best-effort and
+**fail-open** — a recall blip yields "not a duplicate" so a lookup failure never silently drops a note.
+Stops the same fact piling up on repeated mentions. `CaptureServiceTest` +4 cases (near-dup skipped,
+distant written, non-note neighbour ignored, recall-failure writes anyway).
 
 ### AC-4 — approval of important inferred facts
 Important **inferred** candidates (outcome 2) are not written silently: they are queued and surfaced for
