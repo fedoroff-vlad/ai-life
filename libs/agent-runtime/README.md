@@ -42,6 +42,12 @@ package sits outside their `@SpringBootApplication` scan root.
 - `Coordinator` — the reusable **gather → synthesize** scaffold for agent-led
   multi-source flows. Needs the agent's `LlmClient` + the default `ObjectMapper`
   (every agent has both), so it wires for free on `@Import`.
+- `BriefResponder` — the reusable **`brief` read-action** (#290, Slice B): answers a
+  focused sub-question from the agent's persona + its second-brain recall in one
+  **FAST** synthesis (the cheap leg; the coordinator's cross-domain synthesis is the
+  DEFAULT call). Read-only by contract. An agent exposes it by registering
+  `register("brief", briefResponder::answer)` on its `ActionController`; the coordinator
+  gathers these live specialist answers through the hub.
 - `DeliverablePublisher` — the shared **render → store → link** seam for the
   gather→synthesize agents that hand the user an HTML board/report. Wraps the
   agent's `DocRenderer` + `MediaStoreClient` + public-media base URL into one
@@ -88,6 +94,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `http/MediaStoreClient` — `upload(householdId, ownerId, filename, mimeType, bytes)` → multipart `POST /v1/media` (15s); shared by the deliverable agents. Bean is opt-in per agent (`new MediaStoreClient(mediaServiceWebClient, "<source>")`); the `source` tag is constructor-set so `upload` is signature-identical across callers.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
+- `brief/BriefResponder` — the reusable `brief` read-action: `answer(request)` / `answer(request, extraGather)` recall the agent's second brain for `args.question` (plus any domain gather the agent adds), run one FAST `Coordinator` synthesis under a read-only instruction, and return `AgentActionResult{agent, answer, llmModel?}`. Missing question → structured `ok=false`. Wired as a bean; an agent opts in with `register("brief", briefResponder::answer)`.
 - `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 - `web/AgentActionController` — abstract base for an agent's `POST /agents/<name>/actions/{action}` endpoint: `register(action, handler)` in the subclass ctor + `dispatch(action, request)` applies the shared envelope (unknown-action → structured `ok=false`; handler failure → `"<action> failed: <msg>"` logged with `requestedBy`). Subclasses stay `@RestController`s (the path literal carries the agent name) and only hold per-action business logic.
 
