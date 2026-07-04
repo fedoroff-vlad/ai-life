@@ -109,7 +109,7 @@ route-lock PUT to conversation-service (pendingAction `note` deserializes to a v
 (`AmbientApproveResumeTest`). Golden `GoldenNoteWorthinessTest` gains the IMPORTANT_INFERRED case (verified
 vs qwen2.5:7b) — the real-model classification the trigger hinges on.
 
-### AC-5 — merge / update / supersede (owner-picked 2026-07-04)
+### AC-5 — merge / update / supersede ✅ DONE (owner-picked 2026-07-04)
 A near-duplicate is not always a no-op: a *new detail* should enrich the existing note's body; a
 *contradiction* ("передумал") should update/supersede it. An LLM decides new-detail vs contradiction vs
 nothing-new. Slices:
@@ -119,10 +119,13 @@ nothing-new. Slices:
   enrich/supersede `body` is the full merged/corrected note body. **Fail-safe: any uncertainty → SKIP** (never
   blank a note on a bad reply). Decide-only, no writes. `NoteReconcilerTest` (8) + `GoldenNoteReconcilerTest`
   (3, verified vs qwen2.5:7b — enrich keeps the new detail, contradiction → SUPERSEDE, identical → SKIP).
-- **AC-5b — wire into `CaptureService` (next).** Replace the AC-3 "near-duplicate → skip" with: resolve the
-  nearest `source=note` neighbour to its note id (`refId`), fetch it, `NoteReconciler.reconcile(existing,
-  incoming)` → on `ENRICH`/`SUPERSEDE` `NoteService.update(id, body)` (re-seeds recall + graph), on `SKIP`
-  leave it. Best-effort. Integration test proves a second mention enriches rather than duplicates.
+- **AC-5b — wire into `CaptureService` ✅ DONE.** The AC-3 "near-duplicate → skip" became reconcile: on the
+  explicit-fixation write path, `nearestDuplicateNoteId` resolves the nearest `source=note` neighbour (within
+  `dedup-distance`) to its note id (`refId`); `reconcile` fetches it and runs `NoteReconciler` → on
+  `ENRICH`/`SUPERSEDE` `NoteService.update(id, mergedBody)` (re-seeds recall + graph), on `SKIP` leaves it,
+  on a vanished note (race) creates the new one. Best-effort. `CaptureServiceTest` +3 (enrich/skip/vanished);
+  `AmbientReconcileIntegrationTest` — a second mention with a new detail enriches the one note over real
+  `/v1/capture`+Postgres (reconciler pinned to ENRICH; constant embedder so the mentions collide).
 
 ## Reuse (no new client/endpoint)
 `FactExtractor` (the extractor shape), `ProfileClient.resolvePersonId` (attribution),

@@ -6,11 +6,14 @@ import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.capture.CaptureOutcome;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
 import dev.fedorov.ailife.memory.capture.NoteCandidate;
+import dev.fedorov.ailife.memory.capture.NoteReconciler;
+import dev.fedorov.ailife.memory.capture.NoteReconciliation;
 import dev.fedorov.ailife.memory.capture.NoteWorthinessExtractor;
 import dev.fedorov.ailife.memory.capture.RelationExtractor;
 import dev.fedorov.ailife.memory.config.MemoryServiceProperties;
@@ -24,7 +27,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -78,6 +83,7 @@ public class CaptureService {
     private final FactExtractor extractor;
     private final RelationExtractor relationExtractor;
     private final NoteWorthinessExtractor noteExtractor;
+    private final NoteReconciler reconciler;
     private final MemoryService memories;
     private final RelationService relations;
     private final NoteService notes;
@@ -90,6 +96,7 @@ public class CaptureService {
     public CaptureService(FactExtractor extractor,
                           RelationExtractor relationExtractor,
                           NoteWorthinessExtractor noteExtractor,
+                          NoteReconciler reconciler,
                           MemoryService memories,
                           RelationService relations,
                           NoteService notes,
@@ -101,6 +108,7 @@ public class CaptureService {
         this.extractor = extractor;
         this.relationExtractor = relationExtractor;
         this.noteExtractor = noteExtractor;
+        this.reconciler = reconciler;
         this.memories = memories;
         this.relations = relations;
         this.notes = notes;
@@ -206,8 +214,9 @@ public class CaptureService {
 
     /**
      * Write one explicit-fixation candidate as a curated note (auto-seeds recall + graph via
-     * {@link NoteService}). Before writing, {@link #isDuplicate} (AC-3) skips a near-identical existing
-     * note. Returns false when skipped (blank title or near-duplicate).
+     * {@link NoteService}). If a near-duplicate note already exists (AC-3), it is <b>reconciled</b> (AC-5)
+     * rather than blindly written: the {@link NoteReconciler} decides enrich / supersede / skip. Returns
+     * false only when nothing was written or changed (blank title, or a "nothing new" skip).
      */
     private boolean writeExplicit(CaptureRequest req, NoteCandidate candidate) {
         if (candidate.title() == null || candidate.title().isBlank()) {
@@ -215,12 +224,43 @@ public class CaptureService {
             return false;
         }
         WriteNoteRequest note = buildNote(req, candidate, NOTE_SOURCE_USER);
-        if (isDuplicate(req, note.personId(), note.title(), note.bodyMd())) {
-            log.debug("skipping ambient note '{}' — near-duplicate of an existing note", candidate.title());
-            return false;
+        UUID duplicateId = nearestDuplicateNoteId(req, note.personId(), note.title(), note.bodyMd());
+        if (duplicateId != null) {
+            return reconcile(duplicateId, note);
         }
         notes.create(note);
         return true;
+    }
+
+    /**
+     * AC-5 — the incoming note is a near-duplicate of {@code existingId}. Ask the {@link NoteReconciler}
+     * whether the new mention adds a detail (enrich), contradicts (supersede) or says nothing new (skip);
+     * on the first two, {@link NoteService#update} the existing note's body (which re-seeds recall + graph).
+     * If the existing note has vanished (a race), just create the new one. Returns whether anything changed.
+     */
+    private boolean reconcile(UUID existingId, WriteNoteRequest incoming) {
+        Optional<NoteDto> existing = notes.get(existingId);
+        if (existing.isEmpty()) {
+            notes.create(incoming);   // the near-duplicate is gone — write the new note as-is
+            return true;
+        }
+        NoteDto note = existing.get();
+        NoteReconciliation decision = reconciler.reconcile(
+                note.title(), note.bodyMd(), incoming.title(), incoming.bodyMd());
+        if (!decision.rewritesBody()) {
+            log.debug("ambient note '{}' — near-duplicate of {}, nothing new (skip)", incoming.title(), existingId);
+            return false;
+        }
+        notes.update(existingId, withBody(note, decision.body()));
+        log.debug("ambient note '{}' — {} existing note {}", incoming.title(), decision.action(), existingId);
+        return true;
+    }
+
+    /** The existing note with its body replaced (all other manifest fields preserved) — the AC-5 update. */
+    private static WriteNoteRequest withBody(NoteDto existing, String body) {
+        return new WriteNoteRequest(
+                existing.householdId(), existing.ownerId(), existing.title(), existing.type(),
+                existing.tags(), existing.source(), existing.personId(), body, existing.frontmatter());
     }
 
     /**
@@ -282,25 +322,41 @@ public class CaptureService {
     }
 
     /**
-     * AC-3 dedup — is a near-identical note already stored? Recall the {@code source=note} neighbours in
-     * the same scope (matching how {@link NoteService} seeds them: query = {@code title + body}) and compare
-     * the nearest cosine distance to {@code memory.ambient-capture.dedup-distance}. Best-effort and
-     * <b>fail-open</b>: a recall blip yields "not a duplicate" so a lookup failure never silently drops a note.
+     * AC-3/AC-5 dedup lookup — the id of the nearest already-stored note that is a near-duplicate of this
+     * one, or {@code null} if there is none. Recalls the {@code source=note} neighbours in the same scope
+     * (matching how {@link NoteService} seeds them: query = {@code title + body}), takes the nearest within
+     * {@code memory.ambient-capture.dedup-distance}, and resolves its {@code refId} back-pointer to the note
+     * id. Best-effort and <b>fail-open</b>: a recall blip yields {@code null} (treat as new, write it) so a
+     * lookup failure never silently drops a note.
      */
-    private boolean isDuplicate(CaptureRequest req, UUID personId, String title, String body) {
+    private UUID nearestDuplicateNoteId(CaptureRequest req, UUID personId, String title, String body) {
         try {
             String query = (body == null || body.isBlank()) ? title : title + "\n\n" + body;
             List<RecallMemoryHit> hits = memories.recall(new RecallMemoryRequest(
                     req.householdId(), req.userId(), personId, query, DEDUP_RECALL_K));
-            double nearest = hits.stream()
+            double threshold = props.getAmbientCapture().getDedupDistance();
+            return hits.stream()
                     .filter(h -> h.memory() != null && NOTE_MEMORY_SOURCE.equals(h.memory().source()))
-                    .mapToDouble(RecallMemoryHit::distance)
-                    .min()
-                    .orElse(Double.MAX_VALUE);
-            return nearest < props.getAmbientCapture().getDedupDistance();
+                    .filter(h -> h.distance() < threshold)
+                    .min(Comparator.comparingDouble(RecallMemoryHit::distance))
+                    .map(CaptureService::noteRefId)
+                    .orElse(null);
         } catch (Exception e) {
-            log.warn("ambient note dedup check failed, writing anyway: {}", e.toString());
-            return false;
+            log.warn("ambient note dedup lookup failed, treating as new: {}", e.toString());
+            return null;
+        }
+    }
+
+    /** The note id a {@code source=note} recall hit carries in {@code metadata.refId} (SB-2), or null. */
+    private static UUID noteRefId(RecallMemoryHit hit) {
+        var meta = hit.memory().metadata();
+        if (meta == null || !meta.hasNonNull("refId")) {
+            return null;
+        }
+        try {
+            return UUID.fromString(meta.get("refId").asText());
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

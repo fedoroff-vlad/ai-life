@@ -29,6 +29,7 @@ done". For the *authoritative detail* of any item, follow its link to the **doma
 | 2026-07-04 | ambient capture AC-3: dedup-on-write (skip near-duplicate notes, ~0.15 cosine, fail-open) — PR#280 | [ambient-capture.md](ambient-capture.md), [memory-service README](../platform/memory-service/README.md) |
 | 2026-07-04 | ambient capture stage-closer IT: `AmbientCaptureIntegrationTest` proves AC-2/AC-3 over real `/v1/capture`+Postgres — PR#281 | [ambient-capture.md](ambient-capture.md) |
 | 2026-07-04 | ambient capture AC-4 (approval of inferred, proactive push + resume): notes-agent `AmbientApprover`+`/resume` (AC-4a #282), memory-service `askApproval`→lock+notifier push, `CaptureRequest.channel` (AC-4b #283), E2E+golden closer (AC-4c) | [ambient-capture.md](ambient-capture.md), [memory-service README](../platform/memory-service/README.md), [notes-agent README](../domains/knowledge/notes-agent/README.md) |
+| 2026-07-04 | ambient capture AC-5 (merge/supersede): `NoteReconciler` enrich/supersede/skip engine (AC-5a #285) + reconcile-on-write in `CaptureService` (AC-5b) — a near-duplicate enriches/updates the note instead of duplicating. **Ambient capture AC-1..5 complete.** | [ambient-capture.md](ambient-capture.md), [memory-service README](../platform/memory-service/README.md) |
 
 ---
 
