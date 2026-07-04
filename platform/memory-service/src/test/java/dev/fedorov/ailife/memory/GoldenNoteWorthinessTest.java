@@ -42,6 +42,21 @@ class GoldenNoteWorthinessTest {
     }
 
     @Test
+    void classifiesAnImportantInferredFactWithoutACue() {
+        // No "запомни" cue — the model must still notice this is worth keeping (the AC-4 approval trigger).
+        List<NoteCandidate> out = extractor.extract("у мамы аллергия на орехи");
+
+        assertThat(out).as("real model produced no candidate — is llm-gateway up at %s?",
+                GoldenLlm.gatewayUrl()).isNotEmpty();
+        NoteCandidate c = out.get(0);
+        assertThat(c.title()).isNotBlank();
+        assertThat(c.subject()).as("subject should name a person, not be self/null").isNotNull();
+        assertThat(c.isSelf()).isFalse();
+        // The whole AC-4 loop hinges on this: an un-cued important fact → approve-first, not auto-save.
+        assertThat(c.outcome()).isEqualTo(CaptureOutcome.IMPORTANT_INFERRED);
+    }
+
+    @Test
     void ignoresTrivialSmallTalk() {
         List<NoteCandidate> out = extractor.extract("привет! как дела? какая сегодня погода?");
 
