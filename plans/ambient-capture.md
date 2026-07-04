@@ -111,9 +111,10 @@ graph), `CaptureService` (the single capture entry).
 - **Golden (opt-in, `GOLDEN_LLM`)** `GoldenNoteWorthinessTest` — the real local model, given a natural
   message, emits parseable candidates with a plausible `type`/`subject`/classification (structure, not
   wording), mirroring `GoldenNoteWriterTest`.
-- **Integration (Testcontainers)** extend `CaptureServiceTest` / `NotesIntegrationTest`: seed a household +
-  a `core.people` "Мама"; an explicit-fixation message about her → a `memory.note` (`source=user`,
-  `person_id=мама`, body `[[Мама]]`, note→person edge); a "self" fixation → an owner-scoped `goal` note;
-  the same message twice (AC-3) → exactly one note.
+- **Integration (Testcontainers)** ✅ `AmbientCaptureIntegrationTest` — the AC-2/AC-3 chain across the real
+  `POST /v1/capture` boundary into Postgres (extractors + `ProfileClient` mocked; persistence/embedding/dedup
+  real): an explicit-fixation about "Мама" → a `memory.note` (`source=user`, `person_id=мама`, body `[[Мама]]`,
+  note→person edge in `memory.relations`); a "self" fixation → an owner-scoped `goal` note; the same message
+  twice (AC-3) → exactly one note.
 - **Manual** — `docker compose up`, send a Telegram message with a fixation cue mentioning a known person,
   then ask notes-agent "что я думал про <person>" → the ambiently-captured note comes back.
