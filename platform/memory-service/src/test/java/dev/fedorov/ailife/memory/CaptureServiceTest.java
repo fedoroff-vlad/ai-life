@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.memory;
 
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
+import dev.fedorov.ailife.contracts.memory.MemoryDto;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
@@ -61,10 +63,17 @@ class CaptureServiceTest {
         props.getAmbientCapture().setEnabled(true);
         when(relationExtractor.extract(any())).thenReturn(List.of());
         when(noteExtractor.extract(any())).thenReturn(List.of(candidates));
+        when(memories.recall(any())).thenReturn(List.of());   // AC-3: no dedup neighbours by default
     }
 
     private static NoteCandidate explicit(String title, String type, String body, String subject) {
         return new NoteCandidate(title, type, body, subject, "important", true);
+    }
+
+    /** A recall hit with the given provenance + cosine distance (scope fields don't matter for dedup). */
+    private static RecallMemoryHit hit(String source, double distance) {
+        MemoryDto m = new MemoryDto(UUID.randomUUID(), null, null, null, source, "existing", null, null);
+        return new RecallMemoryHit(m, distance);
     }
 
     @Test
@@ -222,5 +231,48 @@ class CaptureServiceTest {
         when(notes.create(any())).thenThrow(new RuntimeException("db blip"));
 
         assertThatCode(() -> service.capture(req(speaker))).doesNotThrowAnyException();
+    }
+
+    // --- AC-3 dedup on write --------------------------------------------------------------------------
+
+    @Test
+    void nearDuplicateNote_skipped() {
+        enableNotes(explicit("Мама — аллергия", "person", "аллергия на орехи", "Мама"));
+        when(memories.recall(any())).thenReturn(List.of(hit("note", 0.05)));   // < 0.15 threshold
+
+        service.capture(req(speaker));
+
+        verify(notes, never()).create(any());
+    }
+
+    @Test
+    void distantNote_written() {
+        enableNotes(explicit("Сменить работу", "goal", "решил сменить работу", "self"));
+        when(memories.recall(any())).thenReturn(List.of(hit("note", 0.6)));   // > 0.15 threshold
+
+        service.capture(req(speaker));
+
+        verify(notes).create(any());
+    }
+
+    @Test
+    void nonNoteNeighbourIgnoredForDedup_written() {
+        enableNotes(explicit("Сменить работу", "goal", "решил сменить работу", "self"));
+        // a very-near neighbour, but it's a chat-capture memory, not a note — must not block the write
+        when(memories.recall(any())).thenReturn(List.of(hit("chat-capture", 0.01)));
+
+        service.capture(req(speaker));
+
+        verify(notes).create(any());
+    }
+
+    @Test
+    void dedupRecallFailure_writesAnyway() {
+        enableNotes(explicit("Сменить работу", "goal", "решил сменить работу", "self"));
+        when(memories.recall(any())).thenThrow(new RuntimeException("recall blip"));
+
+        service.capture(req(speaker));
+
+        verify(notes).create(any());   // fail-open: a dedup lookup blip never drops the note
     }
 }

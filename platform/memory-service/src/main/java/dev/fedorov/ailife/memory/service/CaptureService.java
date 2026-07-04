@@ -2,6 +2,8 @@ package dev.fedorov.ailife.memory.service;
 
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
+import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
@@ -50,6 +52,12 @@ public class CaptureService {
 
     /** Provenance for an ambiently-captured explicit-fixation note — user-authored, just not via notes-agent. */
     static final String NOTE_SOURCE_USER = "user";
+
+    /** memory-service source tag a note's recall seed carries (SB-2); the AC-3 dedup filters recall to it. */
+    private static final String NOTE_MEMORY_SOURCE = "note";
+
+    /** Top-k for the AC-3 dedup recall — a handful of nearest note-neighbours is enough to spot a duplicate. */
+    private static final int DEDUP_RECALL_K = 5;
 
     /** Subject sentinel the extractor uses for a statement about the speaker. */
     private static final String SELF = "self";
@@ -170,8 +178,9 @@ public class CaptureService {
      * Write one explicit-fixation candidate as a curated note (auto-seeds recall + graph via
      * {@link NoteService}). Attribution: a {@code "self"} candidate is owner-scoped; a named subject is
      * resolved to a {@code core.people} UUID (best-effort) and gets a {@code [[name]]} link appended so the
-     * note→person edge projects — an unresolved name stays a dangling link, the note is still saved. Returns
-     * false when skipped (blank title).
+     * note→person edge projects — an unresolved name stays a dangling link, the note is still saved. Before
+     * writing, {@link #isDuplicate} (AC-3) skips a near-identical existing note. Returns false when skipped
+     * (blank title or near-duplicate).
      */
     private boolean writeNote(CaptureRequest req, NoteCandidate candidate) {
         if (candidate.title() == null || candidate.title().isBlank()) {
@@ -184,6 +193,10 @@ public class CaptureService {
             personId = profile.resolvePersonId(req.householdId(), candidate.subject());
             body = appendWikiLink(body, candidate.subject());
         }
+        if (isDuplicate(req, personId, candidate.title(), body)) {
+            log.debug("skipping ambient note '{}' — near-duplicate of an existing note", candidate.title());
+            return false;
+        }
         notes.create(new WriteNoteRequest(
                 req.householdId(),
                 req.userId(),            // owner-scoped: the capturing user owns the note
@@ -195,6 +208,29 @@ public class CaptureService {
                 body,
                 null));                  // frontmatter
         return true;
+    }
+
+    /**
+     * AC-3 dedup — is a near-identical note already stored? Recall the {@code source=note} neighbours in
+     * the same scope (matching how {@link NoteService} seeds them: query = {@code title + body}) and compare
+     * the nearest cosine distance to {@code memory.ambient-capture.dedup-distance}. Best-effort and
+     * <b>fail-open</b>: a recall blip yields "not a duplicate" so a lookup failure never silently drops a note.
+     */
+    private boolean isDuplicate(CaptureRequest req, UUID personId, String title, String body) {
+        try {
+            String query = (body == null || body.isBlank()) ? title : title + "\n\n" + body;
+            List<RecallMemoryHit> hits = memories.recall(new RecallMemoryRequest(
+                    req.householdId(), req.userId(), personId, query, DEDUP_RECALL_K));
+            double nearest = hits.stream()
+                    .filter(h -> h.memory() != null && NOTE_MEMORY_SOURCE.equals(h.memory().source()))
+                    .mapToDouble(RecallMemoryHit::distance)
+                    .min()
+                    .orElse(Double.MAX_VALUE);
+            return nearest < props.getAmbientCapture().getDedupDistance();
+        } catch (Exception e) {
+            log.warn("ambient note dedup check failed, writing anyway: {}", e.toString());
+            return false;
+        }
     }
 
     /** Append a {@code [[name]]} wiki-link to a body so SB-3 projects a note→person edge (idempotent). */
