@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: coordinator-agent
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${COORDINATOR_AGENT_PORT:8119}
+
+agent:
+  manifest-classpath: AGENT.md
+  # No skills: the coordinator's whole job is synthesis, driven by the AGENT.md body. Leaving
+  # skills-classpath unset keeps the registry empty (the anti-cross-leak default).
+  memory-recall-k: ${COORDINATOR_AGENT_MEMORY_RECALL_K:5}
+
+coordinator-agent:
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
+  memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

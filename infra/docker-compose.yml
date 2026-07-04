@@ -394,6 +394,7 @@ services:
       BRIEFING_AGENT_URL: http://briefing-agent:8115
       DOCS_AGENT_URL: http://docs-agent:8117
       NOTES_AGENT_URL: http://notes-agent:8118
+      COORDINATOR_AGENT_URL: http://coordinator-agent:8119
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1354,6 +1355,38 @@ services:
       NOTES_RESURFACE_CRON: ${NOTES_RESURFACE_CRON:-0 0 10 * * MON}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8118/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Cross-cutting synthesis engine (#290): multi-domain requests → read the second brain → one answer.
+  # Binds no domain-MCP; reactive (/intent) + proactive (/triggers) on the shared Coordinator.
+  coordinator-agent:
+    image: ai-life/coordinator-agent:local
+    container_name: ai-life-coordinator-agent
+    build:
+      context: ..
+      dockerfile: domains/assistant/coordinator-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+    environment:
+      COORDINATOR_AGENT_PORT: 8119
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8119/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10

@@ -40,6 +40,13 @@ talk. It **self-disables to `echo`** if the named agent isn't registered, and th
 deterministic fallbacks (LLM error, un-parseable output, no remote agents) always stay
 `echo`.
 
+**Multi-domain routing (#290):** a request that spans several domains at once routes to the
+`coordinator` agent — the cross-cutting synthesis engine that reads the second brain and answers
+in one shot. This is **pure data-driven routing**: `coordinator` is just another registered agent
+whose manifest description tells the classifier to pick it for cross-cutting messages, so there is
+**no orchestrator code for it** (cheap-first is preserved — single-domain messages still classify
+to their one specialist). Agent-led coordination keeps the orchestrator a thin router.
+
 ## Endpoints
 
 | method | path                  | purpose                                        |
