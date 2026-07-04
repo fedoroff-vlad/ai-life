@@ -16,4 +16,14 @@ public class HttpConfig {
     public WebClient profileWebClient(MemoryServiceProperties props, WebClient.Builder builder) {
         return builder.baseUrl(props.getProfileBaseUrl()).build();
     }
+
+    @Bean
+    public WebClient conversationWebClient(MemoryServiceProperties props, WebClient.Builder builder) {
+        return builder.baseUrl(props.getConversationBaseUrl()).build();
+    }
+
+    @Bean
+    public WebClient notifierWebClient(MemoryServiceProperties props, WebClient.Builder builder) {
+        return builder.baseUrl(props.getNotifierBaseUrl()).build();
+    }
 }
