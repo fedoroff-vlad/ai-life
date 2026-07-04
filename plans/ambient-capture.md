@@ -109,10 +109,20 @@ route-lock PUT to conversation-service (pendingAction `note` deserializes to a v
 (`AmbientApproveResumeTest`). Golden `GoldenNoteWorthinessTest` gains the IMPORTANT_INFERRED case (verified
 vs qwen2.5:7b) — the real-model classification the trigger hinges on.
 
-### AC-5 — merge / update / supersede (later, deferred)
+### AC-5 — merge / update / supersede (owner-picked 2026-07-04)
 A near-duplicate is not always a no-op: a *new detail* should enrich the existing note's body; a
 *contradiction* ("передумал") should update/supersede it. An LLM decides new-detail vs contradiction vs
-nothing-new. Its own slice; not in the first working cut.
+nothing-new. Slices:
+- **AC-5a — reconciliation decision engine ✅ DONE.** `capture/NoteReconciler` (mirrors `NoteWorthinessExtractor`:
+  DEFAULT channel, strict-JSON, lenient parse, best-effort) given `{existing, incoming}` note bodies returns a
+  `capture/NoteReconciliation {action, body}` — `capture/ReconcileAction` ∈ `ENRICH|SUPERSEDE|SKIP`; for
+  enrich/supersede `body` is the full merged/corrected note body. **Fail-safe: any uncertainty → SKIP** (never
+  blank a note on a bad reply). Decide-only, no writes. `NoteReconcilerTest` (8) + `GoldenNoteReconcilerTest`
+  (3, verified vs qwen2.5:7b — enrich keeps the new detail, contradiction → SUPERSEDE, identical → SKIP).
+- **AC-5b — wire into `CaptureService` (next).** Replace the AC-3 "near-duplicate → skip" with: resolve the
+  nearest `source=note` neighbour to its note id (`refId`), fetch it, `NoteReconciler.reconcile(existing,
+  incoming)` → on `ENRICH`/`SUPERSEDE` `NoteService.update(id, body)` (re-seeds recall + graph), on `SKIP`
+  leave it. Best-effort. Integration test proves a second mention enriches rather than duplicates.
 
 ## Reuse (no new client/endpoint)
 `FactExtractor` (the extractor shape), `ProfileClient.resolvePersonId` (attribution),
