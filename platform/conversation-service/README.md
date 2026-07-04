@@ -9,11 +9,19 @@ This is **routing/confirmation control**, distinct from `core.conversations` (me
 and from memory-service (semantic recall). The orchestrator stays stateless and calls this over
 HTTP, the same way it calls memory-service.
 
-Typical flow (wired in later Track-A slices): an agent that needs a confirmation `PUT`s a lock
-(`routeLock=<agent>`, `pendingAction={…}`); the orchestrator, on the next message, `GET`s the
-active state and — if locked — routes the reply straight to that agent's resume path instead of
-re-classifying; the agent `DELETE`s the state once resolved. A forgotten confirmation simply ages
-out (TTL) and the next message classifies normally.
+Typical flow: an agent that needs a confirmation `PUT`s a lock (`routeLock=<agent>`,
+`pendingAction={…}`); the orchestrator, on the next message, `GET`s the active state and — if locked —
+routes the reply straight to that agent's resume path instead of re-classifying; the agent `DELETE`s the
+state once resolved. A forgotten confirmation simply ages out (TTL) and the next message classifies
+normally.
+
+**Consumers:** the **orchestrator** reads the lock before classifying and clears it after a resolved
+resume (`IntentRouter`); agents (**tasks-agent** inbox-clarify, **notes-agent** ambient-approve) set a
+`pendingAction` on their reply so the orchestrator locks. **memory-service also sets a lock out-of-band**
+(ambient capture AC-4): off the reply path it notices an important inferred fact, `PUT`s a lock to
+`notes` with the ready-to-write note in the `pendingAction`, and pushes "заметил: … — записать?" — the
+owner's reply is then resolved by notes-agent's `/resume`. The channel it keys on is
+`MessageReceivedEvent.source`, the same string the orchestrator reads a lock by, so the two sides meet.
 
 ## REST API
 

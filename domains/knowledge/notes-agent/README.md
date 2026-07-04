@@ -7,9 +7,9 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4 + resurfacing R-b)
+## Status (SB-4 + resurfacing R-b + ambient-approve AC-4)
 
-Scaffold + the **capture**, **recall**, and **proactive-resurfacing** flows.
+Scaffold + the **capture**, **recall**, **proactive-resurfacing**, and **ambient-approve** (AC-4 resume) flows.
 
 - **Resurface (R-b)** — a `notes.resurface` scheduler wake (declared in `AGENT.md`) → `NoteResurfacer`
   pulls one stale note the owner hasn't revisited in a while (memory-service
