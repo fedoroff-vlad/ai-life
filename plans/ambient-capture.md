@@ -86,11 +86,14 @@ Important **inferred** candidates (outcome 2) are not written silently: they are
 approval. **Design settled (owner, 2026-07-04): proactive push + resume** — reusing the *already-built*
 conversation-state + route-lock + `/resume` primitive (Track A / conversation-service; the earlier "needs
 item 3" gating was stale — it exists). The loop:
-1. **Capture side (memory-service, AC-4b).** On an `IMPORTANT_INFERRED` candidate, memory-service does the
-   attribution now (resolve `personId`, append `[[name]]`, `source=ambient`), sets a conversation-state
-   lock (`routeLock=notes`, `pendingAction={flow:"ambient-approve", note:<WriteNoteRequest>}`), and pushes
-   "заметил: … — записать?" via notifier. Needs the **channel** (`MessageReceivedEvent.source`) threaded
-   into capture — only the async bus path has it, so approval rides the bus path (sync `/v1/capture` skips).
+1. **Capture side (memory-service, AC-4b) ✅ DONE.** On an `IMPORTANT_INFERRED` candidate,
+   `CaptureService.askApproval` does the attribution now (resolve `personId`, append `[[name]]`,
+   `source=ambient`), sets a conversation-state lock (`routeLock=notes`,
+   `pendingAction={flow:"ambient-approve", note:<WriteNoteRequest>}`) via `http/ConversationStateClient`, and
+   pushes "заметил: … — записать?" via `http/NotifierClient`. The **channel** (`MessageReceivedEvent.source`)
+   is threaded into capture as `CaptureRequest.channel` — only the async bus path has it, so approval rides
+   the bus path (sync `/v1/capture` skips). We only ask if the lock persisted (else the reply has nowhere to
+   resume). All best-effort + flag-gated; `CaptureServiceTest` +5 AC-4 cases.
 2. **Resume side (notes-agent, AC-4a) ✅ DONE.** `approve/AmbientApprover` + `web/ResumeController`: the
    owner's reply resumes at `POST /agents/notes/resume`; an affirmative writes the pre-built note
    (`source=ambient`) via `NoteClient.create`, anything else drops it; both clear the lock. The orchestrator
@@ -98,7 +101,7 @@ item 3" gating was stale — it exists). The loop:
    `AmbientApproveResumeTest` (4 cases): affirmative writes, negative drops, unknown flow / missing note
    degrade gracefully.
 
-Slices: **AC-4a** (resume side) ✅ → **AC-4b** (capture side: thread channel + lock + notifier push) →
+Slices: **AC-4a** (resume side) ✅ → **AC-4b** (capture side: thread channel + lock + notifier push) ✅ →
 **AC-4c** (E2E: inferred message → push + lock → "да" → an `ambient` note).
 
 ### AC-5 — merge / update / supersede (later, deferred)
