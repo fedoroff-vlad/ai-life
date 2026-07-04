@@ -81,7 +81,7 @@ memory.ambient-capture.dedup-distance` (default 0.15), **skip** (log); else crea
 Stops the same fact piling up on repeated mentions. `CaptureServiceTest` +4 cases (near-dup skipped,
 distant written, non-note neighbour ignored, recall-failure writes anyway).
 
-### AC-4 — approval of important inferred facts
+### AC-4 — approval of important inferred facts ✅ DONE
 Important **inferred** candidates (outcome 2) are not written silently: they are surfaced for the owner's
 approval. **Design settled (owner, 2026-07-04): proactive push + resume** — reusing the *already-built*
 conversation-state + route-lock + `/resume` primitive (Track A / conversation-service; the earlier "needs
@@ -102,7 +102,12 @@ item 3" gating was stale — it exists). The loop:
    degrade gracefully.
 
 Slices: **AC-4a** (resume side) ✅ → **AC-4b** (capture side: thread channel + lock + notifier push) ✅ →
-**AC-4c** (E2E: inferred message → push + lock → "да" → an `ambient` note).
+**AC-4c** (E2E closer) ✅ — `AmbientApprovalPushE2ETest` drives an inferred message through the real
+`POST /v1/capture` and asserts the outbound wire contracts across real MockWebServer boundaries: the
+route-lock PUT to conversation-service (pendingAction `note` deserializes to a valid `ambient`
+`WriteNoteRequest`) + the approval-question POST to notifier — closing the loop with the resume half
+(`AmbientApproveResumeTest`). Golden `GoldenNoteWorthinessTest` gains the IMPORTANT_INFERRED case (verified
+vs qwen2.5:7b) — the real-model classification the trigger hinges on.
 
 ### AC-5 — merge / update / supersede (later, deferred)
 A near-duplicate is not always a no-op: a *new detail* should enrich the existing note's body; a

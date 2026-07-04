@@ -26,6 +26,9 @@ done". For the *authoritative detail* of any item, follow its link to the **doma
 | 2026-07-03 | ambient capture AC-1: `NoteWorthinessExtractor` decision engine (extract+classify, no writes) — PR#274 | [ambient-capture.md](ambient-capture.md) |
 | 2026-07-03 | ambient capture AC-2: `CaptureService` writes explicit-fixation notes + attribution (flag-gated) — PR#278 | [ambient-capture.md](ambient-capture.md) |
 | 2026-07-03 | docs restructure: STATUS.md → live-only + HISTORY.md archive; JVM/Boot/AI migration plan recorded — PR#275/276/277 | [STATUS.md](STATUS.md), [migration-25-boot4.md](migration-25-boot4.md) |
+| 2026-07-04 | ambient capture AC-3: dedup-on-write (skip near-duplicate notes, ~0.15 cosine, fail-open) — PR#280 | [ambient-capture.md](ambient-capture.md), [memory-service README](../platform/memory-service/README.md) |
+| 2026-07-04 | ambient capture stage-closer IT: `AmbientCaptureIntegrationTest` proves AC-2/AC-3 over real `/v1/capture`+Postgres — PR#281 | [ambient-capture.md](ambient-capture.md) |
+| 2026-07-04 | ambient capture AC-4 (approval of inferred, proactive push + resume): notes-agent `AmbientApprover`+`/resume` (AC-4a #282), memory-service `askApproval`→lock+notifier push, `CaptureRequest.channel` (AC-4b #283), E2E+golden closer (AC-4c) | [ambient-capture.md](ambient-capture.md), [memory-service README](../platform/memory-service/README.md), [notes-agent README](../domains/knowledge/notes-agent/README.md) |
 
 ---
 
