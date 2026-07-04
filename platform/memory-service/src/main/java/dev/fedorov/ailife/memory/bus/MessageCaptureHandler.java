@@ -71,7 +71,7 @@ public class MessageCaptureHandler {
 
         try {
             List<MemoryDto> written = capture.capture(new CaptureRequest(
-                    event.householdId(), event.userId(), null, event.text()));
+                    event.householdId(), event.userId(), null, event.text(), event.source()));
             log.debug("captured {} memories from message (source={})", written.size(), event.source());
         } catch (IllegalArgumentException e) {
             // Validation already guarded above — treat as permanent and accept.

@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.memory;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
@@ -11,6 +13,8 @@ import dev.fedorov.ailife.memory.capture.NoteCandidate;
 import dev.fedorov.ailife.memory.capture.NoteWorthinessExtractor;
 import dev.fedorov.ailife.memory.capture.RelationExtractor;
 import dev.fedorov.ailife.memory.config.MemoryServiceProperties;
+import dev.fedorov.ailife.memory.http.ConversationStateClient;
+import dev.fedorov.ailife.memory.http.NotifierClient;
 import dev.fedorov.ailife.memory.http.ProfileClient;
 import dev.fedorov.ailife.memory.service.CaptureService;
 import dev.fedorov.ailife.memory.service.MemoryService;
@@ -45,10 +49,14 @@ class CaptureServiceTest {
     private final RelationService relations = mock(RelationService.class);
     private final NoteService notes = mock(NoteService.class);
     private final ProfileClient profile = mock(ProfileClient.class);
+    private final ConversationStateClient conversation = mock(ConversationStateClient.class);
+    private final NotifierClient notifier = mock(NotifierClient.class);
+    private final ObjectMapper json = new ObjectMapper();
     private final MemoryServiceProperties props = new MemoryServiceProperties();
 
     private final CaptureService service = new CaptureService(
-            facts, relationExtractor, noteExtractor, memories, relations, notes, profile, props);
+            facts, relationExtractor, noteExtractor, memories, relations, notes, profile,
+            conversation, notifier, json, props);
 
     private final UUID household = UUID.randomUUID();
     private final UUID speaker = UUID.randomUUID();
@@ -56,6 +64,11 @@ class CaptureServiceTest {
     private CaptureRequest req(UUID userId) {
         when(facts.extract(any())).thenReturn(List.of());
         return new CaptureRequest(household, userId, null, "some message");
+    }
+
+    private CaptureRequest req(UUID userId, String channel) {
+        when(facts.extract(any())).thenReturn(List.of());
+        return new CaptureRequest(household, userId, null, "some message", channel);
     }
 
     /** Turn on the ambient note path (off by default) and stub the note extractor's output. */
@@ -68,6 +81,17 @@ class CaptureServiceTest {
 
     private static NoteCandidate explicit(String title, String type, String body, String subject) {
         return new NoteCandidate(title, type, body, subject, "important", true);
+    }
+
+    /** An important-but-inferred candidate (no fixation cue) → the AC-4 approval path. */
+    private static NoteCandidate inferred(String title, String type, String body, String subject) {
+        return new NoteCandidate(title, type, body, subject, "important", false);
+    }
+
+    private void enableInferred(NoteCandidate... candidates) {
+        props.getAmbientCapture().setEnabled(true);
+        when(relationExtractor.extract(any())).thenReturn(List.of());
+        when(noteExtractor.extract(any())).thenReturn(List.of(candidates));
     }
 
     /** A recall hit with the given provenance + cosine distance (scope fields don't matter for dedup). */
@@ -204,16 +228,69 @@ class CaptureServiceTest {
         assertThat(w.bodyMd()).contains("[[Стас]]");   // note still saved, link dangles
     }
 
+    // --- AC-4 approval of important-but-inferred candidates -------------------------------------------
+
     @Test
-    void importantInferred_notWrittenYet() {
-        props.getAmbientCapture().setEnabled(true);
-        when(relationExtractor.extract(any())).thenReturn(List.of());
-        when(noteExtractor.extract(any()))
-                .thenReturn(List.of(new NoteCandidate("t", "fact", "b", "self", "important", false)));
+    void inferredWithChannel_locksAndAsksApproval() {
+        UUID mama = UUID.randomUUID();
+        when(profile.resolvePersonId(household, "Мама")).thenReturn(mama);
+        enableInferred(inferred("Мама — аллергия", "person", "аллергия на орехи", "Мама"));
+        when(conversation.lock(any(), any(), any(), any(), any())).thenReturn(true);
 
-        service.capture(req(speaker));
+        service.capture(req(speaker, "telegram"));
 
-        verify(notes, never()).create(any());   // approval path is AC-4
+        ArgumentCaptor<JsonNode> pending = ArgumentCaptor.forClass(JsonNode.class);
+        verify(conversation).lock(eq(household), eq(speaker), eq("telegram"), eq("notes"), pending.capture());
+        JsonNode p = pending.getValue();
+        assertThat(p.path("flow").asText()).isEqualTo("ambient-approve");
+        assertThat(p.path("note").path("source").asText()).isEqualTo("ambient");
+        assertThat(p.path("note").path("personId").asText()).isEqualTo(mama.toString());
+        assertThat(p.path("note").path("bodyMd").asText()).contains("[[Мама]]");
+
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        verify(notifier).notify(eq(speaker), text.capture());
+        assertThat(text.getValue()).contains("записать");
+
+        verify(notes, never()).create(any());   // not written until the owner approves
+    }
+
+    @Test
+    void inferredWithoutChannel_notAsked() {
+        enableInferred(inferred("t", "fact", "b", "self"));
+
+        service.capture(req(speaker));   // no channel → no conversation to ask on
+
+        verify(conversation, never()).lock(any(), any(), any(), any(), any());
+        verify(notifier, never()).notify(any(), any());
+        verify(notes, never()).create(any());
+    }
+
+    @Test
+    void inferredWithoutUserId_notAsked() {
+        enableInferred(inferred("t", "fact", "b", "self"));
+
+        service.capture(req(null, "telegram"));   // channel but no speaker to notify
+
+        verify(conversation, never()).lock(any(), any(), any(), any(), any());
+        verify(notifier, never()).notify(any(), any());
+    }
+
+    @Test
+    void lockFails_doesNotAsk() {
+        enableInferred(inferred("t", "fact", "b", "self"));
+        when(conversation.lock(any(), any(), any(), any(), any())).thenReturn(false);
+
+        service.capture(req(speaker, "telegram"));
+
+        verify(notifier, never()).notify(any(), any());   // never ask if we can't remember the question
+    }
+
+    @Test
+    void approvalFailureNeverBreaksCapture() {
+        enableInferred(inferred("t", "fact", "b", "self"));
+        when(conversation.lock(any(), any(), any(), any(), any())).thenThrow(new RuntimeException("blip"));
+
+        assertThatCode(() -> service.capture(req(speaker, "telegram"))).doesNotThrowAnyException();
     }
 
     @Test

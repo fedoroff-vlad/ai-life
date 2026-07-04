@@ -25,6 +25,18 @@ public class MemoryServiceProperties {
      */
     private String profileBaseUrl = "http://profile-service:8082";
 
+    /**
+     * Base URL of conversation-service. Ambient capture (AC-4) sets a route-lock here to await the
+     * owner's approval of an important inferred fact. Best-effort — a failure just drops the approval.
+     */
+    private String conversationBaseUrl = "http://conversation-service:8089";
+
+    /**
+     * Base URL of notifier-service. Ambient capture (AC-4) pushes the "заметил: … — записать?" question
+     * here. Best-effort — a failure just means the owner isn't asked (the inferred fact is dropped).
+     */
+    private String notifierBaseUrl = "http://notifier-service:8084";
+
     /** Ambient / intuitive capture (AC-2+): fill the note tier from ordinary chat. */
     private final AmbientCapture ambientCapture = new AmbientCapture();
 
@@ -36,6 +48,10 @@ public class MemoryServiceProperties {
     public void setDim(int dim) { this.dim = dim; }
     public String getProfileBaseUrl() { return profileBaseUrl; }
     public void setProfileBaseUrl(String profileBaseUrl) { this.profileBaseUrl = profileBaseUrl; }
+    public String getConversationBaseUrl() { return conversationBaseUrl; }
+    public void setConversationBaseUrl(String conversationBaseUrl) { this.conversationBaseUrl = conversationBaseUrl; }
+    public String getNotifierBaseUrl() { return notifierBaseUrl; }
+    public void setNotifierBaseUrl(String notifierBaseUrl) { this.notifierBaseUrl = notifierBaseUrl; }
     public AmbientCapture getAmbientCapture() { return ambientCapture; }
 
     /**
