@@ -82,12 +82,24 @@ Stops the same fact piling up on repeated mentions. `CaptureServiceTest` +4 case
 distant written, non-note neighbour ignored, recall-failure writes anyway).
 
 ### AC-4 — approval of important inferred facts
-Important **inferred** candidates (outcome 2) are not written silently: they are queued and surfaced for
-the owner's approval. **Design choice settled at this phase** — inline confirm ("заметил: … — записать?"
-and remember the yes/no) **vs** a batched digest ("вот что я подметил — что оставить?"). ⚠️ Inline
-approval needs a small **conversation-state / pending-confirmation** mechanism (remember the open question,
-interpret the reply) — which is the owner's item 3 — so this phase overlaps that track and is scheduled
-last (or as its own track). On confirm → write `source=ambient`; on reject → drop.
+Important **inferred** candidates (outcome 2) are not written silently: they are surfaced for the owner's
+approval. **Design settled (owner, 2026-07-04): proactive push + resume** — reusing the *already-built*
+conversation-state + route-lock + `/resume` primitive (Track A / conversation-service; the earlier "needs
+item 3" gating was stale — it exists). The loop:
+1. **Capture side (memory-service, AC-4b).** On an `IMPORTANT_INFERRED` candidate, memory-service does the
+   attribution now (resolve `personId`, append `[[name]]`, `source=ambient`), sets a conversation-state
+   lock (`routeLock=notes`, `pendingAction={flow:"ambient-approve", note:<WriteNoteRequest>}`), and pushes
+   "заметил: … — записать?" via notifier. Needs the **channel** (`MessageReceivedEvent.source`) threaded
+   into capture — only the async bus path has it, so approval rides the bus path (sync `/v1/capture` skips).
+2. **Resume side (notes-agent, AC-4a) ✅ DONE.** `approve/AmbientApprover` + `web/ResumeController`: the
+   owner's reply resumes at `POST /agents/notes/resume`; an affirmative writes the pre-built note
+   (`source=ambient`) via `NoteClient.create`, anything else drops it; both clear the lock. The orchestrator
+   already routes a route-locked reply to `/resume` (`IntentRouter`) — no orchestrator change needed.
+   `AmbientApproveResumeTest` (4 cases): affirmative writes, negative drops, unknown flow / missing note
+   degrade gracefully.
+
+Slices: **AC-4a** (resume side) ✅ → **AC-4b** (capture side: thread channel + lock + notifier push) →
+**AC-4c** (E2E: inferred message → push + lock → "да" → an `ambient` note).
 
 ### AC-5 — merge / update / supersede (later, deferred)
 A near-duplicate is not always a no-op: a *new detail* should enrich the existing note's body; a
