@@ -111,6 +111,28 @@ A/B/C1/C2a/D1/**D2** are merged (D2a PR93 + D2b PR94 + D2c PR95). D2 validated t
 substrate end-to-end on the cheapest vertical (calendar → finance → memory). **The active line is
 now memory-from-chat** (the fuel — see §"Parallel foundation" above), then D3.
 
+## Track E — memory-driven multi-domain orchestration (#290) — the coordinator line
+The *output* half of the north-star (the D-tracks proved the agent-led coordinator substrate on a
+single named flow; this generalises it to a routable, memory-driven engine). Reuses everything above:
+the hub (C1), the `Coordinator` (D1), conversation-state (A). Slices:
+
+- **E-A (Slice A) ✅** — a thin **`coordinator-agent`** (`domains/assistant`, port 8119): the
+  cross-cutting synthesis engine. A multi-domain message is **routed to it purely by manifest**
+  (data-driven — no orchestrator code), it reads the second brain and synthesizes ONE grounded answer.
+  **Dual-triggered**: reactive `/intent` + proactive `/triggers/coordinator.surface` (relevance-gated —
+  precision over volume). One-shot but **loop-ready** (`gatherFor → synthesize` seam a future bounded
+  plan→gather→re-gather loop wraps). Model-agnostic (mock/7b → Claude by env); golden-verified on
+  `qwen2.5:7b`. Detail → [coordinator-agent README](../domains/assistant/coordinator-agent/README.md).
+- **E-B1 (Slice B1) ✅** — the generic read-only **`brief`** cross-agent query: a reusable
+  `BriefResponder` in `libs/agent-runtime` (second-brain recall → one FAST synthesis under a read-only
+  instruction → `{agent, answer}`), wired into **finance-agent** as the first exposer via
+  `register("brief", …)`. The seam the coordinator gathers *live* specialist answers through the hub.
+- **E-B2 (Slice B2, next)** — the coordinator **uses** `brief`: pick relevant specialists (a configured
+  roster + a FAST planning step) → invoke each `brief` via the hub → fold their live answers into the
+  DEFAULT synthesis alongside memory. Wire a second exposer (calendar) as needed.
+- **E-later** — the bounded multi-step loop (plan → gather → maybe-gather-again) wrapping `run`; a
+  confidence-aware routing/escalation refinement.
+
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
 - New domain agents (chef, researcher, stylist, creator, …) — **Stage 6+**. (creator may be pulled
