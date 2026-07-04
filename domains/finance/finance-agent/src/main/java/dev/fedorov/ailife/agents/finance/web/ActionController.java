@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
@@ -33,6 +34,10 @@ import java.util.UUID;
  * {@code {hasGiftBudget:true, amount, currency, remaining?, source}}; no budget
  * set → {@code {hasGiftBudget:false}}; mcp-finance down → {@code ok=false}.
  * Mirrors calendar-agent's {@code create_event} action (C1c / PR74).
+ *
+ * <p>Also registers the generic <b>{@code brief}</b> read-action (#290, Slice B): it delegates to the
+ * shared {@link BriefResponder} so the coordinator can ask finance a focused sub-question and fold the
+ * grounded, read-only answer into a multi-domain synthesis. Finance is the first agent to expose it.
  */
 @RestController
 public class ActionController extends AgentActionController {
@@ -40,11 +45,14 @@ public class ActionController extends AgentActionController {
     private final GiftBudgetClient giftBudget;
     private final ObjectMapper json;
 
-    public ActionController(GiftBudgetClient giftBudget, ObjectMapper json) {
+    public ActionController(GiftBudgetClient giftBudget, BriefResponder briefResponder, ObjectMapper json) {
         super("finance");
         this.giftBudget = giftBudget;
         this.json = json;
         register("get_gift_budget", this::getGiftBudget);
+        // Generic read-only cross-agent query (#290, Slice B): the coordinator can ask finance a
+        // focused sub-question and fold the grounded answer into a multi-domain synthesis.
+        register("brief", briefResponder::answer);
     }
 
     @PostMapping("/agents/finance/actions/{action}")

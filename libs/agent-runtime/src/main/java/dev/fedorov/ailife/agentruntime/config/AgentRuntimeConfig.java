@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agentruntime.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.actuate.SkillInfoContributor;
+import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
@@ -74,6 +75,18 @@ public class AgentRuntimeConfig {
     @Bean
     public Coordinator coordinator(LlmClient llm, ObjectMapper json) {
         return new Coordinator(llm, json);
+    }
+
+    /**
+     * The reusable {@code brief} read-action (#290, Slice B): the generic "answer a focused
+     * sub-question from your domain, read-only" primitive the coordinator gathers live specialist
+     * input through. Wires for free on {@code @Import(AgentRuntimeConfig)}; an agent exposes it by
+     * registering {@code register("brief", briefResponder::answer)} on its {@code ActionController}.
+     */
+    @Bean
+    public BriefResponder briefResponder(Coordinator coordinator, MemoryClient memory,
+                                         AgentManifest manifest, ObjectMapper json) {
+        return new BriefResponder(coordinator, memory, manifest, json);
     }
 
     /**
