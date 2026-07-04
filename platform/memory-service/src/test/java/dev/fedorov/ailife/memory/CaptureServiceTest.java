@@ -6,11 +6,15 @@ import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
 import dev.fedorov.ailife.memory.capture.NoteCandidate;
+import dev.fedorov.ailife.memory.capture.NoteReconciler;
+import dev.fedorov.ailife.memory.capture.NoteReconciliation;
 import dev.fedorov.ailife.memory.capture.NoteWorthinessExtractor;
+import dev.fedorov.ailife.memory.capture.ReconcileAction;
 import dev.fedorov.ailife.memory.capture.RelationExtractor;
 import dev.fedorov.ailife.memory.config.MemoryServiceProperties;
 import dev.fedorov.ailife.memory.http.ConversationStateClient;
@@ -24,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +50,7 @@ class CaptureServiceTest {
     private final FactExtractor facts = mock(FactExtractor.class);
     private final RelationExtractor relationExtractor = mock(RelationExtractor.class);
     private final NoteWorthinessExtractor noteExtractor = mock(NoteWorthinessExtractor.class);
+    private final NoteReconciler reconciler = mock(NoteReconciler.class);
     private final MemoryService memories = mock(MemoryService.class);
     private final RelationService relations = mock(RelationService.class);
     private final NoteService notes = mock(NoteService.class);
@@ -55,7 +61,7 @@ class CaptureServiceTest {
     private final MemoryServiceProperties props = new MemoryServiceProperties();
 
     private final CaptureService service = new CaptureService(
-            facts, relationExtractor, noteExtractor, memories, relations, notes, profile,
+            facts, relationExtractor, noteExtractor, reconciler, memories, relations, notes, profile,
             conversation, notifier, json, props);
 
     private final UUID household = UUID.randomUUID();
@@ -94,10 +100,21 @@ class CaptureServiceTest {
         when(noteExtractor.extract(any())).thenReturn(List.of(candidates));
     }
 
-    /** A recall hit with the given provenance + cosine distance (scope fields don't matter for dedup). */
+    /** A non-note recall hit (or a note hit without a refId) at the given distance. */
     private static RecallMemoryHit hit(String source, double distance) {
         MemoryDto m = new MemoryDto(UUID.randomUUID(), null, null, null, source, "existing", null, null);
         return new RecallMemoryHit(m, distance);
+    }
+
+    /** A {@code source=note} recall hit carrying the note's {@code refId} back-pointer (SB-2). */
+    private RecallMemoryHit noteHit(UUID refId, double distance) {
+        var meta = json.createObjectNode().put("refId", refId.toString());
+        MemoryDto m = new MemoryDto(UUID.randomUUID(), null, null, null, "note", "existing", meta, null);
+        return new RecallMemoryHit(m, distance);
+    }
+
+    private static NoteDto existingNote(UUID id, String title, String body) {
+        return new NoteDto(id, UUID.randomUUID(), null, title, "fact", null, "user", null, body, null, null, null);
     }
 
     @Test
@@ -310,16 +327,52 @@ class CaptureServiceTest {
         assertThatCode(() -> service.capture(req(speaker))).doesNotThrowAnyException();
     }
 
-    // --- AC-3 dedup on write --------------------------------------------------------------------------
+    // --- AC-3 dedup + AC-5 reconcile on a near-duplicate ---------------------------------------------
 
     @Test
-    void nearDuplicateNote_skipped() {
-        enableNotes(explicit("Мама — аллергия", "person", "аллергия на орехи", "Мама"));
-        when(memories.recall(any())).thenReturn(List.of(hit("note", 0.05)));   // < 0.15 threshold
+    void nearDuplicateWithNewDetail_enrichesExistingNote() {
+        UUID existingId = UUID.randomUUID();
+        enableNotes(explicit("Мама — аллергия", "person", "аллергия на орехи и арахис", "Мама"));
+        when(memories.recall(any())).thenReturn(List.of(noteHit(existingId, 0.05)));   // < 0.15 threshold
+        when(notes.get(existingId))
+                .thenReturn(Optional.of(existingNote(existingId, "Мама — аллергия", "аллергия на орехи")));
+        when(reconciler.reconcile(any(), any(), any(), any()))
+                .thenReturn(new NoteReconciliation(ReconcileAction.ENRICH, "аллергия на орехи и арахис"));
 
         service.capture(req(speaker));
 
+        ArgumentCaptor<WriteNoteRequest> captor = ArgumentCaptor.forClass(WriteNoteRequest.class);
+        verify(notes).update(eq(existingId), captor.capture());
+        assertThat(captor.getValue().bodyMd()).isEqualTo("аллергия на орехи и арахис");
+        verify(notes, never()).create(any());   // enriched in place, not duplicated
+    }
+
+    @Test
+    void nearDuplicateNothingNew_leavesExistingNoteUntouched() {
+        UUID existingId = UUID.randomUUID();
+        enableNotes(explicit("Мама — аллергия", "person", "аллергия на орехи", "Мама"));
+        when(memories.recall(any())).thenReturn(List.of(noteHit(existingId, 0.05)));
+        when(notes.get(existingId))
+                .thenReturn(Optional.of(existingNote(existingId, "Мама — аллергия", "аллергия на орехи")));
+        when(reconciler.reconcile(any(), any(), any(), any())).thenReturn(NoteReconciliation.skip());
+
+        service.capture(req(speaker));
+
+        verify(notes, never()).update(any(), any());
         verify(notes, never()).create(any());
+    }
+
+    @Test
+    void nearDuplicateVanished_createsTheNewNote() {
+        UUID existingId = UUID.randomUUID();
+        enableNotes(explicit("Мама — аллергия", "person", "аллергия на орехи", "Мама"));
+        when(memories.recall(any())).thenReturn(List.of(noteHit(existingId, 0.05)));
+        when(notes.get(existingId)).thenReturn(Optional.empty());   // raced away before we read it
+
+        service.capture(req(speaker));
+
+        verify(notes).create(any());
+        verify(reconciler, never()).reconcile(any(), any(), any(), any());
     }
 
     @Test
