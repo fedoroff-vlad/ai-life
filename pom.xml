@@ -76,6 +76,7 @@
         <module>domains/docs/mcp-docs</module>
         <module>domains/docs/docs-agent</module>
         <module>domains/knowledge/notes-agent</module>
+        <module>domains/assistant/coordinator-agent</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
         <module>shared/mcp/mcp-market-data</module>

@@ -15,12 +15,13 @@ Roadmap §Stage 4 is **two halves**. Only the *memory* half shipped:
 | Relations graph: SQL `memory.relations` + `GET /v1/graph/person/{id}/relations` | ✅ PR16 |
 | Agents enrich (recall + relations before the LLM call) | ✅ PR17 (calendar), PR24c (finance) |
 | Apache AGE graph | ⏸️ **deliberately deferred** — SQL relations table suffices; AGE promotion criteria in `platform/memory-service/README.md` (multi-hop traversal / graph algos / ~100k+ rows) |
-| Event-bus: Postgres LISTEN/NOTIFY + `bus.outbox` | ❌ `libs/event-bus` is a stub (package-info only), unused |
-| Real agent→agent chains | ❌ none (PR17 was labelled "first cross-agent chain" but it's agent→memory-service enrichment, not inter-agent) |
-| Conversation-state (dialog + confirmations) | ❌ `core.conversations` in schema, no impl |
-| Multi-agent orchestration (>1 agent per request) | ❌ orchestrator routes to exactly one agent (`getOrDefault`) |
+| Event-bus: Postgres LISTEN/NOTIFY + `bus.outbox` | ✅ B1/B2 — `libs/event-bus` implemented + a reference producer/consumer wired (see HISTORY) |
+| Real agent→agent chains | ✅ C1 sync hub (`/v1/agents/invoke`) + D2 gift flow (calendar→finance→memory via the Coordinator) |
+| Conversation-state (dialog + confirmations) | ✅ A1–A4 — `conversation-service` (`core.conversation_state`) + orchestrator route-lock/`/resume`; AC-4 reused it |
+| Multi-agent orchestration (>1 agent per request) | 🚧 **#290** — Slice A shipped a thin `coordinator-agent` (data-driven multi-domain routing → one memory-driven synthesis); Slice B adds live cross-agent gather |
 
-**The memory half is done. The inter-agent half + dialog state are the open Stage-4 work — the Jarvis agenda.**
+**The memory half is done. Conversation-state (A) + inter-agent chains (C1/D2) + the event-bus (B) are
+built; the open work is now the memory-driven multi-domain *coordination* itself — [#290](https://github.com/fedoroff-vlad/ai-life/issues/290), the Jarvis agenda.** (This table is the corrected view — it once marked A/B/C ❌ though they shipped, the stale state #298 tracked.)
 
 ## Locked constraints (do NOT relitigate — from architecture.md §Decisions)
 - Agents **never** call each other directly — only **via orchestrator (sync)** or the **event bus
