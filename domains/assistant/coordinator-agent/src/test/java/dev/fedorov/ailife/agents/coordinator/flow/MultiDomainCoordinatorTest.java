@@ -59,6 +59,8 @@ class MultiDomainCoordinatorTest {
     /** Per-test planner reply (a JSON array of specialist names) and synthesis reply, served by the llm dispatcher. */
     static volatile String plannerReply = "[]";
     static volatile String synthesisReply = "ok";
+    /** Per-test self-check verdict (Slice E-later); default "sufficient" keeps the loop one-shot. */
+    static volatile String assessorReply = "{\"sufficient\": true, \"missing\": \"\"}";
 
     @BeforeAll
     static void start() throws Exception {
@@ -70,13 +72,21 @@ class MultiDomainCoordinatorTest {
         for (MockWebServer s : List.of(memory, llmGateway, orchestrator, profileService, notifier)) {
             s.start();
         }
-        // One dispatcher tells the planning turn from the synthesis turn by the planner system prompt.
+        // One dispatcher tells the three LLM turns apart by their system-prompt markers: the FAST planning
+        // turn, the FAST self-check turn (Slice E-later), and the DEFAULT synthesis turn.
         llmGateway.setDispatcher(new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
                 // clone() peeks the body without draining it, so takeRequest can still read it later.
                 String body = request.getBody().clone().readUtf8();
-                String content = body.contains(SpecialistBriefs.PLANNER_MARKER) ? plannerReply : synthesisReply;
+                String content;
+                if (body.contains(SpecialistBriefs.PLANNER_MARKER)) {
+                    content = plannerReply;
+                } else if (body.contains(SufficiencyAssessor.ASSESSOR_MARKER)) {
+                    content = assessorReply;
+                } else {
+                    content = synthesisReply;
+                }
                 return jsonResponse(llmJson(content));
             }
         });
@@ -93,6 +103,7 @@ class MultiDomainCoordinatorTest {
     void reset() {
         plannerReply = "[]";
         synthesisReply = "ok";
+        assessorReply = "{\"sufficient\": true, \"missing\": \"\"}";
     }
 
     /** Shared static servers → drain recorded requests between tests so negative assertions stay honest. */
@@ -148,6 +159,47 @@ class MultiDomainCoordinatorTest {
         assertThat(synthesisBody).contains("Georgia").contains("under 100k RUB");
         // No specialist was picked → the hub was never called.
         assertThat(orchestrator.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void underConfidentDraftTriggersOneReGatherRound() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        memory.setDispatcher(fixedJson(json.writeValueAsString(List.of(
+                new RecallMemoryHit(memoryOf(householdId, userId,
+                        "Owner is planning a birthday dinner"), 0.18)))));
+        plannerReply = "[]"; // memory-only, keep the focus on the loop itself
+        synthesisReply = "Черновик ответа про ужин.";
+        // The self-check keeps judging the draft under-confident; max-rounds=2 caps it to ONE re-gather.
+        assessorReply = "{\"sufficient\": false, \"missing\": \"точная дата ужина\"}";
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "помоги спланировать ужин", List.of(), "telegram", "rg", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/coordinator/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).isEqualTo("Черновик ответа про ужин.");
+
+        // Exactly two DEFAULT synthesis turns ran (round 1 + one re-gather); the second carried the prior
+        // draft + the self-check's focus hint so the model refines rather than restarts.
+        List<String> synthesisBodies = drainSynthesisBodies();
+        assertThat(synthesisBodies).hasSize(2);
+        assertThat(synthesisBodies.get(1))
+                .contains("priorDraft")
+                .contains("refineFocus")
+                .contains("точная дата ужина");
+
+        // Two gather rounds → the second brain was recalled twice.
+        int recalls = 0;
+        while (memory.takeRequest(300, TimeUnit.MILLISECONDS) != null) {
+            recalls++;
+        }
+        assertThat(recalls).isEqualTo(2);
     }
 
     @Test
@@ -232,19 +284,34 @@ class MultiDomainCoordinatorTest {
         assertThat(notifier.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
-    /** Drain llm requests until the DEFAULT synthesis turn (skips the FAST planning turn); returns its body. */
+    /** Drain llm requests until the DEFAULT synthesis turn (skips the FAST planning + self-check turns). */
     private String takeSynthesisRequest() throws Exception {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
             RecordedRequest req = llmGateway.takeRequest(2, TimeUnit.SECONDS);
             if (req == null) {
                 break;
             }
             String body = req.getBody().readUtf8();
-            if (!body.contains(SpecialistBriefs.PLANNER_MARKER)) {
+            if (!body.contains(SpecialistBriefs.PLANNER_MARKER)
+                    && !body.contains(SufficiencyAssessor.ASSESSOR_MARKER)) {
                 return body;
             }
         }
         throw new AssertionError("no synthesis request reached llm-gateway");
+    }
+
+    /** Drain every llm request, returning only the DEFAULT synthesis bodies (skips planning + self-check). */
+    private List<String> drainSynthesisBodies() throws Exception {
+        List<String> bodies = new java.util.ArrayList<>();
+        RecordedRequest req;
+        while ((req = llmGateway.takeRequest(500, TimeUnit.MILLISECONDS)) != null) {
+            String body = req.getBody().readUtf8();
+            if (!body.contains(SpecialistBriefs.PLANNER_MARKER)
+                    && !body.contains(SufficiencyAssessor.ASSESSOR_MARKER)) {
+                bodies.add(body);
+            }
+        }
+        return bodies;
     }
 
     private void post(String kind, AgentWakeRequest req) {

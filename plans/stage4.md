@@ -18,7 +18,7 @@ Roadmap §Stage 4 is **two halves**. Only the *memory* half shipped:
 | Event-bus: Postgres LISTEN/NOTIFY + `bus.outbox` | ✅ B1/B2 — `libs/event-bus` implemented + a reference producer/consumer wired (see HISTORY) |
 | Real agent→agent chains | ✅ C1 sync hub (`/v1/agents/invoke`) + D2 gift flow (calendar→finance→memory via the Coordinator) |
 | Conversation-state (dialog + confirmations) | ✅ A1–A4 — `conversation-service` (`core.conversation_state`) + orchestrator route-lock/`/resume`; AC-4 reused it |
-| Multi-agent orchestration (>1 agent per request) | 🚧 **#290** — Slice A (`coordinator-agent` data-driven routing → memory-driven synthesis) + B1 (`brief` primitive) + B2 (coordinator plans + gathers live specialist `brief`s) + B2-followup (calendar the 2nd exposer → planner picks among ≥2 specialists) shipped; open: the bounded plan→gather loop + confidence-aware escalation |
+| Multi-agent orchestration (>1 agent per request) | ✅ **#290** — Slice A (`coordinator-agent` data-driven routing → memory-driven synthesis) + B1 (`brief` primitive) + B2 (coordinator plans + gathers live specialist `brief`s) + B2-followup (calendar the 2nd exposer → planner picks among ≥2 specialists) + E-later (bounded confidence loop: FAST self-check gates a re-gather within `max-rounds`) all shipped |
 
 **The memory half is done. Conversation-state (A) + inter-agent chains (C1/D2) + the event-bus (B) are
 built; the open work is now the memory-driven multi-domain *coordination* itself — [#290](https://github.com/fedoroff-vlad/ai-life/issues/290), the Jarvis agenda.** (This table is the corrected view — it once marked A/B/C ❌ though they shipped, the stale state #298 tracked.)
@@ -140,8 +140,15 @@ the hub (C1), the `Coordinator` (D1), conversation-state (A). Slices:
   `coordinator-agent.specialists[]` roster, so the FAST planning step now chooses among ≥2 real
   specialists (finance + calendar). More exposers join the same way. `BriefActionTest` proves the calendar
   `brief` hop (recall → FAST synthesis → `{agent, answer}`).
-- **E-later** — the bounded multi-step loop (plan → gather → maybe-gather-again) wrapping `run`; a
-  confidence-aware routing/escalation refinement.
+- **E-later (bounded confidence loop) ✅** — `MultiDomainCoordinator.run` now wraps the
+  `gatherFor → synthesize` seam in a bounded `gather → synthesize → self-check → maybe-re-gather` loop.
+  A cheap FAST `SufficiencyAssessor` judges each draft `{sufficient, missing}`; an under-confident verdict
+  (within the `coordinator-agent.max-rounds` budget, default 2) sharpens the focus with the `missing` hint,
+  re-gathers (memory re-recall + specialist re-plan) and re-synthesizes, folding the prior draft into the
+  payload so the model refines rather than restarts. `max-rounds: 1` = today's one-shot exactly (self-check
+  never called); the assessor soft-fails toward "sufficient" so a broken judge never inflates rounds. This
+  is the confidence-aware escalation for the read/synthesis path. Detail →
+  [coordinator-agent README](../domains/assistant/coordinator-agent/README.md).
 
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).

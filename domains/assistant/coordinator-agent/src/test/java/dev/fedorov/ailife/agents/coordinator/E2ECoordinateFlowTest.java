@@ -68,6 +68,10 @@ class E2ECoordinateFlowTest {
     static void wire(DynamicPropertyRegistry r) {
         r.add("coordinator-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        // Pin the loop to one-shot: this closer asserts the inbound synthesis chain, not the E-later
+        // re-gather loop (which is covered in MultiDomainCoordinatorTest). One-shot keeps the ordered
+        // enqueue (planning turn, then synthesis turn) deterministic — no self-check turn.
+        r.add("coordinator-agent.max-rounds", () -> "1");
     }
 
     @Autowired WebTestClient http;

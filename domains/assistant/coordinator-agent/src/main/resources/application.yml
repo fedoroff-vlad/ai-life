@@ -19,6 +19,9 @@ coordinator-agent:
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
   # Specialists the coordinator may consult live via their read-only `brief` action (Slice B2). A FAST
+  # Bounded confidence loop (Slice E-later): max synthesis rounds. 1 = one-shot (self-check never called);
+  # 2 (default) allows at most one re-gather when the FAST self-check judges the first answer under-confident.
+  max-rounds: ${COORDINATOR_AGENT_MAX_ROUNDS:2}
   # planning step picks the relevant ones per request; each is invoked through the orchestrator hub and
   # soft-fails to "omitted". More specialists join by exposing `brief` + landing here.
   specialists:
