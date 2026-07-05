@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.memory;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
@@ -19,12 +19,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {"event-bus.enabled=false", "memory.ambient-capture.enabled=true"})
+@AutoConfigureWebTestClient
 class AmbientApprovalPushE2ETest extends AbstractPostgresIntegrationTest {
 
     static MockWebServer conversationService;
@@ -72,10 +74,10 @@ class AmbientApprovalPushE2ETest extends AbstractPostgresIntegrationTest {
         if (notifierService != null) notifierService.shutdown();
     }
 
-    @MockBean FactExtractor facts;                 // [] by default
-    @MockBean RelationExtractor relationExtractor; // [] by default
-    @MockBean NoteWorthinessExtractor noteExtractor;
-    @MockBean ProfileClient profile;
+    @MockitoBean FactExtractor facts;                 // [] by default
+    @MockitoBean RelationExtractor relationExtractor; // [] by default
+    @MockitoBean NoteWorthinessExtractor noteExtractor;
+    @MockitoBean ProfileClient profile;
 
     @LocalServerPort int port;
     @Autowired ObjectMapper json;

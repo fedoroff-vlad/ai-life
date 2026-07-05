@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.contracts.agent;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Sent by the orchestrator to an agent's {@code POST /agents/<name>/resume} when the user's message

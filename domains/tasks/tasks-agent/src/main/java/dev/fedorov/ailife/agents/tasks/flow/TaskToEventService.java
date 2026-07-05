@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.tasks.flow;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.tasks.http.LinkEventClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;

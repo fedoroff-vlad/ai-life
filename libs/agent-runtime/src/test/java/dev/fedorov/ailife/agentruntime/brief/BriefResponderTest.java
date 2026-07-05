@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agentruntime.brief;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
@@ -37,7 +37,7 @@ class BriefResponderTest {
 
     // Mirror Spring Boot's mapper (production wires that one): JSR-310 must be registered or
     // valueToTree of a recalled MemoryDto's Instant field fails and the gather soft-fails to empty.
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(), "You are the finance agent.");

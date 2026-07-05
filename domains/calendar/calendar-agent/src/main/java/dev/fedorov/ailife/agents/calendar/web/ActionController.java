@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.calendar.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.calendar.http.CaldavEventClient;

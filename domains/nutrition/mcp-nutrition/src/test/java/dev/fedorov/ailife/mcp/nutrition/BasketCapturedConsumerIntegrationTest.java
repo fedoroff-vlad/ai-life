@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.nutrition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;

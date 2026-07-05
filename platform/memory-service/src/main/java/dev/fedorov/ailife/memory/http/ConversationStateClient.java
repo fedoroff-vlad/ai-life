@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory.http;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.conversation.SetConversationStateRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

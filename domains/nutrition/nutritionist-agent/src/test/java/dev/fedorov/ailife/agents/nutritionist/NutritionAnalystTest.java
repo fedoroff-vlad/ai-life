@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.nutritionist;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -39,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * An empty food log → an invite, no LLM/store calls. MockWebServers stand in for the capabilities.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class NutritionAnalystTest {
 
     static MockWebServer mcpNutrition;

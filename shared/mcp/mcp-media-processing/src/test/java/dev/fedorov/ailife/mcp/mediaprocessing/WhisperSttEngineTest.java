@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.mediaprocessing;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.WhisperSttEngine;
 import okhttp3.mockwebserver.MockResponse;

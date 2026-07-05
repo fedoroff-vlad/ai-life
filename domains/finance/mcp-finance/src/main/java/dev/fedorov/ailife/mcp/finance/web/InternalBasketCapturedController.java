@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.mcp.finance.web;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import org.springframework.http.ResponseEntity;
@@ -39,7 +39,7 @@ public class InternalBasketCapturedController {
         String payload;
         try {
             payload = json.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return ResponseEntity.badRequest().build();
         }
         outbox.publish(BasketCapturedEvent.TOPIC, event.householdId(), payload);

@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.agents.finance;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.finance.BudgetStatusResult;
 import dev.fedorov.ailife.contracts.finance.FinRecurringDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
@@ -26,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -44,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * requests to assert per-user delivery.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TriggerControllerTest {
 
     static MockWebServer llmGateway;
@@ -579,7 +581,7 @@ class TriggerControllerTest {
                         new UserDto(userBob,   householdId, "Bob",   "ru-RU", 222L, "member", Instant.now()));
                 String body;
                 try {
-                    body = new ObjectMapper().findAndRegisterModules().writeValueAsString(users);
+                    body = new ObjectMapper().writeValueAsString(users);
                 } catch (Exception e) {
                     return new MockResponse().setResponseCode(500);
                 }
@@ -604,7 +606,7 @@ class TriggerControllerTest {
 
     /** Memory-service stub: returns pre-loaded recall hits or simulates a 5xx. */
     static final class MemoryDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile List<RecallMemoryHit> recallHits = List.of();
         volatile boolean simulate5xx;
 
@@ -635,7 +637,7 @@ class TriggerControllerTest {
      *  {@code /internal/budget-status} and {@code /internal/recurring/*}. Flags
      *  toggled per test cover 404 / 500 / per-endpoint matrix. */
     static final class BudgetStatusDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile BudgetStatusResult snapshot;
         volatile boolean return404;
         volatile boolean simulate5xx;

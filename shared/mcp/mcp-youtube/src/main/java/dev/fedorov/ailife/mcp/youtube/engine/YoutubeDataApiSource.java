@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.mcp.youtube.engine;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.trends.TrendHit;
 import dev.fedorov.ailife.mcp.youtube.config.McpYoutubeProperties;
 import org.springframework.beans.factory.annotation.Qualifier;

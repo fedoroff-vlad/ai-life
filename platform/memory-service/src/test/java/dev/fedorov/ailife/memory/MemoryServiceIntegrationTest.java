@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -25,6 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 // MessageCaptureConsumerIntegrationTest (which owns the only live LLM gateway).
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = "event-bus.enabled=false")
+@AutoConfigureWebTestClient
 class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

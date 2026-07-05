@@ -2,7 +2,7 @@ package dev.fedorov.ailife.orchestrator.conversation;
 
 import dev.fedorov.ailife.contracts.conversation.ConversationStateDto;
 import dev.fedorov.ailife.contracts.conversation.SetConversationStateRequest;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;

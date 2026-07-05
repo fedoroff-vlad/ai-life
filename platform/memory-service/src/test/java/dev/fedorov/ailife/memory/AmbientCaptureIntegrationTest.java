@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
@@ -21,13 +21,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {"event-bus.enabled=false", "memory.ambient-capture.enabled=true"})
+@AutoConfigureWebTestClient
 class AmbientCaptureIntegrationTest extends AbstractPostgresIntegrationTest {
 
     static MockWebServer llmGateway;
@@ -100,10 +102,10 @@ class AmbientCaptureIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     // The LLM decision + person resolution are mocked; persistence, embedding and dedup are real.
-    @MockBean FactExtractor facts;                 // returns [] by default — no free-text facts in these cases
-    @MockBean RelationExtractor relationExtractor; // returns [] by default — focus stays on the note output
-    @MockBean NoteWorthinessExtractor noteExtractor;
-    @MockBean ProfileClient profile;
+    @MockitoBean FactExtractor facts;                 // returns [] by default — no free-text facts in these cases
+    @MockitoBean RelationExtractor relationExtractor; // returns [] by default — focus stays on the note output
+    @MockitoBean NoteWorthinessExtractor noteExtractor;
+    @MockitoBean ProfileClient profile;
 
     @Autowired JdbcTemplate jdbc;
     @LocalServerPort int port;

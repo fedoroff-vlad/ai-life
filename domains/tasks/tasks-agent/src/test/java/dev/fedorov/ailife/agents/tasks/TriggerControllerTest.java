@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * TriggerControllerTest.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TriggerControllerTest {
 
     static MockWebServer llmGateway;

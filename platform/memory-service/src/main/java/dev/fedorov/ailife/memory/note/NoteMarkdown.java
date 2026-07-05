@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.memory.note;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -71,7 +71,7 @@ public final class NoteMarkdown {
         if (extra == null || !extra.isObject()) {
             return;
         }
-        extra.fields().forEachRemaining(e -> {
+        extra.properties().forEach(e -> {
             if (!RESERVED.contains(e.getKey())) {
                 fm.put(e.getKey(), JSON.convertValue(e.getValue(), Object.class));
             }

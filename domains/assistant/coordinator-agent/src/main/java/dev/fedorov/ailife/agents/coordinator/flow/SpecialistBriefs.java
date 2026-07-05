@@ -1,9 +1,9 @@
 package dev.fedorov.ailife.agents.coordinator.flow;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.StringNode;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.coordinator.config.CoordinatorAgentProperties;
 import dev.fedorov.ailife.agents.coordinator.config.CoordinatorAgentProperties.Specialist;
@@ -180,7 +180,7 @@ public class SpecialistBriefs {
                         return Mono.<Map.Entry<String, JsonNode>>empty();
                     }
                     Map.Entry<String, JsonNode> entry =
-                            new AbstractMap.SimpleEntry<>(name, TextNode.valueOf(answer));
+                            new AbstractMap.SimpleEntry<>(name, StringNode.valueOf(answer));
                     return Mono.just(entry);
                 })
                 .onErrorResume(e -> {

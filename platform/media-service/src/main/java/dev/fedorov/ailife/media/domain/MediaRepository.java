@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.media.domain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -31,7 +31,7 @@ public class MediaRepository {
             JsonNode metadata;
             try {
                 metadata = metaObj == null ? json.createObjectNode() : json.readTree(metaObj.toString());
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new SQLException("invalid metadata json in row " + rs.getObject("id"), e);
             }
             return new MediaRow(

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.conversation.domain;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.conversation.ConversationStateDto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agentruntime.coordinate;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Outcome of a {@link Coordinator#coordinate} run.

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.profile.web.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import jakarta.validation.constraints.Size;
 
 /**

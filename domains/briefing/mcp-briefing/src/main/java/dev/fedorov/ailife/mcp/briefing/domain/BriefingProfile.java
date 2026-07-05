@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.briefing.domain;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.tasks.intent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.http.ClarifyClient;
@@ -45,8 +45,8 @@ class InboxClarifierTest {
     private final LlmClient llm = mock(LlmClient.class);
     private final TaskReviewClient review = mock(TaskReviewClient.class);
     private final ClarifyClient clarify = mock(ClarifyClient.class);
-    // findAndRegisterModules() mirrors Spring's mapper so TaskItemDto's Instant fields serialize.
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    // Jackson 3 auto-registers the built-in java.time support, so TaskItemDto Instant fields serialize.
+    private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "tasks", "test", "0.0.1", 0,
             List.of(), List.of(),

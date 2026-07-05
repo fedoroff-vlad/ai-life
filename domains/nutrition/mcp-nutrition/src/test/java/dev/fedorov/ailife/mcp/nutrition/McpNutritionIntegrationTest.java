@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.nutrition;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.nutrition.BasketDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;
@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // queued blocks the poller). We assert only on nutrition.* state, never on the outbox.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = "event-bus.enabled=false")
+@AutoConfigureWebTestClient
 class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

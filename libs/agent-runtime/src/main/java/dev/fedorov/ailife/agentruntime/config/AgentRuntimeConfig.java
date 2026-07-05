@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agentruntime.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.actuate.SkillInfoContributor;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.briefing;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import dev.fedorov.ailife.contracts.briefing.SetBriefingProfileInput;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.List;
@@ -35,10 +36,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * per-test households to stay deterministic (mirrors mcp-creator / mcp-nutrition).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpBriefingIntegrationTest extends AbstractPostgresIntegrationTest {
 
     /** scheduler-service stub: echo a ScheduleDto on POST /v1/schedules, 204 on DELETE. */
-    private static final ObjectMapper SCHEDULER_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper SCHEDULER_MAPPER = new ObjectMapper();
     private static final Dispatcher SCHEDULER_DISPATCHER = new Dispatcher() {
         @Override
         public MockResponse dispatch(RecordedRequest recordedRequest) {

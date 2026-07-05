@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.calendarweb.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
 import dev.fedorov.ailife.contracts.calendar.CalendarFeedDto;
 import okhttp3.mockwebserver.Dispatcher;
@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,13 +28,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * store ({@code /internal/feeds/{token}}) and the env-configured fallback, plus an unknown token → 404.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class IcsFeedControllerTest {
 
     static MockWebServer caldav;
     static final UUID HOUSEHOLD = UUID.randomUUID();
     static final String DB_TOKEN = "db-minted-token-aaa";
     static final String ENV_TOKEN = "env-static-token-bbb";
-    static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+    static final ObjectMapper M = new ObjectMapper();
 
     @BeforeAll
     static void start() throws Exception {

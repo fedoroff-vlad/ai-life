@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.calendar;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -28,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.List;
@@ -48,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Dispatcher; the test seeds the person + member list per case.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TriggerControllerTest {
 
     static MockWebServer llmGateway;
@@ -529,7 +531,7 @@ class TriggerControllerTest {
      * clone so the test's own {@code takeRequest} can still inspect it.
      */
     private static class OrchestratorDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile JsonNode giftBudget;       // get_gift_budget ok payload (null → error)
         volatile JsonNode greeting;         // draft_greeting ok payload (null → error)
         volatile boolean creatorDeclines;   // force draft_greeting to ok=false
@@ -571,7 +573,7 @@ class TriggerControllerTest {
      * Test seeds the row(s) per case; misses respond 404 / empty list.
      */
     private static class ProfileDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile PersonDto person;
         volatile List<UserDto> householdMembers = List.of();
 
@@ -611,7 +613,7 @@ class TriggerControllerTest {
      * soft-fail.
      */
     private static class MemoryDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile List<RecallMemoryHit> recallHits = List.of();
         volatile PersonRelationsResponse relations;
         volatile Map<UUID, NoteDto> notesById = Map.of();

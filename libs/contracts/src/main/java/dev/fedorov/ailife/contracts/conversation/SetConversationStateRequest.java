@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.contracts.conversation;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.util.UUID;
 

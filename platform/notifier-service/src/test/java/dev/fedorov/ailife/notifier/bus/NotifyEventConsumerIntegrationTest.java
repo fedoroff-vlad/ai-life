@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.notifier.bus;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.notify.NotifyRequestedEvent;
 import dev.fedorov.ailife.contracts.profile.UserDto;

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.tasks;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.tasks.TaskToEventRequest;
 import okhttp3.mockwebserver.MockResponse;
@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code /v1/agents/invoke} (calendar create_event) → mcp-tasks {@code /internal/link-event}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TaskToEventFlowTest {
 
     static MockWebServer llm;

@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.scheduler.domain;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.schedule.CreateScheduleRequest;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.memory.web;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
@@ -60,7 +60,7 @@ public class CaptureController {
         String payload;
         try {
             payload = json.writeValueAsString(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return ResponseEntity.badRequest().build();
         }
         outbox.publish(MessageReceivedEvent.TOPIC, event.householdId(), payload);

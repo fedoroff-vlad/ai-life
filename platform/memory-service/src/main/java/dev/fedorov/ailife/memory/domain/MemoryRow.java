@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory.domain;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 
 import java.time.Instant;

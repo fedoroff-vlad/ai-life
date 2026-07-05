@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.orchestrator.routing;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -46,7 +46,7 @@ class IntentRouterLockTest {
                 "да", java.util.List.of(), "telegram", "1", Instant.now());
     }
 
-    private static ConversationStateDto lockedTo(String agent, com.fasterxml.jackson.databind.JsonNode pending) {
+    private static ConversationStateDto lockedTo(String agent, tools.jackson.databind.JsonNode pending) {
         return new ConversationStateDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 "telegram", agent, pending, Instant.now().plusSeconds(600), Instant.now());
     }

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.coordinator.flow;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.coordinator.flow.SufficiencyAssessor.Assessment;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;

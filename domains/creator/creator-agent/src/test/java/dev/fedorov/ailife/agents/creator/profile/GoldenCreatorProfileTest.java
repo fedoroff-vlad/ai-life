@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.creator.profile;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
