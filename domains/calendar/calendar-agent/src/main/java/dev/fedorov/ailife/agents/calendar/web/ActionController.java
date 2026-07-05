@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.calendar.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.calendar.http.CaldavEventClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
@@ -22,6 +23,11 @@ import java.util.UUID;
  * {@link CreateEventInput} and persists it via mcp-caldav's {@code /internal/event}.
  * Always replies with an {@link AgentActionResult} (never an HTTP error), so the
  * caller gets a structured {@code ok=false} on a bad request.
+ *
+ * <p>Also registers the generic <b>{@code brief}</b> read-action (#290, Slice B2-followup): it delegates
+ * to the shared {@link BriefResponder} so the coordinator can ask calendar a focused sub-question
+ * (upcoming events, birthdays, agenda) and fold the grounded, read-only answer into a multi-domain
+ * synthesis. Calendar is the second agent to expose it, after finance.
  */
 @RestController
 public class ActionController extends AgentActionController {
@@ -29,11 +35,14 @@ public class ActionController extends AgentActionController {
     private final CaldavEventClient caldav;
     private final ObjectMapper json;
 
-    public ActionController(CaldavEventClient caldav, ObjectMapper json) {
+    public ActionController(CaldavEventClient caldav, BriefResponder briefResponder, ObjectMapper json) {
         super("calendar");
         this.caldav = caldav;
         this.json = json;
         register("create_event", this::createEvent);
+        // Generic read-only cross-agent query (#290, Slice B): the coordinator can ask calendar a
+        // focused sub-question and fold the grounded answer into a multi-domain synthesis.
+        register("brief", briefResponder::answer);
     }
 
     @PostMapping("/agents/calendar/actions/{action}")

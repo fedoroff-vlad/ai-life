@@ -20,10 +20,12 @@ coordinator-agent:
   orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
   # Specialists the coordinator may consult live via their read-only `brief` action (Slice B2). A FAST
   # planning step picks the relevant ones per request; each is invoked through the orchestrator hub and
-  # soft-fails to "omitted". finance is the first `brief` exposer; calendar joins when it exposes `brief`.
+  # soft-fails to "omitted". More specialists join by exposing `brief` + landing here.
   specialists:
     - name: finance
       expertise: money, budgets, spending, transactions, income, savings, financial planning
+    - name: calendar
+      expertise: events, appointments, birthdays, anniversaries, reminders, schedule, agenda
 
 ailife:
   llm-client:
