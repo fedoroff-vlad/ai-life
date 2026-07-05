@@ -31,6 +31,37 @@ feature work. Sequencing is locked in [architecture.md](architecture.md) §Locke
 ## Suggested approach (own branch, full CI, not mixed with features)
 1. **Java 25 first, as an isolated slice** — bump `<java.version>` / `maven.compiler.release` to 25 in the root pom + CI JDK matrix; run full `mvn verify`. Independent of Boot/AI, ships on its own. Good first spike to see what (if anything) reddens.
 2. **Then Boot 4 + Spring AI 2.0 as a dedicated migration stage** — follow the [Spring Boot 4.0 Migration Guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide), bump Spring AI to 2.0.x, work through breaking changes module-by-module (GIB helps scope PR CI). Land between feature stages, not during one. Update `architecture.md` §Stack + module READMEs that name versions.
+3. **Build/CI performance pass (dedicated slice, after the version bumps land green)** — see §Build/CI performance below. Do it *after* Java 25 + Boot 4 so the scan measures the new baseline, and the JVM/Boot wins (compact object headers, faster startup) are already in the numbers.
+
+## Build/CI performance — the growth problem (owner flag, 2026-07-05)
+The serial full `mvn verify` is now **~15 min** locally (and comparable on the runner). The repo is 51
+modules and still growing, and roughly a dozen of them spin their own Testcontainers (PG / Radicale /
+MinIO). This scales badly: if the per-stage build keeps creeping up, it becomes an unacceptable tax on
+every PR and every stage closer. **After the migration lands, do a full build-performance scan and
+propose concrete speedups** — treat build time as a first-class constraint, not an afterthought.
+
+Where the time actually goes (measure first, don't guess): the dominant cost is almost certainly the
+**Testcontainers-backed integration tests** (container start/stop × ~12 modules, serial on purpose to
+avoid OOM on the 2-vCPU/7 GB runner — CLAUDE.md §Test strategy), not compilation. So the highest-leverage
+levers are about *container reuse* and *parallelism the runner can survive*, which the Java 25 heap win
+(compact object headers) may finally make safe:
+- **Testcontainers singleton/reuse** — one shared PG (+ Radicale/MinIO) across the modules that only need
+  a schema, via the reuse flag / a shared singleton container, instead of a fresh container per module.
+  Biggest expected win; the CLAUDE.md note already points here as the first lever before touching `-T`.
+- **Re-evaluate `-T` on `verify`** — parallelism on `verify` is disabled today purely because concurrent
+  containers risk OOM on the small runner. Java 25's lower heap-per-object + a bigger runner (paid) may
+  make `-T2C` safe. Re-measure OOM headroom on 25 before enabling.
+- **CI: GIB is already on for PRs** (builds only changed modules + upstreams); confirm it's pruning as
+  expected and that the docs-only skip still fires. The gap is the **main-branch** full run and local
+  `verify` — those stay full by design, so the container-reuse lever matters most there.
+- **Split slow ITs from fast unit tests** — a Maven profile / surefire-vs-failsafe split so the default
+  loop runs only fast tests and the container ITs run in a separate (parallelisable) phase.
+- **Cheaper knobs** — Maven build cache (skip unchanged module rebuilds), `-o`/offline where safe, JVM
+  fork tuning for surefire, dependency-resolution caching on the runner.
+
+Deliverable of the pass: a measured breakdown (which modules/phases dominate) + a ranked list of changes
+with expected time saved, applied incrementally with the full `verify` staying green. Keep the serial
+run boring and reliable — trade for speed only where the OOM headroom is proven on the new baseline.
 
 ## Sources
 - [Spring Boot 4.0.0 available now](https://spring.io/blog/2025/11/20/spring-boot-4-0-0-available-now/) · [System Requirements](https://docs.spring.io/spring-boot/system-requirements.html) · [Framework 7.0 GA](https://spring.io/blog/2025/11/13/spring-framework-7-0-general-availability/)
