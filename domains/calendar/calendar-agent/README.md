@@ -25,7 +25,7 @@ always runs, just without that enrichment when memory-service is down.
 | GET    | `/agents/calendar/manifest`                | parsed AGENT.md (frontmatter + body)                 |
 | POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent                   |
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
-| POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4 / C1); `create_event` → mcp-caldav `/internal/event`, returns `{eventUid}` |
+| POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4); `create_event` → mcp-caldav `/internal/event`, returns `{eventUid}`; `brief` → read-only sub-question answer (#290 Slice B2-followup) |
 | GET    | `/actuator/health`                         | liveness                                             |
 
 `/triggers/{kind}` first consults `SystemTriggerRegistry`. If a `SystemTriggerHandler`
@@ -109,7 +109,7 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `http/CaldavFeedClient` — `ensureFeed(household, owner, label)` over mcp-caldav `/internal/feeds` (list-or-mint). Backs the #195 feed auto-issue.
 - `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `invoke(req[, timeout])` POSTs the orchestrator's `/v1/agents/invoke` hub. The locked inter-agent path (agents never call each other directly); the `orchestratorWebClient` + the `@Bean` wiring live in `config/OutboundHttpConfig`. Used by `GiftRecommender` (budget) + `BirthdayGreeter` (creator greeting, 30s).
 - `flow/GiftRecommender` — the first real `Coordinator` flow (D2c). On `gift.recommend` it gathers `{budget: finance get_gift_budget via the hub, memories: recall, relations}` in parallel, synthesizes budget-aware gift ideas, and fans the result out to the household. Per-step soft-fail (a dropped budget just removes the price constraint). The budget gather forwards the person's `relationship` (when set) so finance can return the relationship-tiered rule (D3d). **Two outputs (D3e):** the single wake delivers each member a short deterministic birthday **reminder** (names the person; `payload.daysUntil` adds "через N дн." when present) followed by the **gift ideas** — reminder skipped when no person resolved, gift message skipped when synthesis is empty.
-- `web/ActionController` — `POST /agents/calendar/actions/{action}`; inter-agent action endpoint, extends the shared `AgentActionController` (`libs/agent-runtime`) for the unknown-action + uniform error envelope. `create_event` maps the invoke `args` → `CreateEventInput`, calls mcp-caldav, returns `{eventUid}`. Always replies an `AgentActionResult` (structured `ok=false` on bad input, never an HTTP error).
+- `web/ActionController` — `POST /agents/calendar/actions/{action}`; inter-agent action endpoint, extends the shared `AgentActionController` (`libs/agent-runtime`) for the unknown-action + uniform error envelope. `create_event` maps the invoke `args` → `CreateEventInput`, calls mcp-caldav, returns `{eventUid}`. Also registers the generic read-only **`brief`** action (#290 Slice B2-followup) → shared `BriefResponder` (calendar is the second `brief` exposer after finance): recalls the second brain for the coordinator's sub-question and returns `{agent, answer}`. Always replies an `AgentActionResult` (structured `ok=false` on bad input, never an HTTP error).
 - `system/SystemTriggerHandler` — interface for non-LLM triggers (`kind()` + `handle(req)`).
 - `system/SystemTriggerRegistry` — indexes all `SystemTriggerHandler` beans by kind.
 - `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
@@ -121,7 +121,8 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 
 ## Tests
 
-`mvn -B -pl domains/calendar/calendar-agent -am test` — 13 tests:
+`mvn -B -pl domains/calendar/calendar-agent -am test` — 14 tests:
+- `BriefActionTest` — the read-only `brief` action (#290 Slice B2-followup): a hub-forwarded `brief` request recalls from memory-service, synthesizes one FAST answer, and returns `{agent:"calendar", answer}` grounded in the recalled fact.
 - Manifest endpoint returns frontmatter + body.
 - Skill loader discovers both `birthday-greeter` and `gift-recommender`.
 - `TriggerControllerTest` (Dispatcher-driven MockWebServer faking LLM + profile + notifier + ics-import + memory-service + orchestrator; the orchestrator dispatcher routes by action so gift/birthday paths don't share an enqueue order) covers `birthday.greet` (creator hub + local-skill fallback) and `gift.recommend` (Coordinator path) end-to-end, asserting (a) household members receive the notify POST, (b) for `birthday.greet`, the hub invoke is `creator.draft_greeting` and the drafted greeting fans out with no local LLM call — and on an `ok=false` the local skill runs as fallback, (c) for `gift.recommend`, the coordinator calls finance's `get_gift_budget` through `/v1/agents/invoke`, the gathered budget envelope reaches the LLM, and the LLM body carries the recalled memory + relation `object_label`.

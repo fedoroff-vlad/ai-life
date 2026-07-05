@@ -15,7 +15,8 @@ specialists only through the orchestrator hub.
   no fan-out to everyone); each picked specialist's `brief` action is then invoked in parallel through
   the hub (`POST /v1/agents/invoke`). Both sources soft-fail per-step, so a memory-only or
   specialist-only synthesis is a natural degradation, and an empty roster keeps the agent memory-only.
-  finance is the first `brief` exposer; more specialists join by exposing `brief` + landing in the roster.
+  `finance` and `calendar` are the wired `brief` exposers (the planner picks among ≥2 real specialists);
+  more join by exposing `brief` + landing in the roster.
 
 Two entry points, one engine (`MultiDomainCoordinator`):
 - **Reactive** — `POST /agents/coordinator/intent`: a cross-cutting user message → gather → synthesize.
@@ -55,7 +56,8 @@ gather map.
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | household fan-out for a surface with no `ownerId` |
 
 The consultable specialist roster is config, not env: `coordinator-agent.specialists[]` (`name` +
-`expertise`) in `application.yml` — `finance` by default; an empty roster keeps the agent memory-only.
+`expertise`) in `application.yml` — `finance` + `calendar` by default; an empty roster keeps the agent
+memory-only.
 
 Registered in the orchestrator via `orchestrator.agents[]` (`name: coordinator`, `COORDINATOR_AGENT_URL`)
 — no orchestrator code change; the manifest description drives routing.
