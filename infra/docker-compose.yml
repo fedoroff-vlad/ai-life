@@ -1384,6 +1384,7 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      ORCHESTRATOR_URL: http://orchestrator:8083
       COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8119/actuator/health"]

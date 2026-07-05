@@ -18,7 +18,7 @@ Roadmap §Stage 4 is **two halves**. Only the *memory* half shipped:
 | Event-bus: Postgres LISTEN/NOTIFY + `bus.outbox` | ✅ B1/B2 — `libs/event-bus` implemented + a reference producer/consumer wired (see HISTORY) |
 | Real agent→agent chains | ✅ C1 sync hub (`/v1/agents/invoke`) + D2 gift flow (calendar→finance→memory via the Coordinator) |
 | Conversation-state (dialog + confirmations) | ✅ A1–A4 — `conversation-service` (`core.conversation_state`) + orchestrator route-lock/`/resume`; AC-4 reused it |
-| Multi-agent orchestration (>1 agent per request) | 🚧 **#290** — Slice A shipped a thin `coordinator-agent` (data-driven multi-domain routing → one memory-driven synthesis); Slice B adds live cross-agent gather |
+| Multi-agent orchestration (>1 agent per request) | 🚧 **#290** — Slice A (`coordinator-agent` data-driven routing → memory-driven synthesis) + B1 (`brief` primitive) + B2 (coordinator plans + gathers live specialist `brief`s into the synthesis) shipped; open: second exposer (calendar) + the bounded plan→gather loop |
 
 **The memory half is done. Conversation-state (A) + inter-agent chains (C1/D2) + the event-bus (B) are
 built; the open work is now the memory-driven multi-domain *coordination* itself — [#290](https://github.com/fedoroff-vlad/ai-life/issues/290), the Jarvis agenda.** (This table is the corrected view — it once marked A/B/C ❌ though they shipped, the stale state #298 tracked.)
@@ -127,9 +127,17 @@ the hub (C1), the `Coordinator` (D1), conversation-state (A). Slices:
   `BriefResponder` in `libs/agent-runtime` (second-brain recall → one FAST synthesis under a read-only
   instruction → `{agent, answer}`), wired into **finance-agent** as the first exposer via
   `register("brief", …)`. The seam the coordinator gathers *live* specialist answers through the hub.
-- **E-B2 (Slice B2, next)** — the coordinator **uses** `brief`: pick relevant specialists (a configured
-  roster + a FAST planning step) → invoke each `brief` via the hub → fold their live answers into the
-  DEFAULT synthesis alongside memory. Wire a second exposer (calendar) as needed.
+- **E-B2 (Slice B2) ✅** — the coordinator **uses** `brief`. `SpecialistBriefs` (coordinator-agent) runs
+  a FAST **planning** step over the configured roster (`coordinator-agent.specialists[]`: each agent's
+  `name` + one-line `expertise`) to pick the specialists that bear on the request (precision over volume),
+  invokes each picked specialist's read-only `brief` in parallel through the hub
+  (`OrchestratorInvokeClient`), and folds the live answers into `context.briefs`. Wired into
+  `MultiDomainCoordinator.gatherFor` alongside the memory recall; both sources soft-fail per-step, and an
+  empty roster keeps the agent memory-only. finance is the wired exposer; golden green on qwen2.5:7b.
+  Detail → [coordinator-agent README](../domains/assistant/coordinator-agent/README.md).
+- **E-B2-followup (next)** — wire **calendar-agent** as the second `brief` exposer
+  (`register("brief", briefResponder::answer)` on its `ActionController`) + add `calendar` to the roster,
+  so the planner chooses among ≥2 real specialists. More exposers join the same way.
 - **E-later** — the bounded multi-step loop (plan → gather → maybe-gather-again) wrapping `run`; a
   confidence-aware routing/escalation refinement.
 

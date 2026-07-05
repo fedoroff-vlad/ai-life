@@ -34,6 +34,11 @@ import java.util.UUID;
  * <p><b>Model-agnostic:</b> the synthesis is one {@link LlmChannel#DEFAULT} call whose quality scales
  * with whatever provider llm-gateway is pointed at (mock / local / API) — no code assumes model
  * strength, and per-source soft-fail is inherited from the {@link Coordinator}.
+ *
+ * <p><b>Slice B2:</b> {@link #gatherFor} now folds in a second source alongside memory —
+ * {@link SpecialistBriefs}, the live specialist-gather leg (plan relevant specialists → invoke each
+ * one's read-only {@code brief} through the hub). Both sources soft-fail independently inside the
+ * {@link Coordinator}, so a memory-only or specialist-only synthesis is a natural degradation.
  */
 @Component
 public class MultiDomainCoordinator {
@@ -49,13 +54,16 @@ public class MultiDomainCoordinator {
 
     private final Coordinator coordinator;
     private final MemoryClient memory;
+    private final SpecialistBriefs specialistBriefs;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public MultiDomainCoordinator(Coordinator coordinator, MemoryClient memory,
+                                  SpecialistBriefs specialistBriefs,
                                   AgentManifest manifest, ObjectMapper json) {
         this.coordinator = coordinator;
         this.memory = memory;
+        this.specialistBriefs = specialistBriefs;
         this.manifest = manifest;
         this.json = json;
     }
@@ -92,13 +100,14 @@ public class MultiDomainCoordinator {
     }
 
     /**
-     * Build the parallel gather map for this request. Slice A = long-term memory recall from the second
-     * brain; each step soft-fails to "omitted" inside the {@link Coordinator}. Slice B adds live
-     * cross-agent answers here.
+     * Build the parallel gather map for this request. Two sources: long-term memory recall from the
+     * second brain (Slice A) and live specialist {@code brief} answers picked + gathered through the hub
+     * (Slice B2). Each step soft-fails to "omitted" inside the {@link Coordinator}.
      */
     Map<String, Mono<JsonNode>> gatherFor(UUID household, UUID user, String query) {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("memories", memory.recall(household, user, null, query).map(json::valueToTree));
+        gather.put("briefs", specialistBriefs.gather(household, user, query));
         return gather;
     }
 
