@@ -17,6 +17,13 @@ coordinator-agent:
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
+  # Specialists the coordinator may consult live via their read-only `brief` action (Slice B2). A FAST
+  # planning step picks the relevant ones per request; each is invoked through the orchestrator hub and
+  # soft-fails to "omitted". finance is the first `brief` exposer; calendar joins when it exposes `brief`.
+  specialists:
+    - name: finance
+      expertise: money, budgets, spending, transactions, income, savings, financial planning
 
 ailife:
   llm-client:

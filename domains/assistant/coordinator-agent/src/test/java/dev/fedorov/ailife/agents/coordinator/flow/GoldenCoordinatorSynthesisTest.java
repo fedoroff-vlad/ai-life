@@ -3,6 +3,8 @@ package dev.fedorov.ailife.agents.coordinator.flow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
+import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import dev.fedorov.ailife.agents.coordinator.config.CoordinatorAgentProperties;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
@@ -55,8 +57,12 @@ class GoldenCoordinatorSynthesisTest {
             List.of(), List.of(),
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             GoldenLlm.agentBody(GoldenCoordinatorSynthesisTest.class.getClassLoader()));
+    // Empty specialist roster → the live-brief gather leg short-circuits to empty (no hub/planner call);
+    // this golden test exercises memory-grounded synthesis only.
+    private final SpecialistBriefs specialistBriefs =
+            new SpecialistBriefs(mock(OrchestratorInvokeClient.class), llm, new CoordinatorAgentProperties(), json);
     private final MultiDomainCoordinator flow =
-            new MultiDomainCoordinator(coordinator, memory, manifest, json);
+            new MultiDomainCoordinator(coordinator, memory, specialistBriefs, manifest, json);
 
     /** A distinctive proper noun the model should preserve if it actually grounded in the recall. */
     private static final String PROJECT = "Northwind";

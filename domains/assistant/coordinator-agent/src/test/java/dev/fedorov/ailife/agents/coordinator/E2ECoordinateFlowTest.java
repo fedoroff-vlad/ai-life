@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.agents.coordinator.flow.SpecialistBriefs;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import okhttp3.mockwebserver.MockResponse;
@@ -82,6 +83,10 @@ class E2ECoordinateFlowTest {
                         "Owner is prepping a talk for a conference in September"), 0.10),
                 new RecallMemoryHit(memoryOf(householdId, userId,
                         "Owner set aside Fridays for deep work"), 0.22)))));
+        // The FAST planning turn comes first (roster non-empty); it picks no specialist here, so the
+        // synthesis stays memory-only. Then the DEFAULT synthesis turn.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-fast", "[]", "stop", new LlmUsage(40, 2, 42)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Свёл вместе: готовь доклад в пятничные слоты для глубокой работы.",
                 "stop", new LlmUsage(180, 70, 250)))));
@@ -108,10 +113,18 @@ class E2ECoordinateFlowTest {
         assertThat(recallBody.path("query").asText()).contains("спланировать неделю");
         assertThat(recallBody.path("k").asInt()).isEqualTo(5);
 
-        // Hop 2: the single synthesis turn carried the recalled context (both hits).
-        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
-        String llmBody = llmReq.getBody().readUtf8();
+        // Hop 2: the synthesis turn (skipping the FAST planning turn) carried the recalled context.
+        String llmBody = null;
+        for (int i = 0; i < 3; i++) {
+            RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+            assertThat(llmReq).isNotNull();
+            assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
+            String body = llmReq.getBody().readUtf8();
+            if (!body.contains(SpecialistBriefs.PLANNER_MARKER)) {
+                llmBody = body;
+                break;
+            }
+        }
         assertThat(llmBody).contains("conference in September").contains("Fridays for deep work");
     }
 
