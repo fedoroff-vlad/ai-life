@@ -30,6 +30,13 @@ public class CoordinatorAgentProperties implements SharedClientProperties {
     /** Specialists the coordinator may consult live via their {@code brief} read-action. */
     private List<Specialist> specialists = new ArrayList<>();
 
+    /**
+     * Max synthesis rounds in the bounded confidence loop (Slice E-later). {@code 1} = one-shot (today's
+     * behaviour, the self-check is never called); {@code 2} (default) allows at most one re-gather when the
+     * self-check judges the first answer under-confident. Values below 1 are clamped to 1.
+     */
+    private int maxRounds = 2;
+
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
         this.profileServiceUrl = profileServiceUrl;
@@ -52,6 +59,9 @@ public class CoordinatorAgentProperties implements SharedClientProperties {
     public void setSpecialists(List<Specialist> specialists) {
         this.specialists = specialists == null ? new ArrayList<>() : specialists;
     }
+
+    public int getMaxRounds() { return maxRounds; }
+    public void setMaxRounds(int maxRounds) { this.maxRounds = Math.max(1, maxRounds); }
 
     /**
      * One consultable specialist: its agent {@code name} (the hub {@code targetAgent}) and a one-line

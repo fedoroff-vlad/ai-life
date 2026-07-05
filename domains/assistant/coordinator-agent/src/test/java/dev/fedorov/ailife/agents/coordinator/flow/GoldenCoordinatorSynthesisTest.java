@@ -58,11 +58,19 @@ class GoldenCoordinatorSynthesisTest {
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             GoldenLlm.agentBody(GoldenCoordinatorSynthesisTest.class.getClassLoader()));
     // Empty specialist roster → the live-brief gather leg short-circuits to empty (no hub/planner call);
-    // this golden test exercises memory-grounded synthesis only.
+    // max-rounds=1 pins the loop to one-shot so this golden asserts a single memory-grounded synthesis.
+    private final CoordinatorAgentProperties props = onePassProps();
     private final SpecialistBriefs specialistBriefs =
-            new SpecialistBriefs(mock(OrchestratorInvokeClient.class), llm, new CoordinatorAgentProperties(), json);
+            new SpecialistBriefs(mock(OrchestratorInvokeClient.class), llm, props, json);
+    private final SufficiencyAssessor assessor = new SufficiencyAssessor(llm, json);
     private final MultiDomainCoordinator flow =
-            new MultiDomainCoordinator(coordinator, memory, specialistBriefs, manifest, json);
+            new MultiDomainCoordinator(coordinator, memory, specialistBriefs, assessor, props, manifest, json);
+
+    private static CoordinatorAgentProperties onePassProps() {
+        CoordinatorAgentProperties p = new CoordinatorAgentProperties();
+        p.setMaxRounds(1);
+        return p;
+    }
 
     /** A distinctive proper noun the model should preserve if it actually grounded in the recall. */
     private static final String PROJECT = "Northwind";
