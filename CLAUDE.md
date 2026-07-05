@@ -57,7 +57,7 @@ At every **stage/domain closer**, do a quick freshness pass: root README + `plan
 - `stage-<n>-pr<m>-<slug>` for staged plan work; else `feat/<slug>` / `fix/<slug>`. PR description references the plan section. `main` always green — if CI breaks on main, drop everything and fix.
 
 ## Stack (details: `plans/architecture.md`)
-- Java 21 LTS, Maven 3.9+, Spring Boot 3.4.x, Spring AI (MCP client).
+- Java 25 LTS, Maven 3.9+, Spring Boot 4.0.x (Framework 7, Jackson 3), Spring AI 2 (MCP client).
 - Postgres 16 + pgvector + Apache AGE + pg_trgm.
 - Liquibase: master XML `infra/liquibase/db.changelog-master.xml`; per-feature YAML `features/NNN-<domain>.yml`; complex DDL raw SQL in `features/NNN-<domain>/*.sql`.
 - Docker Compose (dev infra). GitHub Actions (CI). Tests: JUnit 5 + Testcontainers (PG auto-starts).

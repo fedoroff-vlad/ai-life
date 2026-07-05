@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.notes;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import okhttp3.mockwebserver.MockResponse;
@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 404.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TriggerResurfaceTest {
 
     static MockWebServer memoryService;

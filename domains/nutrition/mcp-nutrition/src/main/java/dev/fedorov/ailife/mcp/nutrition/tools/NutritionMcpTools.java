@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.mcp.nutrition.tools;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.nutrition.BasketDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;

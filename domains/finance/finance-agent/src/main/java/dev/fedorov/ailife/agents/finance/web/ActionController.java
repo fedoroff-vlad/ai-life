@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.agents.finance.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;

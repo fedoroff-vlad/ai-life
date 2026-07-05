@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.contracts.nutrition;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 import java.math.BigDecimal;
 import java.util.UUID;

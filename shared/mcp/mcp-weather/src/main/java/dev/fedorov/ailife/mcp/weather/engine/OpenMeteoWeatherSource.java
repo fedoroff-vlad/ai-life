@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.weather.engine;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import org.springframework.beans.factory.annotation.Qualifier;

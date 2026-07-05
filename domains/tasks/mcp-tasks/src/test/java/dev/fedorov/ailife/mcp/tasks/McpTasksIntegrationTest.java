@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.mcp.tasks;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
 import dev.fedorov.ailife.contracts.tasks.ClarifyTaskInput;
@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -44,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * scope on per-test households/projects to stay deterministic (mirrors mcp-finance).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
 
 
@@ -491,7 +493,7 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
                 .expectStatus().isBadRequest();
     }
 
-    private static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
      * scheduler-service stub: GET /v1/schedules → a JSON array holding {@link #existing}

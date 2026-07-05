@@ -32,5 +32,13 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- Compile-only: Jackson3JsonFormatMapper implements Hibernate's AbstractJsonFormatMapper. Only the
+             JPA services that opt into it (via hibernate.type.json_format_mapper) have Hibernate at runtime,
+             so it's `provided` here and not forced on non-JPA consumers of platform-common. -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 </project>

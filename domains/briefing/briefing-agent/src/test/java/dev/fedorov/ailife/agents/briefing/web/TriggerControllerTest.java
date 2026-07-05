@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.briefing.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
@@ -27,6 +27,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -45,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * profile-service, and notifier-service.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class TriggerControllerTest {
 
     static MockWebServer mcpBriefing;

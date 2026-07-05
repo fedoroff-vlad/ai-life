@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.scheduler;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.schedule.CreateScheduleRequest;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
 import dev.fedorov.ailife.scheduler.domain.ScheduleRepository;

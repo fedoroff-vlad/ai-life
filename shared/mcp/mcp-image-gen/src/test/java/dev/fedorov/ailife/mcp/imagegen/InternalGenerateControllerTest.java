@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.imagegen;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.imagegen.ImageGenInput;
 import dev.fedorov.ailife.contracts.imagegen.ImageGenResult;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
@@ -11,7 +11,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InternalGenerateControllerTest {
 
     static MockWebServer mediaService;
-    static final ObjectMapper MAPPER = new ObjectMapper().findAndRegisterModules();
+    static final ObjectMapper MAPPER = new ObjectMapper();
 
     @BeforeAll
     static void start() throws Exception {

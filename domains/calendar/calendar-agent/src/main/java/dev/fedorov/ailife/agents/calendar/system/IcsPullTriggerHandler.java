@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.calendar.system;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agents.calendar.http.IcsImportClient;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import org.slf4j.Logger;

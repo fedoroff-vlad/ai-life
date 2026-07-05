@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.tasks.intent;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.http.ClarifyClient;
 import dev.fedorov.ailife.agents.tasks.http.TaskReviewClient;
@@ -61,7 +61,7 @@ class GoldenInboxClarifyTest {
     /** The GTD statuses the skill contract allows. */
     private static final Set<String> STATUSES = Set.of("next", "waiting", "scheduled", "dropped");
 
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
     private final TaskReviewClient review = mock(TaskReviewClient.class);
     private final ClarifyClient clarify = mock(ClarifyClient.class);

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.llmgw.provider.anthropic;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -211,8 +211,8 @@ public class AnthropicProvider implements LlmProvider {
         }
     }
 
-    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
-            new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final tools.jackson.databind.ObjectMapper MAPPER =
+            new tools.jackson.databind.ObjectMapper();
 
     private static RuntimeException wrap(WebClientResponseException ex) {
         return new IllegalStateException(

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.notes;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.notes.config.NotesAgentProperties;
 import dev.fedorov.ailife.agents.notes.http.SchedulerClient;
 import dev.fedorov.ailife.contracts.schedule.ScheduleDto;
@@ -28,7 +28,7 @@ class SchedulerClientTest {
 
     private MockWebServer scheduler;
     private SchedulerClient client;
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = new ObjectMapper();
 
     @BeforeEach
     void setUp() throws Exception {

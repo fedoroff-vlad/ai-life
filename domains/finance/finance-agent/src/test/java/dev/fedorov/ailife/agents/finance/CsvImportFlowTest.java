@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.finance;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code /internal/import} with auto-create → report the counts. Two MockWebServers stand in.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class CsvImportFlowTest {
 
     static MockWebServer media;

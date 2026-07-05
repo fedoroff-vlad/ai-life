@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.contracts.agent;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * An agent's reply to a user-initiated intent (or a resume turn).

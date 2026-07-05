@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory.bus;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.EventBusMessage;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;

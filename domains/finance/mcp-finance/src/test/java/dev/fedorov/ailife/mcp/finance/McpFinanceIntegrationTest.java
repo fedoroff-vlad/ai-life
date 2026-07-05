@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.finance;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.BalanceResult;
@@ -42,6 +42,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -57,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
 
     // Started in a static initializer so the port is known when Spring resolves
@@ -495,7 +497,7 @@ class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
      *  204 on DELETE; flips to 500 when {@link #simulate5xx} is set so the soft-fail
      *  path on the tool side can be exercised. */
     static final class SchedulerDispatcher extends Dispatcher {
-        private static final ObjectMapper M = new ObjectMapper().findAndRegisterModules();
+        private static final ObjectMapper M = new ObjectMapper();
         volatile boolean simulate5xx;
 
         void reset() {

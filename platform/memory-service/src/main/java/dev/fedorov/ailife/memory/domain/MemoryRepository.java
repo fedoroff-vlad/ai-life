@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.memory.domain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -37,7 +37,7 @@ public class MemoryRepository {
             JsonNode metadata;
             try {
                 metadata = metaObj == null ? json.createObjectNode() : json.readTree(metaObj.toString());
-            } catch (JsonProcessingException e) {
+            } catch (JacksonException e) {
                 throw new SQLException("invalid metadata json in row " + rs.getObject("id"), e);
             }
             return new MemoryRow(

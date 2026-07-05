@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.wardrobe;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.wardrobe.AddItemInput;
 import dev.fedorov.ailife.contracts.wardrobe.SetStyleProfileInput;
 import dev.fedorov.ailife.contracts.wardrobe.StyleProfileDto;
@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * scope on per-test households to stay deterministic (mirrors mcp-tasks).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpWardrobeIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

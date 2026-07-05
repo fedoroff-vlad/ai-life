@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.llm.LlmEmbedResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
@@ -23,13 +23,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,6 +51,7 @@ import static org.mockito.Mockito.when;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {"event-bus.enabled=false", "memory.ambient-capture.enabled=true"})
+@AutoConfigureWebTestClient
 class AmbientReconcileIntegrationTest extends AbstractPostgresIntegrationTest {
 
     static MockWebServer llmGateway;
@@ -90,11 +92,11 @@ class AmbientReconcileIntegrationTest extends AbstractPostgresIntegrationTest {
         if (llmGateway != null) llmGateway.shutdown();
     }
 
-    @MockBean FactExtractor facts;
-    @MockBean RelationExtractor relationExtractor;
-    @MockBean NoteWorthinessExtractor noteExtractor;
-    @MockBean ProfileClient profile;
-    @MockBean NoteReconciler reconciler;   // its own decision is unit/golden-tested; here we pin ENRICH
+    @MockitoBean FactExtractor facts;
+    @MockitoBean RelationExtractor relationExtractor;
+    @MockitoBean NoteWorthinessExtractor noteExtractor;
+    @MockitoBean ProfileClient profile;
+    @MockitoBean NoteReconciler reconciler;   // its own decision is unit/golden-tested; here we pin ENRICH
 
     @Autowired JdbcTemplate jdbc;
     @LocalServerPort int port;

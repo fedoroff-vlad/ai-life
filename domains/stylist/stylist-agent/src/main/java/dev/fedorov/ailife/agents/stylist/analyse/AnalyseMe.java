@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.stylist.analyse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -219,7 +219,7 @@ public class AnalyseMe {
         JsonNode m = d.get("measurements");
         if (m != null && m.isObject() && !m.isEmpty()) {
             List<String> mm = new ArrayList<>();
-            m.fields().forEachRemaining(e -> mm.add(e.getKey() + " " + e.getValue().asText()));
+            m.properties().forEach(e -> mm.add(e.getKey() + " " + e.getValue().asText()));
             if (!mm.isEmpty()) parts.add("мерки: " + String.join(", ", mm));
         }
         return parts.isEmpty() ? null : capitalize(String.join(", ", parts)) + ".";
@@ -269,7 +269,7 @@ public class AnalyseMe {
 
     private static JsonNode array(JsonNode node, String field) {
         JsonNode v = node.get(field);
-        return (v != null && v.isArray()) ? v : com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        return (v != null && v.isArray()) ? v : tools.jackson.databind.node.MissingNode.getInstance();
     }
 
     private static List<String> stringList(JsonNode array) {

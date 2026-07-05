@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.notifier.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.notify.NotifyRequest;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import okhttp3.mockwebserver.MockResponse;
@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                         // no DB in this slice — keep the bus listener from opening a connection
                         "event-bus.enabled=false"
                 })
+@AutoConfigureWebTestClient
 class NotifyControllerTest {
 
     static MockWebServer profile;

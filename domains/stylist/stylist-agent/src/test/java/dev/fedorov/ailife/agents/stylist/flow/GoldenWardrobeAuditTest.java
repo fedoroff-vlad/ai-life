@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.stylist.flow;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -47,7 +47,7 @@ class GoldenWardrobeAuditTest {
     private static final Pattern TALLY =
             Pattern.compile("оставить (\\d+), под вопросом (\\d+), убрать (\\d+)");
 
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = new ObjectMapper();
     private final Coordinator coordinator = new Coordinator(GoldenLlm.client(), json);
     private final WardrobeReadClient wardrobe = mock(WardrobeReadClient.class);
     private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.scheduler.tick;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.bus.OutboxPublisher;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import dev.fedorov.ailife.contracts.schedule.ScheduleFiredEvent;

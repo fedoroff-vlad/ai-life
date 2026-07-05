@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.contracts.trends;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * One uniform trend result from any source capability-MCP (youtube | reddit | telegram | rss | web).

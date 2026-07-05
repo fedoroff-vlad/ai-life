@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.mediaprocessing;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;

@@ -5,6 +5,45 @@ ambient-capture / second-memory stage** ([ambient-capture.md](ambient-capture.md
 tied to the "вторая память"), **then** do this migration as its own dedicated stage — not mixed with
 feature work. Sequencing is locked in [architecture.md](architecture.md) §Locked decisions.
 
+## ✅ Status: DONE (2026-07-05) — Java 25 + Boot 4.0.7 + Spring AI 2.0.0 + Jackson 3
+
+Landed as one coordinated bump (Java 25 could **not** be isolated — Spring Boot 3.4's `repackage`
+tooling can't read Java 25 class files, so it went together with Boot 4). Full local `mvn verify` green:
+**51/51 modules, ~1192 tests, all Testcontainers ITs**. Owner accepted Spring AI 2.0.0 GA despite its
+freshness (only 2.0.x line at the time). What actually broke — all mechanical, **zero main-logic changes
+beyond the Jackson package rename** — captured here so the next major bump is cheaper:
+
+- **Versions:** root pom `maven.compiler.release=25`, `spring-boot.version=4.0.7`, `spring-ai.version=2.0.0`;
+  dropped the dead `jackson.version` pin; CI `setup-java` 21 → 25.
+- **Boot 4 test-slice / client relocations** (each now a separate module — declared **per-module**, never
+  in the parent, to keep modules independent):
+  - `@AutoConfigureWebTestClient` → package `org.springframework.boot.webtestclient.autoconfigure`, artifact
+    **`spring-boot-webtestclient`** (test). Boot 4 also **no longer** provides `WebTestClient` implicitly for
+    `@SpringBootTest(RANDOM_PORT)` — every such test needs the explicit `@AutoConfigureWebTestClient`.
+  - `RestTemplateBuilder` → `org.springframework.boot.restclient` (**`spring-boot-restclient`**);
+    `TestRestTemplate` → `org.springframework.boot.resttestclient` (**`spring-boot-resttestclient`**, whose
+    auto-config also needs `spring-boot-restclient`) + the `@AutoConfigureTestRestTemplate` annotation.
+  - `@MockBean`/`@SpyBean` **removed** → `@MockitoBean`/`@MockitoSpyBean`
+    (`org.springframework.test.context.bean.override.mockito`).
+  - **`WebClient.Builder` is no longer auto-configured** by `spring-boot-starter-webflux` (moved to
+    **`spring-boot-webclient`**, Boot issue #48293) — added per-module to every service that injects it.
+- **Jackson 2 → 3** (Boot 4 / Framework 7 default; the reactive HTTP codecs are Jackson 3, so Jackson-2
+  types at the wire boundary fail at runtime even though they compile):
+  - Package rename `com.fasterxml.jackson.databind` → `tools.jackson.databind` (+ non-annotation
+    `…core` → `tools.jackson.core`) across 259 files; **annotations stay** `com.fasterxml.jackson.annotation`.
+    contracts pom → `tools.jackson.core:jackson-databind`; dropped `jackson-datatype-jsr310` (java.time is
+    built into Jackson 3).
+  - API deltas: `JsonProcessingException` → unchecked `JacksonException`; `JsonNode.fields()` →
+    `properties()`; `node.TextNode` → `StringNode`; `ObjectMapper.findAndRegisterModules()` removed
+    (auto-registered); **`readTree` now fails on trailing tokens** — LLM-output parsers must slice `{`…`}`
+    (fixed the 4 memory-service capture extractors).
+  - **Hibernate 7.2 JSON columns:** its built-in format mapper is Jackson-2-only, so `@JdbcTypeCode(JSON)`
+    fails with *"Could not find a FormatMapper for the JSON format"*. Added a Jackson-3
+    [`Jackson3JsonFormatMapper`](../libs/platform-common/src/main/java/dev/fedorov/ailife/common/jackson/Jackson3JsonFormatMapper.java)
+    in `platform-common`, wired per JPA service via `spring.jpa.properties.hibernate.type.json_format_mapper`.
+- **Not needed:** the ASM-override bridge (only relevant while Java 25 sat on Boot 3.4) was removed once Boot 4
+  landed. **Still open:** the build/CI performance pass below (full `verify` ≈ 11–12 min on Java 25).
+
 ## Target versions (verified 2026-07)
 | Component | From | To | Notes |
 |---|---|---|---|

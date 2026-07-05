@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.docs;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
 import dev.fedorov.ailife.mcp.docs.tools.DocsMcpTools;
@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -28,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * per-test households to stay deterministic (mirrors mcp-briefing / mcp-creator).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpDocsIntegrationTest extends AbstractPostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

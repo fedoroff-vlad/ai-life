@@ -4,9 +4,10 @@ import dev.fedorov.ailife.agents.tasks.tools.ToolDispatcher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.util.List;
 
@@ -21,10 +22,11 @@ import static org.mockito.Mockito.when;
  * codes, body passthrough, error → 400. Mirrors finance's {@code InternalToolsControllerTest}.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class InternalToolsControllerTest {
 
     @Autowired WebTestClient http;
-    @MockBean ToolDispatcher dispatcher;
+    @MockitoBean ToolDispatcher dispatcher;
 
     @Test
     void listReturnsKnownToolNames() {

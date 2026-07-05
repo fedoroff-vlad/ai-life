@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.verify;
                         "gateway.telegram.bot-token=",
                         "gateway.internal-api-token=secret-test-token"
                 })
+@AutoConfigureWebTestClient
 class InternalSendControllerTest {
 
     @MockitoBean

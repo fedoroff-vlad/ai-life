@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.media.domain;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 
 import java.time.Instant;

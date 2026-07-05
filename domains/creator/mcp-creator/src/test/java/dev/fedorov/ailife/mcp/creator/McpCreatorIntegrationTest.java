@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.creator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.creator.ContentPieceDto;
 import dev.fedorov.ailife.contracts.creator.CreatorProfileDto;
 import dev.fedorov.ailife.contracts.creator.SaveContentPieceInput;
@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * per-test households to stay deterministic (mirrors mcp-nutrition / mcp-wardrobe).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class McpCreatorIntegrationTest extends AbstractPostgresIntegrationTest {
 
 

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.mcp.fooddata.engine;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.contracts.food.FoodFacts;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

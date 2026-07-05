@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.researcher.flow;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.researcher.config.ResearcherAgentProperties;

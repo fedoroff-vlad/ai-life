@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.coordinator.flow;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
@@ -48,7 +48,7 @@ class GoldenCoordinatorSynthesisTest {
     // Mirror Spring Boot's auto-configured mapper (the one production wires into the Coordinator):
     // JSR-310 must be registered or valueToTree of a MemoryDto's Instant field fails and the recall
     // gather step soft-fails to empty — leaving the synthesis with no context to ground in.
-    private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
     private final Coordinator coordinator = new Coordinator(llm, json);
     private final MemoryClient memory = mock(MemoryClient.class);

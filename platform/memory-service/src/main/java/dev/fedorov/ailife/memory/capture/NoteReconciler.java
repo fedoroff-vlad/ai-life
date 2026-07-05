@@ -1,8 +1,8 @@
 package dev.fedorov.ailife.memory.capture;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -92,9 +92,13 @@ public class NoteReconciler {
 
     private NoteReconciliation parse(String content) {
         String cleaned = stripFences(content).trim();
+        // Slice out just the JSON object: from the first '{' to the last '}'. This drops any leading prose
+        // or trailing markdown fence the fence-stripper missed (it only strips a fence that wraps the whole
+        // reply) — Jackson 3 fails on trailing tokens after the object, where Jackson 2 was lenient.
         int brace = cleaned.indexOf('{');
-        if (brace > 0) {
-            cleaned = cleaned.substring(brace);
+        int close = cleaned.lastIndexOf('}');
+        if (brace >= 0 && close > brace) {
+            cleaned = cleaned.substring(brace, close + 1);
         }
         try {
             JsonNode node = json.readTree(cleaned);

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.orchestrator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.schedule.AgentWakeRequest;
 import okhttp3.mockwebserver.Dispatcher;
@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * the forward completes.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class WakeDispatchTest {
 
     static MockWebServer llmGateway;

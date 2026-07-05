@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.agents.nutritionist.basket;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;

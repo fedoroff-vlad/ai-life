@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.memory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.golden.GoldenLlm;
 import dev.fedorov.ailife.golden.GoldenLlmTest;
 import dev.fedorov.ailife.memory.capture.NoteReconciliation;

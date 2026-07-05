@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agentruntime.web;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.JsonNodeFactory;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import org.junit.jupiter.api.Test;

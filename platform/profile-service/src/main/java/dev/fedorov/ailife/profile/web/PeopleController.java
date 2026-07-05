@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.profile.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.profile.domain.HouseholdRepository;
 import dev.fedorov.ailife.profile.domain.Person;

@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agentruntime.http;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agentruntime.config.AgentRuntimeProperties;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;

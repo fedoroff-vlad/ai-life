@@ -1,6 +1,6 @@
 package dev.fedorov.ailife.agents.coordinator.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agentruntime.coordinate.CoordinationResult;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;

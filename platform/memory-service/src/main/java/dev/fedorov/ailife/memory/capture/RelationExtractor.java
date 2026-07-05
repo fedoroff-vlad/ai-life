@@ -1,7 +1,7 @@
 package dev.fedorov.ailife.memory.capture;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -81,8 +81,9 @@ public class RelationExtractor {
         String cleaned = stripFences(content).trim();
         // Tolerate any leading prose before the JSON object.
         int brace = cleaned.indexOf('{');
-        if (brace > 0) {
-            cleaned = cleaned.substring(brace);
+        int close = cleaned.lastIndexOf('}');
+        if (brace >= 0 && close > brace) {
+            cleaned = cleaned.substring(brace, close + 1);
         }
         List<ExtractedRelation> relations = new ArrayList<>();
         try {
