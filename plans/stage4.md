@@ -21,7 +21,7 @@ Roadmap §Stage 4 is **two halves**. Only the *memory* half shipped:
 | Multi-agent orchestration (>1 agent per request) | ✅ **#290** — Slice A (`coordinator-agent` data-driven routing → memory-driven synthesis) + B1 (`brief` primitive) + B2 (coordinator plans + gathers live specialist `brief`s) + B2-followup (calendar the 2nd exposer → planner picks among ≥2 specialists) + E-later (bounded confidence loop: FAST self-check gates a re-gather within `max-rounds`) all shipped |
 
 **The memory half is done. Conversation-state (A) + inter-agent chains (C1/D2) + the event-bus (B) are
-built; the open work is now the memory-driven multi-domain *coordination* itself — [#290](https://github.com/fedoroff-vlad/ai-life/issues/290), the Jarvis agenda.** (This table is the corrected view — it once marked A/B/C ❌ though they shipped, the stale state #298 tracked.)
+built; the memory-driven multi-domain *coordination* — [#290](https://github.com/fedoroff-vlad/ai-life/issues/290), the Jarvis agenda — is now ✅ shipped too (Track E below: coordinator + `brief` exposers + bounded confidence loop).** (This table is the corrected view — it once marked A/B/C ❌ though they shipped, the stale state #298 tracked.) The Stage-4 north-star is complete; further multi-agent depth is future feature work, not open Stage-4 debt.
 
 ## Locked constraints (do NOT relitigate — from architecture.md §Decisions)
 - Agents **never** call each other directly — only **via orchestrator (sync)** or the **event bus
