@@ -9,12 +9,17 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 
 /**
- * Singleton Testcontainers PG base for integration tests.
+ * Testcontainers PG base for integration tests — one isolated {@code pgvector} container per module JVM.
  *
- * One container is started per JVM and reused across modules (withReuse=true)
- * so the full mvn verify spins fewer containers.
+ * <p>Container reuse is intentionally OFF: the build runs modules in parallel ({@code mvn -T}), and a
+ * shared/reused container would let concurrent modules corrupt each other's schema. Giving each module
+ * its own container is what keeps {@code -T} safe. (Do NOT re-add {@code withReuse(true)} +
+ * {@code testcontainers.reuse.enable=true} — that combination breaks the parallel build; measured.)
+ * See {@code plans/migration-25-boot4.md} §Build/CI performance.
  *
- * Subclass usage:
+ * <p>Within a single module the static container is shared across that module's test classes.
+ *
+ * <p>Subclass usage:
  *   1. extend this class (remove @Testcontainers + @Container from the subclass)
  *   2. call applySchema("test-schema.sql") in a @BeforeAll (schema is idempotent — IF NOT EXISTS)
  *   3. keep module-specific @DynamicPropertySource entries; datasource is wired here
@@ -27,8 +32,7 @@ public abstract class AbstractPostgresIntegrationTest {
         POSTGRES = new PostgreSQLContainer<>("pgvector/pgvector:pg16")
                 .withDatabaseName("ailife")
                 .withUsername("ailife")
-                .withPassword("ailife")
-                .withReuse(true);
+                .withPassword("ailife");
         POSTGRES.start();
     }
 

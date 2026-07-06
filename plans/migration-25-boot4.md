@@ -110,10 +110,14 @@ dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
 1. **Enable `-T` parallelism with container isolation — the ≈2× win. ✅ owner-approved 2026-07-06
    (local `-T4` + CI `-T2`, reuse off).**
    - **Local dev loop:** `mvn -T4 verify` (reuse off) — documented in CLAUDE.md §Test strategy + README.
-   - **CI (`main` full run + PR incremental):** flipped serial → `-T2` **and removed** the
-     `testcontainers.reuse.enable=true` step (the two are incompatible — see above). `-T2` fits the 2-vCPU/
-     7 GB runner (2 isolated PG ≈ 300 MB); a paid bigger runner would allow `-T4`. **OOM headroom is proven
-     empirically by the flip PR's own CI going green** (owner noted the paid-runner option is not wanted now).
+   - **CI:** flipped serial → `-T2` on **both** the main full build **and** the PR/GIB incremental build,
+     and **removed** the `testcontainers.reuse.enable=true` step (reuse + parallel are incompatible). `-T`
+     over a GIB-pruned reactor races on upstream SNAPSHOT resolution (profile-service couldn't find
+     platform-common mid-parallel — surfaced by PR#313), so the CI now **pre-installs the whole `libs/*`
+     layer to `.m2`** before the PR verify: every compile-scope lib SNAPSHOT is then resolvable
+     order-independently and `-T2` is safe on PRs too (the owner wanted *PRs* faster, not just main).
+     `-T2` fits the 2-vCPU/7 GB runner (2 isolated PG ≈ 300 MB); a paid bigger runner would allow `-T4`.
+     OOM headroom proven empirically by the flip PRs going green (owner declined a paid runner for now).
 2. **fast/slow test split (surefire unit vs failsafe IT).** Today *all* ITs (`*IntegrationTest`) run under
    surefire in the `test` phase; failsafe sits unused in `pluginManagement`. A split lets the fast dev
    loop skip container ITs entirely (big for iteration) — marginal for the *full* `verify` total. Medium.
