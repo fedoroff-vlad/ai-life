@@ -47,11 +47,13 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # NOTE: Testcontainers reuse is deliberately NOT enabled — the build runs with
-      # `-T2` (module parallelism), and reuse + parallel modules share one container and
-      # corrupt each other's schema. Parallelism needs an isolated container per module
-      # (the default). Measured trade: `-T` ≈2x win >> reuse's ~4%. See CLAUDE.md
-      # §Test strategy + plans/migration-25-boot4.md §Build/CI performance.
+      # NOTE: Testcontainers reuse is deliberately NOT enabled. The main-branch full build runs
+      # with `-T2` (module parallelism) — reuse + parallel modules would share one container and
+      # corrupt each other's schema, so parallelism needs an isolated container per module (the
+      # default). Measured trade: `-T` ≈2x win >> reuse's ~4%. (The PR/GIB path stays serial —
+      # `-T` + a GIB-pruned reactor races on upstream SNAPSHOT resolution; PR builds are already
+      # pruned/fast so serial costs little.) See CLAUDE.md §Test strategy +
+      # plans/migration-25-boot4.md §Build/CI performance.
 
       # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
       # MP-b). Without it that test self-skips; installing it here proves the real path.
@@ -90,7 +92,9 @@ jobs:
             # downstream to compile against), skipping their test compile+run — an upstream lib is
             # a dependency here, not the thing under test; its own tests run on main and on any PR
             # that actually changes it (then it's in the changed set, not upstream).
-            mvn -B -ntp -T2 \
+            # NOTE: no -T here — `-T` + a GIB-pruned reactor races on upstream SNAPSHOT resolution
+            # (e.g. profile-service can't find platform-common). -T2 is main-only (buildAll → safe DAG).
+            mvn -B -ntp \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
