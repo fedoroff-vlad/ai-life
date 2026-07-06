@@ -47,9 +47,11 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: enable testcontainers reuse
-        if: steps.detect.outputs.skip != 'true'
-        run: echo "testcontainers.reuse.enable=true" >> ~/.testcontainers.properties
+      # NOTE: Testcontainers reuse is deliberately NOT enabled — the build runs with
+      # `-T2` (module parallelism), and reuse + parallel modules share one container and
+      # corrupt each other's schema. Parallelism needs an isolated container per module
+      # (the default). Measured trade: `-T` ≈2x win >> reuse's ~4%. See CLAUDE.md
+      # §Test strategy + plans/migration-25-boot4.md §Build/CI performance.
 
       # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
       # MP-b). Without it that test self-skips; installing it here proves the real path.
@@ -88,7 +90,7 @@ jobs:
             # downstream to compile against), skipping their test compile+run — an upstream lib is
             # a dependency here, not the thing under test; its own tests run on main and on any PR
             # that actually changes it (then it's in the changed set, not upstream).
-            mvn -B -ntp \
+            mvn -B -ntp -T2 \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
@@ -96,5 +98,5 @@ jobs:
               -Dgib.argsForUpstreamModules='maven.test.skip=true' \
               verify
           else
-            mvn -B -ntp verify
+            mvn -B -ntp -T2 verify
           fi
