@@ -10,13 +10,13 @@ issue [#292](https://github.com/fedoroff-vlad/ai-life/issues/292).
 **Presentation only.** The caller supplies the numbers (a finance report, a briefing digest); this
 capability just draws them. No LLM, no data source.
 
-**Status (#292, unbound):** infra laid, **Java2D engine** by default — a pure `Graphics2D` +
+**Status (#292 built, #291 bound):** infra laid, **Java2D engine** by default — a pure `Graphics2D` +
 `ImageIO` renderer (no external charting dependency, no cost, deterministic; mirrors
 `mcp-image-gen`'s `StubImageEngine`). The engine sits behind a swappable `ChartEngine` interface so a
-library-backed renderer could replace it later via config with no caller change. **Not yet bound** to
-an agent — the first consumer is finance year-analysis charts (#291), which wires it into
-`finance-agent` and adds the reporting skill (same "capability-MCP has no caller until an agent binds
-it" pattern `mcp-image-gen` started with).
+library-backed renderer could replace it later via config with no caller change. **Bound (#291) by
+finance-agent's `monthly-report`** (`ChartRenderClient` → `/internal/render` → a spending bar chart
+embedded in the HTML report board via `doc-render`'s `Doc.charts`). Line/pie types and the year-analysis
+report ride in with the rest of #291.
 
 ## Port: `8120` (`MCP_CHART_RENDER_PORT`)
 
@@ -45,8 +45,8 @@ Unknown/blank `type` falls back to bar; empty data renders a "No data" placehold
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | Rendered charts are stored here. |
 
 No DB / no Liquibase feature (capability-MCP). No backing container (rendering is in-process). Binding
-side: an agent adds a `spring.ai.mcp.client.sse.connections.mcp-chart-render` block + `CHART_RENDER_URL`
-(happens with the first consumer, #291).
+side (done in #291): finance-agent adds a `spring.ai.mcp.client.sse.connections.mcp-chart-render` block
++ `MCP_CHART_RENDER_URL`, and calls the `/internal/render` passthrough via `ChartRenderClient`.
 
 ## Key classes
 

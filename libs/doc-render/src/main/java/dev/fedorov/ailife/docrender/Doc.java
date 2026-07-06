@@ -9,9 +9,11 @@ import java.util.List;
  * bytes (luxury-editorial HTML today, PDF later via the same seam). The board is a header
  * ({@code kicker}/{@code title}/{@code subtitle} + an optional {@code featuredImageUrl}) plus any of:
  * keyed text {@code sections}, a colour {@code palette}, a {@code verdicts} grid (a status tile per
- * item), a {@code hero} row, an image {@code gallery}, and a {@code links} list (labelled external
- * URLs — e.g. recipe links). Each is optional — a flow fills only what its board needs; the renderer
- * skips empties. The flow supplies content; the renderer owns styling.
+ * item), a {@code hero} row, an image {@code gallery}, a {@code links} list (labelled external
+ * URLs — e.g. recipe links), and a {@code charts} list (full-width chart image URLs — e.g. a finance
+ * report's spending chart, rendered edge-to-edge, not cropped like the portrait gallery). Each is
+ * optional — a flow fills only what its board needs; the renderer skips empties. The flow supplies
+ * content; the renderer owns styling.
  *
  * <p>The {@code links} list is the generic recipe-link list nutrition anticipated — it landed with
  * the chef's recipe card (CH-b), the first consumer that needed it; the rest is the stylist board
@@ -27,16 +29,17 @@ public record Doc(
         List<VerdictItem> verdicts,
         List<HeroItem> hero,
         List<String> gallery,
-        List<LinkItem> links) {
+        List<LinkItem> links,
+        List<String> charts) {
 
     /** Back-compat: a text-only board (no gallery) — e.g. an early analysis page. */
     public Doc(String title, String subtitle, List<Section> sections) {
-        this(null, title, subtitle, null, sections, null, null, null, null, null);
+        this(null, title, subtitle, null, sections, null, null, null, null, null, null);
     }
 
     /** Back-compat: text board + an image gallery — e.g. an early capsule page. */
     public Doc(String title, String subtitle, List<Section> sections, List<String> gallery) {
-        this(null, title, subtitle, null, sections, null, null, null, gallery, null);
+        this(null, title, subtitle, null, sections, null, null, null, gallery, null, null);
     }
 
     public record Section(String heading, List<String> paragraphs) {
@@ -76,6 +79,7 @@ public record Doc(
         private final List<HeroItem> hero = new ArrayList<>();
         private final List<String> gallery = new ArrayList<>();
         private final List<LinkItem> links = new ArrayList<>();
+        private final List<String> charts = new ArrayList<>();
 
         private Builder(String title) {
             this.title = title;
@@ -115,6 +119,12 @@ public record Doc(
             return this;
         }
 
+        /** A full-width chart image (e.g. a finance report's spending chart). Rendered edge-to-edge. */
+        public Builder chart(String url) {
+            charts.add(url);
+            return this;
+        }
+
         public Doc build() {
             return new Doc(kicker, title, subtitle, featuredImageUrl,
                     sections.isEmpty() ? null : sections,
@@ -122,7 +132,8 @@ public record Doc(
                     verdicts.isEmpty() ? null : verdicts,
                     hero.isEmpty() ? null : hero,
                     gallery.isEmpty() ? null : gallery,
-                    links.isEmpty() ? null : links);
+                    links.isEmpty() ? null : links,
+                    charts.isEmpty() ? null : charts);
         }
     }
 }

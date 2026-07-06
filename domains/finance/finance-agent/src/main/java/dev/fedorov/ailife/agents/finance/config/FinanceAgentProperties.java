@@ -22,6 +22,7 @@ public class FinanceAgentProperties implements SharedClientProperties {
     private String mcpMoneyProImportUrl = "http://mcp-money-pro-import:8094";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
     private String mcpMarketDataUrl = "http://mcp-market-data:8100";
+    private String mcpChartRenderUrl = "http://mcp-chart-render:8120";
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
@@ -64,5 +65,10 @@ public class FinanceAgentProperties implements SharedClientProperties {
     public String getMcpMarketDataUrl() { return mcpMarketDataUrl; }
     public void setMcpMarketDataUrl(String mcpMarketDataUrl) {
         this.mcpMarketDataUrl = mcpMarketDataUrl;
+    }
+
+    public String getMcpChartRenderUrl() { return mcpChartRenderUrl; }
+    public void setMcpChartRenderUrl(String mcpChartRenderUrl) {
+        this.mcpChartRenderUrl = mcpChartRenderUrl;
     }
 }

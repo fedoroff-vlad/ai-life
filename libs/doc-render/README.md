@@ -17,8 +17,10 @@ wkhtmltopdf/Chromium). The `render(Doc) → RenderedDoc` seam is identical, so l
 ## Key classes
 - `Doc` — the render-format-agnostic board: header (kicker/title/subtitle + optional `featuredImageUrl`)
   + optional keyed `sections`, colour `palette` swatches, a `verdicts` grid (status tile per item), a
-  `hero` row, an image `gallery`, and a `links` list (labelled external URLs — e.g. recipe links,
-  rendered as a clickable list). Fluent `builder` + back-compat constructors. The flow fills only
+  `hero` row, an image `gallery`, a `links` list (labelled external URLs — e.g. recipe links,
+  rendered as a clickable list), and a `charts` list (full-width chart image URLs — rendered
+  edge-to-edge, uncropped, unlike the portrait `gallery`; landed with the finance report's spending
+  chart, #291). Fluent `builder` + back-compat constructors. The flow fills only
   what its board needs; the renderer skips empties.
 - `DocRenderer` (seam) — `RenderedDoc render(Doc)`.
 - `HtmlDocRenderer` — the default: a responsive **luxury-editorial poster** (warm-beige ground, serif
@@ -39,9 +41,12 @@ and hand the user a link.
 
 ## Consumers
 stylist (analysis / capsule / audit / gap boards), nutritionist (nutrition-analysis + basket-breakdown
-boards), chef (recipe card), briefing (morning digest board — text section + news provenance links, BR-e).
+boards), chef (recipe card), briefing (morning digest board — text section + news provenance links, BR-e),
+finance (monthly report — spending `charts` + narrative + breakdown, #291).
 The verdict tones double for nutrition "good/watch/cut".
 
 ## Field generalisation
 The model is the stylist board lifted intact. The generic **`links` list landed with the chef's
-recipe card** (CH-b1) — its first consumer, the repo's "generalise on the first real need" rule.
+recipe card** (CH-b1) — its first consumer, the repo's "generalise on the first real need" rule. The
+**`charts` list landed with the finance monthly report** (#291) the same way — its first consumer
+needed full-width, uncropped chart images (the portrait `gallery` crops 3:4).
