@@ -120,9 +120,14 @@ dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
    - Duplicate `spring-boot-webtestclient` dependency in **14 module poms** → 14 build warnings
      ("duplicate declaration … future Maven versions might no longer support building such malformed
      projects"). Dedupe.
-   - **Dead pin:** `testcontainers.version=1.20.4` + its `testcontainers-bom` import are **overridden** by
-     `spring-boot-dependencies` (imported first) → the effective TC version is Boot-4's **2.0.5** at
-     runtime. Drop the pin, exactly like the migration dropped the dead `jackson.version` pin.
+   - **Testcontainers version pin — NOT dead, leave it (correction).** An initial read guessed the
+     `testcontainers.version=1.20.4` + `testcontainers-bom` import were dead (overridden by
+     `spring-boot-dependencies`). **Removing them was tried and BROKE the build** — Boot 4 does *not*
+     manage `org.testcontainers:postgresql` / `junit-jupiter` / `minio`, so our BOM import is the sole
+     version source for them ("`dependencies.dependency.version … is missing`"). Keep the import. There is
+     a latent question worth a *separate* look: `testcontainers-core` logs `2.0.5` at runtime while our
+     BOM pins the modules to `1.20.4` (possible core-vs-module skew) — verify + align to 2.0.5 in its own
+     slice, not as a "drop the pin" freebie.
 4. **Cheaper knobs (only if 1–2 fall short):** Maven build cache (skip unchanged modules), surefire fork
    tuning, dependency-resolution caching on the runner. GIB already prunes PR builds correctly (verified).
 
