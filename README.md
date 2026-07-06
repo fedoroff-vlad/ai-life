@@ -49,9 +49,11 @@ Each agent/MCP is its **own Spring Boot app + Dockerfile + container** — co-lo
 
 ## Build
 ```sh
-mvn -B verify            # full build + tests (Testcontainers spins up PG etc.)
+mvn -T4 verify           # full build + tests, parallel (Testcontainers spins up PG etc.); ~2x vs serial
 mvn -T1C -DskipTests install   # fast local compile (respects the module DAG)
 ```
+Run with Testcontainers **reuse OFF** (the default) — `-T` needs an isolated container per module;
+reuse + parallel corrupt each other's DB. See [`plans/migration-25-boot4.md`](plans/migration-25-boot4.md) §Build/CI performance.
 
 ## Plan & docs
 New here? Read [`docs/REFERENCE.md`](docs/REFERENCE.md) first — a two-lens overview (developer, then

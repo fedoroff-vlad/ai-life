@@ -6,9 +6,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Now
 - **➡️ Build/CI performance pass — [#288](https://github.com/fedoroff-vlad/ai-life/issues/288) follow-up (owner priority #1).** **Scan DONE + measured (2026-07-06)** — full breakdown + ranked plan in [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance. Headline: serial `verify` = **11:13**; the cost is **flat across 51 modules** (per-module JVM+Spring-context startup, run serially), **not** Testcontainers churn (reuse already amortises that). `-T4` cut it to **5:24 (≈2×), all 1192 tests green — but only with reuse OFF** (reuse+parallel share one PG and corrupt each other; measured). Remaining slices, incremental with `verify` green:
-  - **(a) build hygiene (do first, zero-risk):** dedupe duplicate `spring-boot-webtestclient` in 14 poms (14 warnings). *(The `testcontainers.version` pin is NOT dead — Boot 4 doesn't manage the TC modules; removing it broke the build. A possible core-vs-module version skew is a separate slice — see [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance.)*
-  - **(b) `-T` parallelism:** document `mvn -T4 verify` (reuse off) for the local loop = uncontroversial; flipping CI serial→`-T2` + removing the reuse flag reverses CLAUDE.md's "serial on purpose" policy → **owner decision** (also runner-sizing).
-  - **(c) fast/slow test split** (surefire unit vs failsafe IT) — helps the dev loop; optional.
+  - **(a) build hygiene ✅ (PR#310):** deduped duplicate `spring-boot-webtestclient` in 14 poms (−14 warnings). *(The `testcontainers.version` pin is NOT dead — Boot 4 doesn't manage the TC modules; removing it broke the build, reverted. Possible core-vs-module version skew = separate slice.)*
+  - **(b) `-T` parallelism — owner chose local `-T4` + CI `-T2`, reuse off (in flight):** local loop = `mvn -T4 verify`; CI flips serial→`-T2` + drops the reuse step (the two are incompatible). Validated by the PR's own CI going green (= runner OOM headroom proven empirically).
+  - **(c) fast/slow test split** (surefire unit vs failsafe IT) — helps the dev loop; optional, not yet done.
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **Finance year-analysis report + chart-render — [#291](https://github.com/fedoroff-vlad/ai-life/issues/291) + [#292](https://github.com/fedoroff-vlad/ai-life/issues/292)** (owner item 4; monthly-report MVP shipped under closed #196).

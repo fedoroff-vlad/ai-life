@@ -107,12 +107,13 @@ dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
   memory was never the wall.
 
 ### Ranked plan (apply incrementally, full `verify` stays green)
-1. **Enable `-T` parallelism with container isolation — the ≈2× win.**
-   - **Local dev loop:** uncontroversial — document `mvn -T4 verify` (reuse off) in CLAUDE.md/README. Do now.
-   - **CI (`main` full run):** flip serial → `-T2` **and remove** the `testcontainers.reuse.enable=true`
-     line (the two are incompatible — see above). This reverses CLAUDE.md's deliberate "serial on purpose"
-     policy, so it is an **owner decision**; `-T2` fits the current 2-vCPU/7 GB runner (2 isolated PG ≈
-     300 MB), a paid bigger runner would allow `-T4`. Measure `-T2` OOM headroom on the runner before flipping.
+1. **Enable `-T` parallelism with container isolation — the ≈2× win. ✅ owner-approved 2026-07-06
+   (local `-T4` + CI `-T2`, reuse off).**
+   - **Local dev loop:** `mvn -T4 verify` (reuse off) — documented in CLAUDE.md §Test strategy + README.
+   - **CI (`main` full run + PR incremental):** flipped serial → `-T2` **and removed** the
+     `testcontainers.reuse.enable=true` step (the two are incompatible — see above). `-T2` fits the 2-vCPU/
+     7 GB runner (2 isolated PG ≈ 300 MB); a paid bigger runner would allow `-T4`. **OOM headroom is proven
+     empirically by the flip PR's own CI going green** (owner noted the paid-runner option is not wanted now).
 2. **fast/slow test split (surefire unit vs failsafe IT).** Today *all* ITs (`*IntegrationTest`) run under
    surefire in the `test` phase; failsafe sits unused in `pluginManagement`. A split lets the fast dev
    loop skip container ITs entirely (big for iteration) — marginal for the *full* `verify` total. Medium.
