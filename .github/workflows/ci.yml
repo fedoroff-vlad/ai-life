@@ -47,13 +47,12 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # NOTE: Testcontainers reuse is deliberately NOT enabled. The main-branch full build runs
-      # with `-T2` (module parallelism) — reuse + parallel modules would share one container and
-      # corrupt each other's schema, so parallelism needs an isolated container per module (the
-      # default). Measured trade: `-T` ≈2x win >> reuse's ~4%. (The PR/GIB path stays serial —
-      # `-T` + a GIB-pruned reactor races on upstream SNAPSHOT resolution; PR builds are already
-      # pruned/fast so serial costs little.) See CLAUDE.md §Test strategy +
-      # plans/migration-25-boot4.md §Build/CI performance.
+      # NOTE: Testcontainers reuse is deliberately NOT enabled. Both the main full build and the PR
+      # incremental build run with `-T2` (module parallelism) — reuse + parallel modules would share
+      # one container and corrupt each other's schema, so parallelism needs an isolated container per
+      # module (the default). Measured trade: `-T` ≈2x win >> reuse's ~4%. (`-T2` is safe on the PR
+      # path because the pre-install-libs step below seeds every lib SNAPSHOT into .m2 — see there.)
+      # See CLAUDE.md §Test strategy + plans/migration-25-boot4.md §Build/CI performance.
 
       # Native OCR engine for mcp-media-processing's real-OCR test (Tess4J in-image,
       # MP-b). Without it that test self-skips; installing it here proves the real path.
@@ -61,22 +60,24 @@ jobs:
         if: steps.detect.outputs.skip != 'true'
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus
 
-      # PR: incremental build via GIB (only modules changed vs the base + their
-      # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)
-      # — main remains the authoritative full-suite run.
-      # PR only: pre-install the test-helper libs + their full upstream (-am) into the local
-      # .m2 so the incremental GIB verify can resolve *test*-scope dependencies of any reactor
-      # module. GIB computes its reactor over compile/runtime edges, so a test-scope dep is
-      # never pulled in: a PR touching contracts drags e.g. event-bus in as a dependent and
-      # Maven fails resolving event-bus's test-scope `test-support`; likewise an agent's
-      # `golden-test-support` (and its own compile chain agent-runtime -> doc-render). Installing
-      # both helper libs with -am puts them and everything they need in .m2, so every such
-      # resolution succeeds. Cheap + robust, and it doesn't run their tests (-DskipTests). This
-      # is only needed on PRs that don't also add a module (a module add edits the root pom ->
-      # GIB builds all anyway).
-      - name: pre-install test-helper libs (PR incremental resolution)
+      # PR only: pre-install the WHOLE `libs/*` layer into the local .m2 before the GIB verify.
+      # Two reasons, both about resolution against a GIB-pruned reactor under `-T2`:
+      #   1. Test-scope deps: GIB computes its reactor over compile/runtime edges, so a *test*-scope
+      #      dep is never pulled in — a PR touching contracts drags e.g. event-bus in as a dependent
+      #      and Maven fails resolving event-bus's test-scope `test-support`/`golden-test-support`.
+      #   2. Parallel (`-T2`) upstream SNAPSHOT races: with a pruned reactor, a downstream module may
+      #      resolve a compile-scope lib SNAPSHOT (e.g. profile-service -> platform-common) before/
+      #      without that lib being in the reactor thread that built it. A copy in .m2 is the fallback
+      #      that makes resolution order-independent, so `-T2` is safe on the PR path too.
+      # The whole lib layer builds in seconds (no Testcontainers, -DskipTests). Internal compile-scope
+      # SNAPSHOTs only ever point at `libs/*` (agents reach MCP/services over HTTP, not as deps), so
+      # installing all libs covers every case. Not needed when a PR also adds a module (edits the root
+      # pom -> GIB builds all anyway), but harmless then.
+      - name: pre-install libs to .m2 (PR incremental + parallel resolution)
         if: steps.detect.outputs.skip != 'true' && github.event_name == 'pull_request'
-        run: mvn -B -ntp -q -DskipTests -pl libs/test-support,libs/golden-test-support -am install
+        run: >
+          mvn -B -ntp -q -DskipTests install
+          -pl libs/contracts,libs/llm-client,libs/mcp-client,libs/event-bus,libs/platform-common,libs/agent-runtime,libs/doc-render,libs/test-support,libs/golden-test-support
 
       # PR: incremental build via GIB (only modules changed vs the base + their
       # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)
@@ -92,9 +93,9 @@ jobs:
             # downstream to compile against), skipping their test compile+run — an upstream lib is
             # a dependency here, not the thing under test; its own tests run on main and on any PR
             # that actually changes it (then it's in the changed set, not upstream).
-            # NOTE: no -T here — `-T` + a GIB-pruned reactor races on upstream SNAPSHOT resolution
-            # (e.g. profile-service can't find platform-common). -T2 is main-only (buildAll → safe DAG).
-            mvn -B -ntp \
+            # -T2 parallelises the pruned reactor; the pre-install-libs step above puts every
+            # compile-scope lib SNAPSHOT in .m2 so parallel threads never race on upstream resolution.
+            mvn -B -ntp -T2 \
               -Dgib.disable=false \
               -Dgib.referenceBranch="refs/remotes/origin/${{ github.base_ref }}" \
               -Dgib.fetchReferenceBranch=true \
