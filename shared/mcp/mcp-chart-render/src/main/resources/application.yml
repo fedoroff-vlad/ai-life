@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: mcp-chart-render
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-chart-render
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared chart-render capability. render_chart: turn a data-only spec (type bar/line/pie,
+          title, categories, one or more named series, optional unit) into a PNG, store it in
+          media-service, and return the media id. Presentation only — the caller supplies the numbers.
+
+server:
+  port: ${MCP_CHART_RENDER_PORT:8120}
+
+chart-render:
+  # Which renderer to wire: java2d (default, pure Graphics2D, no external dependency).
+  engine: ${CHART_RENDER_ENGINE:java2d}
+  # media-service base URL — rendered charts are uploaded here and referenced by media id.
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

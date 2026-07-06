@@ -735,6 +735,28 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-chart-render:
+    image: ai-life/mcp-chart-render:local
+    container_name: ai-life-mcp-chart-render
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-chart-render/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      media-service:
+        condition: service_healthy
+    environment:
+      MCP_CHART_RENDER_PORT: 8120
+      # java2d (pure Graphics2D, no external dependency) — swappable later via env.
+      CHART_RENDER_ENGINE: ${CHART_RENDER_ENGINE:-java2d}
+      MEDIA_SERVICE_URL: http://media-service:8088
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8120/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-money-pro-import:
     image: ai-life/mcp-money-pro-import:local
     container_name: ai-life-mcp-money-pro-import
