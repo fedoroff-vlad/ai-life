@@ -65,6 +65,17 @@ public class HtmlDocRenderer implements DocRenderer {
             sb.append("</div>\n");
         }
 
+        // Charts — full-width, uncropped (unlike the portrait gallery below)
+        if (doc.charts() != null && !doc.charts().isEmpty()) {
+            sb.append("<div class=\"charts\">\n");
+            for (String url : doc.charts()) {
+                if (notBlank(url)) {
+                    sb.append("<img class=\"chart\" loading=\"lazy\" src=\"").append(esc(url)).append("\" alt=\"\">\n");
+                }
+            }
+            sb.append("</div>\n");
+        }
+
         // Text sections — hairline-separated multi-column flow
         if (doc.sections() != null && !doc.sections().isEmpty()) {
             sb.append("<div class=\"flow\">\n");
@@ -187,6 +198,8 @@ public class HtmlDocRenderer implements DocRenderer {
             .kicker{ font-size:.68rem; letter-spacing:.42em; color:var(--muted); text-transform:uppercase; margin:.55rem 0 0; }
             .sub{ color:var(--soft); margin:.55rem 0 0; font-size:.92rem; }
             .portrait{ display:block; width:min(360px,72%); aspect-ratio:3/4; object-fit:cover; margin:1.4rem auto .6rem; border:1px solid var(--line); border-radius:6px; }
+            .charts{ padding:1.1rem 0 .3rem; }
+            .charts .chart{ display:block; width:100%; height:auto; margin:0 auto 1rem; border:1px solid var(--line); border-radius:6px; background:#fff; }
             .palrow{ display:flex; gap:.45rem; flex-wrap:wrap; justify-content:center; padding:1rem 0 1.2rem; border-bottom:1px solid var(--line); }
             .palrow i{ width:34px; height:34px; border-radius:50%; border:1px solid var(--line); display:block; }
             .flow{ column-count:2; column-gap:2.5rem; padding:.4rem 0 1rem; }

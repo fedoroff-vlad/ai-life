@@ -998,6 +998,8 @@ services:
         condition: service_healthy
       mcp-market-data:
         condition: service_healthy
+      mcp-chart-render:
+        condition: service_healthy
     environment:
       FINANCE_AGENT_PORT: 8093
       LLM_GATEWAY_URL: http://llm-gateway:8081
@@ -1010,6 +1012,7 @@ services:
       MCP_MONEY_PRO_IMPORT_URL: http://mcp-money-pro-import:8094
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
       MARKET_DATA_URL: http://mcp-market-data:8100
+      MCP_CHART_RENDER_URL: http://mcp-chart-render:8120
       FINANCE_AGENT_MCP_CLIENT_ENABLED: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:-true}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8093/actuator/health"]
