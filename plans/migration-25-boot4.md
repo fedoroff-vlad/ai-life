@@ -72,35 +72,59 @@ beyond the Jackson package rename** — captured here so the next major bump is 
 2. **Then Boot 4 + Spring AI 2.0 as a dedicated migration stage** — follow the [Spring Boot 4.0 Migration Guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide), bump Spring AI to 2.0.x, work through breaking changes module-by-module (GIB helps scope PR CI). Land between feature stages, not during one. Update `architecture.md` §Stack + module READMEs that name versions.
 3. **Build/CI performance pass (dedicated slice, after the version bumps land green)** — see §Build/CI performance below. Do it *after* Java 25 + Boot 4 so the scan measures the new baseline, and the JVM/Boot wins (compact object headers, faster startup) are already in the numbers.
 
-## Build/CI performance — the growth problem (owner flag, 2026-07-05)
-The serial full `mvn verify` is now **~15 min** locally (and comparable on the runner). The repo is 51
-modules and still growing, and roughly a dozen of them spin their own Testcontainers (PG / Radicale /
-MinIO). This scales badly: if the per-stage build keeps creeping up, it becomes an unacceptable tax on
-every PR and every stage closer. **After the migration lands, do a full build-performance scan and
-propose concrete speedups** — treat build time as a first-class constraint, not an afterthought.
+## Build/CI performance — MEASURED (2026-07-06, Java-25 baseline)
+The scan is done. **The measurement overturns the prior guess** ("Testcontainers container churn
+dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
 
-Where the time actually goes (measure first, don't guess): the dominant cost is almost certainly the
-**Testcontainers-backed integration tests** (container start/stop × ~12 modules, serial on purpose to
-avoid OOM on the 2-vCPU/7 GB runner — CLAUDE.md §Test strategy), not compilation. So the highest-leverage
-levers are about *container reuse* and *parallelism the runner can survive*, which the Java 25 heap win
-(compact object headers) may finally make safe:
-- **Testcontainers singleton/reuse** — one shared PG (+ Radicale/MinIO) across the modules that only need
-  a schema, via the reuse flag / a shared singleton container, instead of a fresh container per module.
-  Biggest expected win; the CLAUDE.md note already points here as the first lever before touching `-T`.
-- **Re-evaluate `-T` on `verify`** — parallelism on `verify` is disabled today purely because concurrent
-  containers risk OOM on the small runner. Java 25's lower heap-per-object + a bigger runner (paid) may
-  make `-T2C` safe. Re-measure OOM headroom on 25 before enabling.
-- **CI: GIB is already on for PRs** (builds only changed modules + upstreams); confirm it's pruning as
-  expected and that the docs-only skip still fires. The gap is the **main-branch** full run and local
-  `verify` — those stay full by design, so the container-reuse lever matters most there.
-- **Split slow ITs from fast unit tests** — a Maven profile / surefire-vs-failsafe split so the default
-  loop runs only fast tests and the container ITs run in a separate (parallelisable) phase.
-- **Cheaper knobs** — Maven build cache (skip unchanged module rebuilds), `-o`/offline where safe, JVM
-  fork tuning for surefire, dependency-resolution caching on the runner.
+### What the numbers say
+| Run | Wall | Result |
+|---|---|---|
+| serial `mvn -B -ntp clean verify` (= CI main) | **11:13** | ✅ green |
+| `-T4 clean verify`, testcontainers **reuse ON** | ~3:53 → **FAIL** | ❌ shared-DB collision |
+| `-T4 clean verify`, reuse **OFF** (isolated PG/module) | **5:24** | ✅ 1192/1192 |
 
-Deliverable of the pass: a measured breakdown (which modules/phases dominate) + a ranked list of changes
-with expected time saved, applied incrementally with the full `verify` staying green. Keep the serial
-run boring and reliable — trade for speed only where the OOM headroom is proven on the new baseline.
+- **The cost is FLAT across 51 modules, not concentrated in container modules.** Top: finance-agent
+  45.5s, memory-service 38.5s, nutritionist-agent 27.8s, tasks-agent 25.4s, scheduler 24.7s — then a
+  long tail of ~40 modules at 8–25s. The top module is only ~7% of total. finance-agent (45s, **no PG**,
+  MockWebServer) is *heavier* than memory-service (38s, ~10 Testcontainers ITs).
+- => the bottleneck is **per-module JVM + Spring-context startup × 51 modules, run serially** — *not*
+  Testcontainers churn. `libs` (no context) are <6s; compilation is cheap. A pgvector container starts in
+  ~1.4s and reuse already amortises it on CI, so containers are not where the 11 min goes.
+
+### The two headline levers are in TENSION (measured, not assumed)
+- **Testcontainers singleton/reuse** (the plan's "biggest win") is **already built and shipped**:
+  `libs/test-support/AbstractPostgresIntegrationTest` (`withReuse(true)`, ~30 IT classes) + CI sets
+  `testcontainers.reuse.enable=true` (ci.yml). It helps the *serial* build (one shared PG).
+- **`-T` module parallelism** is the real remaining lever (serial execution is the bottleneck), and it
+  **cut wall time 11:13 → 5:24 (≈2.1×) with all 1192 tests green** — BUT only with **reuse OFF**. With
+  reuse ON, concurrent modules share the one container and corrupt each other's schema/data
+  (`bus.outbox` etc. — reproduced: mcp-nutrition `BasketCapturedConsumerIntegrationTest` saw `PENDING`
+  vs `PUBLISHED`). Serial passed 100%, so it is purely the reuse×parallel interaction, not a product bug.
+- **Resolution:** `-T` requires container **isolation** (reuse off, one PG per module). Isolated PG
+  containers are ~150 MB each, so even `-T4` peaks at <1 GB of containers — the old OOM fear assumed
+  heavy containers; the dominant memory is the parallel *JVM forks*, which 15.7 GB (local) / 7 GB (CI at
+  `-T2`) both survive. So the migration's Java-25 heap win matters less than expected here; container
+  memory was never the wall.
+
+### Ranked plan (apply incrementally, full `verify` stays green)
+1. **Enable `-T` parallelism with container isolation — the ≈2× win.**
+   - **Local dev loop:** uncontroversial — document `mvn -T4 verify` (reuse off) in CLAUDE.md/README. Do now.
+   - **CI (`main` full run):** flip serial → `-T2` **and remove** the `testcontainers.reuse.enable=true`
+     line (the two are incompatible — see above). This reverses CLAUDE.md's deliberate "serial on purpose"
+     policy, so it is an **owner decision**; `-T2` fits the current 2-vCPU/7 GB runner (2 isolated PG ≈
+     300 MB), a paid bigger runner would allow `-T4`. Measure `-T2` OOM headroom on the runner before flipping.
+2. **fast/slow test split (surefire unit vs failsafe IT).** Today *all* ITs (`*IntegrationTest`) run under
+   surefire in the `test` phase; failsafe sits unused in `pluginManagement`. A split lets the fast dev
+   loop skip container ITs entirely (big for iteration) — marginal for the *full* `verify` total. Medium.
+3. **Build hygiene surfaced by the scan (zero perf, removes migration cruft — do first, it's free):**
+   - Duplicate `spring-boot-webtestclient` dependency in **14 module poms** → 14 build warnings
+     ("duplicate declaration … future Maven versions might no longer support building such malformed
+     projects"). Dedupe.
+   - **Dead pin:** `testcontainers.version=1.20.4` + its `testcontainers-bom` import are **overridden** by
+     `spring-boot-dependencies` (imported first) → the effective TC version is Boot-4's **2.0.5** at
+     runtime. Drop the pin, exactly like the migration dropped the dead `jackson.version` pin.
+4. **Cheaper knobs (only if 1–2 fall short):** Maven build cache (skip unchanged modules), surefire fork
+   tuning, dependency-resolution caching on the runner. GIB already prunes PR builds correctly (verified).
 
 ## Sources
 - [Spring Boot 4.0.0 available now](https://spring.io/blog/2025/11/20/spring-boot-4-0-0-available-now/) · [System Requirements](https://docs.spring.io/spring-boot/system-requirements.html) · [Framework 7.0 GA](https://spring.io/blog/2025/11/13/spring-framework-7-0-general-availability/)
