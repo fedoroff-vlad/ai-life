@@ -40,7 +40,7 @@ architectural home — none needs a new layer:
 
 | Vision item | Architectural home | Why deferred |
 |---|---|---|
-| **Year analysis with chart + %s** | `financial-advisor` skill + a shared **`chart-render` capability-MCP** (data → PNG for Telegram; reused by briefing) | chart rendering is a cross-domain capability, not finance-specific — build it once, shared. The text analysis ships first. |
+| **Year analysis with chart + %s** | `financial-advisor` skill + a shared **`chart-render` capability-MCP** (data → PNG for Telegram; reused by briefing) | chart rendering is a cross-domain capability, not finance-specific — build it once, shared. The text analysis ships first. **`chart-render` capability ✅ DONE** (#292, 2026-07-06; `shared/mcp/mcp-chart-render`, `render_chart` → PNG → media-service). Remaining for #291: bind it into finance-agent + the year-analysis skill (period aggregate → narrative + charts). |
 | **Report template** (periods, breakdowns, benchmarks, anomaly rules) | the `monthly-report` skill (`MonthlyReporter`) | ✅ **text-first monthly summary shipped** (#196): current-month narrative + deterministic category breakdown → HTML → Telegram link. Remaining (deferred): arbitrary periods, benchmarks/anomaly rules, inline charts (`chart-render`). |
 | **Create / group spending categories from chat** | `upsert_category` (+ `parent_id` for groups) already exists; needs a thin agent skill | tool is ready; the chat-driven UX is a small follow-up. |
 | **Optimisation suggestions** | folded into `financial-advisor` synthesis | part of the analysis MVP (hints), deepened later. |

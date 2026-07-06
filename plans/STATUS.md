@@ -5,7 +5,7 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **➡️ Finance year-analysis report + chart-render — [#291](https://github.com/fedoroff-vlad/ai-life/issues/291) + [#292](https://github.com/fedoroff-vlad/ai-life/issues/292) (owner priority, next slice).** Owner item 4; the monthly-report MVP already shipped under closed #196. Not started — pick up the finance domain plan ([finance.md](finance.md)) + `finance-agent`/`mcp-finance` READMEs when starting. *(Prior slice — the build/CI performance pass — is ✅ DONE, see [HISTORY.md](HISTORY.md).)*
+- **➡️ Finance year-analysis report — [#291](https://github.com/fedoroff-vlad/ai-life/issues/291) (owner priority, next slice).** Owner item 4; the monthly-report MVP already shipped under closed #196. The shared **`chart-render` capability-MCP ([#292](https://github.com/fedoroff-vlad/ai-life/issues/292)) is now ✅ DONE** (see [HISTORY.md](HISTORY.md)), so #291 is unblocked: bind `mcp-chart-render` into `finance-agent` + add the year-analysis reporting skill (period aggregate → narrative + charts via `render_chart` → HTML board through `DeliverablePublisher`), plus chat-driven category grouping. Pick up [finance.md](finance.md) + `finance-agent`/`mcp-finance`/`mcp-chart-render` READMEs when starting.
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
