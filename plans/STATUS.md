@@ -5,13 +5,10 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **➡️ Build/CI performance pass — [#288](https://github.com/fedoroff-vlad/ai-life/issues/288) follow-up (owner priority #1).** **Scan DONE + measured (2026-07-06)** — full breakdown + ranked plan in [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance. Headline: serial `verify` = **11:13**; the cost is **flat across 51 modules** (per-module JVM+Spring-context startup, run serially), **not** Testcontainers churn (reuse already amortises that). `-T4` cut it to **5:24 (≈2×), all 1192 tests green — but only with reuse OFF** (reuse+parallel share one PG and corrupt each other; measured). Remaining slices, incremental with `verify` green:
-  - **(a) build hygiene ✅ (PR#310):** deduped duplicate `spring-boot-webtestclient` in 14 poms (−14 warnings). *(The `testcontainers.version` pin is NOT dead — Boot 4 doesn't manage the TC modules; removing it broke the build, reverted. Possible core-vs-module version skew = separate slice.)*
-  - **(b) `-T` parallelism — owner chose local `-T4` + CI `-T2`, reuse off (in flight):** local loop = `mvn -T4 verify`; CI flips serial→`-T2` + drops the reuse step (the two are incompatible). Validated by the PR's own CI going green (= runner OOM headroom proven empirically).
-  - **(c) fast/slow test split** (surefire unit vs failsafe IT) — helps the dev loop; optional, not yet done.
+- **➡️ Finance year-analysis report + chart-render — [#291](https://github.com/fedoroff-vlad/ai-life/issues/291) + [#292](https://github.com/fedoroff-vlad/ai-life/issues/292) (owner priority, next slice).** Owner item 4; the monthly-report MVP already shipped under closed #196. Not started — pick up the finance domain plan ([finance.md](finance.md)) + `finance-agent`/`mcp-finance` READMEs when starting. *(Prior slice — the build/CI performance pass — is ✅ DONE, see [HISTORY.md](HISTORY.md).)*
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **Finance year-analysis report + chart-render — [#291](https://github.com/fedoroff-vlad/ai-life/issues/291) + [#292](https://github.com/fedoroff-vlad/ai-life/issues/292)** (owner item 4; monthly-report MVP shipped under closed #196).
+1. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: coach-agent #289 (spec-first), health #187, travel #190, email #191, smart-home #192.
