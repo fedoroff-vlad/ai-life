@@ -1,0 +1,490 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 100-coach
+      author: ai-life
+      comment: |
+        Coach domain opener (CO-1, plans/coach.md / #289): source-of-truth store
+        for mcp-coach. Seven tables, all scoped by (household_id, subject) — the
+        per-person coaching "vector": records never cross subjects.
+
+        subject is the person the record is about (the authenticated message
+        sender's person_id). Like memory.note.person_id it is a SOFT reference —
+        a plain uuid with NO FK — because the coaching subject is resolved via
+        profile-service and is decoupled from any single core table (users vs
+        people). household_id keeps its FK to core.households.
+
+        coach_profile is the vector, keyed unique (household_id, subject): method
+        weighting (CBT/ACT/MI/SFBT/IFS) + tone + focus areas + boundaries as jsonb
+        (free-form parsed structure, mirrors creator_profile). coach_session is the
+        envelope observations/actions hang off; coach_observation.session_id FKs it.
+        Hypotheses carry supporting/contradicting observation-id arrays as jsonb
+        (evictable soft pointers, no FK). Values/actions/intake are subject-owned
+        editable rows. Statuses live in varchar (small, personal, evolving sets —
+        same call finance/tasks made), enforced in the tool layer.
+      changes:
+        # ---------- coach_profile (the per-subject vector) ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: method_weights
+                  type: jsonb
+              - column:
+                  name: tone
+                  type: text
+              - column:
+                  name: focus_areas
+                  type: jsonb
+              - column:
+                  name: boundaries
+                  type: jsonb
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_profile
+            indexName: ux_coach_profile_household_subject
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+
+        # ---------- coach_value ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_value
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_value_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: label
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: source
+                  type: varchar(16)
+                  defaultValue: stated
+                  constraints:
+                    nullable: false
+              - column:
+                  name: weight
+                  type: smallint
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_value
+            indexName: ix_coach_value_household_subject
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+
+        # ---------- coach_session (envelope) ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_session
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_session_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mode
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: summary
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_session
+            indexName: ix_coach_session_household_subject_created
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+              - column:
+                  name: created_at
+                  descending: true
+
+        # ---------- coach_observation ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_observation
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_observation_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: session_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_coach_observation_session
+                    referencedTableSchemaName: coach
+                    referencedTableName: coach_session
+                    referencedColumnNames: id
+              - column:
+                  name: text
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: method
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: evidence_refs
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_observation
+            indexName: ix_coach_observation_household_subject
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_observation
+            indexName: ix_coach_observation_session
+            columns:
+              - column:
+                  name: session_id
+
+        # ---------- coach_hypothesis ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_hypothesis
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_hypothesis_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: text
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: open
+                  constraints:
+                    nullable: false
+              - column:
+                  name: confidence
+                  type: smallint
+              - column:
+                  name: supporting_observation_ids
+                  type: jsonb
+              - column:
+                  name: contradicting_observation_ids
+                  type: jsonb
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_hypothesis
+            indexName: ix_coach_hypothesis_household_subject_status
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+              - column:
+                  name: status
+
+        # ---------- coach_action ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_action
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_action_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: text
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: value_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_coach_action_value
+                    referencedTableSchemaName: coach
+                    referencedTableName: coach_value
+                    referencedColumnNames: id
+              - column:
+                  name: hypothesis_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_coach_action_hypothesis
+                    referencedTableSchemaName: coach
+                    referencedTableName: coach_hypothesis
+                    referencedColumnNames: id
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: proposed
+                  constraints:
+                    nullable: false
+              - column:
+                  name: due_at
+                  type: timestamptz
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_action
+            indexName: ix_coach_action_household_subject_status
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject
+              - column:
+                  name: status
+
+        # ---------- coach_intake ----------
+        - createTable:
+            schemaName: coach
+            tableName: coach_intake
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_coach_intake_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: subject
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: topic
+                  type: varchar(64)
+              - column:
+                  name: question
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: answer
+                  type: text
+              - column:
+                  name: asked_by
+                  type: varchar(16)
+                  defaultValue: session
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: coach
+            tableName: coach_intake
+            indexName: ix_coach_intake_household_subject
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: subject

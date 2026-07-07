@@ -39,7 +39,8 @@ ai-life/
 │   ├── briefing/            briefing-agent, mcp-briefing, skills/ (✅ done, #186)
 │   ├── docs/                docs-agent, mcp-docs, skills/ (✅ done, #188)
 │   ├── knowledge/           notes-agent (second-brain front; binds memory-service, no own MCP)
-│   └── assistant/           coordinator-agent (cross-cutting multi-domain synthesis; #290)
+│   ├── assistant/           coordinator-agent (cross-cutting multi-domain synthesis; #290)
+│   └── coach/               mcp-coach (subject-scoped coaching store; coach-agent next, #289 — CO-1 done)
 ├── shared/                  shared RUNTIME capabilities any agent binds:
 │   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)
