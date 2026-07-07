@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
+import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
@@ -61,7 +62,7 @@ import static org.mockito.Mockito.when;
 class GoldenRoutingTest {
 
     /** The contract actions the classifier prompt allows. */
-    private static final Set<String> ACTIONS = Set.of("tool", "advice", "report", "invest", "chat");
+    private static final Set<String> ACTIONS = Set.of("tool", "advice", "report", "invest", "category", "chat");
 
     /** The mcp-finance tools the dispatcher exposes (must match the canonical tool set). */
     private static final List<ToolDefinition> TOOLS = List.of(
@@ -88,12 +89,13 @@ class GoldenRoutingTest {
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final YearReporter yearReporter = mock(YearReporter.class);
+    private final CategoryManager categoryManager = mock(CategoryManager.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
             GoldenLlm.agentBody(GoldenRoutingTest.class.getClassLoader()));
     private final IntentRouter router = new IntentRouter(
-            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, manifest, json);
+            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, json);
 
     GoldenRoutingTest() {
         when(dispatcher.availableToolDefinitions()).thenReturn(TOOLS);
@@ -108,6 +110,8 @@ class GoldenRoutingTest {
                 .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(report)", "qwen2.5:7b")));
         when(yearReporter.report(any(NormalizedMessage.class)))
                 .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(year-report)", "qwen2.5:7b")));
+        when(categoryManager.manage(any(NormalizedMessage.class)))
+                .thenReturn(Mono.just(new CategoryManager.CategoryResult("(category)", "qwen2.5:7b")));
     }
 
     /**

@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.intent;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
+import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
@@ -59,6 +60,7 @@ class IntentRouterTest {
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final YearReporter yearReporter = mock(YearReporter.class);
+    private final CategoryManager categoryManager = mock(CategoryManager.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -67,7 +69,8 @@ class IntentRouterTest {
             "You are the finance agent for the ai-life system.");
 
     private final IntentRouter router =
-            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, manifest, json);
+            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter,
+                    categoryManager, manifest, json);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
@@ -255,6 +258,26 @@ class IntentRouterTest {
 
         // period=year → the year reporter, not the monthly one.
         verify(monthlyReporter, never()).report(any(NormalizedMessage.class));
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void llmPicksCategoryHandsOffToCategoryManager() {
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("upsert_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"category\"}")));
+        when(categoryManager.manage(any(NormalizedMessage.class))).thenReturn(Mono.just(
+                new CategoryManager.CategoryResult("Готово. Категории: Кофейни (в группе «Еда»).", "mock-large")));
+
+        StepVerifier.create(router.route(msg("заведи категорию Кофейни в группе Еда")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("Кофейни");
+                    assertThat(r.invokedTool()).isEqualTo("category");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // The category flow does its own gather + apply — no direct tool dispatch.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 

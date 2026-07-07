@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
+import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
@@ -59,6 +60,7 @@ public class IntentRouter {
     private final InvestmentAdvisor investmentAdvisor;
     private final MonthlyReporter monthlyReporter;
     private final YearReporter yearReporter;
+    private final CategoryManager categoryManager;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
@@ -68,6 +70,7 @@ public class IntentRouter {
                         InvestmentAdvisor investmentAdvisor,
                         MonthlyReporter monthlyReporter,
                         YearReporter yearReporter,
+                        CategoryManager categoryManager,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.llm = llm;
@@ -76,6 +79,7 @@ public class IntentRouter {
         this.investmentAdvisor = investmentAdvisor;
         this.monthlyReporter = monthlyReporter;
         this.yearReporter = yearReporter;
+        this.categoryManager = categoryManager;
         this.manifest = manifest;
         this.json = json;
     }
@@ -138,6 +142,13 @@ public class IntentRouter {
                 }
                 return monthlyReporter.report(msg)
                         .map(r -> new RouterResult(r.text(), "report", r.model()));
+            }
+            if ("category".equals(action)) {
+                // Create / group finance categories from chat — a multi-step flow (list existing →
+                // LLM plan → resolve parent by name → upsert), not a single tool. Hand off to
+                // CategoryManager, which does its own gather + apply and returns a confirmation.
+                return categoryManager.manage(msg)
+                        .map(r -> new RouterResult(r.text(), "category", r.model()));
             }
             // action=chat (or anything else we don't recognise): prefer the
             // structured 'text' field, else fall back to the raw body.
@@ -244,17 +255,24 @@ public class IntentRouter {
         sb.append("symbol and pass them in 'symbols': US stocks use a '.us' suffix (Apple→aapl.us), ");
         sb.append("indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, bitcoin→btcusd, ");
         sb.append("ether→ethusd. Include only assets the user actually named.\n\n");
+        sb.append("There is also a built-in CATEGORY-MANAGEMENT flow (not a tool): use it when the user ");
+        sb.append("wants to CREATE or GROUP their spending categories (e.g. \"заведи категорию Кофейни\", ");
+        sb.append("\"создай категорию Подарки\", \"сгруппируй Такси и Метро под Транспорт\", \"добавь ");
+        sb.append("категорию Кафе в группу Еда\"). It reads the existing categories and applies the ");
+        sb.append("changes itself. This is about the category LIST/structure — not recording a spend ");
+        sb.append("(that's the add_transaction tool) and not analysing spend (that's advice).\n\n");
         sb.append("Decide: run a tool, run the spending analysis, build the finance report, ");
-        sb.append("run the investment advisory, or just talk?\n\n");
+        sb.append("run the investment advisory, manage categories, or just talk?\n\n");
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
         sb.append("Use ONE of these shapes:\n");
         sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
         sb.append("  {\"action\":\"advice\"}\n");
         sb.append("  {\"action\":\"report\",\"period\":\"month\"}\n");
         sb.append("  {\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}\n");
+        sb.append("  {\"action\":\"category\"}\n");
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
         sb.append("The \"action\" value MUST be exactly one of these literal strings: ");
-        sb.append("\"tool\", \"advice\", \"report\", \"invest\", \"chat\". Do NOT invent any other ");
+        sb.append("\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"chat\". Do NOT invent any other ");
         sb.append("action value (not \"analysis\", not a tool name in the action field — a tool goes in ");
         sb.append("\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n");
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
