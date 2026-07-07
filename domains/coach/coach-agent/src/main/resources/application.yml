@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: coach-agent
+  main:
+    web-application-type: reactive
+
+server:
+  port: ${COACH_AGENT_PORT:8122}
+
+agent:
+  manifest-classpath: AGENT.md
+  skills-classpath: classpath*:skills/coach/*/SKILL.md
+  memory-recall-k: ${COACH_AGENT_MEMORY_RECALL_K:5}
+
+coach-agent:
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
+  memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  mcp-coach-url: ${MCP_COACH_URL:http://mcp-coach:8121}
+  notes-scan-limit: ${COACH_NOTES_SCAN_LIMIT:100}
+  gathered-notes-max: ${COACH_GATHERED_NOTES_MAX:15}
+
+ailife:
+  llm-client:
+    base-url: ${LLM_GATEWAY_URL:http://llm-gateway:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

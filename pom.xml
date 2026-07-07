@@ -75,6 +75,7 @@
         <module>domains/docs/mcp-docs</module>
         <module>domains/docs/docs-agent</module>
         <module>domains/coach/mcp-coach</module>
+        <module>domains/coach/coach-agent</module>
         <module>domains/knowledge/notes-agent</module>
         <module>domains/assistant/coordinator-agent</module>
         <module>shared/mcp/mcp-media-processing</module>

@@ -99,6 +99,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | coordinator-agent    | 8119 | Cross-cutting synthesis engine (#290): multi-domain request → read second brain → one answer; reactive + proactive, no own MCP |
 | mcp-chart-render     | 8120 | Chart-render capability-MCP (data → PNG via Java2D → media-service; `render_chart`) |
 | mcp-coach            | 8121 | Coach domain-MCP (subject-scoped coaching record: profile/values/observations/hypotheses/actions/sessions/intake) |
+| coach-agent          | 8122 | Self-understanding coach (#289): safety gate → Reflect over the sender's own notes; binds memory-service + mcp-coach `/internal` |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
