@@ -1,9 +1,10 @@
-# Coach domain — spec (spec-first, no code yet)
+# Coach domain — spec
 
-**Status: SPEC only ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289), owner brief 2026-07-07).**
-Owner item 2, deferred behind the platform migration + memory-driven orchestration; picked up spec-first
-because the MVP scope/store were open. This file is the agreed design; implementation is phased below and
-starts only after the owner signs off the **Open decisions**.
+**Status: SPEC APPROVED — CO-1 ready to build ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
+owner brief + all decisions signed 2026-07-07).** Owner item 2, was deferred behind the platform
+migration + memory-driven orchestration; picked up spec-first because the MVP scope/store were open —
+now resolved (see **Decisions** below). This file is the agreed design; implementation is phased below,
+starting with CO-1.
 
 A self-understanding agent for the owner: it reads the experience ai-life has accumulated about them
 (second-brain notes, financial/calendar signals, past coach sessions) and, using **evidence-based
@@ -57,9 +58,19 @@ people's patterns or apply one person's approach to another.
   CBT/ACT/MI/SFBT/IFS), tone calibration, focus areas, and hard boundaries / off-limits topics. It
   shapes the system prompt for that person's sessions. Editable; seeded from that person's own sessions,
   never assumed.
-- **Consent & who drives it.** Coaching another person is sensitive — see Open decisions: the MVP frame
-  (owner reflecting *with* the coach about a shared situation vs. a member using the coach for
-  themselves), whose consent is required, and what a member can/can't see about another.
+- **Strictly private, per-person (owner-signed).** Like a therapy session: each subject's record is
+  private to that subject. The **subject is always the authenticated message sender** (their own
+  `person_id`) — the coach works only on the sender's own record; **no owner-override, no cross-member
+  read**. Sharing is **subject-initiated only** ("если захотят, сам поделятся") — a deferred action, not
+  MVP. See Decision 0.
+
+## Intake (deliberate questionnaire → `coach_intake`)
+Passive reading (notes/briefs) isn't enough to establish *targeted* things — values, focus areas, the
+vector, a baseline. So the coach can run a short, deliberate **intake**: a small set of open questions
+(one per turn, MI-style — never an interrogation), asked at onboarding or when a session needs a missing
+piece. Answers persist in `coach_intake`; `coach_value` + `coach_profile` are seeded/updated from them.
+Multi-turn intake rides the existing conversation-state route-lock/resume (same one-question-per-turn
+rhythm). Kept light — a handful of questions, resumable, never blocking a reflect/develop request.
 
 ## Data it reads (cross-sectional slice)
 Coach owns no source data — it gathers, like the `Coordinator`:
@@ -86,13 +97,17 @@ per-person vector (above) means records never cross subjects. Proposed tables:
   data arrives (a `NoteReconciler`-style enrich/supersede, mirroring ambient capture).
 - `coach_action` — a proposed next step (text, linked value, linked hypothesis, status ∈
   proposed|active|done|dropped, due?, ts) — the Develop-mode follow-up spine.
+- `coach_intake` — stored answers to deliberate targeted questions (subject, topic, question, answer,
+  asked_by ∈ onboarding|session, ts). The place the questionnaire (below) persists what it collects;
+  `coach_value` / `coach_profile` are then derived/seeded from it. (Owner: "нужна таблица/место где
+  хранить".)
 - `coach_session` — a session envelope (subject, ts, mode, summary, produced observation/action ids) for
   continuity.
 
 `mcp-coach` = a domain-MCP over `coach.*` (CRUD + a few reads: open hypotheses, active actions, values,
-recent sessions) + `/internal/*` passthroughs, per PATTERNS "add a domain-MCP". Liquibase: a new
-`coach.*` schema, next free feature-file range (see Open decisions — the numbering table needs a `coach`
-row).
+intake answers, recent sessions) + `/internal/*` passthroughs, per PATTERNS "add a domain-MCP".
+Liquibase: a new `coach.*` schema in the reserved **`100-109`** feature-file range (added to the PATTERNS
+numbering table).
 
 ## Agent shape
 `domains/coach/coach-agent` (+ `domains/coach/mcp-coach`), following the finance/calendar agent recipe:
@@ -103,8 +118,12 @@ row).
   synthesize under `[AGENT.md + reflect|develop SKILL.md]`. Same substrate as the coordinator and the
   finance advisors.
 - **Skills** (`domains/coach/skills/`): `reflect` (patterns + open questions), `develop` (one values-tied
-  next step), and a `safety-check` gate that runs first. AGENT.md carries the evidence-base doctrine,
-  the tone, and the anti-goals so every skill inherits them.
+  next step), `intake` (deliberate targeted questions → `coach_intake`), and a `safety-check` gate that
+  runs first. AGENT.md carries the evidence-base doctrine, the tone, and the anti-goals so every skill
+  inherits them; the subject's `coach_profile` vector tunes the prompt per person.
+- **Delivery: chat-first, HTML seam laid.** Replies are plain chat for the MVP, but the flow constructs
+  its result so the `DeliverablePublisher`/`doc-render` render→store→link seam (as in the finance report)
+  can be switched on later for a "reflection board" — without reshaping the flow. Off for the MVP.
 - **No new layer** — it's the established "agent that reads the second brain + the hub, owns a small
   domain store" shape (coordinator-agent + a domain-MCP). Flagged here because the *content* (clinical
   methods, safety) is new, not the architecture.
@@ -125,41 +144,45 @@ row).
   slice, not the MVP.
 
 ## Phased slices (each = one small vertical slice / PR unless noted)
-- **CO-1 — `coach.*` + `mcp-coach` store.** Schema (profile/value/observation/hypothesis/action/session,
-  all `household_id`+`subject`-scoped) + domain-MCP CRUD + `/internal/*` + Testcontainers IT. No agent yet.
+- **CO-1 — `coach.*` + `mcp-coach` store.** Schema (profile/value/observation/hypothesis/action/session/
+  **intake**, all `household_id`+`subject`-scoped) + domain-MCP CRUD + `/internal/*` + Testcontainers IT.
+  No agent yet.
 - **CO-2 — `coach-agent` skeleton + `safety-check` + `reflect` (reactive).** Agent module, orchestrator
-  registration, subject resolution (person_id via profile-service; MVP subject per Open decision 0),
-  gather (that subject's notes + recall) → Reflect synthesis shaped by the subject's `coach_profile`
-  vector → persists observations/hypotheses + a session. Safety gate short-circuits first. Golden-tested
-  on qwen2.5:7b (structure-not-text).
-- **CO-3 — cross-domain `brief` gather.** Fold finance/calendar `brief`s into the Reflect gather (reuse
+  registration, **subject = the authenticated sender** (person_id via profile-service), gather (that
+  subject's notes + recall) → Reflect synthesis shaped by the subject's `coach_profile` vector (defaults
+  when empty) → persists observations/hypotheses + a session. Safety gate short-circuits first.
+  Golden-tested on qwen2.5:7b (structure-not-text).
+- **CO-3 — `intake` (questionnaire → profile/values).** A light, resumable one-question-per-turn intake
+  (conversation-state) that persists to `coach_intake` and seeds `coach_value` + `coach_profile` (the
+  vector). Onboarding + on-demand when a session lacks a piece.
+- **CO-4 — cross-domain `brief` gather.** Fold finance/calendar `brief`s into the Reflect gather (reuse
   `SpecialistBriefs`) so patterns span domains (the "rescue projects amid financial anxiety" case).
-- **CO-4 — `develop` mode + action follow-up.** Values-tied next step → `coach_action`; continuity reads
+- **CO-5 — `develop` mode + action follow-up.** Values-tied next step → `coach_action`; continuity reads
   prior sessions/actions ("last time you said…").
-- **CO-5 — hypothesis reconciliation.** New observations enrich/support/revise/drop existing hypotheses
+- **CO-6 — hypothesis reconciliation.** New observations enrich/support/revise/drop existing hypotheses
   (mirror ambient capture's `NoteReconciler`), so the record sharpens over time.
-- **CO-6 (later, opt-in) — proactive check-in** via scheduler wake.
-- **E2E closer** at CO-2/CO-4 per the stage-closer rule.
+- **CO-7 (later, opt-in) — proactive check-in** via scheduler wake; and the deferred subject-initiated
+  **share** action + the HTML "reflection board".
+- **E2E closer** at CO-2/CO-5 per the stage-closer rule.
 
-## Open decisions (need owner sign-off before CO-1)
-0. **Multi-person frame & consent (biggest).** The coach is per-person (each subject has their own
-   vector). Confirm the MVP frame: (a) **owner-only** self-coaching first, per-person support as a later
-   slice (recommended — smallest, safest start); or (b) multi-member from the start. And the model for
-   coaching *another* member: is it the owner reflecting **with** the coach about a shared situation
-   (reads only what the owner may see), or the **member using the coach for themselves** (their own
-   private record)? What consent is required, and what may one member see about another? This gates how
-   `subject` scoping + privacy are enforced.
-1. **"Alive moments" source.** New concept — nothing in the system captures it today. MVP proposal: read
-   it as `journal`/`reflection` notes (ambient capture already produces these); a **dedicated
-   "alive-moment" capture** (a distinct note type or a quick log seam) is a separate follow-up. Confirm:
-   MVP-on-notes now, dedicated capture later? Or is a distinct capture part of the MVP?
-2. **Values seed.** Seed `coach_value` purely from what the user says in sessions (recommended), or
-   pre-seed the examples from the brief (flow-in-code, immersive media, calm family) as editable
-   defaults?
-3. **Delivery surface.** Reactive chat only for the MVP (recommended), or also an HTML "reflection board"
-   deliverable (via `doc-render`, like the finance report) from the start?
-4. **Liquibase numbering.** `coach.*` needs a feature-file range; the PATTERNS numbering table has no
-   `coach` row yet (090 is taken by `memory-note`). Proposal: reserve `100-109 = coach`.
+## Decisions (owner-signed, 2026-07-07) — CO-1 unblocked
+0. **Strictly private, per-person — like a therapy session.** Each subject's coaching record is **private
+   to that subject**; sharing is **subject-initiated only** ("если захотят, сам поделятся"). The
+   **subject = the authenticated message sender** (their own `person_id`) — the coach only ever works on
+   the sender's own record; there is **no owner-override, no cross-member read** of another's coaching
+   data. A subject-initiated **share** action is a deferred follow-up (not MVP). This makes scoping
+   simple and safe: every `coach.*` read/write is filtered to the sender.
+1. **"Alive moments" = notes for now.** MVP reads them as `journal`/`reflection` notes (ambient capture
+   already produces these). A dedicated "alive-moment" capture is a later follow-up.
+2. **Values mostly from sessions + a deliberate intake.** `coach_value` is seeded from what the subject
+   says (no pre-seeded defaults). But to gather *targeted* information deliberately, the coach runs a
+   short **intake / questionnaire** and stores the answers — see **Intake** below (a `coach_intake`
+   store, per the owner's "нужна таблица/место где хранить").
+3. **Chat first, HTML seam laid.** MVP delivery is reactive chat. Build the render→store→link seam
+   (`DeliverablePublisher`/`doc-render`) so a "reflection board" HTML deliverable can be turned on later
+   without reshaping the flow — but it's off for the MVP.
+4. **Liquibase `100-109 = coach`.** Reserved for `coach.*`; the PATTERNS numbering table gets a `coach`
+   row (added with this spec).
 
 ## Wiring touchpoints (for the build, not now)
 Root `pom.xml` modules (`mcp-coach`, `coach-agent`); `infra/docker-compose.yml` + `.env.example` +
