@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 # Build context: repo root. Builds this module + its libs from the full reactor.
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -ntp -pl shared/mcp/mcp-web -am -DskipTests package
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 # yt-dlp for transcribe_video — the self-contained linux binary (PyInstaller bundle, no system
 # Python needed). The transcript engine shells out to it; swappable behind VideoTranscriptEngine.
