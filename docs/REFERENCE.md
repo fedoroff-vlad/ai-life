@@ -17,7 +17,7 @@ point is Telegram (text/voice/photo/video/files). Flow:
 
 **Telegram → gateway → orchestrator ("brain") → domain agents → narrow MCP servers → Postgres.**
 
-Java 21 / Spring Boot 3.4 / Spring AI. Monorepo but **not a monolith** — every agent and every MCP is
+Java 25 / Spring Boot 4 / Spring AI 2. Monorepo but **not a monolith** — every agent and every MCP is
 its own Spring Boot app in its own container, depending only on `libs/*`.
 
 ### Request flow
