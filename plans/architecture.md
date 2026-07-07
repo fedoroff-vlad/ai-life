@@ -118,7 +118,7 @@ ai-life/
 │   ├── knowledge/  { notes-agent }                    # second-brain front, no own MCP
 │   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
-    ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-image-gen, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds, …
+    ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen, mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds, …
     └── skills/ cross-cutting skills
 ```
 **Group-by-domain:** everything about one specialist lives under `domains/<domain>/` — but each agent/MCP there is still its **own Spring Boot app + Dockerfile + container** (co-location ≠ one process). Adding a domain = a new `domains/<domain>/` folder; adding a piece = a sub-module + register in root `pom.xml` `<modules>` + docker-compose. No edits to existing services.

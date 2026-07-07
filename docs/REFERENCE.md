@@ -39,7 +39,7 @@ flowchart TD
     end
     subgraph MCPS[MCP servers]
       DM[domain-MCP owns a schema:<br/>caldav, finance, tasks, wardrobe, nutrition, creator]
-      CM[capability-MCP no schema:<br/>media-processing, web, market-data, weather, image-gen, youtube/reddit/feeds, food-data]
+      CM[capability-MCP no schema:<br/>media-processing, web, market-data, weather, image-gen, chart-render, youtube/reddit/feeds, food-data]
     end
     SVC[shared services<br/>memory · profile · scheduler · notifier · llm-gateway · conversation · media]
     PG[(Postgres 16<br/>pgvector + AGE + pg_trgm)]
@@ -133,7 +133,7 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 
 Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper sidecar + vision-caption),
 `mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-weather` (Open-Meteo forecast + geocode),
-`mcp-image-gen` (scaffolded, stub engine — real GPU engine ahead), `mcp-food-data`.
+`mcp-image-gen` (scaffolded, stub engine — real GPU engine ahead), `mcp-chart-render` (data → PNG via Java2D, bound by finance reports), `mcp-food-data`.
 
 ### Not done / deferred
 
