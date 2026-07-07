@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: mcp-coach
+  datasource:
+    url: ${MCP_COACH_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${MCP_COACH_DB_USER:ailife}
+    password: ${MCP_COACH_DB_PASSWORD:ailife}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.json_format_mapper: dev.fedorov.ailife.common.jackson.Jackson3JsonFormatMapper
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-coach
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Source-of-truth coaching record over Postgres coach.* schema. Per-subject
+          CRUD (profile "vector", values, sessions, observations, hypotheses, actions,
+          intake answers) — every record scoped by (householdId, subject). The store
+          only; reflection/reasoning lives in coach-agent. Strictly private per subject.
+
+server:
+  port: ${MCP_COACH_PORT:8121}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

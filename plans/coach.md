@@ -1,10 +1,12 @@
 # Coach domain — spec
 
-**Status: SPEC APPROVED — CO-1 ready to build ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
+**Status: CO-1 SHIPPED — CO-2 next ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
 owner brief + all decisions signed 2026-07-07).** Owner item 2, was deferred behind the platform
 migration + memory-driven orchestration; picked up spec-first because the MVP scope/store were open —
-now resolved (see **Decisions** below). This file is the agreed design; implementation is phased below,
-starting with CO-1.
+now resolved (see **Decisions** below). This file is the agreed design; implementation is phased below.
+**CO-1 done (2026-07-07):** the `coach.*` schema + `mcp-coach` store (subject-scoped CRUD +
+`/internal/coach/*` + Testcontainers IT) — see [domains/coach/mcp-coach/README.md](../domains/coach/mcp-coach/README.md).
+**Next: CO-2** = `coach-agent` skeleton + `safety-check` + `reflect`.
 
 A self-understanding agent for the owner: it reads the experience ai-life has accumulated about them
 (second-brain notes, financial/calendar signals, past coach sessions) and, using **evidence-based
@@ -144,9 +146,10 @@ numbering table).
   slice, not the MVP.
 
 ## Phased slices (each = one small vertical slice / PR unless noted)
-- **CO-1 — `coach.*` + `mcp-coach` store.** Schema (profile/value/observation/hypothesis/action/session/
-  **intake**, all `household_id`+`subject`-scoped) + domain-MCP CRUD + `/internal/*` + Testcontainers IT.
-  No agent yet.
+- **CO-1 — `coach.*` + `mcp-coach` store. ✅ DONE (2026-07-07).** Schema (profile/value/observation/
+  hypothesis/action/session/**intake**, all `household_id`+`subject`-scoped, `100-coach.yml`) + domain-MCP
+  (16 `@Tool` CRUD/reads + `/internal/coach/*` passthroughs) + Testcontainers IT. No agent yet. `subject`
+  is a soft person ref (no FK, like `memory.note.person_id`); jsonb for the vector/evidence/obs-id fields.
 - **CO-2 — `coach-agent` skeleton + `safety-check` + `reflect` (reactive).** Agent module, orchestrator
   registration, **subject = the authenticated sender** (person_id via profile-service), gather (that
   subject's notes + recall) → Reflect synthesis shaped by the subject's `coach_profile` vector (defaults

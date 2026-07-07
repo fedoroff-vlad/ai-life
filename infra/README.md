@@ -98,6 +98,7 @@ in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 | notes-agent          | 8118 | Second-brain / notes agent ("запомни …" / "что я думал про …"; binds memory-service, no own MCP) |
 | coordinator-agent    | 8119 | Cross-cutting synthesis engine (#290): multi-domain request → read second brain → one answer; reactive + proactive, no own MCP |
 | mcp-chart-render     | 8120 | Chart-render capability-MCP (data → PNG via Java2D → media-service; `render_chart`) |
+| mcp-coach            | 8121 | Coach domain-MCP (subject-scoped coaching record: profile/values/observations/hypotheses/actions/sessions/intake) |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 
