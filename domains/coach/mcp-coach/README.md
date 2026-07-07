@@ -3,7 +3,10 @@
 MCP server: source-of-truth coaching record over the `coach.*` schema. Subject-scoped
 CRUD for the coach-agent's durable memory — the one place coaching is **not** stateless.
 The store only; reflection/reasoning (safety gate, Reflect/Develop, methods) lives in
-`coach-agent` (CO-2+). See [plans/coach.md](../../plans/coach.md) / [#289](https://github.com/fedoroff-vlad/ai-life/issues/289).
+`coach-agent`. See [plans/coach.md](../../plans/coach.md) / [#289](https://github.com/fedoroff-vlad/ai-life/issues/289).
+
+**Consumers:** [coach-agent](../coach-agent/README.md) (CO-2) — reads `profile` + `sessions` and writes
+`sessions`/`observations`/`hypotheses` through the `/internal/coach/*` passthroughs (no MCP transport).
 
 **Scope invariant (load-bearing):** every record is scoped by `(householdId, subject)` —
 the per-person coaching "vector"; records never cross subjects. `subject` is a soft person

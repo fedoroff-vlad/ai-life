@@ -395,6 +395,7 @@ services:
       DOCS_AGENT_URL: http://docs-agent:8117
       NOTES_AGENT_URL: http://notes-agent:8118
       COORDINATOR_AGENT_URL: http://coordinator-agent:8119
+      COACH_AGENT_URL: http://coach-agent:8122
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1437,6 +1438,43 @@ services:
       COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8119/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Self-understanding coach (#289 CO-2): safety gate → Reflect over the sender's own notes/memories →
+  # durable coaching record in mcp-coach. Strictly per-subject (the authenticated sender).
+  coach-agent:
+    image: ai-life/coach-agent:local
+    container_name: ai-life-coach-agent
+    build:
+      context: ..
+      dockerfile: domains/coach/coach-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-coach:
+        condition: service_healthy
+    environment:
+      COACH_AGENT_PORT: 8122
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      MCP_COACH_URL: http://mcp-coach:8121
+      COACH_AGENT_MEMORY_RECALL_K: ${COACH_AGENT_MEMORY_RECALL_K:-5}
+      COACH_NOTES_SCAN_LIMIT: ${COACH_NOTES_SCAN_LIMIT:-100}
+      COACH_GATHERED_NOTES_MAX: ${COACH_GATHERED_NOTES_MAX:-15}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8122/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10

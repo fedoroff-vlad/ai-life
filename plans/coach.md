@@ -1,12 +1,17 @@
 # Coach domain — spec
 
-**Status: CO-1 SHIPPED — CO-2 next ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
+**Status: CO-2 SHIPPED — CO-3 next ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
 owner brief + all decisions signed 2026-07-07).** Owner item 2, was deferred behind the platform
 migration + memory-driven orchestration; picked up spec-first because the MVP scope/store were open —
 now resolved (see **Decisions** below). This file is the agreed design; implementation is phased below.
 **CO-1 done (2026-07-07):** the `coach.*` schema + `mcp-coach` store (subject-scoped CRUD +
 `/internal/coach/*` + Testcontainers IT) — see [domains/coach/mcp-coach/README.md](../domains/coach/mcp-coach/README.md).
-**Next: CO-2** = `coach-agent` skeleton + `safety-check` + `reflect`.
+**CO-2 done (2026-07-07):** `coach-agent` (port 8122) — safety gate + reactive Reflect on the shared
+`Coordinator`, persisting sessions/observations/hypotheses; orchestrator-registered; E2E closer +
+golden tests — see [domains/coach/coach-agent/README.md](../domains/coach/coach-agent/README.md).
+*CO-2 note:* `subject` = the sender's `user_id` (the only authenticated identity a message carries —
+core has no user↔person link yet; `coach.subject` is a soft uuid, so a later link can migrate it).
+**Next: CO-3** = `intake` (questionnaire → profile/values).
 
 A self-understanding agent for the owner: it reads the experience ai-life has accumulated about them
 (second-brain notes, financial/calendar signals, past coach sessions) and, using **evidence-based
@@ -150,11 +155,12 @@ numbering table).
   hypothesis/action/session/**intake**, all `household_id`+`subject`-scoped, `100-coach.yml`) + domain-MCP
   (16 `@Tool` CRUD/reads + `/internal/coach/*` passthroughs) + Testcontainers IT. No agent yet. `subject`
   is a soft person ref (no FK, like `memory.note.person_id`); jsonb for the vector/evidence/obs-id fields.
-- **CO-2 — `coach-agent` skeleton + `safety-check` + `reflect` (reactive).** Agent module, orchestrator
-  registration, **subject = the authenticated sender** (person_id via profile-service), gather (that
-  subject's notes + recall) → Reflect synthesis shaped by the subject's `coach_profile` vector (defaults
-  when empty) → persists observations/hypotheses + a session. Safety gate short-circuits first.
-  Golden-tested on qwen2.5:7b (structure-not-text).
+- **CO-2 — `coach-agent` skeleton + `safety-check` + `reflect` (reactive). ✅ DONE (2026-07-07).**
+  Agent module (port 8122), orchestrator registration, **subject = the authenticated sender**
+  (`msg.userId()` — see the CO-2 note in the Status header), gather (that subject's notes + recall +
+  recent sessions) → Reflect synthesis shaped by the subject's `coach_profile` vector (defaults when
+  empty) → persists observations/hypotheses + a session. Safety gate short-circuits first; non-private
+  scope declined. Golden-tested on qwen2.5:7b (structure-not-text) + `E2ECoachReflectFlowTest` closer.
 - **CO-3 — `intake` (questionnaire → profile/values).** A light, resumable one-question-per-turn intake
   (conversation-state) that persists to `coach_intake` and seeds `coach_value` + `coach_profile` (the
   vector). Onboarding + on-demand when a session lacks a piece.

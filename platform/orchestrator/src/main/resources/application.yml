@@ -38,6 +38,8 @@ orchestrator:
       base-url: ${NOTES_AGENT_URL:http://notes-agent:8118}
     - name: coordinator
       base-url: ${COORDINATOR_AGENT_URL:http://coordinator-agent:8119}
+    - name: coach
+      base-url: ${COACH_AGENT_URL:http://coach-agent:8122}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}
