@@ -11,7 +11,6 @@ import dev.fedorov.ailife.agents.finance.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.finance.http.SpendingClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
-import dev.fedorov.ailife.contracts.chart.ChartSeries;
 import dev.fedorov.ailife.contracts.chart.ChartSpec;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
@@ -21,12 +20,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,12 +61,6 @@ public class MonthlyReporter {
     private static final Logger log = LoggerFactory.getLogger(MonthlyReporter.class);
     private static final String SKILL_NAME = "monthly-report";
 
-    /** Russian month names for the deterministic report header (owner-facing). */
-    private static final String[] MONTHS_RU = {
-            "январь", "февраль", "март", "апрель", "май", "июнь",
-            "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"
-    };
-
     /** Cap the number of category bars so the chart stays readable. */
     private static final int MAX_CHART_CATEGORIES = 8;
 
@@ -108,7 +98,7 @@ public class MonthlyReporter {
         ZonedDateTime nowZ = now.atZone(ZoneOffset.UTC);
         Instant monthStart = nowZ.toLocalDate().withDayOfMonth(1)
                 .atStartOfDay(ZoneOffset.UTC).toInstant();
-        String monthLabel = MONTHS_RU[nowZ.getMonthValue() - 1] + " " + nowZ.getYear();
+        String monthLabel = ReportFormatting.MONTHS_RU[nowZ.getMonthValue() - 1] + " " + nowZ.getYear();
 
         return spending.spendingByCategory(household, monthStart, now)
                 .flatMap(rows -> {
@@ -157,12 +147,12 @@ public class MonthlyReporter {
         return chartUrl(msg, rows, monthLabel).flatMap(chartUrl -> {
             Doc.Builder doc = Doc.builder("Финансовый отчёт")
                     .kicker("Финансы · Отчёт за месяц")
-                    .subtitle(monthLabel + " · " + totalsLine(rows));
+                    .subtitle(monthLabel + " · " + ReportFormatting.totalsLine(rows));
             if (!chartUrl.isBlank()) {
                 doc.chart(chartUrl);
             }
             doc.section("Сводка", DeliverablePublisher.splitParagraphs(narrative))
-                    .section("Расходы по категориям", categoryLines(rows));
+                    .section("Расходы по категориям", ReportFormatting.categoryLines(rows));
             return publisher.publish(msg.householdId(), msg.userId(), doc.build());
         });
     }
@@ -173,7 +163,8 @@ public class MonthlyReporter {
      * an empty string so the report still ships without the chart.
      */
     private Mono<String> chartUrl(NormalizedMessage msg, List<SpendingByCategoryRow> rows, String monthLabel) {
-        ChartSpec spec = categoryChartSpec(rows, monthLabel);
+        ChartSpec spec = ReportFormatting.categoryChartSpec(
+                rows, "Расходы по категориям · " + monthLabel, MAX_CHART_CATEGORIES);
         if (spec == null) {
             return Mono.just("");
         }
@@ -186,88 +177,6 @@ public class MonthlyReporter {
                     log.warn("monthly-report chart render failed: {}", e.toString());
                     return Mono.just("");
                 });
-    }
-
-    /** Build a bar-chart spec of the top spending categories (biggest first); null if nothing to plot. */
-    private ChartSpec categoryChartSpec(List<SpendingByCategoryRow> rows, String monthLabel) {
-        List<SpendingByCategoryRow> top = rows.stream()
-                .filter(r -> magnitude(r).signum() > 0)
-                .sorted(Comparator.comparing(MonthlyReporter::magnitude).reversed())
-                .limit(MAX_CHART_CATEGORIES)
-                .toList();
-        if (top.isEmpty()) {
-            return null;
-        }
-        List<String> categories = new ArrayList<>();
-        List<Double> values = new ArrayList<>();
-        for (SpendingByCategoryRow r : top) {
-            categories.add(name(r.categoryName()));
-            values.add(magnitude(r).doubleValue());
-        }
-        return new ChartSpec("bar", "Расходы по категориям · " + monthLabel,
-                categories, List.of(new ChartSeries("Расходы", values)), unit(top));
-    }
-
-    /** The shared currency for the chart's value axis, or null when categories mix currencies. */
-    private static String unit(List<SpendingByCategoryRow> rows) {
-        String only = null;
-        for (SpendingByCategoryRow r : rows) {
-            String cur = currency(r.currency());
-            if (only == null) {
-                only = cur;
-            } else if (!only.equals(cur)) {
-                return null; // mixed currencies — omit the unit rather than mislabel
-            }
-        }
-        return only;
-    }
-
-    /** One line per category, biggest first: "Категория — 1234.50 RUB · 12 операций". */
-    private List<String> categoryLines(List<SpendingByCategoryRow> rows) {
-        List<String> lines = new ArrayList<>();
-        rows.stream()
-                .sorted(Comparator.comparing(MonthlyReporter::magnitude).reversed())
-                .forEach(r -> lines.add(
-                        name(r.categoryName()) + " — " + amount(r.spent()) + " " + currency(r.currency())
-                                + " · " + r.txCount() + " " + opsWord(r.txCount())));
-        return lines;
-    }
-
-    /** Total spend per currency, e.g. "12 340.00 RUB, 56.00 USD" (currencies are never summed together). */
-    private String totalsLine(List<SpendingByCategoryRow> rows) {
-        Map<String, BigDecimal> perCurrency = new LinkedHashMap<>();
-        for (SpendingByCategoryRow r : rows) {
-            perCurrency.merge(currency(r.currency()), magnitude(r), BigDecimal::add);
-        }
-        List<String> parts = new ArrayList<>();
-        perCurrency.forEach((cur, sum) -> parts.add(amount(sum) + " " + cur));
-        return String.join(", ", parts);
-    }
-
-    private static BigDecimal magnitude(SpendingByCategoryRow r) {
-        return r.spent() == null ? BigDecimal.ZERO : r.spent().abs();
-    }
-
-    private static String amount(BigDecimal v) {
-        return (v == null ? BigDecimal.ZERO : v).toPlainString();
-    }
-
-    private static String currency(String c) {
-        return c == null || c.isBlank() ? "?" : c;
-    }
-
-    private static String name(String n) {
-        return n == null || n.isBlank() ? "Без категории" : n;
-    }
-
-    /** Russian plural for "операция" (1 операция / 2 операции / 5 операций). */
-    private static String opsWord(long n) {
-        long mod100 = n % 100;
-        long mod10 = n % 10;
-        if (mod100 >= 11 && mod100 <= 14) return "операций";
-        if (mod10 == 1) return "операция";
-        if (mod10 >= 2 && mod10 <= 4) return "операции";
-        return "операций";
     }
 
     private String skillBody() {

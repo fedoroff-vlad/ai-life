@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
+import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -86,12 +87,13 @@ class GoldenRoutingTest {
     private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
+    private final YearReporter yearReporter = mock(YearReporter.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
             GoldenLlm.agentBody(GoldenRoutingTest.class.getClassLoader()));
     private final IntentRouter router = new IntentRouter(
-            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, manifest, json);
+            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, manifest, json);
 
     GoldenRoutingTest() {
         when(dispatcher.availableToolDefinitions()).thenReturn(TOOLS);
@@ -104,6 +106,8 @@ class GoldenRoutingTest {
                 .thenReturn(Mono.just(new InvestmentAdvisor.AdviceResult("(invest)", "qwen2.5:7b")));
         when(monthlyReporter.report(any(NormalizedMessage.class)))
                 .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(report)", "qwen2.5:7b")));
+        when(yearReporter.report(any(NormalizedMessage.class)))
+                .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(year-report)", "qwen2.5:7b")));
     }
 
     /**

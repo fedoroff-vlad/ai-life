@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
+import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -57,6 +58,7 @@ class IntentRouterTest {
     private final FinancialAdvisor advisor = mock(FinancialAdvisor.class);
     private final InvestmentAdvisor investmentAdvisor = mock(InvestmentAdvisor.class);
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
+    private final YearReporter yearReporter = mock(YearReporter.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -65,7 +67,7 @@ class IntentRouterTest {
             "You are the finance agent for the ai-life system.");
 
     private final IntentRouter router =
-            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, manifest, json);
+            new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, manifest, json);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
@@ -215,7 +217,7 @@ class IntentRouterTest {
     void llmPicksReportHandsOffToMonthlyReporter() {
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
-                "{\"action\":\"report\"}")));
+                "{\"action\":\"report\",\"period\":\"month\"}")));
         when(monthlyReporter.report(any(NormalizedMessage.class))).thenReturn(Mono.just(
                 new MonthlyReporter.ReportResult("Собрал отчёт за июнь.\n\nПолный отчёт: http://m/v1/media/x",
                         "mock-large")));
@@ -229,6 +231,30 @@ class IntentRouterTest {
                 .verifyComplete();
 
         // The report path builds its own deliverable — no tool dispatch.
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+        // No period (or month) → the monthly reporter, not the year one.
+        verify(yearReporter, never()).report(any(NormalizedMessage.class));
+    }
+
+    @Test
+    void llmPicksReportPeriodYearHandsOffToYearReporter() {
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"report\",\"period\":\"year\"}")));
+        when(yearReporter.report(any(NormalizedMessage.class))).thenReturn(Mono.just(
+                new MonthlyReporter.ReportResult("Собрал отчёт за 2026 год.\n\nПолный отчёт: http://m/v1/media/y",
+                        "mock-large")));
+
+        StepVerifier.create(router.route(msg("отчёт за год")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("2026").contains("Полный отчёт");
+                    assertThat(r.invokedTool()).isEqualTo("report");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // period=year → the year reporter, not the monthly one.
+        verify(monthlyReporter, never()).report(any(NormalizedMessage.class));
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 
