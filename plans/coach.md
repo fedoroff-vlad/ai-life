@@ -43,6 +43,24 @@ which move produced an observation.
 2. **Develop (a path)** — from an identified pattern, propose one **concrete, verifiable next step** tied
    to the user's **values** (e.g. flow states in code, immersive media, a calm family day), then track it.
 
+## Personalization — per-person "vector" (first-class)
+The coach serves **more than the owner** — each household member is a distinct subject with their own
+material and their own **coaching vector**: which methods to lean on, tone calibration, focus areas,
+and boundaries. The owner and, say, his wife need *different* vectors; the agent must never blend two
+people's patterns or apply one person's approach to another.
+- **Everything is scoped by subject.** Every coach record (values, observations, hypotheses, actions,
+  sessions) carries a `subject` = the person it's about, resolved to a `person_id` via profile-service
+  (reuse the existing person resolution; `"self"`/owner is just one subject). Reads (notes, recall,
+  briefs) are filtered to that subject and respect the existing **per-user privacy** rules (e.g. a
+  member's private finance accounts are not visible to another).
+- **`coach_profile` = the vector.** A per-subject profile: emphasised methods (weighting over
+  CBT/ACT/MI/SFBT/IFS), tone calibration, focus areas, and hard boundaries / off-limits topics. It
+  shapes the system prompt for that person's sessions. Editable; seeded from that person's own sessions,
+  never assumed.
+- **Consent & who drives it.** Coaching another person is sensitive — see Open decisions: the MVP frame
+  (owner reflecting *with* the coach about a shared situation vs. a member using the coach for
+  themselves), whose consent is required, and what a member can/can't see about another.
+
 ## Data it reads (cross-sectional slice)
 Coach owns no source data — it gathers, like the `Coordinator`:
 - **Second-brain notes** via `memory-service`: `journal` / `reflection` / `goal` note types (already
@@ -55,9 +73,12 @@ Coach owns no source data — it gathers, like the `Coordinator`:
 
 ## Coach memory (`coach.*` schema — its own store, via `mcp-coach`)
 The one place coach is **not** stateless: a durable coaching record so sessions build on each other and
-hypotheses can be revised. Proposed tables:
-- `coach_value` — a user value (label, note, source: stated|inferred, weight?, active). User-owned,
-  editable. Seeded from conversation, never invented.
+hypotheses can be revised. **Every table is scoped by `household_id` + `subject` (`person_id`)** — the
+per-person vector (above) means records never cross subjects. Proposed tables:
+- `coach_profile` — the per-subject **vector**: method weighting (CBT/ACT/MI/SFBT/IFS), tone calibration,
+  focus areas, boundaries/off-limits, active. One per subject; shapes that person's session prompt.
+- `coach_value` — a value (label, note, source: stated|inferred, weight?, active). Subject-owned,
+  editable. Seeded from that person's conversation, never invented.
 - `coach_observation` — one grounded observation from a session (text, method tag ∈ cbt|act|mi|sfbt|ifs,
   evidence refs = note/brief ids, session_id, ts).
 - `coach_hypothesis` — a candidate recurring pattern (text, status ∈ open|supported|revised|dropped,
@@ -65,7 +86,7 @@ hypotheses can be revised. Proposed tables:
   data arrives (a `NoteReconciler`-style enrich/supersede, mirroring ambient capture).
 - `coach_action` — a proposed next step (text, linked value, linked hypothesis, status ∈
   proposed|active|done|dropped, due?, ts) — the Develop-mode follow-up spine.
-- `coach_session` — a session envelope (ts, mode, summary, produced observation/action ids) for
+- `coach_session` — a session envelope (subject, ts, mode, summary, produced observation/action ids) for
   continuity.
 
 `mcp-coach` = a domain-MCP over `coach.*` (CRUD + a few reads: open hypotheses, active actions, values,
@@ -104,11 +125,13 @@ row).
   slice, not the MVP.
 
 ## Phased slices (each = one small vertical slice / PR unless noted)
-- **CO-1 — `coach.*` + `mcp-coach` store.** Schema (value/observation/hypothesis/action/session) +
-  domain-MCP CRUD + `/internal/*` + Testcontainers IT. No agent yet.
+- **CO-1 — `coach.*` + `mcp-coach` store.** Schema (profile/value/observation/hypothesis/action/session,
+  all `household_id`+`subject`-scoped) + domain-MCP CRUD + `/internal/*` + Testcontainers IT. No agent yet.
 - **CO-2 — `coach-agent` skeleton + `safety-check` + `reflect` (reactive).** Agent module, orchestrator
-  registration, gather (notes + recall) → Reflect synthesis → persists observations/hypotheses + a
-  session. Safety gate short-circuits first. Golden-tested on qwen2.5:7b (structure-not-text).
+  registration, subject resolution (person_id via profile-service; MVP subject per Open decision 0),
+  gather (that subject's notes + recall) → Reflect synthesis shaped by the subject's `coach_profile`
+  vector → persists observations/hypotheses + a session. Safety gate short-circuits first. Golden-tested
+  on qwen2.5:7b (structure-not-text).
 - **CO-3 — cross-domain `brief` gather.** Fold finance/calendar `brief`s into the Reflect gather (reuse
   `SpecialistBriefs`) so patterns span domains (the "rescue projects amid financial anxiety" case).
 - **CO-4 — `develop` mode + action follow-up.** Values-tied next step → `coach_action`; continuity reads
@@ -119,6 +142,13 @@ row).
 - **E2E closer** at CO-2/CO-4 per the stage-closer rule.
 
 ## Open decisions (need owner sign-off before CO-1)
+0. **Multi-person frame & consent (biggest).** The coach is per-person (each subject has their own
+   vector). Confirm the MVP frame: (a) **owner-only** self-coaching first, per-person support as a later
+   slice (recommended — smallest, safest start); or (b) multi-member from the start. And the model for
+   coaching *another* member: is it the owner reflecting **with** the coach about a shared situation
+   (reads only what the owner may see), or the **member using the coach for themselves** (their own
+   private record)? What consent is required, and what may one member see about another? This gates how
+   `subject` scoping + privacy are enforced.
 1. **"Alive moments" source.** New concept — nothing in the system captures it today. MVP proposal: read
    it as `journal`/`reflection` notes (ambient capture already produces these); a **dedicated
    "alive-moment" capture** (a distinct note type or a quick log seam) is a separate follow-up. Confirm:
