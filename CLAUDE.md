@@ -64,7 +64,7 @@ At every **stage/domain closer**, do a quick freshness pass: root README + `plan
 
 ## Conventions (details: `plans/architecture.md`)
 - Talk to the repo owner in **Russian** (chat replies, PR descriptions targeted at them, summaries). Code, identifiers, commit messages, prompts, system messages, tool descriptions, agent roles, plan/STATUS files, and anything that ends up in the repo stay in **English**. User-facing app replies follow the end user's language.
-- Skill: `skills/<domain>/<name>/SKILL.md` (frontmatter + EN body) + optional `SKILL.ru.md`. Agent: `agents/<name>/AGENT.md` (read at startup, registers skills/MCP).
+- Skill: `domains/<domain>/skills/<name>/SKILL.md` (frontmatter + EN body) + optional `SKILL.ru.md`. Agent: `domains/<domain>/<name>-agent/AGENT.md` (read at startup, registers skills/MCP).
 - DB schemas split by domain (`core, memory, audit, bus, media, calendar, finance, tasks`), not by service. One shared changelog.
 - Shared libs in `libs/*`. Inter-service: HTTP/SSE sync, Postgres LISTEN/NOTIFY async. LLM only via `libs/llm-client` → `llm-gateway`. MCP only via `libs/mcp-client`.
 - Two kinds of MCP: **domain-MCP** (owns a schema) vs **capability-MCP** (schema-less shared tool: weather, web-fetch — any agent binds it). Raw external capability → capability-MCP; reasoning over it → a specialist agent. Coordination is **agent-led via the hub** (orchestrator stays a thin router); outbound external actions need user confirm. Full model + routing doctrine + brain inputs: `plans/architecture.md`.
