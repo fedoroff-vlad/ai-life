@@ -46,6 +46,17 @@ Everything enters the orchestrator ("brain") through one of a small, extensible 
 ## Orchestrator routing doctrine
 The brain stays intuitive **because the rules are data-driven** (the LLM classifier reads agent manifests; adding an agent extends routing with no code change) and the precedence is fixed:
 
+> **Discovery is startup-static today (constraint for hot/cold deployment).** `AgentDiscovery` scrapes each
+> agent's manifest **once at startup**; `LlmIntentClassifier` freezes its `knownAgents` + few-shot prompt
+> from that snapshot, and only agents whose manifest fetched get a `RemoteAgent` in the dispatch map. So an
+> agent that is **down at orchestrator boot is invisible** — un-classifiable and un-dispatchable (intent
+> *and* wake). This is fine while every agent is always-on, but the Mac **hot/cold** plan
+> ([`lifecycle.md`](lifecycle.md)) requires cold agents to be routable while stopped → a prerequisite slice
+> makes discovery **cold-tolerant** (a `RemoteAgent` per configured agent regardless of liveness + a durable
+> manifest roster loaded at boot + lazy `ensure`-before-dispatch). Do not build lazy-activation on top of the
+> startup scrape.
+
+
 **Reactive — a message arrived:**
 1. **Active `route-lock`** (an open confirmation owns the conversation) → `resume` the locked agent, **bypass classification** (Track A / A2).
 2. Else **classify intent** (FAST channel, few-shot from manifests + memory-service recall as context):

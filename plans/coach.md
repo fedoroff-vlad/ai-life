@@ -1,7 +1,9 @@
 # Coach domain — spec
 
-**Status: CO-2 SHIPPED — CO-3 next ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
-owner brief + all decisions signed 2026-07-07).** Owner item 2, was deferred behind the platform
+**Status: PARKED mid-epic (2026-07-10) — CO-1+CO-2 shipped, CO-3 was next.** Owner deprioritised the
+epic while re-planning project direction; resume from §Phased slices (CO-3 = intake). Everything below is
+the agreed design, unchanged. — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289);
+owner brief + all decisions signed 2026-07-07. Owner item 2, was deferred behind the platform
 migration + memory-driven orchestration; picked up spec-first because the MVP scope/store were open —
 now resolved (see **Decisions** below). This file is the agreed design; implementation is phased below.
 **CO-1 done (2026-07-07):** the `coach.*` schema + `mcp-coach` store (subject-scoped CRUD +

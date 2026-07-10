@@ -1,7 +1,8 @@
 # ai-life — project reference
 
 A consolidated, two-lens overview of the system: first for a **developer**, then for a **user** who
-wants to try it. This is a snapshot (2026-06-25); the authoritative, always-current sources are
+wants to try it. This is a **light snapshot (last refreshed 2026-07-10)** — much has shipped since it was
+first written and it is deliberately not exhaustive; the authoritative, always-current sources are
 [`plans/architecture.md`](../plans/architecture.md) (design), [`plans/roadmap.md`](../plans/roadmap.md)
 (stages), and [`plans/STATUS.md`](../plans/STATUS.md) (in-flight). When this file and `plans/` disagree,
 `plans/` wins — keep this file light and link out rather than restating detail (README-drift discipline).
@@ -12,7 +13,8 @@ wants to try it. This is a snapshot (2026-06-25); the authoritative, always-curr
 
 ### What it is
 
-Personal AI-agent system for a 2-person household, local-first (target host: Mac Studio 128 GB). Entry
+Personal AI-agent system for a 2-person household, local-first (target host: **Mac Studio M4 Max, 64 GB**,
+run 24/7 with a hot/cold service split — see [`plans/lifecycle.md`](../plans/lifecycle.md)). Entry
 point is Telegram (text/voice/photo/video/files). Flow:
 
 **Telegram → gateway → orchestrator ("brain") → domain agents → narrow MCP servers → Postgres.**
@@ -107,8 +109,9 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 | **2 — finance** | done | `finance.*`, `mcp-finance`, Money Pro CSV import, `finance-agent` + categorizer + receipt-parser, budgets + alerts, investment-advisor (advisory-only) |
 | **3 — tasks (GTD)** | done | `mcp-tasks` (full GTD), `tasks-agent`, weekly review cron, catch-all inbox |
 | **4 — memory + inter-agent** | done | memory-service (pgvector recall + scope), graph relations (SQL; AGE deferred), LISTEN/NOTIFY bus + outbox, conversation-state (route-lock / confirm), first Coordinator chains |
-| **5 — real LLM** | **in progress ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199))** | Langfuse tracing + Anthropic/openai-compatible/Ollama providers ready; **unblocked via local Ollama** (`qwen2.5:7b` + `nomic-embed-text`, free). First golden tests landed (`finance-agent` `GoldenRoutingTest`, opt-in `@Tag("golden")` + `GOLDEN_LLM`, structure-not-text) — validated the finance routing spine on the real model + fixed two format-drift findings. CI default stays `mock`; remaining: golden coverage for the other agents + orchestrator routing |
+| **5 — real LLM** | done ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) | Langfuse tracing + Anthropic/openai-compatible/Ollama providers; **local Ollama** baseline (`qwen2.5:7b` + `nomic-embed-text`, free). Opt-in, CI-skipped **golden tests** (structure-not-text, `@Tag("golden")` + `GOLDEN_LLM`) now cover all agents + orchestrator routing via `libs/golden-test-support`. CI default stays `mock` |
 | **6 — domain agents** | done (current domains) | researcher (+ `mcp-web`), stylist, nutrition (nutritionist + chef), creator — each MVP-complete. Future agents extracted to [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issues |
+| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), and coach-agent CO-1/CO-2 (now parked). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline; **current in-flight = Mac deployment + hot/cold lifecycle** ([`plans/lifecycle.md`](../plans/lifecycle.md)) |
 
 ### Live domains (current)
 
@@ -122,14 +125,21 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 - **creator** — `mcp-creator` + `creator-agent` + sources `mcp-youtube` / `mcp-reddit` / `mcp-feeds`
   (+ `mcp-web`). Creator track, trend → ideas → drafts synthesis (HTML board), trend/draft cache, and the
   inter-agent greeting chain `calendar.birthday → creator.draft_greeting → notifier`.
-- **briefing** — 🚧 **in progress** ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186), first future-agent).
-  `mcp-briefing` (per-person `briefing_profile`: location/interests/sections/schedule) + `briefing-agent` +
-  shared `mcp-weather` (forecast + geocode over Open-Meteo). **Done:** the personalization store, the NL
-  config flow (`briefing-profiler`), the **digest** (multi-domain read coordinator: weather + calendar +
-  finance + news → one synthesis on the `Coordinator`), its **HTML board** (doc-render → media-service →
-  link), and the **proactive wake receiver** (`/agents/briefing/triggers/briefing.digest` → notifier) —
-  golden-verified on local Ollama. **Pending (BR-f2):** `mcp-briefing` registering the per-profile cron in
-  scheduler-service on set + the `E2EBriefingWakeFlowTest` closer. PR-sliced in [briefing.md](../plans/briefing.md).
+- **briefing** — done ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186)). `mcp-briefing`
+  (per-person `briefing_profile`) + `briefing-agent` + shared `mcp-weather`: NL config flow, the multi-domain
+  **digest** (weather + calendar + finance + news → one synthesis on the `Coordinator`), its HTML board, and
+  the proactive wake. See [briefing.md](../plans/briefing.md).
+- **docs** — done. `mcp-docs` + `docs-agent`: ingest a receipt/contract/warranty photo → OCR → archive +
+  index → "find my X" search. See [docs.md](../plans/docs.md).
+- **second brain / notes** — done ([#257](https://github.com/fedoroff-vlad/ai-life/issues/257)). Authored
+  `memory.note` tier on memory-service + `[[wiki-links]]` relations + `notes-agent` ("запомни…" / "что я думал
+  про…"), auto-filled by **ambient capture**. The substrate every agent reads/writes. See
+  [second-brain.md](../plans/second-brain.md).
+- **coordinator** — done ([#290](https://github.com/fedoroff-vlad/ai-life/issues/290)). `coordinator-agent`:
+  cross-cutting/multi-domain request → reads the second brain + gathers specialists' read-only `brief`s → one
+  synthesized reply. No own store; picked purely by manifest (data-driven routing).
+- **coach** — parked ([#289](https://github.com/fedoroff-vlad/ai-life/issues/289)). `mcp-coach` store +
+  `coach-agent` safety-gate + Reflect shipped (CO-1/CO-2); rest deferred. See [coach.md](../plans/coach.md).
 
 Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper sidecar + vision-caption),
 `mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-weather` (Open-Meteo forecast + geocode),
@@ -141,8 +151,9 @@ Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper side
 - **GPU line** — real image-gen engine, virtual try-on (CatVTON), VLM-OCR (Unlimited-OCR) — wait on a GPU host.
 - **Apache AGE graph** — deferred (SQL `memory.relations` suffices).
 - **creator-deferred** — Threads/Instagram/Pinterest via `mcp-browser`, post imagery, scheduling/auto-posting.
-- **Future agents** — briefing / health / docs / family-memory / travel / email / smart-home, each a
-  [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue.
+- **Future agents (still open)** — health / travel / email / smart-home, each a
+  [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue. (briefing + docs
+  shipped; family-memory folded into the second-brain epic; coach parked.)
 
 ### Build
 
