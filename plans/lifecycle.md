@@ -76,6 +76,24 @@ follows a workload profile.
 4. **Creator is cold.**
 5. **`deploy-mvp` first** — get the stack live on the Mac, then build the lifecycle layer there.
 
+## Feasibility — verified against the codebase (2026-07-10)
+Audited before committing to the plan. Verdict: **feasible, with one prerequisite fix.**
+- ✅ **Supervisor = `docker compose up -d <svc>` works.** Cold agents declare `depends_on: {…: service_healthy}`
+  on their MCPs (checked `chef-agent` → `mcp-nutrition`+`mcp-web`), so `up -d <agent>` brings the whole
+  subtree and waits for health; already-healthy hot deps are not restarted.
+- ✅ **Health endpoints** (`/actuator/health`) exist on every service for the reaper/ensure to poll.
+- ✅ **Cold MCP stores lose no data** — data lives in hot Postgres; the MCP is stateless over the DB, so
+  stopping/starting it is safe.
+- ✅ **llm-gateway is fully env-parameterised** → mock→Ollama is pure config; the runtime model override
+  (LC-4) is our own code.
+- 🔴 **BLOCKER — orchestrator discovery is startup-static + liveness-coupled.** `AgentDiscovery` scrapes
+  manifests **once at boot**; `LlmIntentClassifier` freezes `knownAgents`+prompt from that snapshot, and
+  only agents whose manifest fetched get a `RemoteAgent`. A cold agent **down at boot is un-classifiable
+  and un-dispatchable** (intent *and* wake, `/v1/agents/wake` shares the map). Lazy-activation cannot sit
+  on top of this → **LC-2.5 below is a hard prerequisite for LC-3.**
+- ⚠️ **Wake path** must also be hooked (ensure-before-wake), not just the intent path.
+- ⚠️ **No per-JVM heap caps** in compose (43 uncapped JVMs) → a deploy-mvp TODO before all-hot.
+
 ## Slices (each = one small vertical slice / PR)
 - **deploy-mvp — boot on the Mac.** Mac/Ollama env profile (`LLM_PROVIDER=openai-compatible` → host
   Ollama, real model names, Telegram + internal tokens), per-JVM heap caps, `infra/README` refresh, first
@@ -85,8 +103,15 @@ follows a workload profile.
   always-on set. No code.
 - **LC-2 — `platform/supervisor` + socket-proxy.** `ensure`/`release`/`status` + reaper. New module +
   README.
+- **LC-2.5 — cold-tolerant agent discovery (PREREQUISITE for LC-3).** Make the orchestrator know + reach
+  every configured agent while it is stopped: (1) a `RemoteAgent` per configured entry regardless of the
+  manifest fetch; (2) a **durable manifest roster** — persist each manifest on a successful scrape (e.g.
+  `core.agent_manifest`) + load-all-at-boot + periodic refresh — so the classifier's few-shot always lists
+  cold agents; (3) the classifier reads the durable roster, not a boot-frozen snapshot. See the audit
+  above + [architecture.md](architecture.md) §Orchestrator routing doctrine.
 - **LC-3 — orchestrator lazy-activation.** Registry entries gain `hot`/`container`; `ensure` before
-  routing to a cold agent. Depends on CDS/AOT (LC-3a) for the instant-start UX.
+  routing to a cold agent **and before a wake dispatch**. Depends on LC-2.5 (roster) + CDS/AOT (LC-3a) for
+  the instant-start UX.
   - **LC-3a — CDS/AOT fast cold-start** for the agent modules (Spring Boot 4 AOT + CDS archive in the
     Dockerfile). Lands before/with LC-3.
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
