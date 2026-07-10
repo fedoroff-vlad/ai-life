@@ -83,7 +83,7 @@ purchase, a booking) only after explicit user confirmation.
 | **Domain agent** | `domains/<domain>/<name>-agent` | thin: AGENT.md (EN prompt) + skills + bound MCP; reasoning is the LLM |
 | **domain-MCP** (owns a schema) | `domains/<domain>/mcp-<name>` | one schema + Liquibase feature |
 | **capability-MCP** (no schema) | `shared/mcp/<name>` | stateless wrapper over an external surface; any agent binds it |
-| **Skill** (prompt instruction) | `skills/<domain>/<name>/SKILL.md` | EN body + frontmatter |
+| **Skill** (prompt instruction) | `domains/<domain>/skills/<name>/SKILL.md` | EN body + frontmatter |
 | **Editable rule** (budgets, who-is-who) | Postgres, editable from chat | NOT a skill |
 
 Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules = data.** Two kinds of
