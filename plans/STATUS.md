@@ -9,10 +9,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   Target: Mac Studio M4 Max 64/512 running ai-life 24/7; always-on **hot** set + auto **cold** start/stop
   via a new `platform/supervisor`, plus dynamic ai-life model downshift (32B↔14B) when the separate
   coder tenant runs. Decisions 1–5 signed (socket-proxy · instant cold-start via CDS/AOT · TTL env ·
-  creator cold · deploy-mvp first). **In flight: `deploy-mvp`** = Mac/Ollama env profile + per-JVM heap
-  caps + `infra/README` refresh + first `compose up` smoke (config only; the Mac isn't purchased yet, so
-  authored blind and validated on-device later). Then LC-1 profiles → LC-2 supervisor → LC-3(+3a AOT) →
-  LC-4 model-manager → LC-5. coach-agent parked (Backlog).
+  creator cold · deploy-mvp first). **`deploy-mvp`:** Mac/Ollama env profile (`.env.mac.example`) ✅, per-JVM
+  heap caps (`-Xmx768m` via an `x-jvm-opts` anchor on all 44 in-house services, compose-config validated) ✅,
+  `infra/README` refresh ✅ — **remaining = first real `docker compose up` + cross-domain smoke on the Mac**
+  (config authored blind; the Mac isn't purchased yet). Then LC-1 profiles → LC-2 supervisor → LC-2.5
+  cold-tolerant discovery → LC-3(+3a AOT) → LC-4 model-manager → LC-5. coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.

@@ -133,7 +133,7 @@ algorithms (centrality, shortest path); (c) row count exceeds ~100k and SQL
 joins start to hurt.
 
 ## Roadmap (deferred)
-- **Ambient / intuitive capture (in progress):** the memory-from-chat path (`CaptureService`) now has a **third output** — curated **ambient notes** — so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1..AC-5 all landed, flag-gated:** classify every message → auto-save explicit fixation / approve-first important-inferred (push + notes-agent `/resume`) / ignore trivial; on a near-duplicate, reconcile (`NoteReconciler` enrich/supersede/skip) instead of blindly writing. The ambient/intuitive-capture feature is complete.
+- **Ambient / intuitive capture (complete, AC-1..5, flag-gated):** the memory-from-chat path (`CaptureService`) now has a **third output** — curated **ambient notes** — so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1..AC-5 all landed, flag-gated:** classify every message → auto-save explicit fixation / approve-first important-inferred (push + notes-agent `/resume`) / ignore trivial; on a near-duplicate, reconcile (`NoteReconciler` enrich/supersede/skip) instead of blindly writing. The ambient/intuitive-capture feature is complete.
 - PR17: first cross-agent chain (`calendar.birthday_upcoming → memory recall + person relations → gift-recommender`).
 - Future: Apache AGE upgrade (per promotion criteria above).
 - Future: bulk re-embed endpoint when we change provider/dim (Stage 5).
