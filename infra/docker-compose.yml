@@ -27,6 +27,12 @@
 
 name: ai-life
 
+# Heap cap for all in-house JVM services: keeps N Spring Boot apps on a 64 GB host
+# from each letting heap grow toward MaxRAMPercentage of *host* RAM under load.
+# Conservative/generous default (heap-only, no container mem_limit -> no OOM-from-too-small
+# risk); tune on-device with `docker stats`. See plans/lifecycle.md (deploy-mvp).
+x-jvm-opts: &jvm-opts "-Xmx768m"
+
 services:
   # ---------- infrastructure ----------
 
@@ -178,6 +184,7 @@ services:
       dockerfile: platform/llm-gateway/Dockerfile
     restart: unless-stopped
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       LLM_GATEWAY_PORT: 8081
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-mock-large}
@@ -211,6 +218,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       PROFILE_SERVICE_PORT: 8082
       PROFILE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       PROFILE_DB_USER: ${POSTGRES_USER:-ailife}
@@ -239,6 +247,7 @@ services:
       profile-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MEMORY_PORT: 8087
       MEMORY_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MEMORY_DB_USER: ${POSTGRES_USER:-ailife}
@@ -270,6 +279,7 @@ services:
       minio:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MEDIA_PORT: 8088
       MEDIA_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MEDIA_DB_USER: ${POSTGRES_USER:-ailife}
@@ -299,6 +309,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       CONVERSATION_PORT: 8089
       CONVERSATION_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       CONVERSATION_DB_USER: ${POSTGRES_USER:-ailife}
@@ -323,6 +334,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       SCHEDULER_PORT: 8085
       SCHEDULER_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       SCHEDULER_DB_USER: ${POSTGRES_USER:-ailife}
@@ -350,6 +362,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       NOTIFIER_PORT: 8084
       NOTIFIER_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       NOTIFIER_DB_USER: ${POSTGRES_USER:-ailife}
@@ -378,6 +391,7 @@ services:
       profile-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       ORCHESTRATOR_PORT: 8083
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -421,6 +435,7 @@ services:
       media-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       GATEWAY_PORT: 8080
       GATEWAY_TELEGRAM_BOT_USERNAME: ${GATEWAY_TELEGRAM_BOT_USERNAME:-ai_life_bot}
       GATEWAY_TELEGRAM_BOT_TOKEN: ${GATEWAY_TELEGRAM_BOT_TOKEN:-}
@@ -457,6 +472,7 @@ services:
       radicale:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_CALDAV_PORT: 8090
       MCP_CALDAV_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_CALDAV_DB_USER: ${POSTGRES_USER:-ailife}
@@ -489,6 +505,7 @@ services:
       scheduler-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_ICS_IMPORT_PORT: 8091
       MCP_ICS_IMPORT_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_ICS_IMPORT_DB_USER: ${POSTGRES_USER:-ailife}
@@ -521,6 +538,7 @@ services:
       scheduler-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_FINANCE_PORT: 8092
       MCP_FINANCE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_FINANCE_DB_USER: ${POSTGRES_USER:-ailife}
@@ -557,6 +575,7 @@ services:
       whisper:
         condition: service_started
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_MEDIA_PROCESSING_PORT: 8097
       MEDIA_SERVICE_URL: http://media-service:8088
       LLM_GATEWAY_URL: http://llm-gateway:8081
@@ -580,6 +599,7 @@ services:
       searxng:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_WEB_PORT: 8098
       SEARXNG_URL: http://searxng:8080
     healthcheck:
@@ -598,6 +618,7 @@ services:
     restart: unless-stopped
     # No backing container — quotes come from Stooq over public HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_MARKET_DATA_PORT: 8100
       MARKETDATA_STOOQ_URL: https://stooq.com
       MARKETDATA_SOURCE: stooq
@@ -617,6 +638,7 @@ services:
     restart: unless-stopped
     # No backing container — forecasts come from Open-Meteo over public HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_WEATHER_PORT: 8113
       WEATHER_OPEN_METEO_URL: https://api.open-meteo.com
       WEATHER_GEOCODE_URL: https://geocoding-api.open-meteo.com
@@ -637,6 +659,7 @@ services:
     restart: unless-stopped
     # No backing container — facts come from Open Food Facts over public HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_FOOD_DATA_PORT: 8107
       FOODDATA_OPEN_FOOD_FACTS_URL: https://world.openfoodfacts.org
       FOODDATA_SOURCE: openfoodfacts
@@ -656,6 +679,7 @@ services:
     restart: unless-stopped
     # No backing container — trends come from the YouTube Data API over public HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_YOUTUBE_PORT: 8110
       YOUTUBE_API_BASE_URL: https://www.googleapis.com/youtube/v3
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
@@ -677,6 +701,7 @@ services:
     restart: unless-stopped
     # No backing container — trends come from the Reddit API over public HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_REDDIT_PORT: 8111
       REDDIT_API_BASE_URL: https://oauth.reddit.com
       REDDIT_AUTH_BASE_URL: https://www.reddit.com
@@ -701,6 +726,7 @@ services:
     restart: unless-stopped
     # No backing container — feeds come from RSS URLs / the public Telegram web preview over HTTPS.
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_FEEDS_PORT: 8112
       FEEDS_TELEGRAM_BASE_URL: https://t.me
       FEEDS_USER_AGENT: ${FEEDS_USER_AGENT:-ai-life/mcp-feeds 0.0.1 (+https://github.com/vlad94fed)}
@@ -724,6 +750,7 @@ services:
       media-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_IMAGE_GEN_PORT: 8103
       # stub (placeholder PNG, no cost) | local (self-hosted model at IMAGE_GEN_LOCAL_URL).
       IMAGE_GEN_ENGINE: ${IMAGE_GEN_ENGINE:-stub}
@@ -747,6 +774,7 @@ services:
       media-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_CHART_RENDER_PORT: 8120
       # java2d (pure Graphics2D, no external dependency) — swappable later via env.
       CHART_RENDER_ENGINE: ${CHART_RENDER_ENGINE:-java2d}
@@ -771,6 +799,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_MONEY_PRO_IMPORT_PORT: 8094
       MCP_MONEY_PRO_IMPORT_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_MONEY_PRO_IMPORT_DB_USER: ${POSTGRES_USER:-ailife}
@@ -797,6 +826,7 @@ services:
       scheduler-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_TASKS_PORT: 8095
       MCP_TASKS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_TASKS_DB_USER: ${POSTGRES_USER:-ailife}
@@ -825,6 +855,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_WARDROBE_PORT: 8101
       MCP_WARDROBE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_WARDROBE_DB_USER: ${POSTGRES_USER:-ailife}
@@ -849,6 +880,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_NUTRITION_PORT: 8104
       MCP_NUTRITION_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_NUTRITION_DB_USER: ${POSTGRES_USER:-ailife}
@@ -876,6 +908,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_CREATOR_PORT: 8108
       MCP_CREATOR_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_CREATOR_DB_USER: ${POSTGRES_USER:-ailife}
@@ -900,6 +933,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_BRIEFING_PORT: 8114
       MCP_BRIEFING_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_BRIEFING_DB_USER: ${POSTGRES_USER:-ailife}
@@ -924,6 +958,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_DOCS_PORT: 8116
       MCP_DOCS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_DOCS_DB_USER: ${POSTGRES_USER:-ailife}
@@ -948,6 +983,7 @@ services:
       liquibase:
         condition: service_completed_successfully
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       MCP_COACH_PORT: 8121
       MCP_COACH_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MCP_COACH_DB_USER: ${POSTGRES_USER:-ailife}
@@ -980,6 +1016,7 @@ services:
       mcp-caldav:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       CALENDAR_AGENT_PORT: 8086
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1026,6 +1063,7 @@ services:
       mcp-chart-render:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       FINANCE_AGENT_PORT: 8093
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1065,6 +1103,7 @@ services:
       mcp-tasks:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       TASKS_AGENT_PORT: 8096
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1093,6 +1132,7 @@ services:
       mcp-web:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       RESEARCHER_AGENT_PORT: 8099
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_WEB_URL: http://mcp-web:8098
@@ -1135,6 +1175,7 @@ services:
       mcp-image-gen:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       STYLIST_AGENT_PORT: 8102
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_WARDROBE_URL: http://mcp-wardrobe:8101
@@ -1182,6 +1223,7 @@ services:
       mcp-food-data:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       NUTRITIONIST_AGENT_PORT: 8105
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_NUTRITION_URL: http://mcp-nutrition:8104
@@ -1228,6 +1270,7 @@ services:
       mcp-web:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       CHEF_AGENT_PORT: 8106
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_NUTRITION_URL: http://mcp-nutrition:8104
@@ -1275,6 +1318,7 @@ services:
       mcp-feeds:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       CREATOR_AGENT_PORT: 8109
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_CREATOR_URL: http://mcp-creator:8108
@@ -1319,6 +1363,7 @@ services:
       mcp-web:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       BRIEFING_AGENT_PORT: 8115
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_BRIEFING_URL: http://mcp-briefing:8114
@@ -1357,6 +1402,7 @@ services:
       mcp-media-processing:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       DOCS_AGENT_PORT: 8117
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_DOCS_URL: http://mcp-docs:8116
@@ -1394,6 +1440,7 @@ services:
       scheduler-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       NOTES_AGENT_PORT: 8118
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1429,6 +1476,7 @@ services:
       memory-service:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       COORDINATOR_AGENT_PORT: 8119
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1464,6 +1512,7 @@ services:
       mcp-coach:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       COACH_AGENT_PORT: 8122
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1492,6 +1541,7 @@ services:
       mcp-caldav:
         condition: service_healthy
     environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
       CALENDAR_WEB_PORT: 8113
       MCP_CALDAV_URL: http://mcp-caldav:8090
       CALENDAR_WEB_PAST_DAYS: ${CALENDAR_WEB_PAST_DAYS:-31}
