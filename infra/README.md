@@ -7,7 +7,7 @@ Local development infrastructure + full-system compose for ai-life.
 | file | covers | when |
 |---|---|---|
 | `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper + grafana (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
-| `docker-compose.yml` | everything in `dev.yml` (minus MinIO) **plus** all 7 platform services + 2 agents + 4 MCP servers | End-to-end smoke testing, Mac Studio deployment, validating a release. |
+| `docker-compose.yml` | everything in `dev.yml` **plus** the full app stack — all platform services, domain agents, and MCP servers (see the port table below for the current set) | End-to-end smoke testing, Mac Studio deployment, validating a release. |
 
 Both files share `.env` and the same Postgres volume — they don't conflict, but
 don't run them at the same time either (port collisions on 5432 / 5232).
@@ -29,12 +29,38 @@ migrations are done — that is expected.
 ```sh
 cd infra
 cp .env.example .env
-docker compose -f docker-compose.yml up -d --build   # first run builds 13 images
+docker compose -f docker-compose.yml up -d --build   # first run builds every app image
 docker compose -f docker-compose.yml logs -f gateway-telegram
 ```
 
 First build is ~5–10 minutes (one Maven build per Dockerfile; `--mount=type=cache`
 keeps `~/.m2` warm between subsequent builds). Subsequent `up` calls are fast.
+
+## Mac Studio deployment (24/7, local Ollama)
+
+The production target is a Mac Studio M4 Max (64 GB) running the stack 24/7 with a
+**hot/cold** service split — see [`plans/lifecycle.md`](../plans/lifecycle.md) for the full
+design. The `deploy-mvp` step just gets the stack booting; hot/cold + the supervisor come
+in the `LC-*` slices.
+
+LLM inference is **local Ollama on the host** (native Metal, not a container). Reach it from
+inside the compose network via `host.docker.internal:11434`.
+
+```sh
+cd infra
+cp .env.example .env
+# apply the Mac/Ollama overlay (LLM block + secrets) — see .env.mac.example
+brew install ollama && ollama serve &          # host, native
+# pull the models listed in .env.mac.example (~26 GB one-time)
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml logs -f gateway-telegram
+```
+
+The LLM defaults in `.env.example` are `mock` (for CI/tests) — the overlay in
+[`.env.mac.example`](.env.mac.example) switches `LLM_PROVIDER` to `openai-compatible`,
+points `LLM_BASE_URL` at host Ollama, and names the real chat/fast/vision/embedding models.
+Fill the four required secrets there too (`GATEWAY_TELEGRAM_BOT_TOKEN`, the two internal
+tokens, CalDAV creds).
 
 Only `gateway-telegram` exposes a host port (default 8080) — everything else
 talks via the internal `ai-life` docker network. `postgres` / `radicale` host
