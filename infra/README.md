@@ -46,6 +46,19 @@ in the `LC-*` slices.
 LLM inference is **local Ollama on the host** (native Metal, not a container). Reach it from
 inside the compose network via `host.docker.internal:11434`.
 
+**One command (recommended)** — clone the repo, then from the repo root:
+
+```sh
+./scripts/bootstrap-mac.sh   # Homebrew + tools/apps (Brewfile) + ollama service + models (~26 GB)
+#   → then apply .env.mac.example into infra/.env and fill the 4 secrets
+./scripts/start-mac.sh       # ollama + full compose stack (builds images on first run)
+```
+
+`bootstrap-mac.sh` is idempotent; `SKIP_MODELS=1 ./scripts/bootstrap-mac.sh` installs tools only.
+The toolset lives in [`Brewfile`](../Brewfile), the models in [`scripts/pull-models.sh`](../scripts/pull-models.sh).
+
+**Manual equivalent:**
+
 ```sh
 cd infra
 cp .env.example .env

@@ -44,9 +44,12 @@ ai-life/
 ├── shared/                  shared RUNTIME capabilities any agent binds:
 │   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)
-└── infra/                   docker-compose, liquibase, postgres init, .env.example
+├── infra/                   docker-compose, liquibase, postgres init, .env.example
+├── scripts/                 bootstrap-mac.sh + start-mac.sh (one-command Mac setup/launch), pull-models.sh, golden.sh
+└── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
 ```
 Each agent/MCP is its **own Spring Boot app + Dockerfile + container** — co-location ≠ one process.
+New Mac? Clone, then `./scripts/bootstrap-mac.sh` → `./scripts/start-mac.sh` (details: [`infra/README.md`](infra/README.md)).
 
 ## Build
 ```sh
