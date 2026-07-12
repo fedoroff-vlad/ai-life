@@ -1,0 +1,25 @@
+{
+	"$schema": "https://aka.ms/winget-packages.schema.2.0.json",
+	"Sources": [
+		{
+			"Packages": [
+				{ "PackageIdentifier": "Git.Git" },
+				{ "PackageIdentifier": "GitHub.cli" },
+				{ "PackageIdentifier": "Apache.Maven" },
+				{ "PackageIdentifier": "EclipseAdoptium.Temurin.25.JDK" },
+				{ "PackageIdentifier": "Ollama.Ollama" },
+				{ "PackageIdentifier": "Docker.DockerDesktop" },
+				{ "PackageIdentifier": "Anthropic.ClaudeCode" },
+				{ "PackageIdentifier": "JetBrains.IntelliJIDEA.Ultimate" },
+				{ "PackageIdentifier": "Postman.Postman" }
+			],
+			"SourceDetails": {
+				"Argument": "https://cdn.winget.microsoft.com/cache",
+				"Identifier": "Microsoft.Winget.Source_8wekyb3d8bbwe",
+				"Name": "winget",
+				"Type": "Microsoft.PreIndexed.Package"
+			}
+		}
+	],
+	"WinGetVersion": "1.29.280"
+}

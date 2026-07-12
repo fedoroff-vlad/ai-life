@@ -45,11 +45,13 @@ ai-life/
 │   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds (capability-MCPs, no schema)
 ├── infra/                   docker-compose, liquibase, postgres init, .env.example
-├── scripts/                 bootstrap-mac.sh + start-mac.sh (one-command Mac setup/launch), pull-models.sh, golden.sh
-└── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
+├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh
+├── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
+└── winget-packages.json     Windows toolset for `winget import` (see scripts/bootstrap-win.ps1)
 ```
 Each agent/MCP is its **own Spring Boot app + Dockerfile + container** — co-location ≠ one process.
-New Mac? Clone, then `./scripts/bootstrap-mac.sh` → `./scripts/start-mac.sh` (details: [`infra/README.md`](infra/README.md)).
+New machine? Clone, then `./scripts/bootstrap-mac.sh` (macOS) or `.\scripts\bootstrap-win.ps1` (Windows) →
+the matching `start` script (details: [`infra/README.md`](infra/README.md)).
 
 ## Build
 ```sh

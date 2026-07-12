@@ -49,13 +49,20 @@ inside the compose network via `host.docker.internal:11434`.
 **One command (recommended)** — clone the repo, then from the repo root:
 
 ```sh
-./scripts/bootstrap-mac.sh   # Homebrew + tools/apps (Brewfile) + ollama service + models (~26 GB)
-#   → then apply .env.mac.example into infra/.env and fill the 4 secrets
-./scripts/start-mac.sh       # ollama + full compose stack (builds images on first run)
+# macOS (Homebrew)
+./scripts/bootstrap-mac.sh    # tools/apps (Brewfile) + ollama + models (~26 GB)
+./scripts/start-mac.sh        # ollama + full compose stack (builds images on first run)
+```
+```powershell
+# Windows (winget) — local dev/run; the 24/7 production target stays the Mac
+.\scripts\bootstrap-win.ps1   # tools/apps (winget-packages.json) + models
+.\scripts\start-win.ps1       # full compose stack
 ```
 
-`bootstrap-mac.sh` is idempotent; `SKIP_MODELS=1 ./scripts/bootstrap-mac.sh` installs tools only.
-The toolset lives in [`Brewfile`](../Brewfile), the models in [`scripts/pull-models.sh`](../scripts/pull-models.sh).
+Between bootstrap and start: apply `.env.mac.example` into `infra/.env` and fill the 4 secrets.
+Both bootstraps are idempotent; `SKIP_MODELS=1` (macOS) / `$env:SKIP_MODELS='1'` (Windows) installs tools
+only. The toolset lives in [`Brewfile`](../Brewfile) / [`winget-packages.json`](../winget-packages.json),
+the models in `scripts/pull-models.*`.
 
 **Manual equivalent:**
 
