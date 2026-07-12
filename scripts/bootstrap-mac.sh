@@ -22,7 +22,7 @@ fi
 
 # 3. Tools + apps (installs only what's missing).
 echo ">> brew bundle…"
-brew bundle --file Brewfile
+brew bundle --file Brewfile || echo ">> some Brewfile entries need attention (e.g. WireGuard = App Store sign-in) — continuing"
 
 # 4. Ollama as a background service (native Metal, on the host).
 brew services start ollama >/dev/null 2>&1 || true
