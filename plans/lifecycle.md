@@ -116,6 +116,11 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
     Dockerfile). Lands before/with LC-3.
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
   unload; coder start/stop hooks flip the profile.
+  - **Qwen3 cutover (bundled with LC-4).** Deploy models moved to Qwen3 (`qwen3:32b` / `:14b` / `:8b`,
+    coder `qwen3-coder:30b`) in `.env.mac.example` + pull scripts. **Not a drop-in:** Qwen3 "thinks" by
+    default and emits `<think>…</think>`, which breaks strict-JSON skill parsing. The gateway must disable
+    thinking (`enable_thinking=false` / `/no_think`) or strip the block on the FAST + JSON-skill channels,
+    and the golden lane (validated on `qwen2.5:7b`) must be re-run on Qwen3 before the cutover is trusted.
 - **LC-5 — idle-shutdown polish + observability.** Reaper tuning, `/v1/lifecycle/status` surface.
 
 ## Wiring touchpoints (for the build, not now)

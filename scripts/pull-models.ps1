@@ -3,9 +3,9 @@
 $ErrorActionPreference = 'Stop'
 
 $models = @(
-    'qwen2.5:32b',       # chat, default quality
-    'qwen2.5:14b',       # downshift when the coder is active
-    'qwen2.5:7b',        # FAST channel - routing + safety
+    'qwen3:32b',         # chat, default quality (~20 GB)
+    'qwen3:14b',         # downshift when the coder is active (~9.3 GB)
+    'qwen3:8b',          # FAST channel - routing + safety (~5.2 GB)
     'minicpm-v',         # vision / OCR (cold, on demand)
     'nomic-embed-text'   # embeddings (memory recall)
 )
