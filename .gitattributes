@@ -1,3 +1,5 @@
 # Shell scripts must stay LF — CRLF breaks the shebang on macOS/Linux (bad interpreter: bash^M).
 *.sh     text eol=lf
 Brewfile text eol=lf
+# PowerShell scripts stay CRLF (Windows-native) and ASCII-only (PS 5.1 mangles non-ASCII without a BOM).
+*.ps1    text eol=crlf
