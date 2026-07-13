@@ -22,6 +22,21 @@ Every module has a `README.md` at its root. Every PR that changes a module's **p
 
 At every **stage/domain closer**, do a quick freshness pass: root README + `plans/{STATUS,roadmap,architecture,INDEX}.md` + the closed domain's module READMEs (status headers especially).
 
+## Change-propagation map — non-negotiable
+A change is not done until **every coupled artifact** moves with it, in the **same PR**. Partial
+propagation is silent drift (e.g. #334 swapped the deploy model to qwen3 but left `golden.sh` /
+README / `.env.example` on qwen2.5:7b, which was no longer even pulled). The mechanizable subset is
+enforced by **[`scripts/check-consistency.sh`](scripts/check-consistency.sh)** (a CI step on every
+PR, incl. docs-only — see `.github/workflows/ci.yml`); the rest is this human checklist. When you
+touch the left, update the right **and** re-run the lint locally:
+
+- **LLM model / tag** → `infra/.env.mac.example` (SSOT) · `infra/.env.example` · `scripts/golden.sh` · `platform/llm-gateway/README.md` · `plans/lifecycle.md` · the golden lane (re-validate). Retiring a tag → add it to `RETIRED_TAGS` in the lint.
+- **New service / MCP module** → `infra/docker-compose*.yml` · root `README.md` (layout) · module `README.md` · `plans/architecture.md` · `plans/INDEX.md` · `.env.example` (its port/keys) · a golden test if it has an LLM surface.
+- **New env var / port / endpoint / MCP tool** → the module `README.md` (contract) + `.env.example` + any consumer's README (`§who-uses-me`). This overlaps the README-upkeep rule below.
+- **New cross-service wire contract (`libs/contracts`)** → both sides' code + an `E2E…Test` (see Test strategy).
+
+Extend the lint whenever a new coupling is mechanically checkable (a stale ref that a grep can catch) — that's how the "automat" grows instead of relying on memory.
+
 ## STATUS / HISTORY discipline — non-negotiable
 `plans/STATUS.md` is **live-only** and stays lean — it's read in full at every session start (reading-order step 2), so bloat there taxes every session (it once grew to 300KB / ~78k tokens of shipped-work log; that must not recur).
 - STATUS holds **only what is in flight or the next slice/stage**: the current `## Now` bullet(s), a terse `## Next` queue, open `## Deferred` items, the workflow reminder. Nothing already shipped.

@@ -20,6 +20,11 @@ jobs:
           # GIB diffs against the base branch, so the build needs full git history.
           fetch-depth: 0
 
+      # Change-propagation drift-lint (CLAUDE.md §Change-propagation map). Fast, no Java —
+      # runs unconditionally, incl. docs-only PRs, so coupled artifacts can't drift apart.
+      - name: consistency drift-lint
+        run: bash scripts/check-consistency.sh
+
       - name: set up jdk 25
         uses: actions/setup-java@v4
         with:
