@@ -13,8 +13,12 @@
 #
 # Notes:
 # - Auto-starts `ollama serve` only if :11434 isn't already answering; a pre-existing Ollama daemon is
-#   reused and left alone. The required models (qwen2.5:7b + nomic-embed-text) must be pulled already —
+#   reused and left alone. The required models (qwen3:8b + nomic-embed-text) must be pulled already —
 #   the script won't download multi-GB blobs behind your back; it tells you the `ollama pull` to run.
+# - qwen3 is a *thinking* model: the gateway is started with LLM_SUPPRESS_THINKING=true so it sends
+#   `reasoning_effort:none` in the request body (see llm-gateway/README §Golden tests). Without it a
+#   routing call runs ~144s instead of ~4s on CPU and blows the tests' 90s block timeout. NB the
+#   `/no_think` prompt tag does NOT work through Ollama's /v1 — only the body field does.
 # - Resolves the JDK via $JAVA_HOME/bin/java when `java` isn't on PATH (the default on a bare Git Bash
 #   shell on Windows). Set $JAVA to override.
 # - Logs: logs/ollama-golden.log, logs/llm-gateway-golden.log. Override the port with LLM_GATEWAY_PORT.
@@ -29,7 +33,7 @@ JAR="platform/llm-gateway/target/llm-gateway.jar"
 GATEWAY_LOG="logs/llm-gateway-golden.log"
 OLLAMA_LOG="logs/ollama-golden.log"
 OLLAMA_PIDFILE="logs/.ollama-golden.pid"   # only written when THIS script starts Ollama
-REQUIRED_MODELS="qwen2.5:7b nomic-embed-text"
+REQUIRED_MODELS="qwen3:8b nomic-embed-text"
 
 java_bin() {
   if [ -n "${JAVA:-}" ]; then echo "$JAVA"; return; fi
@@ -91,9 +95,9 @@ ensure_gateway() {
   fi
   mkdir -p logs
   [ -f "$JAR" ] || mvn -q -pl platform/llm-gateway -am -DskipTests package
-  echo "starting llm-gateway on $URL (Ollama qwen2.5:7b) …"
+  echo "starting llm-gateway on $URL (Ollama qwen3:8b, thinking suppressed) …"
   LLM_PROVIDER=openai-compatible LLM_BASE_URL="$OLLAMA_URL/v1" \
-  LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b \
+  LLM_DEFAULT_MODEL=qwen3:8b LLM_FAST_MODEL=qwen3:8b LLM_SUPPRESS_THINKING=true \
   LLM_EMBEDDING_MODEL=nomic-embed-text LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT="$PORT" \
     nohup "$(java_bin)" -jar "$JAR" > "$GATEWAY_LOG" 2>&1 &
   disown || true

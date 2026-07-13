@@ -44,6 +44,19 @@ public class LlmGatewayProperties {
      */
     private int requestTimeoutSeconds = 60;
 
+    /**
+     * Suppress a "thinking" model's hidden reasoning pass on chat calls. When {@code true} the
+     * openai-compatible provider sends {@code "reasoning_effort":"none"} in the request body —
+     * the OpenAI reasoning-control field, which Ollama honours to disable a Qwen3-style thinking
+     * pass. On CPU this is decisive: a routing call drops from ~144s to ~4s (hidden reasoning
+     * tokens 448→8) and the reply stays clean JSON. NB the Qwen3 {@code /no_think} prompt tag does
+     * NOT work through Ollama's {@code /v1} endpoint (it still generates the reasoning, just moves
+     * it to a {@code reasoning} field) — the body field is the only thing that works. Off by
+     * default; the Stage 5 golden lane and the FAST/routing channel on qwen3 turn it on via
+     * {@code LLM_SUPPRESS_THINKING=true}.
+     */
+    private boolean suppressThinking = false;
+
     public String provider() { return provider; }
     public String baseUrl() { return baseUrl; }
     public String apiKey() { return apiKey; }
@@ -51,6 +64,7 @@ public class LlmGatewayProperties {
     public String anthropicVersion() { return anthropicVersion; }
     public int maxTokens() { return maxTokens; }
     public int requestTimeoutSeconds() { return requestTimeoutSeconds; }
+    public boolean suppressThinking() { return suppressThinking; }
 
     public Map<LlmChannel, String> channelModels() {
         Map<LlmChannel, String> map = new EnumMap<>(LlmChannel.class);
@@ -71,4 +85,5 @@ public class LlmGatewayProperties {
     public void setAnthropicVersion(String anthropicVersion) { this.anthropicVersion = anthropicVersion; }
     public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
     public void setRequestTimeoutSeconds(int requestTimeoutSeconds) { this.requestTimeoutSeconds = requestTimeoutSeconds; }
+    public void setSuppressThinking(boolean suppressThinking) { this.suppressThinking = suppressThinking; }
 }

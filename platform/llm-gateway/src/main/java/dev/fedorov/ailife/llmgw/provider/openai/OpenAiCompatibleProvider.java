@@ -139,6 +139,13 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         if (request.temperature() != null) {
             body.put("temperature", request.temperature());
         }
+        if (props.suppressThinking()) {
+            // OpenAI reasoning-control field; Ollama honours it to disable a Qwen3-style thinking
+            // pass entirely (verified: routing call 144s→4s, hidden reasoning tokens 448→8). The
+            // `/no_think` prompt tag does NOT work through Ollama's /v1 — it still generates the
+            // reasoning and just moves it to a `reasoning` field. See suppressThinking() javadoc.
+            body.put("reasoning_effort", "none");
+        }
         if (stream) {
             body.put("stream", true);
         }
