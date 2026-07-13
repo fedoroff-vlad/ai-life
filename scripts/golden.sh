@@ -81,7 +81,7 @@ check_models() {
   local have; have="$(curl -sf --max-time 5 "$OLLAMA_URL/api/tags" 2>/dev/null || true)"
   for m in $REQUIRED_MODELS; do
     case "$have" in
-      *"\"$m\""*) ;;   # present (name appears as "qwen2.5:7b" or "nomic-embed-text:latest")
+      *"\"$m\""*) ;;   # present (name appears as "qwen3:8b" or "nomic-embed-text:latest")
       *"\"$m:"*) ;;
       *) echo "ERROR: Ollama model '$m' not pulled — run: ollama pull $m" >&2; exit 1 ;;
     esac
