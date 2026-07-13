@@ -95,6 +95,39 @@ docker compose -f docker-compose.dev.yml down       # or docker-compose.yml
 Add `-v` to also remove the volumes (`postgres-data`, `radicale-data`, `minio-data`
 in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 
+## Database backups
+
+The **full stack** runs a `postgres-backup` sidecar (OSS
+[`prodrigestivill/postgres-backup-local`](https://github.com/prodrigestivill/docker-postgres-backup-local))
+that takes a **daily** `pg_dump` of the whole `ailife` database, gzips it, and rotates copies locally —
+no host cron/launchd, so it behaves identically on the Mac and on Windows. It's **not** in
+`docker-compose.dev.yml`: dev data is disposable, so backups run only on the 24/7 deployment.
+
+- **What's covered:** one dump of the whole DB → **every schema** (all ai-life domain schemas *and*
+  coding-agent's `code.*`, which shares this Postgres). `POSTGRES_EXTRA_OPTS` deliberately carries **no
+  `--schema` filter** so nothing is excluded.
+- **Where:** `infra/backups/` (bind-mounted to `/backups`), gitignored. Subdirs `last/`, `daily/`,
+  `weekly/` hold the gzipped dumps.
+- **Schedule + retention:** `@daily`, keep **7 daily + 4 weekly** (`BACKUP_*` in `.env` /
+  `.env.example`; defaults in `docker-compose.yml`).
+
+**Trigger a backup now** (e.g. before a risky migration):
+
+```sh
+docker exec ai-life-postgres-backup /backup.sh
+```
+
+**Restore** a dump into the running Postgres (the dumps use `--clean --if-exists`, so they drop and
+recreate objects — restoring over the live DB is destructive; take a fresh dump first):
+
+```sh
+gunzip -c infra/backups/last/ailife-latest.sql.gz \
+  | docker exec -i ai-life-postgres psql -U ailife -d ailife
+```
+
+Backups are **local only** — a lost disk loses them. Off-site replication (a second host over
+Tailscale, or a cloud bucket) is a deliberate follow-up, tracked in `plans/STATUS.md`.
+
 ## Services and default ports
 
 | service              | port | purpose                                                       |

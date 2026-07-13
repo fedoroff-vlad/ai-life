@@ -52,6 +52,10 @@ desktop.ini
 infra/data/
 docker-data/
 
+# ---- DB backups (postgres-backup writes here; keep the dir, ignore the dumps) ----
+infra/backups/*
+!infra/backups/.gitkeep
+
 # ---- Ad-hoc captured outputs (mvn/test/CI logs the user/agent wrote out by hand) ----
 # Convention: capture to logs/<descriptive>.log instead of dropping files in repo root.
 # See CLAUDE.md §"Test strategy" + logs/README.md for the rationale.
