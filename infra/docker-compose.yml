@@ -71,6 +71,35 @@ services:
       - ./liquibase:/liquibase/changelog:ro
     command: ["update"]
 
+  # Daily Postgres backups (full-stack / 24-7 only — dev data is disposable, so this is NOT in
+  # docker-compose.dev.yml). Reuses the OSS prodrigestivill/postgres-backup-local: schedule +
+  # pg_dump + gzip + retention rotation out of the box, no host cron/launchd (works the same on
+  # Mac and Windows). One dump of the whole `ailife` DB covers EVERY schema — the ai-life domain
+  # schemas AND coding-agent's `code.*` (it shares this instance). POSTGRES_EXTRA_OPTS is set with
+  # NO `--schema` filter on purpose, so nothing is left out. Retention = the owner's 7 daily + 4
+  # weekly. Restore: see infra/README.md §Database backups.
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: ai-life-postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-ailife}
+      POSTGRES_USER: ${POSTGRES_USER:-ailife}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      SCHEDULE: ${BACKUP_SCHEDULE:-@daily}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+      BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-4}
+      BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-0}
+      # gzip level 6, restore-friendly (drops objects first), and — critically — no --schema filter.
+      POSTGRES_EXTRA_OPTS: ${BACKUP_EXTRA_OPTS:--Z6 --clean --if-exists}
+    volumes:
+      - ./backups:/backups
+
   radicale:
     image: tomsquest/docker-radicale:latest
     container_name: ai-life-radicale

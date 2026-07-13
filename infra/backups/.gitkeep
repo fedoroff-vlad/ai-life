@@ -1,0 +1,1 @@
+# postgres-backup writes daily dumps here (last/ daily/ weekly/); contents are gitignored.
