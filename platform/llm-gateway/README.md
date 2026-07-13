@@ -132,12 +132,20 @@ OpenAI-compatible profile (local Ollama, free):
 ```
 LLM_PROVIDER=openai-compatible
 LLM_BASE_URL=http://ollama:11434/v1
-LLM_DEFAULT_MODEL=qwen2.5:72b-instruct
-LLM_FAST_MODEL=qwen2.5:7b-instruct
-LLM_VISION_MODEL=qwen2.5-vl:32b
+LLM_DEFAULT_MODEL=qwen3:32b
+LLM_FAST_MODEL=qwen3:8b
+LLM_VISION_MODEL=qwen2.5-vl:32b            # qwen3 has no vision variant yet — VL stays on 2.5
 LLM_EMBEDDING_MODEL=bge-m3
+# LLM_SUPPRESS_THINKING=true               # qwen3 thinks by default; sends reasoning_effort:none (faster on CPU, JSON-safe)
 # LLM_API_KEY=                             # optional — Ollama ignores Authorization
 ```
+
+`LLM_SUPPRESS_THINKING=true` makes the openai-compatible provider send `"reasoning_effort":"none"` in
+the request body — the OpenAI reasoning-control field, which Ollama honours to disable a Qwen3-style
+thinking pass entirely. On CPU that is decisive: a routing call drops from ~144s to ~4s (hidden reasoning
+tokens 448→8) and the reply stays clean JSON. **Note:** the Qwen3 `/no_think` prompt tag does *not* work
+through Ollama's `/v1` endpoint (it still generates the reasoning, just moves it to a `reasoning` field) —
+only the body field works. Off by default.
 
 OpenAI-compatible profile (DeepSeek cloud):
 
@@ -188,24 +196,27 @@ scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest    # reuses
 scripts/golden.sh down         # stop the gateway (and Ollama, if the script started it)
 ```
 
-The models (`qwen2.5:7b` + `nomic-embed-text`) must be pulled already — the script checks and, if one is
-missing, prints the `ollama pull` to run rather than downloading multi-GB blobs behind your back. Under
-the hood it is the manual flow below — reach for these when you need to tweak a step:
+The models (`qwen3:8b` + `nomic-embed-text`) must be pulled already — the script checks and, if one is
+missing, prints the `ollama pull` to run rather than downloading multi-GB blobs behind your back. It
+starts the gateway with `LLM_SUPPRESS_THINKING=true` (qwen3 is a thinking model — see the flag note
+above; without it a routing golden runs ~144s and blows its 90s block timeout). Under the hood it is the
+manual flow below — reach for these when you need to tweak a step:
 
 ```sh
 # 1. bring Ollama up. The CLI `ollama serve` resolves models from the default root
 #    (…/.ollama/models) — no OLLAMA_MODELS override needed (that misconfig is specific to the
 #    tray app, not the CLI). Leave it running in its own terminal / background:
 ollama serve &                 # starts the daemon on 127.0.0.1:11434
-ollama list                    # must show qwen2.5:7b (chat) + nomic-embed-text (embeddings)
-#    If a model is missing: `ollama pull qwen2.5:7b` / `ollama pull nomic-embed-text`.
+ollama list                    # must show qwen3:8b (chat) + nomic-embed-text (embeddings)
+#    If a model is missing: `ollama pull qwen3:8b` / `ollama pull nomic-embed-text`.
 
 # 2. build + start a llm-gateway pointed at it (bare JVM → Ollama on localhost). On a CPU box raise
-#    the upstream timeout — a 7B generating multi-item JSON (the skill golden tests) exceeds the 60 s
-#    default. (`java` must be on PATH; from a bare shell without it, use "$JAVA_HOME/bin/java".)
+#    the upstream timeout — an 8B generating multi-item JSON (the skill golden tests) exceeds the 60 s
+#    default. LLM_SUPPRESS_THINKING=true sends reasoning_effort:none (qwen3 thinks by default → ~144s vs
+#    ~4s per routing call on CPU). (`java` must be on PATH; from a bare shell without it, use "$JAVA_HOME/bin/java".)
 mvn -q -pl platform/llm-gateway -am -DskipTests package     # builds target/llm-gateway.jar
 LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
-LLM_DEFAULT_MODEL=qwen2.5:7b LLM_FAST_MODEL=qwen2.5:7b \
+LLM_DEFAULT_MODEL=qwen3:8b LLM_FAST_MODEL=qwen3:8b LLM_SUPPRESS_THINKING=true \
 LLM_EMBEDDING_MODEL=nomic-embed-text LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
   java -jar platform/llm-gateway/target/llm-gateway.jar
 #    Wait for health: curl -s http://localhost:8081/actuator/health   # {"status":"UP"}
@@ -256,6 +267,12 @@ supplied corpus and cites only its links, no hallucinated URLs. The `financial-a
 harness also passed clean — the model returns a full grounded analysis (top categories, deltas vs the
 prior window, hints) over the supplied spend data; the one adjustment was test-side (accept the `€`
 symbol as well as the `EUR` code — both satisfy the "show the currency" rule).
+
+Re-validated on **`qwen3:8b`** when the deploy config moved off qwen2.5 (2026-07-13). qwen3 is a
+*thinking* model — the one code change was `LLM_SUPPRESS_THINKING` (see the flag note above; the golden
+lane sets it). With it, the surfaces above pass unchanged on qwen3:8b/CPU: orchestrator routing (2/2,
+89s), `inbox-clarify` strict JSON (70s), `financial-advisor` synthesis (112s). Without it a routing call
+runs ~144s and trips the harness's 90s block timeout — the reasoning tokens, not the answer, dominate.
 
 ## Run locally
 

@@ -117,10 +117,13 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
   unload; coder start/stop hooks flip the profile.
   - **Qwen3 cutover (bundled with LC-4).** Deploy models moved to Qwen3 (`qwen3:32b` / `:14b` / `:8b`,
-    coder `qwen3-coder:30b`) in `.env.mac.example` + pull scripts. **Not a drop-in:** Qwen3 "thinks" by
-    default and emits `<think>…</think>`, which breaks strict-JSON skill parsing. The gateway must disable
-    thinking (`enable_thinking=false` / `/no_think`) or strip the block on the FAST + JSON-skill channels,
-    and the golden lane (validated on `qwen2.5:7b`) must be re-run on Qwen3 before the cutover is trusted.
+    coder `qwen3-coder:30b`) in `.env.mac.example` + pull scripts. Qwen3 "thinks" by default, which breaks
+    strict-JSON skill parsing and is ~2-3x slower on CPU. **RESOLVED (2026-07-13):** the gateway gained
+    `LLM_SUPPRESS_THINKING` (sends `reasoning_effort:none`; the `/no_think` prompt tag does *not* work via
+    Ollama `/v1`), set on in both `.env.mac.example` and the golden lane. The golden lane was re-validated
+    on `qwen3:8b` with the flag on — routing + strict-JSON + synthesis surfaces pass unchanged (see
+    `platform/llm-gateway/README.md` §Golden tests). Caveat: the flag is global (also off on DEFAULT
+    synthesis); per-channel thinking control is a future enhancement if a channel wants it back.
 - **LC-5 — idle-shutdown polish + observability.** Reaper tuning, `/v1/lifecycle/status` surface.
 
 ## Wiring touchpoints (for the build, not now)

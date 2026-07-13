@@ -104,6 +104,51 @@ class OpenAiCompatibleProviderTest {
     }
 
     @Test
+    void suppressThinkingSendsReasoningEffortNone() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("""
+                        {"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],
+                         "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+                        """));
+
+        LlmGatewayProperties props = baseProps();
+        props.setSuppressThinking(true);
+        OpenAiCompatibleProvider provider = provider(props);
+        provider.chat(LlmChatRequest.of(LlmChannel.FAST, List.of(
+                LlmMessage.system("you are kind"),
+                LlmMessage.user("hello")))).block();
+
+        RecordedRequest sent = server.takeRequest();
+        JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
+        assertThat(body.path("reasoning_effort").asText()).isEqualTo("none");
+        // messages are left untouched — the tag goes in the body, not the prompt
+        JsonNode messages = body.path("messages");
+        assertThat(messages.size()).isEqualTo(2);
+        assertThat(messages.get(0).path("content").asText()).isEqualTo("you are kind");
+        assertThat(messages.get(1).path("content").asText()).isEqualTo("hello");
+    }
+
+    @Test
+    void noReasoningEffortFieldWhenSuppressThinkingOff() throws Exception {
+        server.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("""
+                        {"choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],
+                         "usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+                        """));
+
+        OpenAiCompatibleProvider provider = provider(baseProps()); // suppressThinking defaults false
+        provider.chat(LlmChatRequest.of(LlmChannel.FAST, List.of(
+                LlmMessage.system("you are kind"),
+                LlmMessage.user("hello")))).block();
+
+        RecordedRequest sent = server.takeRequest();
+        JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
+        assertThat(body.has("reasoning_effort")).isFalse();
+    }
+
+    @Test
     void ollamaStyleNoAuthHeaderWhenKeyBlank() throws Exception {
         server.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
