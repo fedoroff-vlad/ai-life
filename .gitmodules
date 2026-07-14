@@ -1,0 +1,3 @@
+[submodule "tools/agent-skills"]
+	path = tools/agent-skills
+	url = https://github.com/fedoroff-vlad/agent-skills
