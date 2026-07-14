@@ -30,4 +30,13 @@ public class SkillRegistry {
     public Optional<Skill> forTrigger(String kind) {
         return Optional.ofNullable(byTrigger.get(kind));
     }
+
+    /**
+     * Look a skill up by its {@code name}. Used where a router sources a flow's
+     * trigger phrasing from the skill's {@code description} (the SKILL.md is the
+     * single source of truth), rather than hard-coding it.
+     */
+    public Optional<Skill> byName(String name) {
+        return all.stream().filter(s -> s.name().equals(name)).findFirst();
+    }
 }

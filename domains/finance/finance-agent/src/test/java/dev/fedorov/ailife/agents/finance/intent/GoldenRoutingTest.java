@@ -8,6 +8,9 @@ import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
+import dev.fedorov.ailife.agentruntime.skill.Skill;
+import dev.fedorov.ailife.agentruntime.skill.SkillParser;
+import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
@@ -94,8 +97,27 @@ class GoldenRoutingTest {
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
             GoldenLlm.agentBody(GoldenRoutingTest.class.getClassLoader()));
+    // Real finance skills loaded from the classpath (copied by the module pom from ../skills) so the
+    // router sources each flow's trigger phrasing from the actual SKILL.md descriptions — the SSOT the
+    // behaviour test depends on.
+    private final SkillRegistry skills = loadFinanceSkills();
     private final IntentRouter router = new IntentRouter(
-            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, json);
+            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, skills, json);
+
+    private static SkillRegistry loadFinanceSkills() {
+        List<Skill> loaded = new java.util.ArrayList<>();
+        for (String name : List.of("financial-advisor", "investment-advisor", "monthly-report",
+                "year-report", "category-manager")) {
+            String path = "skills/finance/" + name + "/SKILL.md";
+            try (var in = GoldenRoutingTest.class.getClassLoader().getResourceAsStream(path)) {
+                assertThat(in).as("classpath resource %s (finance skills are copied by the module pom)", path).isNotNull();
+                loaded.add(SkillParser.parse(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("failed to load " + path, e);
+            }
+        }
+        return new SkillRegistry(loaded);
+    }
 
     GoldenRoutingTest() {
         when(dispatcher.availableToolDefinitions()).thenReturn(TOOLS);
