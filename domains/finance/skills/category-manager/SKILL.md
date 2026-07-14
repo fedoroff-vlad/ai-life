@@ -1,6 +1,6 @@
 ---
 name: category-manager
-description: Turns a plain-language request to create or group finance categories into a strict-JSON plan the agent applies — inferring each category's kind and resolving grouping under a parent by name.
+description: Use when the user wants to create or group their spending categories — e.g. «заведи категорию Кофейни», «создай категорию Подарки», «сгруппируй Такси и Метро под Транспорт». Turns the request into a plan the agent applies.
 version: 0.1.0
 domain: finance
 triggers: []

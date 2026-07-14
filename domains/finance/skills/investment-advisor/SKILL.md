@@ -1,6 +1,6 @@
 ---
 name: investment-advisor
-description: Gives an advisory-only opinion on stocks, funds/ETFs, metals, forex or crypto the user named — reads live quotes and lays out considerations. Never trades or recommends a specific order.
+description: Use when the user asks for an opinion on stocks, funds/ETFs, metals, forex or crypto they named — e.g. «что думаешь про Apple и золото?», «стоит ли смотреть на биткоин?». Advisory-only; never trades.
 version: 0.1.0
 domain: finance
 triggers: []

@@ -1,6 +1,6 @@
 ---
 name: financial-advisor
-description: Analyses a household's recent spending on request — top categories, what changed versus the prior period and why, plus a few concrete optimisation hints.
+description: Use when the user asks to analyse or review their own spending or wants savings advice — e.g. «проанализируй траты», «куда уходят деньги», «где можно сэкономить». Produces a spending analysis; gathers the data itself.
 version: 0.1.0
 domain: finance
 triggers: []

@@ -1,6 +1,6 @@
 ---
 name: monthly-report
-description: Writes the narrative summary for a household's monthly finance report — where the money went this month and the one or two things worth noticing, in a calm reporting voice.
+description: Use when the user asks for a finance report or period summary as a document — e.g. «отчёт за месяц», «финансовый отчёт», «сводка за месяц», «отчитайся по тратам». Builds an HTML monthly report and returns a link.
 version: 0.1.0
 domain: finance
 triggers: []

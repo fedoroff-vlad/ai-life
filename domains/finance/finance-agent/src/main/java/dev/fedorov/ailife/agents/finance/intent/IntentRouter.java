@@ -8,6 +8,8 @@ import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
+import dev.fedorov.ailife.agentruntime.skill.Skill;
+import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
@@ -62,6 +64,7 @@ public class IntentRouter {
     private final YearReporter yearReporter;
     private final CategoryManager categoryManager;
     private final AgentManifest manifest;
+    private final SkillRegistry skills;
     private final ObjectMapper json;
 
     public IntentRouter(LlmClient llm,
@@ -72,6 +75,7 @@ public class IntentRouter {
                         YearReporter yearReporter,
                         CategoryManager categoryManager,
                         AgentManifest manifest,
+                        SkillRegistry skills,
                         ObjectMapper json) {
         this.llm = llm;
         this.dispatcher = dispatcher;
@@ -81,6 +85,7 @@ public class IntentRouter {
         this.yearReporter = yearReporter;
         this.categoryManager = categoryManager;
         this.manifest = manifest;
+        this.skills = skills;
         this.json = json;
     }
 
@@ -236,31 +241,34 @@ public class IntentRouter {
             sb.append('\n');
         }
         sb.append('\n');
-        sb.append("There is also a built-in spending ANALYSIS flow (not a tool): use it when the ");
-        sb.append("user asks to analyse / review their own spending or wants ");
-        sb.append("recommendations over their finances (e.g. \"проанализируй траты\", ");
-        sb.append("\"куда уходят деньги\", \"где можно сэкономить\"). It gathers the data itself. ");
-        sb.append("Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.\n\n");
-        sb.append("There is also a built-in REPORT flow (not a tool): use it when the user asks ");
-        sb.append("for a finance report or a period summary as a document (e.g. \"отчёт за месяц\", ");
-        sb.append("\"финансовый отчёт\", \"сводка за месяц\", \"отчитайся по тратам\", \"отчёт за год\", ");
-        sb.append("\"итоги года\"). It builds an HTML report of the spending and returns a link; it ");
-        sb.append("gathers the data itself. Set \"period\":\"year\" when the user asks for the YEAR / ");
-        sb.append("annual summary (\"за год\", \"годовой\", \"итоги года\"); otherwise \"period\":\"month\" ");
-        sb.append("(the default — current month).\n\n");
-        sb.append("There is also a built-in INVESTMENT ADVISORY flow (not a tool): use it when the user ");
-        sb.append("asks for an opinion / outlook on stocks, funds/ETFs, metals, forex or crypto (e.g. ");
-        sb.append("\"что думаешь про Apple и золото?\", \"стоит ли смотреть на биткоин?\"). It is ");
-        sb.append("ADVISORY ONLY — it never trades. Map each asset the user named to its source-native ");
-        sb.append("symbol and pass them in 'symbols': US stocks use a '.us' suffix (Apple→aapl.us), ");
-        sb.append("indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, bitcoin→btcusd, ");
-        sb.append("ether→ethusd. Include only assets the user actually named.\n\n");
-        sb.append("There is also a built-in CATEGORY-MANAGEMENT flow (not a tool): use it when the user ");
-        sb.append("wants to CREATE or GROUP their spending categories (e.g. \"заведи категорию Кофейни\", ");
-        sb.append("\"создай категорию Подарки\", \"сгруппируй Такси и Метро под Транспорт\", \"добавь ");
-        sb.append("категорию Кафе в группу Еда\"). It reads the existing categories and applies the ");
-        sb.append("changes itself. This is about the category LIST/structure — not recording a spend ");
-        sb.append("(that's the add_transaction tool) and not analysing spend (that's advice).\n\n");
+        // Built-in flows (not MCP tools). Each flow's trigger phrasing is sourced from its SKILL.md
+        // description (single source of truth — the finance skills); only the JSON shape and the
+        // per-flow mechanics/disambiguation stay here, next to the parsing they drive.
+        sb.append("There is also a built-in spending ANALYSIS flow (not a tool): ")
+          .append(flowTrigger("financial-advisor",
+                  "use it when the user asks to analyse / review their own spending or wants recommendations."))
+          .append(" Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.\n\n");
+        sb.append("There is also a built-in REPORT flow (not a tool): ")
+          .append(flowTrigger("monthly-report",
+                  "use it when the user asks for a finance report or a period summary as a document."))
+          .append(' ')
+          .append(flowTrigger("year-report", "The annual variant of the finance report."))
+          .append(" It builds an HTML report of the spending and returns a link. Set \"period\":\"year\" ")
+          .append("when the user asks for the YEAR / annual summary; otherwise \"period\":\"month\" ")
+          .append("(the default — current month).\n\n");
+        sb.append("There is also a built-in INVESTMENT ADVISORY flow (not a tool): ")
+          .append(flowTrigger("investment-advisor",
+                  "use it when the user asks for an opinion on stocks, funds/ETFs, metals, forex or crypto."))
+          .append(" It is ADVISORY ONLY — it never trades. Map each asset the user named to its ")
+          .append("source-native symbol and pass them in 'symbols': US stocks use a '.us' suffix ")
+          .append("(Apple→aapl.us), indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, ")
+          .append("bitcoin→btcusd, ether→ethusd. Include only assets the user actually named.\n\n");
+        sb.append("There is also a built-in CATEGORY-MANAGEMENT flow (not a tool): ")
+          .append(flowTrigger("category-manager",
+                  "use it when the user wants to CREATE or GROUP their spending categories."))
+          .append(" It reads the existing categories and applies the changes itself. This is about the ")
+          .append("category LIST/structure — not recording a spend (that's the add_transaction tool) ")
+          .append("and not analysing spend (that's advice).\n\n");
         sb.append("Decide: run a tool, run the spending analysis, build the finance report, ");
         sb.append("run the investment advisory, manage categories, or just talk?\n\n");
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
@@ -279,6 +287,15 @@ public class IntentRouter {
         sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
         sb.append("arguments. If they're just chatting, use action=chat with a helpful reply.\n");
         return sb.toString();
+    }
+
+    /**
+     * A flow's trigger line, sourced from its SKILL.md {@code description} (the single source of
+     * truth). Falls back to a terse built-in line if the skill isn't loaded, so a missing skill
+     * degrades the prompt rather than breaking routing.
+     */
+    private String flowTrigger(String skillName, String fallback) {
+        return skills.byName(skillName).map(Skill::description).orElse(fallback);
     }
 
     /**

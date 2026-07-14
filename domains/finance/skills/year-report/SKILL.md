@@ -1,6 +1,6 @@
 ---
 name: year-report
-description: Writes the narrative summary for a household's annual finance report — how the year's spending broke down and how it moved month to month, in a calm reporting voice.
+description: Use when the user asks for the annual finance summary as a document — e.g. «отчёт за год», «итоги года», «годовой отчёт». The year variant of the finance report.
 version: 0.1.0
 domain: finance
 triggers: []
