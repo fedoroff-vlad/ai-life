@@ -12,6 +12,17 @@ Personal AI agents system. Telegram → orchestrator → domain agents → narro
 
 Do NOT re-read a file you already read this session. Do NOT broad-Glob/Grep the repo to "see what's there" — start with READMEs and follow their pointers.
 
+## Reusable dev-workflow skills  (submodule: tools/agent-skills/)
+Portable skills shared across my repos (source: github.com/fedoroff-vlad/agent-skills). Before doing one of these classes of work, read the matching `tools/agent-skills/skills/<name>/SKILL.md` and follow it instead of re-deriving:
+- `new-skill` — author or fix a SKILL.md so it triggers reliably ("use when …" descriptions).
+- `new-module` — scaffold a new MCP module / agent / migration (pairs with `plans/PATTERNS.md`).
+- `check-drift` — after any change, verify every coupled artifact moved; the machine-checkable half of the "Change-propagation map" below (reads `.skills/change-map.yaml`).
+- `close-pr` — move finished work STATUS→HISTORY, freshness pass, squash-merge on green.
+- `bump-deps` — bump an incoming dependency across SSOT + lockfile + pins.
+- `release-version` — cut a stable outgoing version (semver + changelog + tag).
+
+The coupling table they consume lives at `.skills/change-map.yaml`.
+
 ## README upkeep — non-negotiable
 Every module has a `README.md` at its root. Every PR that changes a module's **public contract** (env vars, endpoints, MCP tools, key class names, behaviour summary, port, manifest) **must update that module's README in the same PR.** READMEs that drift past one PR are worse than no READMEs at all — they actively mislead future sessions. Folder-level READMEs only exist where the grouping isn't obvious from filenames (e.g. `config/`, `sync/`). Don't add folder READMEs that just enumerate filenames.
 

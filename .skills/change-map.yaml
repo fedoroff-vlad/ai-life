@@ -1,0 +1,49 @@
+# ai-life change-map — drop this at the repo root as .skills/change-map.yaml
+# Derived from ai-life/CLAUDE.md "Change-propagation map". Keep in sync when a
+# new mechanically-checkable coupling appears (this replaces the hand checklist).
+version: 1
+couplings:
+  - id: llm-model-tag
+    trigger: Changed the LLM model / tag
+    ssot: infra/.env.mac.example
+    must_update:
+      - infra/.env.example
+      - scripts/golden.sh
+      - platform/llm-gateway/README.md
+      - plans/lifecycle.md
+    revalidate:
+      - golden lane
+    notes: Retiring a tag → add it to RETIRED_TAGS in scripts/check-consistency.sh.
+
+  - id: new-service-or-mcp-module
+    trigger: Added a new service or MCP module
+    must_update:
+      - infra/docker-compose*.yml
+      - README.md
+      - "<module>/README.md"
+      - plans/architecture.md
+      - plans/INDEX.md
+      - "<module>/.env.example"
+    revalidate:
+      - golden test if the module has an LLM surface
+
+  - id: new-env-port-endpoint-tool
+    trigger: Added a new env var / port / endpoint / MCP tool
+    must_update:
+      - "<module>/README.md"
+      - "<module>/.env.example"
+      - "<consumer>/README.md (§who-uses-me)"
+
+  - id: new-wire-contract
+    trigger: Added or changed a cross-service wire contract in libs/contracts
+    ssot: libs/contracts
+    must_update:
+      - both sides' code
+      - "E2E<Stage/Feature>...Test"
+
+  - id: skills-pointer
+    trigger: Changed the reusable-skills wiring
+    must_update:
+      - CLAUDE.md (Reusable dev-workflow skills block)
+      - .skills/change-map.yaml
+    notes: The tools/agent-skills pointer + index must exist and match across docs.
