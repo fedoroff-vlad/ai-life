@@ -11,6 +11,7 @@ import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.File;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
+import org.telegram.telegrambots.meta.api.objects.Voice;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -52,14 +53,16 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         if (from == null || from.getIsBot()) {
             return;
         }
-        // Text, photo and document messages are supported; everything else (stickers,
-        // voice, video, …) is ignored until its own processing path lands.
-        if (!msg.hasText() && !msg.hasPhoto() && !msg.hasDocument()) {
+        // Text, photo, document and voice messages are supported; everything else
+        // (stickers, video, …) is ignored until its own processing path lands.
+        if (!msg.hasText() && !msg.hasPhoto() && !msg.hasDocument() && !msg.hasVoice()) {
             return;
         }
 
         try {
-            // For a photo / document message the text is in the caption (may be null).
+            // For a photo / document message the text is in the caption (may be null). A voice
+            // note carries no caption — its text is the transcript, filled downstream from the
+            // uploaded audio (front-door STT), so the orchestrator routes it like a typed message.
             MessageProcessor.IncomingMedia media;
             String text;
             if (msg.hasPhoto()) {
@@ -68,6 +71,9 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
             } else if (msg.hasDocument()) {
                 media = downloadDocument(msg);
                 text = msg.getCaption();
+            } else if (msg.hasVoice()) {
+                media = downloadVoice(msg);
+                text = null;
             } else {
                 media = null;
                 text = msg.getText();
@@ -130,6 +136,22 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
                 ? doc.getFileName() : "file-" + doc.getFileId();
         String kind = mime.startsWith("image/") ? "image" : "file";
         return new MessageProcessor.IncomingMedia(bytes, mime, filename, kind);
+    }
+
+    /**
+     * Downloads an inbound voice note. Telegram delivers it as an OGG/Opus {@link Voice} with a
+     * declared MIME (default {@code audio/ogg} when absent); the bytes are stored in media-service
+     * like any attachment, then transcribed to text (front-door STT) so the orchestrator can route
+     * the spoken request. {@code kind} is {@code voice} — what the transcription step branches on.
+     */
+    private MessageProcessor.IncomingMedia downloadVoice(Message msg)
+            throws TelegramApiException, IOException {
+        Voice voice = msg.getVoice();
+        File tgFile = client.execute(GetFile.builder().fileId(voice.getFileId()).build());
+        byte[] bytes = download(tgFile);
+        String mime = voice.getMimeType() != null && !voice.getMimeType().isBlank()
+                ? voice.getMimeType() : "audio/ogg";
+        return new MessageProcessor.IncomingMedia(bytes, mime, "voice-" + voice.getFileId() + ".oga", "voice");
     }
 
     private byte[] download(File tgFile) throws TelegramApiException, IOException {

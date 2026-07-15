@@ -43,6 +43,7 @@ public class GatewayProperties {
         private String profileBaseUrl = "http://profile-service:8082";
         private String orchestratorBaseUrl = "http://orchestrator:8083";
         private String mediaBaseUrl = "http://media-service:8088";
+        private String mediaProcessingBaseUrl = "http://mcp-media-processing:8097";
 
         public String getProfileBaseUrl() { return profileBaseUrl; }
         public void setProfileBaseUrl(String profileBaseUrl) {
@@ -55,6 +56,10 @@ public class GatewayProperties {
         public String getMediaBaseUrl() { return mediaBaseUrl; }
         public void setMediaBaseUrl(String mediaBaseUrl) {
             this.mediaBaseUrl = mediaBaseUrl;
+        }
+        public String getMediaProcessingBaseUrl() { return mediaProcessingBaseUrl; }
+        public void setMediaProcessingBaseUrl(String mediaProcessingBaseUrl) {
+            this.mediaProcessingBaseUrl = mediaProcessingBaseUrl;
         }
     }
 }

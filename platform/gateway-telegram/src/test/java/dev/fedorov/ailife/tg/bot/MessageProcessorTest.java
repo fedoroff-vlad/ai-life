@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import okhttp3.mockwebserver.MockResponse;
@@ -35,16 +36,19 @@ class MessageProcessorTest {
     private static MockWebServer profile;
     private static MockWebServer orchestrator;
     private static MockWebServer media;
+    private static MockWebServer mediaProcessing;
 
     @DynamicPropertySource
     static void wireServices(DynamicPropertyRegistry registry) {
         profile = new MockWebServer();
         orchestrator = new MockWebServer();
         media = new MockWebServer();
+        mediaProcessing = new MockWebServer();
         try {
             profile.start();
             orchestrator.start();
             media.start();
+            mediaProcessing.start();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to start mock servers", e);
         }
@@ -54,6 +58,8 @@ class MessageProcessorTest {
                 () -> "http://localhost:" + orchestrator.getPort());
         registry.add("gateway.services.media-base-url",
                 () -> "http://localhost:" + media.getPort());
+        registry.add("gateway.services.media-processing-base-url",
+                () -> "http://localhost:" + mediaProcessing.getPort());
     }
 
     @AfterEach
@@ -67,6 +73,8 @@ class MessageProcessorTest {
         while (orchestrator.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
         //noinspection StatementWithEmptyBody
         while (media.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
+        //noinspection StatementWithEmptyBody
+        while (mediaProcessing.takeRequest(50, TimeUnit.MILLISECONDS) != null) { }
     }
 
     @Autowired
@@ -231,5 +239,54 @@ class MessageProcessorTest {
         assertThat(body).contains("\"kind\":\"file\"");
         assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
         assertThat(body).contains("\"mimeType\":\"text/csv\"");
+    }
+
+    @Test
+    void voiceMessageUploadsAudioTranscribesAndRoutesTranscript() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID mediaId = UUID.randomUUID();
+
+        profile.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new UserDto(
+                        userId, householdId, "vlad", "ru", 99L, "admin", Instant.now()))));
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new MediaObjectDto(
+                        mediaId, householdId, userId, "voice", "audio/ogg",
+                        64L, "0ddba11", "telegram", Instant.now()))));
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new TranscriptResult(
+                        "запиши покупку кофе 200 рублей", "ru", 3.2))));
+        orchestrator.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new IntentResponse("finance", "записал", "mock-large"))));
+
+        byte[] voiceBytes = "fake-ogg-opus-bytes".getBytes(StandardCharsets.UTF_8);
+        var incoming = new MessageProcessor.IncomingMessage(
+                99L, "vlad", "ru", null, MessageScope.PRIVATE, "9",
+                new MessageProcessor.IncomingMedia(voiceBytes, "audio/ogg", "voice-abc.oga", "voice"));
+
+        IntentResponse result = processor.process(incoming).block();
+        assertThat(result).isNotNull();
+        assertThat(result.text()).isEqualTo("записал");
+
+        // Audio bytes were uploaded to media-service with kind=voice.
+        RecordedRequest mediaRequest = media.takeRequest();
+        assertThat(mediaRequest.getPath()).isEqualTo("/v1/media");
+        assertThat(mediaRequest.getBody().readUtf8()).contains("voice");
+
+        // The uploaded audio was transcribed via mcp-media-processing by its media id.
+        RecordedRequest transcribeRequest = mediaProcessing.takeRequest();
+        assertThat(transcribeRequest.getPath()).isEqualTo("/internal/transcribe");
+        assertThat(transcribeRequest.getBody().readUtf8()).contains("\"mediaId\":\"" + mediaId + "\"");
+
+        // The orchestrator routes on the transcript text, plus the voice attachment rides along.
+        String body = orchestrator.takeRequest().getBody().readUtf8();
+        assertThat(body).contains("\"text\":\"запиши покупку кофе 200 рублей\"");
+        assertThat(body).contains("\"kind\":\"voice\"");
+        assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
     }
 }

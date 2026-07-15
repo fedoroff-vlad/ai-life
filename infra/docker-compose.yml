@@ -485,6 +485,8 @@ services:
         condition: service_healthy
       media-service:
         condition: service_healthy
+      mcp-media-processing:
+        condition: service_healthy
     environment:
       JAVA_TOOL_OPTIONS: *jvm-opts
       GATEWAY_PORT: 8080
@@ -495,6 +497,8 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       ORCHESTRATOR_URL: http://orchestrator:8083
       MEDIA_SERVICE_URL: http://media-service:8088
+      # Front-door STT: transcribe inbound voice notes to text before routing.
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
     ports:
       # Only the gateway needs to be reachable from outside the compose
       # network — Telegram webhooks hit it. Everything else is internal.
