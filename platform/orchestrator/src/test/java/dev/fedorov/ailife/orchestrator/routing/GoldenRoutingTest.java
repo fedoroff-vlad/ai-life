@@ -83,6 +83,20 @@ class GoldenRoutingTest {
     }
 
     /**
+     * BEHAVIOUR (voice) — a voice note reaches the router as its <b>transcript</b> (gateway front-door
+     * STT), which is phrased the colloquial, run-on way people <em>speak</em> rather than type. The same
+     * classifier must still land a dictated request on the right agent — this is the routing half of the
+     * end-to-end voice path (the gateway turns audio into these strings; the orchestrator routes them).
+     * Kept crisp in intent (spoken register, but unambiguous domain) so an 8B doesn't mis-route.
+     */
+    @Test
+    void routesTranscribedVoiceStyleRequestsToTheRightAgent() {
+        assertRoutesTo("слушай я сегодня потратил тысячу рублей на такси", "finance");
+        assertRoutesTo("напомни мне пожалуйста вечером позвонить маме", "tasks");
+        assertRoutesTo("поставь мне встречу на завтра в три часа дня", "calendar");
+    }
+
+    /**
      * STRUCTURE — for any message (including small talk that belongs to no domain) the classifier must
      * resolve to exactly one of the known agent names and never throw. Greetings / small talk fall
      * through to {@code echo}; an actionable-but-unmatched message falls through to the catch-all
