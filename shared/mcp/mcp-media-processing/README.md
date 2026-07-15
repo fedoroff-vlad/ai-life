@@ -33,6 +33,7 @@ call, reused not re-embedded.
 |--------|------|------|---------|---------|
 | POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 | POST | `/internal/ocr` | `OcrInput{mediaId}` | `OcrResult{text, lang?, confidence?}` | non-MCP passthrough to the `ocr` tool (the OCR twin of `/internal/caption`). Same rationale — a caller that deterministically wants OCR text hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by docs-agent's `doc-archiver` (D-c) to turn a document photo into the full text it archives + indexes. |
+| POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it. |
 
 ## Env
 
@@ -82,3 +83,6 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   transport finance-agent's `receipt-parser` calls instead of the un-mockable MCP/SSE binding.
 - `web/InternalOcrController` — `POST /internal/ocr` passthrough (D-b), the OCR twin of the caption
   one; delegates to the `ocr` tool on `Schedulers.boundedElastic()`. Called by docs-agent (D-c).
+- `web/InternalTranscribeController` — `POST /internal/transcribe` passthrough, the STT twin of the OCR
+  one; delegates to the `transcribe` tool on `Schedulers.boundedElastic()`. Called by gateway-telegram's
+  voice-input path.
