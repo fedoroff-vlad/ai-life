@@ -21,4 +21,9 @@ public class HttpClientsConfig {
     public WebClient mediaWebClient(GatewayProperties props, WebClient.Builder builder) {
         return builder.clone().baseUrl(props.getServices().getMediaBaseUrl()).build();
     }
+
+    @Bean
+    public WebClient mediaProcessingWebClient(GatewayProperties props, WebClient.Builder builder) {
+        return builder.clone().baseUrl(props.getServices().getMediaProcessingBaseUrl()).build();
+    }
 }
