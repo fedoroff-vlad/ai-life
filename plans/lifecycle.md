@@ -59,15 +59,31 @@ follows a workload profile.
 ~2–3 s via **CDS/AOT** (Spring Boot 4), so no "поднимаю…" placeholder is needed. CDS/AOT therefore lands
 **before/with** the orchestrator lazy-activation slice, not as a later optimisation.
 
-## Hot/cold set — via compose profiles
-- **`profiles: [hot]`** (always-on): platform (gateway-telegram, llm-gateway, orchestrator, profile,
-  notifier, scheduler, conversation, memory, media) + **calendar, finance, tasks, search (mcp-web +
-  researcher + searxng)** + Postgres, radicale, minio.
-- **`profiles: [cold]`** (on demand): everything else — chef, stylist, nutritionist, docs, briefing,
-  coach, **creator (Decision 4)**, market-data, image-gen, weather, youtube/reddit/feeds, chart-render,
-  ics-import, money-pro-import, whisper, grafana.
-- Boot the always-on system: `docker compose --profile hot up -d`. Cold services are started by name on
-  demand (compose starts a named service even if its profile isn't active).
+## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 27 hot / 24 cold / 2 tunnel)
+- **`profiles: ["hot"]`** (always-on, 27): backing (postgres, liquibase, postgres-backup, radicale,
+  minio, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
+  notifier, scheduler, conversation, memory, media) + calendar (mcp-caldav + calendar-agent), finance
+  (mcp-finance + finance-agent), tasks (mcp-tasks + tasks-agent), search (mcp-web + researcher-agent) +
+  **mcp-media-processing** (OCR/STT for receipts & voice — passive inbound, must be ready) + **notes-agent**
+  (second brain — always needed) + **coordinator-agent** (cross-domain assistant front).
+- **`profiles: ["cold"]`** (on demand, 24): chef, stylist, nutritionist, docs, briefing, coach,
+  **creator (Decision 4)** agents + their domain MCPs (wardrobe, nutrition, creator, briefing, docs,
+  coach) + capability MCPs market-data, image-gen, weather, youtube/reddit/feeds, chart-render,
+  ics-import, money-pro-import, food-data + grafana.
+- **`profiles: ["tunnel"]`** (opt-in, 2): calendar-web + tailscale-calendar (shared-calendar web UI).
+- Boot the always-on system: `docker compose --profile hot up -d`. **A bare `up` starts nothing** (every
+  service is profiled) — pass `--profile hot` (and add `--profile cold` for a full smoke), or a service
+  name. Start scripts (`scripts/start-{mac,win}.*`) now pass `--profile hot`.
+- **Owner-signed refinement of the finance aux MCPs (2026-07-15).** `finance-agent` (hot) previously hard
+  `depends_on: service_healthy`'d **four** aux MCPs the design wants cold. Since Compose does **not**
+  auto-start a cold-profiled dependency of a hot service (verified against the docs — a hot set must be
+  dependency-closed), those deps were the one closure break. Resolution: `mcp-media-processing` → hot
+  (receipts/voice are passive inbound, nothing to "start on command"); `mcp-money-pro-import`,
+  `mcp-market-data`, `mcp-chart-render` → cold and **removed from finance-agent's `depends_on`**. Their
+  real flows reach them over HTTP `/internal/*` and soft-fail while the MCP is down; the unused MCP-SSE
+  binding is silenced with `FINANCE_AGENT_MCP_CLIENT_ENABLED=false` so boot pays no dial timeout. Until
+  LC-3, those three features (Money Pro import, investment quotes, report charts) need the MCP started by
+  name (or degrade gracefully); LC-3 gives them true on-demand start.
 
 ## Decisions (owner-signed 2026-07-10)
 1. **Docker access via socket-proxy**, not a raw socket mount.
@@ -78,9 +94,15 @@ follows a workload profile.
 
 ## Feasibility — verified against the codebase (2026-07-10)
 Audited before committing to the plan. Verdict: **feasible, with one prerequisite fix.**
-- ✅ **Supervisor = `docker compose up -d <svc>` works.** Cold agents declare `depends_on: {…: service_healthy}`
-  on their MCPs (checked `chef-agent` → `mcp-nutrition`+`mcp-web`), so `up -d <agent>` brings the whole
-  subtree and waits for health; already-healthy hot deps are not restarted.
+- ⚠️ **Supervisor = `docker compose up -d <svc>` — re-verify at LC-2/LC-3.** Cold agents declare
+  `depends_on: {…: service_healthy}` on their MCPs (checked `chef-agent` → `mcp-nutrition`+`mcp-web`), so
+  `up -d <agent>` is meant to bring the whole subtree; already-healthy hot deps are not restarted. **But**
+  the LC-1 docs check surfaced that Compose does **not** auto-start a dependency that sits in a *disabled*
+  profile — it must be in the same enabled profile, started separately, or unprofiled. Whether explicitly
+  **naming** the agent (`up -d chef-agent`) enables its cold MCP deps' profiles is the open question the
+  supervisor's `ensure` must confirm live (no Docker daemon on the dev box to test). Fallback if it does
+  not: `ensure` starts the agent **and** its cold MCP deps by explicit name (`up -d chef-agent mcp-nutrition …`),
+  or passes `--profile cold`. This does not affect LC-1 (the hot set is dependency-closed by design).
 - ✅ **Health endpoints** (`/actuator/health`) exist on every service for the reaper/ensure to poll.
 - ✅ **Cold MCP stores lose no data** — data lives in hot Postgres; the MCP is stateless over the DB, so
   stopping/starting it is safe.
@@ -99,8 +121,11 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
   Ollama, real model names, Telegram + internal tokens), per-JVM heap caps, `infra/README` refresh, first
   `docker compose up` + a cross-domain smoke (cal/fin/tasks). Config only, no app code. **Prereq for all
   LC-* below.**
-- **LC-1 — compose hot/cold profiles.** Tag every service `hot`/`cold`; `--profile hot up` boots the
-  always-on set. No code.
+- **LC-1 — compose hot/cold profiles. ✅ SHIPPED 2026-07-15.** Every service tagged
+  `profiles: ["hot"|"cold"]` (27/24, + 2 tunnel); `--profile hot up` boots the always-on set; start
+  scripts + `infra/README` + compose header updated. finance-agent's cold-aux-MCP deps removed +
+  `FINANCE_AGENT_MCP_CLIENT_ENABLED=false` in `.env.mac.example` (see §Hot/cold set refinement). Config
+  only, no app code.
 - **LC-2 — `platform/supervisor` + socket-proxy.** `ensure`/`release`/`status` + reaper. New module +
   README.
 - **LC-2.5 — cold-tolerant agent discovery (PREREQUISITE for LC-3).** Make the orchestrator know + reach
@@ -112,6 +137,12 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
 - **LC-3 — orchestrator lazy-activation.** Registry entries gain `hot`/`container`; `ensure` before
   routing to a cold agent **and before a wake dispatch**. Depends on LC-2.5 (roster) + CDS/AOT (LC-3a) for
   the instant-start UX.
+  - **Finance aux MCPs → true on-demand (folded into LC-3).** LC-1 made money-pro-import / market-data /
+    chart-render cold but left their features degrading while down. LC-3 must `ensure(mcp)` before the
+    flow that needs it (report → chart-render, invest → market-data, CSV attachment → money-pro-import) —
+    the agent-side hook, not just the orchestrator route. Once ensure-before-flow exists, re-evaluate
+    dropping media-processing/whisper to cold too (ensure them on an inbound photo/voice attachment at
+    the gateway/orchestrator) to reclaim their hot footprint.
   - **LC-3a — CDS/AOT fast cold-start** for the agent modules (Spring Boot 4 AOT + CDS archive in the
     Dockerfile). Lands before/with LC-3.
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean

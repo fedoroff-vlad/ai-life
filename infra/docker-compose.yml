@@ -6,10 +6,15 @@
 # layer (postgres + radicale + minio + one-shot liquibase) so you can run
 # the JVMs from IntelliJ pointed at host ports.
 #
-#   cp .env.example .env                           # edit if you want non-default ports/passwords
-#   docker compose -f docker-compose.yml up -d     # all services
-#   docker compose -f docker-compose.yml down      # stop
-#   docker compose -f docker-compose.yml down -v   # nuke volumes too
+#   cp .env.example .env                                          # edit if you want non-default ports/passwords
+#   docker compose -f docker-compose.yml --profile hot up -d      # always-on HOT set (LC-1)
+#   docker compose -f docker-compose.yml --profile hot --profile cold up -d   # everything (full smoke)
+#   docker compose -f docker-compose.yml up -d <cold-service>     # start one cold service on demand
+#   docker compose -f docker-compose.yml down                     # stop
+#   docker compose -f docker-compose.yml down -v                  # nuke volumes too
+#
+# Every service carries a `profiles: ["hot"|"cold"]` tag (LC-1 hot/cold split, see
+# plans/lifecycle.md). A bare `up` (no --profile) starts NOTHING — pass a profile or a name.
 #
 # Build contexts assume repo root — every Dockerfile copies pom.xml + libs/
 # from there, so the compose runs from infra/ but the build context is `..`.
@@ -37,6 +42,7 @@ services:
   # ---------- infrastructure ----------
 
   postgres:
+    profiles: ["hot"]
     image: pgvector/pgvector:pg16
     container_name: ai-life-postgres
     restart: unless-stopped
@@ -56,6 +62,7 @@ services:
       retries: 20
 
   liquibase:
+    profiles: ["hot"]
     image: liquibase/liquibase:4.30
     container_name: ai-life-liquibase
     depends_on:
@@ -79,6 +86,7 @@ services:
   # NO `--schema` filter on purpose, so nothing is left out. Retention = the owner's 7 daily + 4
   # weekly. Restore: see infra/README.md §Database backups.
   postgres-backup:
+    profiles: ["hot"]
     image: prodrigestivill/postgres-backup-local:16
     container_name: ai-life-postgres-backup
     restart: unless-stopped
@@ -101,6 +109,7 @@ services:
       - ./backups:/backups
 
   radicale:
+    profiles: ["hot"]
     image: tomsquest/docker-radicale:latest
     container_name: ai-life-radicale
     restart: unless-stopped
@@ -118,6 +127,7 @@ services:
       retries: 5
 
   minio:
+    profiles: ["hot"]
     image: minio/minio:latest
     container_name: ai-life-minio
     restart: unless-stopped
@@ -137,6 +147,7 @@ services:
       retries: 5
 
   searxng:
+    profiles: ["hot"]
     image: searxng/searxng:latest
     container_name: ai-life-searxng
     restart: unless-stopped
@@ -156,6 +167,7 @@ services:
   # Whisper ASR sidecar — the real STT engine behind mcp-media-processing's `transcribe`
   # (engine decision LOCKED = sidecar service, polyglot-by-design). Self-hosted OSS, free.
   whisper:
+    profiles: ["hot"]
     image: onerahmet/openai-whisper-asr-webservice:latest
     container_name: ai-life-whisper
     restart: unless-stopped
@@ -174,6 +186,7 @@ services:
   # Grafana — zero-code finance dashboards over the finance.* matviews (issue #196).
   # Datasource + dashboards are provisioned from infra/grafana (no click-ops).
   grafana:
+    profiles: ["cold"]
     image: grafana/grafana:11.2.0
     container_name: ai-life-grafana
     restart: unless-stopped
@@ -206,6 +219,7 @@ services:
   # ---------- platform services ----------
 
   llm-gateway:
+    profiles: ["hot"]
     image: ai-life/llm-gateway:local
     container_name: ai-life-llm-gateway
     build:
@@ -235,6 +249,7 @@ services:
       start_period: 30s
 
   profile-service:
+    profiles: ["hot"]
     image: ai-life/profile-service:local
     container_name: ai-life-profile-service
     build:
@@ -260,6 +275,7 @@ services:
       start_period: 30s
 
   memory-service:
+    profiles: ["hot"]
     image: ai-life/memory-service:local
     container_name: ai-life-memory-service
     build:
@@ -294,6 +310,7 @@ services:
       start_period: 30s
 
   media-service:
+    profiles: ["hot"]
     image: ai-life/media-service:local
     container_name: ai-life-media-service
     build:
@@ -326,6 +343,7 @@ services:
       start_period: 30s
 
   conversation-service:
+    profiles: ["hot"]
     image: ai-life/conversation-service:local
     container_name: ai-life-conversation-service
     build:
@@ -351,6 +369,7 @@ services:
       start_period: 30s
 
   scheduler-service:
+    profiles: ["hot"]
     image: ai-life/scheduler-service:local
     container_name: ai-life-scheduler-service
     build:
@@ -379,6 +398,7 @@ services:
       start_period: 30s
 
   notifier-service:
+    profiles: ["hot"]
     image: ai-life/notifier-service:local
     container_name: ai-life-notifier-service
     build:
@@ -408,6 +428,7 @@ services:
       start_period: 30s
 
   orchestrator:
+    profiles: ["hot"]
     image: ai-life/orchestrator:local
     container_name: ai-life-orchestrator
     build:
@@ -450,6 +471,7 @@ services:
       start_period: 30s
 
   gateway-telegram:
+    profiles: ["hot"]
     image: ai-life/gateway-telegram:local
     container_name: ai-life-gateway-telegram
     build:
@@ -487,6 +509,7 @@ services:
   # ---------- MCP servers ----------
 
   mcp-caldav:
+    profiles: ["hot"]
     image: ai-life/mcp-caldav:local
     container_name: ai-life-mcp-caldav
     build:
@@ -518,6 +541,7 @@ services:
       start_period: 30s
 
   mcp-ics-import:
+    profiles: ["cold"]
     image: ai-life/mcp-ics-import:local
     container_name: ai-life-mcp-ics-import
     build:
@@ -553,6 +577,7 @@ services:
       start_period: 30s
 
   mcp-finance:
+    profiles: ["hot"]
     image: ai-life/mcp-finance:local
     container_name: ai-life-mcp-finance
     build:
@@ -588,6 +613,7 @@ services:
       start_period: 30s
 
   mcp-media-processing:
+    profiles: ["hot"]
     image: ai-life/mcp-media-processing:local
     container_name: ai-life-mcp-media-processing
     build:
@@ -618,6 +644,7 @@ services:
       start_period: 30s
 
   mcp-web:
+    profiles: ["hot"]
     image: ai-life/mcp-web:local
     container_name: ai-life-mcp-web
     build:
@@ -639,6 +666,7 @@ services:
       start_period: 30s
 
   mcp-market-data:
+    profiles: ["cold"]
     image: ai-life/mcp-market-data:local
     container_name: ai-life-mcp-market-data
     build:
@@ -659,6 +687,7 @@ services:
       start_period: 30s
 
   mcp-weather:
+    profiles: ["cold"]
     image: ai-life/mcp-weather:local
     container_name: ai-life-mcp-weather
     build:
@@ -680,6 +709,7 @@ services:
       start_period: 30s
 
   mcp-food-data:
+    profiles: ["cold"]
     image: ai-life/mcp-food-data:local
     container_name: ai-life-mcp-food-data
     build:
@@ -700,6 +730,7 @@ services:
       start_period: 30s
 
   mcp-youtube:
+    profiles: ["cold"]
     image: ai-life/mcp-youtube:local
     container_name: ai-life-mcp-youtube
     build:
@@ -722,6 +753,7 @@ services:
       start_period: 30s
 
   mcp-reddit:
+    profiles: ["cold"]
     image: ai-life/mcp-reddit:local
     container_name: ai-life-mcp-reddit
     build:
@@ -747,6 +779,7 @@ services:
       start_period: 30s
 
   mcp-feeds:
+    profiles: ["cold"]
     image: ai-life/mcp-feeds:local
     container_name: ai-life-mcp-feeds
     build:
@@ -769,6 +802,7 @@ services:
       start_period: 30s
 
   mcp-image-gen:
+    profiles: ["cold"]
     image: ai-life/mcp-image-gen:local
     container_name: ai-life-mcp-image-gen
     build:
@@ -793,6 +827,7 @@ services:
       start_period: 30s
 
   mcp-chart-render:
+    profiles: ["cold"]
     image: ai-life/mcp-chart-render:local
     container_name: ai-life-mcp-chart-render
     build:
@@ -816,6 +851,7 @@ services:
       start_period: 30s
 
   mcp-money-pro-import:
+    profiles: ["cold"]
     image: ai-life/mcp-money-pro-import:local
     container_name: ai-life-mcp-money-pro-import
     build:
@@ -841,6 +877,7 @@ services:
       start_period: 30s
 
   mcp-tasks:
+    profiles: ["hot"]
     image: ai-life/mcp-tasks:local
     container_name: ai-life-mcp-tasks
     build:
@@ -872,6 +909,7 @@ services:
       start_period: 30s
 
   mcp-wardrobe:
+    profiles: ["cold"]
     image: ai-life/mcp-wardrobe:local
     container_name: ai-life-mcp-wardrobe
     build:
@@ -897,6 +935,7 @@ services:
       start_period: 30s
 
   mcp-nutrition:
+    profiles: ["cold"]
     image: ai-life/mcp-nutrition:local
     container_name: ai-life-mcp-nutrition
     build:
@@ -925,6 +964,7 @@ services:
       start_period: 30s
 
   mcp-creator:
+    profiles: ["cold"]
     image: ai-life/mcp-creator:local
     container_name: ai-life-mcp-creator
     build:
@@ -950,6 +990,7 @@ services:
       start_period: 30s
 
   mcp-briefing:
+    profiles: ["cold"]
     image: ai-life/mcp-briefing:local
     container_name: ai-life-mcp-briefing
     build:
@@ -975,6 +1016,7 @@ services:
       start_period: 30s
 
   mcp-docs:
+    profiles: ["cold"]
     image: ai-life/mcp-docs:local
     container_name: ai-life-mcp-docs
     build:
@@ -1000,6 +1042,7 @@ services:
       start_period: 30s
 
   mcp-coach:
+    profiles: ["cold"]
     image: ai-life/mcp-coach:local
     container_name: ai-life-mcp-coach
     build:
@@ -1027,6 +1070,7 @@ services:
   # ---------- agents ----------
 
   calendar-agent:
+    profiles: ["hot"]
     image: ai-life/calendar-agent:local
     container_name: ai-life-calendar-agent
     build:
@@ -1064,6 +1108,7 @@ services:
       start_period: 30s
 
   finance-agent:
+    profiles: ["hot"]
     image: ai-life/finance-agent:local
     container_name: ai-life-finance-agent
     build:
@@ -1083,14 +1128,14 @@ services:
         condition: service_healthy
       mcp-finance:
         condition: service_healthy
-      mcp-money-pro-import:
-        condition: service_healthy
       mcp-media-processing:
         condition: service_healthy
-      mcp-market-data:
-        condition: service_healthy
-      mcp-chart-render:
-        condition: service_healthy
+      # mcp-money-pro-import / mcp-market-data / mcp-chart-render are cold (LC-1): started
+      # on demand, not at finance-agent boot. Their flows (Money Pro import, investment
+      # quotes, report charts) reach them over HTTP /internal/* and soft-fail while down;
+      # LC-3 (supervisor + lazy MCP connect) will start them on the request that needs them.
+      # The unused MCP-SSE binding to them is silenced via FINANCE_AGENT_MCP_CLIENT_ENABLED
+      # (see infra/.env.mac.example) so boot pays no dial timeout.
     environment:
       JAVA_TOOL_OPTIONS: *jvm-opts
       FINANCE_AGENT_PORT: 8093
@@ -1114,6 +1159,7 @@ services:
       start_period: 30s
 
   tasks-agent:
+    profiles: ["hot"]
     image: ai-life/tasks-agent:local
     container_name: ai-life-tasks-agent
     build:
@@ -1149,6 +1195,7 @@ services:
       start_period: 30s
 
   researcher-agent:
+    profiles: ["hot"]
     image: ai-life/researcher-agent:local
     container_name: ai-life-researcher-agent
     build:
@@ -1178,6 +1225,7 @@ services:
       start_period: 30s
 
   stylist-agent:
+    profiles: ["cold"]
     image: ai-life/stylist-agent:local
     container_name: ai-life-stylist-agent
     build:
@@ -1226,6 +1274,7 @@ services:
       start_period: 30s
 
   nutritionist-agent:
+    profiles: ["cold"]
     image: ai-life/nutritionist-agent:local
     container_name: ai-life-nutritionist-agent
     build:
@@ -1277,6 +1326,7 @@ services:
       start_period: 30s
 
   chef-agent:
+    profiles: ["cold"]
     image: ai-life/chef-agent:local
     container_name: ai-life-chef-agent
     build:
@@ -1319,6 +1369,7 @@ services:
       start_period: 30s
 
   creator-agent:
+    profiles: ["cold"]
     image: ai-life/creator-agent:local
     container_name: ai-life-creator-agent
     build:
@@ -1370,6 +1421,7 @@ services:
       start_period: 30s
 
   briefing-agent:
+    profiles: ["cold"]
     image: ai-life/briefing-agent:local
     container_name: ai-life-briefing-agent
     build:
@@ -1411,6 +1463,7 @@ services:
       start_period: 30s
 
   docs-agent:
+    profiles: ["cold"]
     image: ai-life/docs-agent:local
     container_name: ai-life-docs-agent
     build:
@@ -1451,6 +1504,7 @@ services:
   # Second-brain / notes agent (#257, SB-4): "запомни …" / "что я думал про …" over memory-service.
   # Owns no MCP — the knowledge base is memory-service (/v1/notes + recall + [[wiki-link]] graph).
   notes-agent:
+    profiles: ["hot"]
     image: ai-life/notes-agent:local
     container_name: ai-life-notes-agent
     build:
@@ -1489,6 +1543,7 @@ services:
   # Cross-cutting synthesis engine (#290): multi-domain requests → read the second brain → one answer.
   # Binds no domain-MCP; reactive (/intent) + proactive (/triggers) on the shared Coordinator.
   coordinator-agent:
+    profiles: ["hot"]
     image: ai-life/coordinator-agent:local
     container_name: ai-life-coordinator-agent
     build:
@@ -1523,6 +1578,7 @@ services:
   # Self-understanding coach (#289 CO-2): safety gate → Reflect over the sender's own notes/memories →
   # durable coaching record in mcp-coach. Strictly per-subject (the authenticated sender).
   coach-agent:
+    profiles: ["cold"]
     image: ai-life/coach-agent:local
     container_name: ai-life-coach-agent
     build:
@@ -1560,6 +1616,7 @@ services:
 
   # Read-only calendar view (#195): per-person ICS feeds over mcp-caldav. No DB, no write path.
   calendar-web:
+    profiles: ["tunnel"]
     image: ai-life/calendar-web:local
     container_name: ai-life-calendar-web
     build:
