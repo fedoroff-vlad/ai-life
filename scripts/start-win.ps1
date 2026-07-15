@@ -1,5 +1,6 @@
-# One-command launch of the full ai-life stack on Windows. Idempotent - safe to re-run.
-# (hot/cold profiles arrive with the LC-* lifecycle slices; until then the whole stack comes up.)
+# One-command launch of the ai-life stack on Windows. Idempotent - safe to re-run.
+# Boots the always-on HOT set (LC-1 profiles). Cold services start on demand (by name, or
+# `--profile cold` for a full smoke). Everything at once: add `--profile cold` below.
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
@@ -17,8 +18,8 @@ if ($LASTEXITCODE -ne 0) {
     throw "Docker isn't running - start Docker Desktop, then re-run."
 }
 
-# Full stack (first run builds every app image; ~5-10 min, then fast).
-docker compose -f infra/docker-compose.yml up -d --build
+# Hot set (first run builds every hot app image; ~5-10 min, then fast).
+docker compose -f infra/docker-compose.yml --profile hot up -d --build
 
 Write-Host "`nOK ai-life up. Watch the entry point:"
 Write-Host "   docker compose -f infra/docker-compose.yml logs -f gateway-telegram"

@@ -9,6 +9,20 @@ Local development infrastructure + full-system compose for ai-life.
 | `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper + grafana (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
 | `docker-compose.yml` | everything in `dev.yml` **plus** the full app stack — all platform services, domain agents, and MCP servers (see the port table below for the current set) | End-to-end smoke testing, Mac Studio deployment, validating a release. |
 
+**Hot/cold profiles (LC-1).** In `docker-compose.yml` every service is tagged `profiles: ["hot"]`
+(always-on set) or `profiles: ["cold"]` (started on demand) — the [`plans/lifecycle.md`](../plans/lifecycle.md)
+hot/cold split. A bare `up` (no `--profile`) starts **nothing**; you must pass a profile or a service name:
+
+| command | what it starts |
+|---|---|
+| `docker compose -f docker-compose.yml --profile hot up -d` | the always-on hot set (~27 services) |
+| `docker compose -f docker-compose.yml --profile hot --profile cold up -d` | everything (full smoke) |
+| `docker compose -f docker-compose.yml up -d <cold-service>` | one cold service on demand |
+
+Until LC-3's supervisor auto-starts cold services on the request that needs them, start them by name
+(e.g. `mcp-money-pro-import` before a Money Pro import). `calendar-web` + `tailscale-calendar` sit on a
+separate `tunnel` profile (`--profile tunnel`).
+
 Both files share `.env` and the same Postgres volume — they don't conflict, but
 don't run them at the same time either (port collisions on 5432 / 5232).
 
@@ -29,7 +43,7 @@ migrations are done — that is expected.
 ```sh
 cd infra
 cp .env.example .env
-docker compose -f docker-compose.yml up -d --build   # first run builds every app image
+docker compose -f docker-compose.yml --profile hot up -d --build          # hot set (add --profile cold for everything)
 docker compose -f docker-compose.yml logs -f gateway-telegram
 ```
 
@@ -40,8 +54,8 @@ keeps `~/.m2` warm between subsequent builds). Subsequent `up` calls are fast.
 
 The production target is a Mac Studio M4 Max (64 GB) running the stack 24/7 with a
 **hot/cold** service split — see [`plans/lifecycle.md`](../plans/lifecycle.md) for the full
-design. The `deploy-mvp` step just gets the stack booting; hot/cold + the supervisor come
-in the `LC-*` slices.
+design. `deploy-mvp` gets the stack booting; **LC-1 tags every service `hot`/`cold`** (above);
+the supervisor that auto-starts cold services on demand comes in the later `LC-*` slices.
 
 LLM inference is **local Ollama on the host** (native Metal, not a container). Reach it from
 inside the compose network via `host.docker.internal:11434`.
@@ -72,7 +86,7 @@ cp .env.example .env
 # apply the Mac/Ollama overlay (LLM block + secrets) — see .env.mac.example
 brew install ollama && ollama serve &          # host, native
 # pull the models listed in .env.mac.example (~26 GB one-time)
-docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml --profile hot up -d --build
 docker compose -f docker-compose.yml logs -f gateway-telegram
 ```
 
