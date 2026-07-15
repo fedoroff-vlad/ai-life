@@ -20,6 +20,7 @@ Portable skills shared across my repos (source: github.com/fedoroff-vlad/agent-s
 - `close-pr` — move finished work STATUS→HISTORY, freshness pass, squash-merge on green.
 - `bump-deps` — bump an incoming dependency across SSOT + lockfile + pins.
 - `release-version` — cut a stable outgoing version (semver + changelog + tag).
+- `run-goldens` — run the golden LLM tests (`@GoldenLlmTest`) against a real model — one/several/all — via `scripts/golden.sh`; reads real regression vs flaky borderline case.
 
 The coupling table they consume lives at `.skills/change-map.yaml`.
 
