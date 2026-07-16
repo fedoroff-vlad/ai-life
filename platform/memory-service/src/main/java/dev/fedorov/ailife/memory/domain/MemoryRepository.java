@@ -18,7 +18,8 @@ import java.util.UUID;
 
 /**
  * JdbcTemplate over memory.memories. JPA was tried-and-skipped here — the
- * embedding column is pgvector(384), which JPA mapping handles only via a
+ * embedding column is a pgvector (384-dim mock/dev, 768-dim on the real Mac
+ * deploy), which JPA mapping handles only via a
  * custom Hibernate type, and we don't need any of the ORM features (no joins,
  * no laziness, no cascades). One file beats the configuration.
  */
