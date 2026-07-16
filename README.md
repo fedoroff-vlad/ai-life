@@ -86,3 +86,7 @@ user) of what's done, how it works, and how to run it. The design lives in [`pla
 - [`plans/architecture.md`](plans/architecture.md) — layers, monorepo structure, DB schemas, LLM strategy, locked decisions.
 - [`plans/PATTERNS.md`](plans/PATTERNS.md) — scaffolding recipes (new MCP / agent / migration / contract).
 - [`CLAUDE.md`](CLAUDE.md) — session reading order, conventions, authorization.
+
+## License
+
+[MIT](LICENSE) — do what you like; keep the copyright notice.
