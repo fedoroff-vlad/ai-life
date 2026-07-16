@@ -147,6 +147,17 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
     Dockerfile). Lands before/with LC-3.
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
   unload; coder start/stop hooks flip the profile.
+  - **Acceptance criterion — the eviction must be *proven*, not assumed (audit 2026-07-16).** With only
+    ~14 GB of headroom, "unload before load" is a **correctness requirement, not an optimisation**: if the
+    outgoing `qwen3:32b` is still resident when `qwen3-coder:30b` begins loading, peak momentarily needs
+    ≈38 GB of models and busts the ~48 GB GPU ceiling (swap/OOM — precisely the failure the downshift
+    exists to prevent). LC-4 therefore does not ship until **(1)** `/v1/model-profile` *waits for* the
+    outgoing model to actually leave Ollama (`keep_alive:0` / `ollama stop`, then poll `/api/ps` until it
+    is gone) before issuing the incoming load — never fire-and-forget; **(2)** a test asserts the
+    **ordering** (eviction confirmed → load starts), so the guarantee lives in the suite rather than in an
+    env flag; **(3)** an eviction timeout **fails loudly** instead of proceeding into an over-budget load.
+    None of this exists yet (no Java references `model-profile` / downshift / unload) — this is the binding
+    contract for whoever builds LC-4.
   - **Qwen3 cutover (bundled with LC-4).** Deploy models moved to Qwen3 (`qwen3:32b` / `:14b` / `:8b`,
     coder `qwen3-coder:30b`) in `.env.mac.example` + pull scripts. Qwen3 "thinks" by default, which breaks
     strict-JSON skill parsing and is ~2-3x slower on CPU. **RESOLVED (2026-07-13):** the gateway gained
