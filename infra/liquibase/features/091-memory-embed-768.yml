@@ -1,0 +1,47 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 091-memory-embed-768
+      author: ai-life
+      # Context-gated: runs ONLY when the `embed-768` context is in the active filter
+      # (LIQUIBASE_CONTEXTS=default,embed-768, set in infra/.env.mac.example). The
+      # mock/dev deploy runs with the `default` filter (which matches no changeset), so
+      # every context-less changeset still runs but this ALTER is excluded — dev keeps
+      # the 384-dim column from 004-memory. NB: an EMPTY filter would run this too
+      # (Liquibase runs all changesets when no context is specified), which is exactly
+      # why the compose default is `default`, never empty.
+      contexts: embed-768
+      comment: |
+        Widen memory.memories.embedding from vector(384) to vector(768) for a real
+        768-dim embedding provider (nomic-embed-text on the Mac deploy). The base
+        004-memory column is vector(384) to match the llm-gateway mock provider; the
+        real deploy activates the `embed-768` context so the column matches the active
+        provider's output. MEMORY_EMBED_DIM must be flipped to 768 in the same deploy
+        (infra/.env.mac.example) so MemoryService's fail-fast dim check agrees with the
+        column width.
+
+        This is the migration the 004-memory comment forward-referenced ("Stage 5 will
+        run a migration to widen the column + re-embed all rows") — the real provider
+        turned out to be nomic-embed-text (768-dim), not bge-m3 (1024-dim).
+
+        Re-embed note: pgvector's ALTER TYPE cannot cast 384-dim vectors to 768-dim, so
+        this is safe on a FRESH deploy (empty table — the Mac cutover case). If
+        memory.memories already holds 384-dim rows, TRUNCATE them (or run a future bulk
+        re-embed) and re-embed under the 768-dim provider BEFORE applying, or the ALTER
+        fails. The HNSW index is dropped and recreated because the column type changes.
+      changes:
+        - sql:
+            sql: DROP INDEX IF EXISTS memory.ix_memories_embedding_hnsw;
+            stripComments: false
+
+        - sql:
+            sql: |
+              ALTER TABLE memory.memories
+                ALTER COLUMN embedding TYPE vector(768);
+            stripComments: false
+
+        - sql:
+            sql: |
+              CREATE INDEX ix_memories_embedding_hnsw
+                ON memory.memories USING hnsw (embedding vector_cosine_ops);
+            stripComments: false

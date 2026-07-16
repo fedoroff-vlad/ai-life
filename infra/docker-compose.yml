@@ -74,6 +74,14 @@ services:
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
       LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
       LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+      # Active Liquibase context filter. MUST be non-empty: an EMPTY filter disables
+      # context filtering and runs EVERY changeset (including embed-768) — the opposite
+      # of what we want. The default token `default` matches no changeset, so all
+      # context-less changesets run while `091-memory-embed-768` (contexts: embed-768)
+      # is excluded → mock/dev keeps vector(384). The Mac deploy sets
+      # LIQUIBASE_CONTEXTS=default,embed-768 (infra/.env.mac.example) to also run 091
+      # and widen memory.memories.embedding to match nomic-embed-text (768-dim).
+      LIQUIBASE_COMMAND_CONTEXTS: ${LIQUIBASE_CONTEXTS:-default}
     volumes:
       - ./liquibase:/liquibase/changelog:ro
     command: ["update"]

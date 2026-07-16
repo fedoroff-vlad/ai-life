@@ -36,6 +36,8 @@
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>
     <include file="features/090-memory-note.yml" relativeToChangelogFile="true"/>
+    <!-- 091 alters memory.memories (from 004); context-gated `embed-768`, off by default. -->
+    <include file="features/091-memory-embed-768.yml" relativeToChangelogFile="true"/>
     <include file="features/100-coach.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):

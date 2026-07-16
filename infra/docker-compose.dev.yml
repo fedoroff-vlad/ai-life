@@ -44,6 +44,10 @@ services:
       LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
       LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.xml
       LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+      # Non-empty default `default` keeps context filtering ON (an empty filter would
+      # run EVERY changeset incl. embed-768); IDE dev = mock provider = vector(384).
+      # See docker-compose.yml for the embed-768 context the Mac deploy activates.
+      LIQUIBASE_COMMAND_CONTEXTS: ${LIQUIBASE_CONTEXTS:-default}
     volumes:
       - ./liquibase:/liquibase/changelog:ro
     command: ["update"]

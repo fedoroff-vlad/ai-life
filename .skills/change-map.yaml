@@ -15,6 +15,22 @@ couplings:
       - golden lane
     notes: Retiring a tag → add it to RETIRED_TAGS in scripts/check-consistency.sh.
 
+  - id: embedding-model-dimension
+    trigger: Changed the embedding model or its vector dimension
+    ssot: infra/.env.mac.example
+    must_update:
+      - infra/.env.example                                        # MEMORY_EMBED_DIM default + commented Mac block
+      - infra/liquibase/features/091-memory-embed-768.yml         # vector(N) column width (or a new embed-NNNN migration)
+      - platform/memory-service/src/main/resources/application.yml # memory.dim default
+      - platform/memory-service/README.md                          # dim contract + "Dim mismatch" note
+    notes: >
+      Swapping the embedding model changes the dim, the vector(N) column AND the
+      LIQUIBASE_CONTEXTS that gates the widen migration. Three knobs move as one:
+      LLM_EMBEDDING_MODEL ↔ MEMORY_EMBED_DIM ↔ vector(N) in the context-gated
+      embed-NNN migration. The mock/dev default stays 384 (004-memory, no context);
+      only the real-provider deploy overrides all three. A new dim (e.g. bge-m3 =
+      1024) needs its own embed-1024 context + migration — do NOT amend 091.
+
   - id: new-service-or-mcp-module
     trigger: Added a new service or MCP module
     must_update:

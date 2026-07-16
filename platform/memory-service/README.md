@@ -64,7 +64,7 @@ leaves the note un-indexed/un-linked but never fails the write.
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | Via `libs/llm-client`. |
 | `MEMORY_DEFAULT_K` | `5` | Top-k when request omits it. |
 | `MEMORY_MAX_K` | `50` | Hard cap on top-k. |
-| `MEMORY_EMBED_DIM` | `384` | Must match both the `vector(N)` column and the active embedding provider. |
+| `MEMORY_EMBED_DIM` | `384` | Must match both the `vector(N)` column and the active embedding provider. `384` = mock/dev (mock provider + `004-memory`). The Mac/Ollama deploy uses nomic-embed-text (768-dim): `infra/.env.mac.example` sets this to `768` **and** `LIQUIBASE_CONTEXTS=default,embed-768` so `091-memory-embed-768` widens the column to match. |
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | profile-service base URL — relation capture resolves person names to `core.people` UUIDs. |
 | `CONVERSATION_BASE_URL` | `http://conversation-service:8089` | conversation-service base URL — AC-4 sets the ambient-approval route-lock here. |
 | `NOTIFIER_BASE_URL` | `http://notifier-service:8084` | notifier-service base URL — AC-4 pushes the "заметил: … — записать?" question here. |
@@ -106,15 +106,21 @@ leaves the note un-indexed/un-linked but never fails the write.
 
 ## Schema
 - [004-memory.yml](../../infra/liquibase/features/004-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
+- [091-memory-embed-768.yml](../../infra/liquibase/features/091-memory-embed-768.yml) — **context-gated** (`contexts: embed-768`) widen of `embedding` to `vector(768)` + HNSW rebuild, for a real 768-dim provider (nomic-embed-text). Runs only when `embed-768` is in the active filter (`LIQUIBASE_CONTEXTS=default,embed-768`); the mock/dev `default` filter keeps 384. Fresh-deploy-safe (empty table); pre-existing 384-dim rows must be re-embedded first (ALTER can't cast the width).
 - [005-memory-relations.yml](../../infra/liquibase/features/005-memory-relations.yml) — `memory.relations` (single-hop edges). `subject_type`/`subject_id` + `edge` + `object_type`/`object_id`/`object_label` (the label is always present even when `object_id` is null, so display works for free-text objects like "loose-leaf tea"). Indexes on `(household_id, subject_type, subject_id)` and `(household_id, object_type, object_id)`.
 - [090-memory-note.yml](../../infra/liquibase/features/090-memory-note.yml) — `memory.note` (second-brain SB-1): the authored notes tier. Scope `household_id` + nullable `owner_id`; `title`, `type` (default `fact`), `tags`/`frontmatter` jsonb, `source` (default `user`), nullable `person_id`, `body_md`, `created_at`/`updated_at`. Indexes on `household_id` and `person_id`. Test mirror kept in `src/test/resources/test-schema.sql`.
 
 ## Dim mismatch (the one gotcha)
-The column is `vector(384)` and the mock provider emits 384-dim. When Stage 5
-swaps in a real provider (bge-m3 = 1024-dim), the column needs to be widened AND
-all rows re-embedded. `MemoryService` fails fast with a clear error if the
-returned embedding's length differs from `memory.dim` — this is the first thing
-to check when you see `embedding dim mismatch` in logs.
+The column is `vector(384)` and the mock provider emits 384-dim. A real provider
+has a different width — the Mac deploy uses **nomic-embed-text (768-dim)**, so it
+sets `MEMORY_EMBED_DIM=768` + `LIQUIBASE_CONTEXTS=default,embed-768` (the
+[091](../../infra/liquibase/features/091-memory-embed-768.yml) widen migration)
+together. All three move as one — flip only one and `MemoryService` fails fast
+with `embedding dim mismatch` (its length-vs-`memory.dim` check), or Postgres
+rejects the insert (column width ≠ vector length). That coupling is
+`.skills/change-map.yaml#embedding-model-dimension`; it's the first thing to
+check when you see `embedding dim mismatch` in logs. A future provider with yet
+another width (bge-m3 = 1024) needs its own `embed-1024` context + migration.
 
 ## Why a SQL table instead of Apache AGE
 [005](../../infra/liquibase/features/005-memory-relations.yml) is plain SQL on

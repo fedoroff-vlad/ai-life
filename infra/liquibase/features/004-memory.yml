@@ -11,8 +11,10 @@ databaseChangeLog:
         household_id is shared across the household.
 
         embedding is vector(384) to match the llm-gateway mock provider's
-        deterministic embeddings. When Stage 5 wires real bge-m3 (1024-dim) we
-        will run a migration to widen the column + re-embed all rows.
+        deterministic embeddings. A real provider has a different width — the Mac
+        deploy uses nomic-embed-text (768-dim); the context-gated 091-memory-embed-768
+        widens this column to match (+ re-embed existing rows). Do NOT amend this
+        changeset for that — it stays 384 for the mock/dev default.
 
         We use pgvector's HNSW index (m=16, ef_construction=64 — the upstream
         defaults). Apache AGE / graph relations land in PR16.
