@@ -12,7 +12,7 @@ Long polling at start → webhook when TLS. Resolve telegram_user_id → user/ho
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
 
 ## memory-service (platform/)
-pgvector (embeddings) + Apache AGE (graph: Person/Place/Item/Event, edges likes/owns/related_to). Three levels: short-term (core.conversations), user long-term (scope user:<id>), household shared (scope household:<id>). Each record: scope, source, embedding (bge-m3 via embedding channel), graph_refs.
+pgvector (embeddings) + Apache AGE (graph: Person/Place/Item/Event, edges likes/owns/related_to). Three levels: short-term (core.conversations), user long-term (scope user:<id>), household shared (scope household:<id>). Each record: scope, source, embedding (via the `embedding` channel — `nomic-embed-text`/768 on the Mac deploy, mock/384 in dev), graph_refs.
 API: `POST /remember`, `POST /recall` (top-k + scope filter + optional graph-walk), `POST /forget`, `GET /graph/person/{id}/relations`. Orchestrator calls recall before routing.
 
 ## media-service (platform/, port 8088)
