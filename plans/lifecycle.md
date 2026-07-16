@@ -41,12 +41,34 @@ The only component with host Docker access. Brings cold services up on demand an
 ### B. Model routing — in `llm-gateway` (existing service)
 Owns model selection already (`LLM_DEFAULT_MODEL`). Gains a **runtime override** so ai-life's chat model
 follows a workload profile.
-- `POST /v1/model-profile {profile: normal|coder-active}` → `normal` = 32B, `coder-active` = 14B
-  (the downshift model, a new `LLM_DEFAULT_MODEL_DOWNSHIFT` env).
+- `POST /v1/model-profile {profile: normal|coder-active}` → `normal` = `LLM_DEFAULT_MODEL`,
+  `coder-active` = `LLM_DEFAULT_MODEL_DOWNSHIFT`.
+- **Opt-in, default OFF (owner, 2026-07-16).** The whole two-tenant dance is an **add-on, not a
+  base feature** — gated by `LLM_MODEL_PROFILE_ENABLED` (default `false`). Anyone running ai-life
+  *without* the coder (or the coder without ai-life) must be unaffected: with the flag off the
+  endpoint is a no-op/404 and the gateway just serves `LLM_DEFAULT_MODEL` forever. Neither project
+  may hard-depend on the other.
+- **No hardcoded tags — both profiles come from env** (`LLM_DEFAULT_MODEL` /
+  `LLM_DEFAULT_MODEL_DOWNSHIFT`), per the standing "provider/model switches via env only" rule.
+  Someone else's pair (or ours, later) will be different models entirely; the mechanism must not
+  care which.
 - **Clean swap (critical on 64 GB):** on switch, gateway explicitly unloads the outgoing model from
-  Ollama (`keep_alive:0` / `ollama stop`) so two 32B never sit resident during the transition.
-- **Signal source:** the coder project flips the profile on its own start/stop (one HTTP call). ai-life
-  knows nothing about the coder — it only changes its own chat model on the flag.
+  Ollama (`keep_alive:0` / `ollama stop`) so two large models never sit resident during the
+  transition. Proof required — see the LC-4 acceptance criterion in §Slices.
+- **Signal source + ordering — evict BEFORE load, both ways (owner, 2026-07-16).** The coder flips
+  the profile on its own start/stop (one HTTP call). ai-life knows nothing about the coder — it only
+  changes its own chat model on the flag, so the endpoint stays generic (any workload may call it).
+  **The order is load-bearing and is the opposite of the intuitive one:**
+  1. **Start:** coder signals `coder-active` **before loading anything** → ai-life evicts the big
+     model, *confirms* eviction, settles on the downshift tag → answers OK → **only then** the coder
+     loads its coder model.
+  2. **Stop / idle-timeout:** coder unloads its own model and *confirms* it is gone → signals
+     `normal` → ai-life restores the big model.
+
+  Loading the coder model first (then signalling) puts both resident at once ≈39 GB of models +
+  ~15 GB of JVMs/backing/OS ≈ **54 GB** — over the ~48 GB ceiling, i.e. precisely the crash the
+  downshift exists to prevent, on every session start. **Seamlessness is explicitly not required**
+  (owner), so the handshake simply waits — a few seconds per session start, and the budget holds.
 
 ## Flow (cold agent, e.g. "что приготовить из того что есть" → chef)
 1. orchestrator classifies → `chef` (cold in the registry: `{hot:false, container:chef-agent}`).
@@ -146,7 +168,18 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
   - **LC-3a — CDS/AOT fast cold-start** for the agent modules (Spring Boot 4 AOT + CDS archive in the
     Dockerfile). Lands before/with LC-3.
 - **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
-  unload; coder start/stop hooks flip the profile.
+  unload, **opt-in via `LLM_MODEL_PROFILE_ENABLED` (default off)**, both tags from env. See §B for the
+  design + the evict-before-load handshake.
+  - **Owner decisions (2026-07-16):** the mechanism is an **add-on, not a base feature** — default off,
+    so ai-life runs standalone unchanged and the coder is usable without ai-life; **no hardcoded model
+    tags** (both profiles read env — someone else's pair will be different models); **seamlessness is
+    not required**, so the handshake may simply wait.
+  - **Cross-repo dependency — the coder-side hook is NOT ai-life's to build.** This slice ships the
+    *endpoint*; the caller (signal on session start/stop + idle timeout, itself flag-gated) is owned by
+    **coding-agent C-6**, where a session lifecycle first exists. Audit 2026-07-16 found the hook was
+    orphaned — every doc on both sides said "the coder *only* signals up/down" and no slice in either
+    roadmap owned it. LC-4 is **not** done-in-effect until that counterpart lands; until then the
+    endpoint is inert (flag off) and the pair must not be run concurrently on the 64 GB box.
   - **Acceptance criterion — the eviction must be *proven*, not assumed (audit 2026-07-16).** With only
     ~14 GB of headroom, "unload before load" is a **correctness requirement, not an optimisation**: if the
     outgoing `qwen3:32b` is still resident when `qwen3-coder:30b` begins loading, peak momentarily needs
