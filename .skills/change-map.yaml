@@ -11,9 +11,13 @@ couplings:
       - scripts/golden.sh
       - platform/llm-gateway/README.md
       - plans/lifecycle.md
+      - plans/architecture.md
     revalidate:
       - golden lane
-    notes: Retiring a tag → add it to RETIRED_TAGS in scripts/check-consistency.sh.
+    notes: >
+      Retiring a tag → add it to RETIRED_TAGS in scripts/check-consistency.sh.
+      plans/architecture.md holds the model list in §LLM strategy + the host size in
+      its header blockquote — both must track the SSOT (drift caught 2026-07-16).
 
   - id: embedding-model-dimension
     trigger: Changed the embedding model or its vector dimension
@@ -23,6 +27,8 @@ couplings:
       - infra/liquibase/features/091-memory-embed-768.yml         # vector(N) column width (or a new embed-NNNN migration)
       - platform/memory-service/src/main/resources/application.yml # memory.dim default
       - platform/memory-service/README.md                          # dim contract + "Dim mismatch" note
+      - plans/platform.md                                          # memory-service embedding-channel prose
+      - platform/llm-gateway/README.md                             # embedding-model example (also in llm-model-tag)
     notes: >
       Swapping the embedding model changes the dim, the vector(N) column AND the
       LIQUIBASE_CONTEXTS that gates the widen migration. Three knobs move as one:

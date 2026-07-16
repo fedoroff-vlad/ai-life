@@ -36,7 +36,7 @@ stable 384-dim embeddings keyed off a CRC32 of the input. Token counts are appro
   the caller doesn't set one.
 - **Embeddings are unsupported** — Anthropic ships no embedding endpoint. The `embedding`
   channel needs a separate llm-gateway instance pointed at an embedding-capable provider
-  (e.g. OpenAI-compatible / Ollama with `bge-m3`).
+  (e.g. OpenAI-compatible / Ollama with `nomic-embed-text`).
 
 `OpenAiCompatibleProvider` calls `POST /chat/completions` (+ SSE) and `POST /embeddings`
 against any OpenAI-dialect server: local Ollama (the free baseline for tests + dev),
@@ -73,7 +73,7 @@ multimodal turn into its native shape:
 - **mock** → echoes ` [images=N]` after the text so callers can assert deterministically.
 
 The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision-capable model
-(`claude-opus-4-7`, `qwen2.5-vl:32b`, …) or it falls back to `LLM_DEFAULT_MODEL`.
+(`claude-opus-4-7`, `minicpm-v`, …) or it falls back to `LLM_DEFAULT_MODEL`.
 
 ## Tracing (Langfuse)
 
@@ -134,8 +134,8 @@ LLM_PROVIDER=openai-compatible
 LLM_BASE_URL=http://ollama:11434/v1
 LLM_DEFAULT_MODEL=qwen3:32b
 LLM_FAST_MODEL=qwen3:8b
-LLM_VISION_MODEL=qwen2.5-vl:32b            # qwen3 has no vision variant yet — VL stays on 2.5
-LLM_EMBEDDING_MODEL=bge-m3
+LLM_VISION_MODEL=minicpm-v                 # small on-demand vision/OCR (qwen3 has no vision variant; a 32B VL busts the 64 GB budget)
+LLM_EMBEDDING_MODEL=nomic-embed-text       # 768-dim — see memory-service README §Dim
 # LLM_SUPPRESS_THINKING=true               # qwen3 thinks by default; sends reasoning_effort:none (faster on CPU, JSON-safe)
 # LLM_API_KEY=                             # optional — Ollama ignores Authorization
 ```
