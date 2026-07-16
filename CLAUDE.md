@@ -21,6 +21,7 @@ Portable skills shared across my repos (source: github.com/fedoroff-vlad/agent-s
 - `bump-deps` — bump an incoming dependency across SSOT + lockfile + pins.
 - `release-version` — cut a stable outgoing version (semver + changelog + tag).
 - `run-goldens` — run the golden LLM tests (`@GoldenLlmTest`) against a real model — one/several/all — via `scripts/golden.sh`; reads real regression vs flaky borderline case.
+- `architecture-checkup` — audit the repo (or a change) against agent-engineering standards (manifests / SDD / TDD / drift / canon + security / runtime-hardware fit); emits a prioritized findings report. Find-only — hands fixes to `check-drift` / `new-module` / `new-skill`.
 
 The coupling table they consume lives at `.skills/change-map.yaml`.
 
