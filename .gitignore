@@ -61,3 +61,7 @@ infra/backups/*
 # See CLAUDE.md §"Test strategy" + logs/README.md for the rationale.
 logs/*
 !logs/README.md
+
+# ---- Local denylist for tools/agent-skills/scripts/check-private-terms.* (scrub-identity) ----
+# A committed denylist names exactly what it hides — never track this file.
+.private-terms
