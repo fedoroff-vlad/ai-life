@@ -93,6 +93,7 @@ Extend the lint whenever a new coupling is mechanically checkable (a stale ref t
 
 ## Branching
 - `stage-<n>-pr<m>-<slug>` for staged plan work; else `feat/<slug>` / `fix/<slug>`. PR description references the plan section. `main` always green — if CI breaks on main, drop everything and fix.
+- **`main` is protected server-side** (2026-07-20), mirroring coding-agent: PR required, `build & test` must pass and be up to date with `main`, force-push and deletion off, `enforce_admins=true`. A direct push is therefore *rejected*, not merely discouraged — the rule above is no longer honour-based. Branch **before** the first edit of a new slice; right after a merge is exactly where the slip happens.
 
 ## Stack (details: `plans/architecture.md`)
 - Java 25 LTS, Maven 3.9+, Spring Boot 4.0.x (Framework 7, Jackson 3), Spring AI 2 (MCP client).
