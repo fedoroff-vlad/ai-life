@@ -14,8 +14,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `infra/README` refresh ✅ — **remaining = first real `docker compose --profile hot up` + cross-domain smoke
   on the Mac** (config authored blind; the Mac isn't purchased yet — hardware-blocked).
   **LC-1 compose hot/cold profiles ✅ 2026-07-15** (27 hot / 24 cold / 2 tunnel; finance aux MCPs decoupled —
-  see [lifecycle.md](lifecycle.md) §Hot/cold set). **Next actionable = LC-2 supervisor + socket-proxy**
-  (LC-2.5 cold-tolerant discovery → LC-3(+3a AOT) → LC-4 model-manager → LC-5). coach-agent parked (Backlog).
+  see [lifecycle.md](lifecycle.md) §Hot/cold set). **LC-4 model-manager ✅ 2026-07-21** — `/v1/model-profile`
+  with the evict-before-load handshake (opt-in, default off); taken out of order because coding-agent
+  shipped its caller first (its C-6a), leaving the endpoint the only missing half. Detail →
+  [lifecycle.md](lifecycle.md) §LC-4 + [llm-gateway README](../platform/llm-gateway/README.md) §Model profile.
+  **Next actionable = LC-2 supervisor + socket-proxy** (LC-2.5 cold-tolerant discovery → LC-3(+3a AOT) →
+  LC-5). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.

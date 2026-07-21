@@ -63,6 +63,25 @@ couplings:
       - both sides' code
       - "E2E<Stage/Feature>...Test"
 
+  - id: model-profile-cross-repo
+    trigger: Changed the /v1/model-profile contract (profile names, status semantics, ordering)
+    ssot: platform/llm-gateway/src/main/java/dev/fedorov/ailife/llmgw/model/ModelProfileService.java
+    must_update:
+      - platform/llm-gateway/src/test/java/dev/fedorov/ailife/llmgw/model/ModelProfileServiceTest.java
+      - platform/llm-gateway/README.md          # §Model profile — the operator-facing contract
+      - infra/.env.example
+      - infra/.env.mac.example
+      - infra/docker-compose.yml                # the llm-gateway env block
+      - plans/lifecycle.md                      # §LC-4
+      - ../coding-agent/src/code_context/lifecycle.py   # the CALLER, in a DIFFERENT repo/PR
+    notes: >
+      The only contract ai-life shares with another repository, so neither CI can see the other
+      half and drift here is silent by construction. Two invariants the caller depends on: a 2xx
+      means the outgoing model has ACTUALLY left Ollama (not that the request was accepted), and
+      any other status — including the 404 when the feature is off — must keep reading as a
+      refusal. Weakening either one lets both models load at once, which is the failure the whole
+      mechanism exists to prevent.
+
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring
     must_update:

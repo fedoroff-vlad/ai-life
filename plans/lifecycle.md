@@ -167,20 +167,52 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
     the gateway/orchestrator) to reclaim their hot footprint.
   - **LC-3a — CDS/AOT fast cold-start** for the agent modules (Spring Boot 4 AOT + CDS archive in the
     Dockerfile). Lands before/with LC-3.
-- **LC-4 — model-manager in llm-gateway.** Runtime default-model override + `/v1/model-profile` + clean
-  unload, **opt-in via `LLM_MODEL_PROFILE_ENABLED` (default off)**, both tags from env. See §B for the
-  design + the evict-before-load handshake.
+- **LC-4 — model-manager in llm-gateway. ✅ SHIPPED 2026-07-21.** Runtime default-model override +
+  `/v1/model-profile` + clean unload, **opt-in via `LLM_MODEL_PROFILE_ENABLED` (default off)**, both tags
+  from env. See §B for the design + the evict-before-load handshake.
+  - **As built.** `model/ModelProfileService` owns the swap; the override lives on
+    `LlmGatewayProperties` (model resolution was already there, so every provider follows a downshift
+    without knowing the mechanism exists — no provider was touched). `web/ModelProfileController` is
+    `@ConditionalOnProperty`, so with the flag off the path is a genuine 404 rather than a disabled
+    handler. Unloading is Ollama-native (no OpenAI-dialect equivalent), so the service derives Ollama's
+    root from `LLM_BASE_URL` minus `/v1` — the one place in the gateway that speaks Ollama's own API.
+    Contract detail in [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Model profile.
+  - **All three acceptance criteria are met and tested** (`ModelProfileServiceTest`, 7 tests): the
+    switch polls `/api/ps` until the outgoing model is really gone before the incoming load; the
+    ordering is asserted (`unload → ps → ps → load`); an eviction timeout raises and the switch is
+    abandoned — no load issued, the profile does not flip, and the gateway keeps serving the model it
+    had. Verified the lane can fail: dropping the confirmation poll turns exactly those two tests red.
+  - **Driven live against a real Ollama** (dev box, 2026-07-21, `qwen3:8b` ⇄ `qwen2.5:7b` standing in
+    for 32B ⇄ 14B) — the half the MockWebServer tests cannot cover: the flag binds from env
+    (`LLM_MODEL_PROFILE_ENABLED`), both verbs are a genuine **404** with it off, and a switch really
+    evicted the outgoing model and loaded the incoming one (`ollama ps` before/after) in **~10 s**
+    end to end, after which chat calls came back tagged with the downshifted model. Restore, the
+    re-signal no-op and the 400 on an unknown profile all behaved. So the ~10 s is the wait a coder
+    session pays at start — well inside "seamlessness is not required".
+  - **Two things the spec left open, decided here.** The override is adopted *between* the confirmed
+    eviction and the warm-up, not after it — in the gap a chat request would otherwise resolve to the
+    model just unloaded and make Ollama load it straight back. And the warm-up **soft-fails**: by then
+    the box is already under budget and correct, so a failed pre-load costs one slow reply, which is a
+    better answer than failing the whole switch.
+  - **Re-signalling the active profile is a no-op** (a coder that restarted and re-announced itself
+    must not cost a model reload), and a second concurrent switch is rejected with 409 rather than
+    racing the first one's eviction.
   - **Owner decisions (2026-07-16):** the mechanism is an **add-on, not a base feature** — default off,
     so ai-life runs standalone unchanged and the coder is usable without ai-life; **no hardcoded model
     tags** (both profiles read env — someone else's pair will be different models); **seamlessness is
     not required**, so the handshake may simply wait.
-  - **Cross-repo dependency — the coder-side hook is NOT ai-life's to build.** This slice ships the
-    *endpoint*; the caller (signal on session start/stop + idle timeout, itself flag-gated) is owned by
-    **coding-agent C-6**, where a session lifecycle first exists. Audit 2026-07-16 found the hook was
-    orphaned — every doc on both sides said "the coder *only* signals up/down" and no slice in either
-    roadmap owned it. LC-4 is **not** done-in-effect until that counterpart lands; until then the
-    endpoint is inert (flag off) and the pair must not be run concurrently on the 64 GB box.
-  - **Acceptance criterion — the eviction must be *proven*, not assumed (audit 2026-07-16).** With only
+  - **Cross-repo dependency — the coder-side hook is NOT ai-life's to build. ✅ It landed first
+    (coding-agent C-6a, 2026-07-21).** This slice ships the *endpoint*; the caller (signal on session
+    start/stop + idle timeout, itself flag-gated) lives in coding-agent's `lifecycle.py`. The 2026-07-16
+    audit had found the hook orphaned — every doc on both sides said "the coder *only* signals up/down"
+    and no slice in either roadmap owned it; coding-agent then took it, ahead of its own C-6, because
+    what actually loads a 30B on the shared Mac today is its *analyzer* pass, not a shell. **Both halves
+    now exist, so the pair may be run concurrently — with both flags on.** What the caller assumes of
+    this endpoint, and what the implementation honours: a **2xx is the confirmation** that the outgoing
+    model has left the engine (not an ack), and any other status — including the 404 when this flag is
+    off — reads as a refusal that *fails* the coder run rather than letting it load over the ceiling.
+  - **Acceptance criterion — the eviction must be *proven*, not assumed (audit 2026-07-16; met by the
+    shipped slice above).** With only
     ~14 GB of headroom, "unload before load" is a **correctness requirement, not an optimisation**: if the
     outgoing `qwen3:32b` is still resident when `qwen3-coder:30b` begins loading, peak momentarily needs
     ≈38 GB of models and busts the ~48 GB GPU ceiling (swap/OOM — precisely the failure the downshift
@@ -189,8 +221,8 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
     is gone) before issuing the incoming load — never fire-and-forget; **(2)** a test asserts the
     **ordering** (eviction confirmed → load starts), so the guarantee lives in the suite rather than in an
     env flag; **(3)** an eviction timeout **fails loudly** instead of proceeding into an over-budget load.
-    None of this exists yet (no Java references `model-profile` / downshift / unload) — this is the binding
-    contract for whoever builds LC-4.
+    All three are implemented and asserted (see the shipped bullet); this paragraph stays as the reason
+    they are non-negotiable, not as an open item.
   - **Qwen3 cutover (bundled with LC-4).** Deploy models moved to Qwen3 (`qwen3:32b` / `:14b` / `:8b`,
     coder `qwen3-coder:30b`) in `.env.mac.example` + pull scripts. Qwen3 "thinks" by default, which breaks
     strict-JSON skill parsing and is ~2-3x slower on CPU. **RESOLVED (2026-07-13):** the gateway gained
