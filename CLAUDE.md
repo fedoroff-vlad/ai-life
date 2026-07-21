@@ -57,6 +57,7 @@ touch the left, update the right **and** re-run the lint locally:
 - **New service / MCP module** → `infra/docker-compose*.yml` · root `README.md` (layout) · module `README.md` · `plans/architecture.md` · `plans/INDEX.md` · `.env.example` (its port/keys) · a golden test if it has an LLM surface.
 - **New env var / port / endpoint / MCP tool** → the module `README.md` (contract) + `.env.example` + any consumer's README (`§who-uses-me`). This overlaps the README-upkeep rule below.
 - **New cross-service wire contract (`libs/contracts`)** → both sides' code + an `E2E…Test` (see Test strategy).
+- **The `/v1/model-profile` contract** (LC-4, `llm-gateway`) → its test (the evict-before-load ordering *is* the contract) · `llm-gateway/README.md` · `infra/.env{,.mac}.example` + the compose env block · `plans/lifecycle.md` · **and the caller, which lives in another repo** (`../coding-agent`'s `lifecycle.py`). Nothing here can see that half, so it drifts silently — record the counterpart chore in that repo's STATUS.
 
 Extend the lint whenever a new coupling is mechanically checkable (a stale ref that a grep can catch) — that's how the "automat" grows instead of relying on memory.
 

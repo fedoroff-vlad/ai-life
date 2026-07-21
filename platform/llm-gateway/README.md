@@ -12,6 +12,8 @@ and can be swapped at redeploy without changing any client code (see plan §5).
 | POST   | `/v1/chat`          | JSON request/response                  |
 | POST   | `/v1/chat/stream`   | SSE stream of text deltas              |
 | POST   | `/v1/embed`         | embeddings (always `embedding` channel)|
+| POST   | `/v1/model-profile` | switch the workload profile (LC-4) — **only when `LLM_MODEL_PROFILE_ENABLED=true`, else 404** |
+| GET    | `/v1/model-profile` | the profile + model in force (same condition) |
 | GET    | `/actuator/health`  | liveness                               |
 | GET    | `/actuator/prometheus` | metrics                            |
 
@@ -74,6 +76,52 @@ multimodal turn into its native shape:
 
 The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision-capable model
 (`claude-opus-4-7`, `minicpm-v`, …) or it falls back to `LLM_DEFAULT_MODEL`.
+
+## Model profile — the two-tenant swap (LC-4)
+
+ai-life shares the Mac and its Ollama with the separate **coder** contour (the coding-agent repo),
+and macOS caps the GPU working set near 48 GB. ai-life's 32B plus the coder's 30B is over that, so
+while the coder works this gateway serves a smaller chat model:
+
+```sh
+curl -s localhost:8081/v1/model-profile -H 'content-type: application/json' \
+     -d '{"profile":"coder-active"}'      # -> {"profile":"coder-active","model":"qwen3:14b"}
+curl -s localhost:8081/v1/model-profile -d '{"profile":"normal"}' -H 'content-type: application/json'
+curl -s localhost:8081/v1/model-profile   # what is in force right now
+```
+
+**Evict before load — the ordering is the contract.** A switch unloads the outgoing model
+(`keep_alive: 0`) and then **polls Ollama's `/api/ps` until it is really gone** before anything
+pulls the incoming one; `keep_alive: 0` returns before the memory is released, so the unload
+response is not proof. An eviction that does not finish within
+`LLM_MODEL_PROFILE_EVICT_TIMEOUT_SECONDS` **fails the switch with 503** rather than proceeding into
+a load that would put both models resident at once — the exact swap/OOM the downshift exists to
+prevent. The ordering lives in `ModelProfileServiceTest`, not in a comment.
+
+**So a 2xx means the model has actually left the engine**, not that the request was accepted — size
+client timeouts for a model unload, not an HTTP round trip. The caller is coding-agent's
+`lifecycle.py`, which treats any non-2xx (including the 404 below) as "the downshift did not
+happen" and declines to load its own model.
+
+**Off by default, and that is the point.** With `LLM_MODEL_PROFILE_ENABLED` unset the endpoint does
+not exist and this gateway serves `LLM_DEFAULT_MODEL` forever — ai-life runs standalone, unaffected
+by a neighbour it may not have. Enabling it requires `LLM_DEFAULT_MODEL_DOWNSHIFT` (**no tag is
+hardcoded** — someone else's pair will be different models) and fails at startup without one.
+Enabling only this half is inert but *not* safe on its own: ai-life steps down when asked, so a
+coder that never signals still loads on top of the 32B. Both halves go on together.
+
+```
+LLM_MODEL_PROFILE_ENABLED=true
+LLM_DEFAULT_MODEL_DOWNSHIFT=qwen3:14b
+# LLM_MODEL_PROFILE_EVICT_TIMEOUT_SECONDS=120
+```
+
+Unloading a model is Ollama-native and has no OpenAI-dialect equivalent, so this is the one place
+that speaks Ollama's own API; its root URL is `LLM_BASE_URL` minus the `/v1` suffix.
+
+Measured on the dev box against a real Ollama (`qwen3:8b` ⇄ `qwen2.5:7b`): a full switch — unload,
+confirm gone, load the incoming model — takes **~10 s**, and the next chat call comes back tagged
+with the new model. That is the wait a coder session pays once at start and once at stop.
 
 ## Tracing (Langfuse)
 
@@ -296,7 +344,8 @@ curl -s http://localhost:8081/v1/chat \
 
 ## Key classes
 - `LlmGatewayApplication` — `@SpringBootApplication`.
-- `config/LlmGatewayProperties` — `@ConfigurationProperties("llm")` (provider id, base-url, api-key, per-channel model ids, anthropic-version, max-tokens fallback).
+- `config/LlmGatewayProperties` — `@ConfigurationProperties("llm")` (provider id, base-url, api-key, per-channel model ids, anthropic-version, max-tokens fallback, the `model-profile` block). Also holds the **runtime DEFAULT-model override** the profile switch applies: model resolution already lives here, so every provider follows a downshift without knowing the mechanism exists.
+- `model/ModelProfileService` — the LC-4 swap: evict the outgoing model, confirm it left Ollama, adopt the incoming tag, warm it. Only bean that talks to Ollama's native API; absent unless `llm.model-profile.enabled`.
 - `config/LangfuseProperties` — `@ConfigurationProperties("langfuse")` (enabled, base-url, public/secret key) for the trace export.
 - `trace/LangfuseTracer` — fire-and-forget, soft-fail export of each chat call to Langfuse's batch ingestion API; no-op when `langfuse.enabled=false`.
 - `provider/LlmProvider` — provider SPI.
@@ -306,3 +355,4 @@ curl -s http://localhost:8081/v1/chat \
 - `provider/openai/OpenAiCompatibleProvider` — OpenAI Chat Completions dialect (`POST /chat/completions` + SSE, `POST /embeddings`). Active when `LLM_PROVIDER=openai-compatible`; covers local Ollama / DeepSeek / Together / OpenAI.
 - `web/ChatController` — `POST /v1/chat`, `POST /v1/chat/stream` (SSE).
 - `web/EmbedController` — `POST /v1/embed`.
+- `web/ModelProfileController` — `POST`/`GET /v1/model-profile`; conditional on the flag, so the path is a 404 when the feature is off. A failed switch answers 503/409/400 — never 2xx.
