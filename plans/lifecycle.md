@@ -41,6 +41,13 @@ The only component with host Docker access. Brings cold services up on demand an
 ### B. Model routing — in `llm-gateway` (existing service)
 Owns model selection already (`LLM_DEFAULT_MODEL`). Gains a **runtime override** so ai-life's chat model
 follows a workload profile.
+
+> **Forward note (2026-07-28) — the MoE stack may make this downshift optional.**
+> [model-strategy.md](model-strategy.md) moves both the ai-life default and the coder to **MoE-A3B** models
+> (~19 GB each): two resident ≈ 38 GB, under the ~48 GB ceiling, so the 32B↔14B downshift becomes a *safety
+> valve* rather than a *requirement*. **Measure two-tenant residency live at deploy before retiring LC-4.**
+> The dense-32B sizing in §Why stays the conservative baseline; this note does not change the signed
+> decisions, it flags what to re-check when the MoE tags land.
 - `POST /v1/model-profile {profile: normal|coder-active}` → `normal` = `LLM_DEFAULT_MODEL`,
   `coder-active` = `LLM_DEFAULT_MODEL_DOWNSHIFT`.
 - **Opt-in, default OFF (owner, 2026-07-16).** The whole two-tenant dance is an **add-on, not a
