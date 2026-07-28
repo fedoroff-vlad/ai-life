@@ -20,6 +20,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   [lifecycle.md](lifecycle.md) §LC-4 + [llm-gateway README](../platform/llm-gateway/README.md) §Model profile.
   **Next actionable = LC-2 supervisor + socket-proxy** (LC-2.5 cold-tolerant discovery → LC-3(+3a AOT) →
   LC-5). coach-agent parked (Backlog).
+  **Model stack for the deploy decided (2026-07-28) → [model-strategy.md](model-strategy.md)** — MoE-first
+  (Qwen3.5-35B-A3B default etc.); two MoE tenants may make the LC-4 downshift optional — **measure residency
+  live at deploy** (forward-looking, gated on the Mac).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
@@ -28,6 +31,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
 Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294, per-person ICS filtering #295, **off-site DB backup replication** (daily local dumps ship 2026-07-13; a second host over Tailscale or a cloud bucket is the follow-up — see [infra/README.md](../infra/README.md) §Database backups).
 Tech-debt: Apache AGE upgrade #296 (gated), real-Ollama opt-in E2E #297. Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
+Refactor: **skills-vs-flows** track — [skills-vs-flows.md](skills-vs-flows.md): lift the shared IntentRouter into agent-runtime #358 (**model-independent — do-now**) → work-LLM golden profile #359 → flow→SKILL.md pilot #360 (model-gated).
 
 ## Workflow reminder
 Run only the relevant test class while iterating; full suite once before PR (CI is the authority). Don't paste full logs — extract failing assertion + ~3 lines. Auto-merge squash on green, delete branch. Start a fresh Claude Code session after each merged PR. **Update this file at the end of each PR; move the finished bullet to [HISTORY.md](HISTORY.md) (add a terse timeline row + the detail), don't let `## Now` accumulate ✅ DONE items.**
