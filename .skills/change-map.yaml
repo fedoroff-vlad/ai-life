@@ -12,6 +12,7 @@ couplings:
       - platform/llm-gateway/README.md
       - plans/lifecycle.md
       - plans/architecture.md
+      - plans/model-strategy.md          # per-channel model picks table + rollout — restates the tags
     revalidate:
       - golden lane
     notes: >
@@ -29,6 +30,7 @@ couplings:
       - platform/memory-service/README.md                          # dim contract + "Dim mismatch" note
       - plans/platform.md                                          # memory-service embedding-channel prose
       - platform/llm-gateway/README.md                             # embedding-model example (also in llm-model-tag)
+      - plans/model-strategy.md                                    # embedding channel pick + the dim-change reindex note
     notes: >
       Swapping the embedding model changes the dim, the vector(N) column AND the
       LIQUIBASE_CONTEXTS that gates the widen migration. Three knobs move as one:
