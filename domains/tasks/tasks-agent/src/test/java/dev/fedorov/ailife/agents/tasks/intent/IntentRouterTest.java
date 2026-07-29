@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.tasks.intent;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.tools.ToolDispatcher;
@@ -44,8 +45,9 @@ class IntentRouterTest {
             List.<Map<String, String>>of(), List.<Map<String, String>>of(),
             "You are the tasks agent for the ai-life system.");
 
+    private final SkillClassifier classifier = new SkillClassifier(json);
     private final SkillRegistry skills = new SkillRegistry(List.of());
-    private final IntentRouter router = new IntentRouter(llm, dispatcher, manifest, skills, json);
+    private final IntentRouter router = new IntentRouter(llm, dispatcher, manifest, skills, classifier);
 
     @Test
     void noToolsWiredFallsBackToPlainChatNoRoutingPrompt() {
@@ -144,7 +146,7 @@ class IntentRouterTest {
         Skill inboxClarify = new Skill("inbox-clarify", "Propose a GTD clarification for inbox items.",
                 "0.1.0", "tasks", List.of(), List.of("en", "ru"), "skill body");
         IntentRouter skillRouter = new IntentRouter(llm, dispatcher, manifest,
-                new SkillRegistry(List.of(inboxClarify)), json);
+                new SkillRegistry(List.of(inboxClarify)), classifier);
         // No MCP tools wired, but the intent skill alone is enough to build the classifier.
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of());
         AtomicReference<LlmChatRequest> seen = new AtomicReference<>();
@@ -172,7 +174,7 @@ class IntentRouterTest {
         Skill inboxClarify = new Skill("inbox-clarify", "x", "0.1.0", "tasks",
                 List.of(), List.of("en"), "body");
         IntentRouter skillRouter = new IntentRouter(llm, dispatcher, manifest,
-                new SkillRegistry(List.of(inboxClarify)), json);
+                new SkillRegistry(List.of(inboxClarify)), classifier);
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of());
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "{\"action\":\"skill\",\"name\":\"ghost-skill\"}")));

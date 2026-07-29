@@ -5,18 +5,15 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **➡️ skills-vs-flows Bucket 1 — lift the shared `IntentRouter` into `libs/agent-runtime` ([#358](https://github.com/fedoroff-vlad/ai-life/issues/358)).**
-  The genuinely-actionable do-now track: **model- and hardware-independent, no-regret** (the Mac track below
-  is parked on hardware). finance + tasks run near-identical routers (`tasks`'s is literally commented
-  "Mirrors finance-agent's IntentRouter"); lift one classifier into `agent-runtime` driven purely by
-  `SkillRegistry` descriptions + tool defs → kills the duplication and makes SKILL.md descriptions the true
-  in-agent-routing SSOT (finishes PR#339). Three ≤5-file slices → [skills-vs-flows.md](skills-vs-flows.md)
-  §Bucket 1. **Slice 1 ✅ (#363, 2026-07-29)** shared `SkillClassifier`; **slice 2 ✅ (2026-07-29)**
-  `finance-agent` migrated onto it (flow branches → pluggable flow-map; `buildPrompt` gained an
-  `extraRules` overload to keep finance's enum-pinning slot → routing prompt byte-identical,
-  `GoldenRoutingTest` green) → HISTORY. **Slice 3 (next actionable):** migrate `tasks-agent` onto the
-  shared classifier — its one-action-many-skills `skill` choice (`FlowCall.node.name`) is the shape the
-  classifier already supports; keep `IntentRouterTest` / `GoldenInboxClarifyTest` green.
+- **➡️ openai:-tier golden profile ([#359](https://github.com/fedoroff-vlad/ai-life/issues/359)).** Let
+  `@GoldenLlmTest` target the work OpenAI-compatible gateway (env-only, scrub-identity) instead of only local
+  Ollama — the enabler for the Bucket 2 pilot's dev-time validation. Feasible now (model/hardware-independent);
+  keep the employer unnamed (scrub-identity skill). **skills-vs-flows Bucket 1 ✅ COMPLETE (2026-07-29)** — the
+  shared `IntentRouter` lift is done end-to-end: slice 1 shared `SkillClassifier` (#363), slice 2 finance
+  (#365), slice 3 tasks (this PR); both agents now route through one `agent-runtime` classifier driven by
+  `SkillRegistry` descriptions + tool defs (SKILL.md = the in-agent-routing SSOT, finishing PR#339). Detail →
+  HISTORY + [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1. **Bucket 2** (flow-class → executable SKILL.md)
+  stays model-gated → `## Next`.
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
@@ -32,9 +29,8 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **openai:-tier golden profile ([#359](https://github.com/fedoroff-vlad/ai-life/issues/359))** — let `@GoldenLlmTest` target the work OpenAI-compatible gateway (env-only, scrub-identity); enabler for Bucket 2. Feasible now.
-2. **Bucket 2 pilot ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — one advisory flow (`coach Reflector` / `FinancialAdvisor`) → executable SKILL.md, validated against the #359 golden; production cutover stays gated on the Mac. Depends on #358 + #359.
-3. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
+1. **Bucket 2 pilot ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — one advisory flow (`coach Reflector` / `FinancialAdvisor`) → executable SKILL.md, validated against the #359 golden; production cutover stays gated on the Mac. Depends on #358 ✅ + #359.
+2. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
