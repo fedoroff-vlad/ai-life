@@ -1,8 +1,9 @@
 # Skills vs flows — the in-agent refactor track
 
-> **Status: track defined (2026-07-28), analysis done, not yet sliced into PRs.** Model- and
-> hardware-independent — Bucket 1 is feasible now. Sparked by wrapping the WORK agent with skills (opencode
-> + `SKILL.md`, in the `coding-agent` repo) → "how much of that pattern applies to ai-life?"
+> **Status (2026-07-29): Bucket 1 ✅ COMPLETE (#363 slice 1 + #365 slice 2 + slice 3); Bucket 2 model-gated,
+> not started.** Both routing agents (finance, tasks) now share one `agent-runtime` `SkillClassifier`.
+> Model- and hardware-independent. Sparked by wrapping the WORK agent with skills (opencode + `SKILL.md`, in
+> the `coding-agent` repo) → "how much of that pattern applies to ai-life?"
 
 ## The insight
 ai-life's **routing layer is already data-driven** — the orchestrator's LLM classifier reads agent
@@ -31,12 +32,16 @@ tool definitions. Removes the finance/tasks duplication and makes SKILL.md descr
 in-agent routing (finishes the direction PR#339 started). **Model-independent** — the classifier is one small
 decision the local model already makes.
 
-Slices (per the ≤5-file rule):
-1. Extract `SkillClassifier` (prompt build + JSON parse + lenient fallback + skill/tool result) into
-   `agent-runtime`; unit-test it there; update the agent-runtime README.
-2. Migrate `finance-agent` onto it — its extra flow branches become a small **pluggable flow-map** the agent
-   supplies, not router-baked. Keep `GoldenRoutingTest` green.
-3. Migrate `tasks-agent` onto it. Keep `IntentRouterTest` / `GoldenInboxClarifyTest` green.
+Slices (per the ≤5-file rule) — **all shipped 2026-07-29**:
+1. ✅ (#363) Extract `SkillClassifier` (prompt build + JSON parse + lenient fallback + `ToolSpec`/`Choice`
+   inputs, sealed `ToolCall|FlowCall|Chat` output) into `agent-runtime`; unit-tested; README updated.
+2. ✅ (#365) Migrate `finance-agent` — its extra flow branches became a **pluggable flow-map** the agent
+   supplies (`advice`/`report`/`invest`/`category` → `BiFunction<msg,node,Mono<RouterResult>>`), not
+   router-baked. `buildPrompt` gained an `extraRules` overload so finance's #199 enum-pinning keeps its exact
+   pre-migration slot → routing prompt byte-identical, `GoldenRoutingTest` green.
+3. ✅ Migrate `tasks-agent` — intent skills collapse into one `skill` `Choice` (one action, many skills; the
+   LLM names the skill in `FlowCall.node.name`). Byte-identical prompt (no `extraRules` — no enum-pinning).
+   `IntentRouterTest` + `GoldenInboxClarifyTest` green.
    *(Other agents use direct invocation — no router — so nothing to migrate there.)*
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)

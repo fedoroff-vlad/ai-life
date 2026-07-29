@@ -48,7 +48,13 @@ in dev/degraded environments.
 - `web/ResumeController` — `POST /agents/tasks/resume`; hit when the user replies to an open tasks
   question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`; today only
   `inbox-clarify-apply` → `InboxClarifier.resume`.
-- `intent/IntentRouter` — single LLM classifier turn → tool / intent-skill / chat.
+- `intent/IntentRouter` (on the shared `SkillClassifier` since #358 Bucket 1 slice 3) — single LLM
+  classifier turn → tool / intent-skill / chat. Delegates prompt-build + strict-JSON parse to
+  `SkillClassifier` (`libs/agent-runtime`); the agent keeps its own LLM round-trip, the `ToolSpec`s it
+  maps from the wired mcp-tasks tools, and the one **`skill` choice** (the intent skills collapsed into
+  one action — the LLM names the skill in `node.name`; an unknown name falls back to chat). Intent
+  skills are the trigger-less skills (user-invoked, not scheduler-fired). Empty intent-skill set → only
+  tool/chat offered; both tools and skills empty → the pre-routing plain chat path.
 - `intent/InboxClarifier` — runs the `inbox-clarify` flow **apply-on-confirm**: fetch the inbox via
   `TaskReviewClient` (`/internal/review`) → LLM returns structured proposals → render a confirm +
   stash them as a `pendingAction`. On `resume` an affirmative reply applies each via `ClarifyClient`
