@@ -42,6 +42,12 @@ package sits outside their `@SpringBootApplication` scan root.
 - `Coordinator` — the reusable **gather → synthesize** scaffold for agent-led
   multi-source flows. Needs the agent's `LlmClient` + the default `ObjectMapper`
   (every agent has both), so it wires for free on `@Import`.
+- `SkillClassifier` — the shared **in-agent routing** classifier (skills-vs-flows
+  Bucket 1, #358): the *prompt-build* + *strict-JSON-parse* halves the per-agent
+  `IntentRouter`s used to duplicate byte-for-byte (finance + tasks; the tasks copy
+  was literally commented "Mirrors finance-agent's IntentRouter"). Pure — needs only
+  the default `ObjectMapper`, so it wires for free on `@Import`; the agent keeps its
+  own LLM round-trip and tool/flow dispatch around it. See the section below.
 - `BriefResponder` — the reusable **`brief` read-action** (#290, Slice B): answers a
   focused sub-question from the agent's persona + its second-brain recall in one
   **FAST** synthesis (the cheap leg; the coordinator's cross-domain synthesis is the
@@ -72,6 +78,29 @@ synthesis (generalises the by-hand memory-recall enrichment in `TriggerControlle
 Coordination is **agent-led** (architecture.md routing doctrine): the agent owns the flow
 and reaches specialists via the hub; the orchestrator stays a thin router.
 
+## SkillClassifier (the shared in-agent router)
+Turns a user message into one **decision** — invoke an MCP tool, run one of the agent's own
+multi-step flows/skills, or reply in chat. It owns the two halves the finance and tasks
+`IntentRouter`s duplicated; the agent supplies the parts that are genuinely its own.
+
+- `buildPrompt(intro, tools, choices, decidePrompt)` — assembles the classifier system prompt:
+  the agent's `intro`, the tool list (name + description + inputSchema), each `Choice`'s prompt
+  block, the `decidePrompt` question, then the strict-JSON contract (the `tool` shape, each
+  choice's shape, the `chat` shape) + the missing-argument rule. The shapes advertised here are
+  exactly the ones `parse` accepts — they evolve together.
+- `parse(raw, tools, choices) → Decision` — strict-JSON only (a body not starting with `{`, or
+  unparseable, or lacking `"action"`, is a lenient **`Chat(raw)`** fallback so a chatty model never
+  breaks routing). Recognises `action:tool` and the **flattened** `{"action":"<toolName>",…}` shape
+  smaller models emit (→ `ToolCall(name, argsJson)`, `args` defaulting to `"{}"`), any registered
+  `Choice` (→ `FlowCall(action, node)` carrying the whole node so the agent reads its own fields —
+  `period`, `symbols`, an intent-skill `name`), else `Chat` (preferring the `text` field).
+
+Inputs are agent-owned value types so the classifier stays domain-agnostic and pulls no `spring-ai`
+into this library: `ToolSpec(name, description, inputSchema)` — the agent maps each
+`ToolDefinition` to one at the call site — and `Choice(action, promptBlock, shapeExample)`, whose
+`promptBlock` is sourced from the flow's SKILL.md `description` (keeping SKILL.md the routing SSOT,
+finishing PR#339). Output `Decision` is a sealed `ToolCall | FlowCall | Chat`.
+
 ## Configuration (`agent.*`)
 | Property | Default | Purpose |
 |---|---|---|
@@ -94,6 +123,7 @@ and reaches specialists via the hub; the orchestrator stays a thin router.
 - `http/MediaStoreClient` — `upload(householdId, ownerId, filename, mimeType, bytes)` → multipart `POST /v1/media` (15s); shared by the deliverable agents. Bean is opt-in per agent (`new MediaStoreClient(mediaServiceWebClient, "<source>")`); the `source` tag is constructor-set so `upload` is signature-identical across callers.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
+- `intent/SkillClassifier` — the shared in-agent router: `buildPrompt(...)` + `parse(...) → Decision`. Nested value types `ToolSpec` / `Choice` (inputs) and the sealed `Decision` = `ToolCall | FlowCall | Chat` (output). Pure (only `ObjectMapper`); lifted from the finance/tasks `IntentRouter`s (#358, Bucket 1). See the section above.
 - `brief/BriefResponder` — the reusable `brief` read-action: `answer(request)` / `answer(request, extraGather)` recall the agent's second brain for `args.question` (plus any domain gather the agent adds), run one FAST `Coordinator` synthesis under a read-only instruction, and return `AgentActionResult{agent, answer, llmModel?}`. Missing question → structured `ok=false`. Wired as a bean; an agent opts in with `register("brief", briefResponder::answer)`.
 - `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 - `web/AgentActionController` — abstract base for an agent's `POST /agents/<name>/actions/{action}` endpoint: `register(action, handler)` in the subclass ctor + `dispatch(action, request)` applies the shared envelope (unknown-action → structured `ok=false`; handler failure → `"<action> failed: <msg>"` logged with `requestedBy`). Subclasses stay `@RestController`s (the path literal carries the agent name) and only hold per-action business logic.
