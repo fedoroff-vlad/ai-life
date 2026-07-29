@@ -84,18 +84,33 @@ public final class SkillClassifier {
     }
 
     /**
+     * Convenience overload with no agent-specific {@code extraRules} — see
+     * {@link #buildPrompt(String, List, List, String, List)}.
+     */
+    public String buildPrompt(String intro, List<ToolSpec> tools, List<Choice> choices, String decidePrompt) {
+        return buildPrompt(intro, tools, choices, decidePrompt, List.of());
+    }
+
+    /**
      * Build the classifier system prompt: {@code intro} + the tool list + each choice's prompt block
      * + {@code decidePrompt} + the strict-JSON output contract (the {@code tool} shape, each choice's
-     * shape, the {@code chat} shape) + the missing-argument rule. Kept next to {@link #parse} because
-     * the two evolve together — the shapes advertised here are exactly the ones parsed there.
+     * shape, the {@code chat} shape) + any agent-specific {@code extraRules} + the missing-argument
+     * rule. Kept next to {@link #parse} because the two evolve together — the shapes advertised here
+     * are exactly the ones parsed there.
      *
      * @param intro        the opening framing line(s) (agent-specific, e.g. "You can either reply
      *                     directly to the user or invoke one of these MCP tools.")
      * @param tools        the tools the agent can dispatch (may be empty)
      * @param choices      the agent's extra flow/skill actions (may be empty)
      * @param decidePrompt the "Decide: … or just talk?" question placed right before the contract
+     * @param extraRules   agent-specific constraint paragraphs appended verbatim <b>after</b> the
+     *                     shape list and <b>before</b> the shared missing-argument rule — the slot for
+     *                     domain rules the shared scaffold can't own (e.g. finance's enum-pinning that
+     *                     stops a 7B inventing action values). Each element is appended as-is, so the
+     *                     caller controls its own trailing newline; blank/null entries are skipped.
      */
-    public String buildPrompt(String intro, List<ToolSpec> tools, List<Choice> choices, String decidePrompt) {
+    public String buildPrompt(String intro, List<ToolSpec> tools, List<Choice> choices,
+                              String decidePrompt, List<String> extraRules) {
         StringBuilder sb = new StringBuilder();
         sb.append(intro).append("\n\n");
         sb.append("Available tools:\n");
@@ -125,6 +140,13 @@ public final class SkillClassifier {
             }
         }
         sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
+        if (extraRules != null) {
+            for (String rule : extraRules) {
+                if (rule != null && !rule.isBlank()) {
+                    sb.append(rule);
+                }
+            }
+        }
         sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
         sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
         sb.append("arguments. If they're just chatting, use action=chat with a helpful reply.\n");

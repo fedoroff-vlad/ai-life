@@ -8,6 +8,7 @@ import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillParser;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -101,8 +102,9 @@ class GoldenRoutingTest {
     // router sources each flow's trigger phrasing from the actual SKILL.md descriptions — the SSOT the
     // behaviour test depends on.
     private final SkillRegistry skills = loadFinanceSkills();
+    private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router = new IntentRouter(
-            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, skills, json);
+            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, skills, classifier);
 
     private static SkillRegistry loadFinanceSkills() {
         List<Skill> loaded = new java.util.ArrayList<>();

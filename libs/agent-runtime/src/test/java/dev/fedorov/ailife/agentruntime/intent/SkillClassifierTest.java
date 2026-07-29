@@ -171,6 +171,22 @@ class SkillClassifierTest {
     }
 
     @Test
+    void buildPromptPlacesExtraRulesAfterTheShapesAndBeforeTheMissingArgumentRule() {
+        String enumPinning = "The \"action\" value MUST be exactly one of these literal strings.\n";
+        String prompt = classifier.buildPrompt(
+                "Intro.", tools, choices, "Decide?", List.of(enumPinning));
+
+        assertThat(prompt).contains(enumPinning);
+        // Position contract: extra rule sits between the chat shape and the shared missing-argument
+        // rule (the slot finance's enum-pinning occupied before it lifted onto this classifier).
+        int chatShape = prompt.indexOf("{\"action\":\"chat\",\"text\":\"<reply to the user>\"}");
+        int extra = prompt.indexOf(enumPinning);
+        int missingArg = prompt.indexOf("lacks required arguments for a tool");
+        assertThat(chatShape).isLessThan(extra);
+        assertThat(extra).isLessThan(missingArg);
+    }
+
+    @Test
     void buildPromptWithNoToolsOrChoicesStillHasToolAndChatShapes() {
         String prompt = classifier.buildPrompt("Intro.", List.of(), List.of(), null);
 

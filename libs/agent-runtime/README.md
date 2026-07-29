@@ -83,11 +83,15 @@ Turns a user message into one **decision** — invoke an MCP tool, run one of th
 multi-step flows/skills, or reply in chat. It owns the two halves the finance and tasks
 `IntentRouter`s duplicated; the agent supplies the parts that are genuinely its own.
 
-- `buildPrompt(intro, tools, choices, decidePrompt)` — assembles the classifier system prompt:
-  the agent's `intro`, the tool list (name + description + inputSchema), each `Choice`'s prompt
-  block, the `decidePrompt` question, then the strict-JSON contract (the `tool` shape, each
-  choice's shape, the `chat` shape) + the missing-argument rule. The shapes advertised here are
-  exactly the ones `parse` accepts — they evolve together.
+- `buildPrompt(intro, tools, choices, decidePrompt[, extraRules])` — assembles the classifier system
+  prompt: the agent's `intro`, the tool list (name + description + inputSchema), each `Choice`'s prompt
+  block, the `decidePrompt` question, then the strict-JSON contract (the `tool` shape, each choice's
+  shape, the `chat` shape), any agent-specific `extraRules`, and the missing-argument rule. The shapes
+  advertised here are exactly the ones `parse` accepts — they evolve together. `extraRules` is the slot
+  for domain constraints the shared scaffold can't own: each string is appended **verbatim** (caller
+  owns its trailing newline) **after** the shape list and **before** the shared missing-argument rule
+  — the exact position finance's enum-pinning rule (stop a 7B inventing action values) occupied before
+  the router lifted onto this classifier. The no-`extraRules` overload passes an empty list.
 - `parse(raw, tools, choices) → Decision` — strict-JSON only (a body not starting with `{`, or
   unparseable, or lacking `"action"`, is a lenient **`Chat(raw)`** fallback so a chatty model never
   breaks routing). Recognises `action:tool` and the **flattened** `{"action":"<toolName>",…}` shape

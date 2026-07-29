@@ -11,11 +11,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   "Mirrors finance-agent's IntentRouter"); lift one classifier into `agent-runtime` driven purely by
   `SkillRegistry` descriptions + tool defs → kills the duplication and makes SKILL.md descriptions the true
   in-agent-routing SSOT (finishes PR#339). Three ≤5-file slices → [skills-vs-flows.md](skills-vs-flows.md)
-  §Bucket 1. **Slice 1 ✅ (#363, 2026-07-29)** — shared `SkillClassifier` in `agent-runtime` (pure prompt
-  build + strict-JSON parse + lenient fallback; `ToolSpec`/`Choice` inputs, sealed `ToolCall|FlowCall|Chat`;
-  13 unit tests) → HISTORY. **Slice 2 (next actionable):** migrate `finance-agent` onto it — its
-  advice/report/invest/category branches become a small **pluggable flow-map** the agent supplies, not
-  router-baked; keep `GoldenRoutingTest` green.
+  §Bucket 1. **Slice 1 ✅ (#363, 2026-07-29)** shared `SkillClassifier`; **slice 2 ✅ (2026-07-29)**
+  `finance-agent` migrated onto it (flow branches → pluggable flow-map; `buildPrompt` gained an
+  `extraRules` overload to keep finance's enum-pinning slot → routing prompt byte-identical,
+  `GoldenRoutingTest` green) → HISTORY. **Slice 3 (next actionable):** migrate `tasks-agent` onto the
+  shared classifier — its one-action-many-skills `skill` choice (`FlowCall.node.name`) is the shape the
+  classifier already supports; keep `IntentRouterTest` / `GoldenInboxClarifyTest` green.
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
@@ -31,10 +32,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **skills-vs-flows Bucket 1 slice 3** — migrate `tasks-agent` ([#358](https://github.com/fedoroff-vlad/ai-life/issues/358) slice 3; `IntentRouterTest`/`GoldenInboxClarifyTest` green) onto the shared classifier, after the finance migration (slice 2, now in `## Now`).
-2. **openai:-tier golden profile ([#359](https://github.com/fedoroff-vlad/ai-life/issues/359))** — let `@GoldenLlmTest` target the work OpenAI-compatible gateway (env-only, scrub-identity); enabler for Bucket 2. Feasible now.
-3. **Bucket 2 pilot ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — one advisory flow (`coach Reflector` / `FinancialAdvisor`) → executable SKILL.md, validated against the #359 golden; production cutover stays gated on the Mac. Depends on #358 + #359.
-4. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
+1. **openai:-tier golden profile ([#359](https://github.com/fedoroff-vlad/ai-life/issues/359))** — let `@GoldenLlmTest` target the work OpenAI-compatible gateway (env-only, scrub-identity); enabler for Bucket 2. Feasible now.
+2. **Bucket 2 pilot ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — one advisory flow (`coach Reflector` / `FinancialAdvisor`) → executable SKILL.md, validated against the #359 golden; production cutover stays gated on the Mac. Depends on #358 + #359.
+3. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
