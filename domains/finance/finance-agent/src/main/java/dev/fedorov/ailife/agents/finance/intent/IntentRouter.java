@@ -1,13 +1,15 @@
 package dev.fedorov.ailife.agents.finance.intent;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier.Choice;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier.ToolSpec;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -23,32 +25,37 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
 
 /**
- * Routes a user message into either an MCP tool call or a plain LLM reply.
+ * Routes a user message into either an MCP tool call, one of finance's multi-step flows
+ * (spending analysis / report / investment advisory / category management) or a plain LLM reply.
+ *
+ * <p>The prompt-build + strict-JSON-parse halves live in the shared
+ * {@link SkillClassifier} ({@code libs/agent-runtime}, skills-vs-flows Bucket 1) — this agent keeps
+ * only the parts that are genuinely its own: the LLM round-trip, the {@link ToolSpec}s it maps from
+ * its wired MCP tools, and a small <b>pluggable flow-map</b> ({@link #flows}) that dispatches each
+ * classifier {@link SkillClassifier.FlowCall} to the Coordinator-backed flow it names. Each flow's
+ * trigger phrasing is sourced from its SKILL.md {@code description} (the SSOT — see {@link #flowTrigger}).
  *
  * <p>Pipeline (single LLM round-trip):
  * <ol>
- *   <li>If {@link ToolDispatcher#availableToolDefinitions()} is empty (MCP
- *   client disabled or no servers wired), skip routing entirely and fall back
- *   to the plain chat path — back-compat with the pre-PR35 behaviour.</li>
- *   <li>Otherwise prompt the LLM with: AGENT.md body + a system message
- *   listing the available tools (name + description + input schema) and the
- *   required JSON output shape ({@code action: tool|chat}, plus
- *   {@code name + args} or {@code text}).</li>
- *   <li>Parse the LLM response. If it's well-formed JSON with
- *   {@code action: tool}, dispatch via {@link ToolDispatcher} and return the
- *   tool result; if {@code action: chat}, return its {@code text}; if the
- *   response can't be parsed (no opening brace, missing fields, …) we treat
- *   the raw response as the plain chat answer — lenient parsing keeps a
- *   chatty model from breaking the agent.</li>
+ *   <li>If {@link ToolDispatcher#availableToolDefinitions()} is empty (MCP client disabled or no
+ *   servers wired), skip routing entirely and fall back to the plain chat path — back-compat with the
+ *   pre-PR35 behaviour.</li>
+ *   <li>Otherwise prompt the LLM with AGENT.md body + the classifier prompt (tool list + flow blocks +
+ *   the strict-JSON contract), then hand the raw response to {@link SkillClassifier#parse}.</li>
+ *   <li>{@link SkillClassifier.ToolCall} → dispatch via {@link ToolDispatcher}; {@link
+ *   SkillClassifier.FlowCall} → the matching {@link #flows} handler; {@link SkillClassifier.Chat} →
+ *   the reply text (the lenient fallback keeps a chatty model from breaking the agent).</li>
  * </ol>
  *
- * <p>Tool-dispatch failures (unknown name, invalid args, MCP server down) are
- * caught and surfaced to the user as a short Russian-locale error string with
- * the tool name — the LLM might re-route on a follow-up, or the user can
- * adjust their request. We deliberately do NOT retry or re-route here;
+ * <p>Tool-dispatch failures (unknown name, invalid args, MCP server down) are caught and surfaced to
+ * the user as a short Russian-locale error string with the tool name — the LLM might re-route on a
+ * follow-up, or the user can adjust their request. We deliberately do NOT retry or re-route here;
  * multi-turn recovery is the orchestrator's concern.
  */
 @Component
@@ -56,16 +63,31 @@ public class IntentRouter {
 
     private static final Logger log = LoggerFactory.getLogger(IntentRouter.class);
 
+    /**
+     * Finance-specific enum-pinning rule (Stage 5 / #199 golden finding): a 7B otherwise invents
+     * action values like {@code "analysis"} or drops a tool name into the {@code action} field. Passed
+     * to {@link SkillClassifier#buildPrompt} as an {@code extraRule} so it lands right after the shape
+     * list and before the shared missing-argument rule — the exact slot it occupied pre-migration.
+     */
+    private static final String ENUM_PINNING =
+            "The \"action\" value MUST be exactly one of these literal strings: "
+                    + "\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"chat\". Do NOT invent any other "
+                    + "action value (not \"analysis\", not a tool name in the action field — a tool goes in "
+                    + "\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n";
+
     private final LlmClient llm;
     private final ToolDispatcher dispatcher;
-    private final FinancialAdvisor advisor;
-    private final InvestmentAdvisor investmentAdvisor;
-    private final MonthlyReporter monthlyReporter;
-    private final YearReporter yearReporter;
-    private final CategoryManager categoryManager;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
-    private final ObjectMapper json;
+    private final SkillClassifier classifier;
+
+    /**
+     * The agent-supplied flow dispatch: classifier {@code action} → the Coordinator-backed flow that
+     * handles it, given the user message + the parsed routing node (from which a flow reads its own
+     * fields, e.g. {@code period}/{@code symbols}). Keys mirror {@link #choices()} exactly, so a
+     * {@link SkillClassifier.FlowCall} always resolves to a handler here.
+     */
+    private final Map<String, BiFunction<NormalizedMessage, JsonNode, Mono<RouterResult>>> flows;
 
     public IntentRouter(LlmClient llm,
                         ToolDispatcher dispatcher,
@@ -76,29 +98,37 @@ public class IntentRouter {
                         CategoryManager categoryManager,
                         AgentManifest manifest,
                         SkillRegistry skills,
-                        ObjectMapper json) {
+                        SkillClassifier classifier) {
         this.llm = llm;
         this.dispatcher = dispatcher;
-        this.advisor = advisor;
-        this.investmentAdvisor = investmentAdvisor;
-        this.monthlyReporter = monthlyReporter;
-        this.yearReporter = yearReporter;
-        this.categoryManager = categoryManager;
         this.manifest = manifest;
         this.skills = skills;
-        this.json = json;
+        this.classifier = classifier;
+        this.flows = Map.of(
+                "advice", (msg, node) -> advisor.advise(msg)
+                        .map(a -> new RouterResult(a.text(), "advice", a.model())),
+                "invest", (msg, node) -> investmentAdvisor.advise(msg, readSymbols(node))
+                        .map(a -> new RouterResult(a.text(), "invest", a.model())),
+                // period=year → the YearReporter (year window + per-month trend chart); anything else
+                // (default month) → the MonthlyReporter. Both are Coordinator-backed HTML deliverables.
+                "report", (msg, node) -> "year".equalsIgnoreCase(node.path("period").asText(""))
+                        ? yearReporter.report(msg).map(r -> new RouterResult(r.text(), "report", r.model()))
+                        : monthlyReporter.report(msg).map(r -> new RouterResult(r.text(), "report", r.model())),
+                "category", (msg, node) -> categoryManager.manage(msg)
+                        .map(r -> new RouterResult(r.text(), "category", r.model())));
     }
 
     public Mono<RouterResult> route(NormalizedMessage msg) {
         String userText = msg == null || msg.text() == null ? "" : msg.text();
         List<ToolDefinition> tools = dispatcher.availableToolDefinitions();
         if (tools.isEmpty()) {
-            // No MCP tools wired — straight chat, no routing prompt
-            // overhead, no JSON-parse surprises. (Production finance-agent
-            // always has MCP wired, so the advice branch below is reachable.)
+            // No MCP tools wired — straight chat, no routing prompt overhead, no JSON-parse surprises.
+            // (Production finance-agent always has MCP wired, so the flow branches below are reachable.)
             return chatOnly(userText);
         }
 
+        List<ToolSpec> toolSpecs = toolSpecs(tools);
+        List<Choice> choices = choices();
         LlmChatRequest req = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(manifest.body()),
                 LlmMessage.system(buildClassifierPrompt(tools)),
@@ -107,58 +137,12 @@ public class IntentRouter {
         return llm.chat(req).flatMap(resp -> {
             String raw = resp.content() == null ? "" : resp.content().trim();
             String model = resp.model();
-            JsonNode node = tryParse(raw);
-            if (node == null || !node.isObject() || !node.hasNonNull("action")) {
-                // Not a routing JSON — treat as a plain chat reply.
-                return Mono.just(new RouterResult(raw, null, model));
-            }
-            String action = node.get("action").asText();
-            if ("tool".equals(action)) {
-                return invokeTool(node.path("name").asText(), node.path("args"), model);
-            }
-            // Format-drift tolerance (Stage 5 golden finding): smaller models (e.g. qwen2.5:7b) often
-            // flatten the two-level shape to {"action":"<toolName>", "args":{…}} instead of
-            // {"action":"tool","name":"<toolName>"}. Accept it when the action *is* a known tool name.
-            if (isKnownTool(action, tools)) {
-                return invokeTool(action, node.path("args"), model);
-            }
-            if ("advice".equals(action)) {
-                // Spending analysis is multi-source synthesis, not a single tool
-                // — hand off to the Coordinator-backed FinancialAdvisor, which
-                // does its own gather + LLM synthesis and returns the analysis.
-                return advisor.advise(msg)
-                        .map(a -> new RouterResult(a.text(), "advice", a.model()));
-            }
-            if ("invest".equals(action)) {
-                // Investment advisory (advisory-only): the classifier already mapped the
-                // user's tickers to source-native symbols — gather a quote per symbol and
-                // let the Coordinator-backed InvestmentAdvisor synthesize considerations.
-                return investmentAdvisor.advise(msg, readSymbols(node))
-                        .map(a -> new RouterResult(a.text(), "invest", a.model()));
-            }
-            if ("report".equals(action)) {
-                // A persistent finance report (HTML board → Telegram link), not a chat analysis.
-                // period=year → the YearReporter (year window + per-month trend chart); anything
-                // else (default month) → the MonthlyReporter. Both are Coordinator-backed: gather
-                // the spending, synthesize a narrative, render + store the board, return the link.
-                if ("year".equalsIgnoreCase(node.path("period").asText(""))) {
-                    return yearReporter.report(msg)
-                            .map(r -> new RouterResult(r.text(), "report", r.model()));
-                }
-                return monthlyReporter.report(msg)
-                        .map(r -> new RouterResult(r.text(), "report", r.model()));
-            }
-            if ("category".equals(action)) {
-                // Create / group finance categories from chat — a multi-step flow (list existing →
-                // LLM plan → resolve parent by name → upsert), not a single tool. Hand off to
-                // CategoryManager, which does its own gather + apply and returns a confirmation.
-                return categoryManager.manage(msg)
-                        .map(r -> new RouterResult(r.text(), "category", r.model()));
-            }
-            // action=chat (or anything else we don't recognise): prefer the
-            // structured 'text' field, else fall back to the raw body.
-            String text = node.has("text") ? node.get("text").asText() : raw;
-            return Mono.just(new RouterResult(text, null, model));
+            return switch (classifier.parse(raw, toolSpecs, choices)) {
+                case SkillClassifier.ToolCall t -> invokeTool(t.name(), t.argsJson(), model);
+                // The flow-map keys mirror choices() one-for-one, so this lookup never misses.
+                case SkillClassifier.FlowCall f -> flows.get(f.action()).apply(msg, f.node());
+                case SkillClassifier.Chat c -> Mono.just(new RouterResult(c.text(), null, model));
+            };
         });
     }
 
@@ -170,21 +154,8 @@ public class IntentRouter {
                 r.content() == null ? "" : r.content(), null, r.model()));
     }
 
-    /** True when {@code action} names one of the wired MCP tools (the flattened-shape case). */
-    private boolean isKnownTool(String action, List<ToolDefinition> tools) {
-        for (ToolDefinition t : tools) {
-            if (t.name().equals(action)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private Mono<RouterResult> invokeTool(String name, JsonNode argsNode, String llmModel) {
-        String argsJson = argsNode == null || argsNode.isMissingNode() || argsNode.isNull()
-                ? "{}" : argsNode.toString();
-        // ToolCallback.call is blocking (SSE under the hood) — same handling
-        // as InternalToolsController.
+    private Mono<RouterResult> invokeTool(String name, String argsJson, String llmModel) {
+        // ToolCallback.call is blocking (SSE under the hood) — same handling as InternalToolsController.
         return Mono.fromCallable(() -> dispatcher.dispatch(name, argsJson))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(result -> new RouterResult(result, name, llmModel))
@@ -196,97 +167,71 @@ public class IntentRouter {
                 });
     }
 
-    /** Pull the {@code symbols} string array out of an {@code action=invest} routing node. */
-    private List<String> readSymbols(JsonNode node) {
-        JsonNode arr = node.get("symbols");
-        if (arr == null || !arr.isArray()) {
-            return List.of();
+    /** Map the wired MCP tools to the classifier's domain-agnostic {@link ToolSpec}s at the call site. */
+    private List<ToolSpec> toolSpecs(List<ToolDefinition> tools) {
+        List<ToolSpec> specs = new ArrayList<>(tools.size());
+        for (ToolDefinition t : tools) {
+            specs.add(new ToolSpec(t.name(), t.description(), t.inputSchema()));
         }
-        List<String> symbols = new java.util.ArrayList<>();
-        for (JsonNode s : arr) {
-            if (s != null && s.isTextual() && !s.asText().isBlank()) {
-                symbols.add(s.asText());
-            }
-        }
-        return symbols;
-    }
-
-    private JsonNode tryParse(String raw) {
-        if (raw.isEmpty() || raw.charAt(0) != '{') return null;
-        try {
-            return json.readTree(raw);
-        } catch (Exception e) {
-            return null;
-        }
+        return specs;
     }
 
     /**
-     * Build the system prompt that tells the LLM about the available tools
-     * and the strict JSON output contract. Kept inline (not externalised to a
-     * template file) because it's tightly coupled to the parsing on the Java
-     * side — the two evolve together.
+     * The finance flow choices offered to the classifier. Each {@link Choice}'s {@code promptBlock} is
+     * sourced from its SKILL.md {@code description} (via {@link #flowTrigger}, the single source of
+     * truth); only the JSON shape and the per-flow mechanics/disambiguation live here, next to the
+     * {@link #flows} dispatch they drive. Keys mirror {@link #flows} one-for-one.
      */
-    // Package-private (not private) so the @Tag("golden") real-model test can replay the exact
-    // classifier prompt against a live model and assert the raw output's structure — single-sourced.
+    private List<Choice> choices() {
+        return List.of(
+                new Choice("advice",
+                        "There is also a built-in spending ANALYSIS flow (not a tool): "
+                                + flowTrigger("financial-advisor",
+                                "use it when the user asks to analyse / review their own spending or wants recommendations.")
+                                + " Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.",
+                        "{\"action\":\"advice\"}"),
+                new Choice("report",
+                        "There is also a built-in REPORT flow (not a tool): "
+                                + flowTrigger("monthly-report",
+                                "use it when the user asks for a finance report or a period summary as a document.")
+                                + " " + flowTrigger("year-report", "The annual variant of the finance report.")
+                                + " It builds an HTML report of the spending and returns a link. Set \"period\":\"year\" "
+                                + "when the user asks for the YEAR / annual summary; otherwise \"period\":\"month\" "
+                                + "(the default — current month).",
+                        "{\"action\":\"report\",\"period\":\"month\"}"),
+                new Choice("invest",
+                        "There is also a built-in INVESTMENT ADVISORY flow (not a tool): "
+                                + flowTrigger("investment-advisor",
+                                "use it when the user asks for an opinion on stocks, funds/ETFs, metals, forex or crypto.")
+                                + " It is ADVISORY ONLY — it never trades. Map each asset the user named to its "
+                                + "source-native symbol and pass them in 'symbols': US stocks use a '.us' suffix "
+                                + "(Apple→aapl.us), indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, "
+                                + "bitcoin→btcusd, ether→ethusd. Include only assets the user actually named.",
+                        "{\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}"),
+                new Choice("category",
+                        "There is also a built-in CATEGORY-MANAGEMENT flow (not a tool): "
+                                + flowTrigger("category-manager",
+                                "use it when the user wants to CREATE or GROUP their spending categories.")
+                                + " It reads the existing categories and applies the changes itself. This is about the "
+                                + "category LIST/structure — not recording a spend (that's the add_transaction tool) "
+                                + "and not analysing spend (that's advice).",
+                        "{\"action\":\"category\"}"));
+    }
+
+    /**
+     * Build the classifier system prompt via the shared {@link SkillClassifier#buildPrompt} scaffold,
+     * then append the finance-specific enum-pinning tail. Kept package-private (not private) so the
+     * {@code @Tag("golden")} real-model test can replay the exact classifier prompt against a live
+     * model and assert the raw output's structure — single-sourced.
+     */
     String buildClassifierPrompt(List<ToolDefinition> tools) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You can either reply directly to the user or invoke one of these MCP tools.\n\n");
-        sb.append("Available tools:\n");
-        for (ToolDefinition t : tools) {
-            sb.append("- ").append(t.name()).append(": ").append(t.description());
-            String schema = t.inputSchema();
-            if (schema != null && !schema.isBlank()) {
-                sb.append("\n  inputSchema: ").append(schema);
-            }
-            sb.append('\n');
-        }
-        sb.append('\n');
-        // Built-in flows (not MCP tools). Each flow's trigger phrasing is sourced from its SKILL.md
-        // description (single source of truth — the finance skills); only the JSON shape and the
-        // per-flow mechanics/disambiguation stay here, next to the parsing they drive.
-        sb.append("There is also a built-in spending ANALYSIS flow (not a tool): ")
-          .append(flowTrigger("financial-advisor",
-                  "use it when the user asks to analyse / review their own spending or wants recommendations."))
-          .append(" Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.\n\n");
-        sb.append("There is also a built-in REPORT flow (not a tool): ")
-          .append(flowTrigger("monthly-report",
-                  "use it when the user asks for a finance report or a period summary as a document."))
-          .append(' ')
-          .append(flowTrigger("year-report", "The annual variant of the finance report."))
-          .append(" It builds an HTML report of the spending and returns a link. Set \"period\":\"year\" ")
-          .append("when the user asks for the YEAR / annual summary; otherwise \"period\":\"month\" ")
-          .append("(the default — current month).\n\n");
-        sb.append("There is also a built-in INVESTMENT ADVISORY flow (not a tool): ")
-          .append(flowTrigger("investment-advisor",
-                  "use it when the user asks for an opinion on stocks, funds/ETFs, metals, forex or crypto."))
-          .append(" It is ADVISORY ONLY — it never trades. Map each asset the user named to its ")
-          .append("source-native symbol and pass them in 'symbols': US stocks use a '.us' suffix ")
-          .append("(Apple→aapl.us), indices a '^' prefix (S&P 500→^spx), gold→xauusd, silver→xagusd, ")
-          .append("bitcoin→btcusd, ether→ethusd. Include only assets the user actually named.\n\n");
-        sb.append("There is also a built-in CATEGORY-MANAGEMENT flow (not a tool): ")
-          .append(flowTrigger("category-manager",
-                  "use it when the user wants to CREATE or GROUP their spending categories."))
-          .append(" It reads the existing categories and applies the changes itself. This is about the ")
-          .append("category LIST/structure — not recording a spend (that's the add_transaction tool) ")
-          .append("and not analysing spend (that's advice).\n\n");
-        sb.append("Decide: run a tool, run the spending analysis, build the finance report, ");
-        sb.append("run the investment advisory, manage categories, or just talk?\n\n");
-        sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
-        sb.append("Use ONE of these shapes:\n");
-        sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
-        sb.append("  {\"action\":\"advice\"}\n");
-        sb.append("  {\"action\":\"report\",\"period\":\"month\"}\n");
-        sb.append("  {\"action\":\"invest\",\"symbols\":[\"aapl.us\",\"xauusd\"]}\n");
-        sb.append("  {\"action\":\"category\"}\n");
-        sb.append("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}\n\n");
-        sb.append("The \"action\" value MUST be exactly one of these literal strings: ");
-        sb.append("\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"chat\". Do NOT invent any other ");
-        sb.append("action value (not \"analysis\", not a tool name in the action field — a tool goes in ");
-        sb.append("\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n");
-        sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
-        sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
-        sb.append("arguments. If they're just chatting, use action=chat with a helpful reply.\n");
-        return sb.toString();
+        return classifier.buildPrompt(
+                "You can either reply directly to the user or invoke one of these MCP tools.",
+                toolSpecs(tools),
+                choices(),
+                "Decide: run a tool, run the spending analysis, build the finance report, "
+                        + "run the investment advisory, manage categories, or just talk?",
+                List.of(ENUM_PINNING));
     }
 
     /**
@@ -296,6 +241,21 @@ public class IntentRouter {
      */
     private String flowTrigger(String skillName, String fallback) {
         return skills.byName(skillName).map(Skill::description).orElse(fallback);
+    }
+
+    /** Pull the {@code symbols} string array out of an {@code action=invest} routing node. */
+    private List<String> readSymbols(JsonNode node) {
+        JsonNode arr = node.get("symbols");
+        if (arr == null || !arr.isArray()) {
+            return List.of();
+        }
+        List<String> symbols = new ArrayList<>();
+        for (JsonNode s : arr) {
+            if (s != null && s.isTextual() && !s.asText().isBlank()) {
+                symbols.add(s.asText());
+            }
+        }
+        return symbols;
     }
 
     /**

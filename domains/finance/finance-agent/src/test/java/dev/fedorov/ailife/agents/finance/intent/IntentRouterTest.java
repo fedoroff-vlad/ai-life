@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agents.finance.category.CategoryManager;
 import dev.fedorov.ailife.agents.finance.report.MonthlyReporter;
 import dev.fedorov.ailife.agents.finance.report.YearReporter;
 import dev.fedorov.ailife.agents.finance.tools.ToolDispatcher;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -72,9 +73,10 @@ class IntentRouterTest {
     // Empty registry: the LLM is mocked here, so flowTrigger falls back to its terse built-in lines —
     // description sourcing is exercised by GoldenRoutingTest (which loads the real finance skills).
     private final SkillRegistry skills = new SkillRegistry(List.of());
+    private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router =
             new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter,
-                    categoryManager, manifest, skills, json);
+                    categoryManager, manifest, skills, classifier);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
