@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
+import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.manifest.ManifestParser;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillParser;
@@ -75,6 +76,17 @@ public class AgentRuntimeConfig {
     @Bean
     public Coordinator coordinator(LlmClient llm, ObjectMapper json) {
         return new Coordinator(llm, json);
+    }
+
+    /**
+     * The shared in-agent routing classifier (skills-vs-flows Bucket 1, #358): the prompt-build +
+     * strict-JSON-parse halves the per-agent {@code IntentRouter}s used to duplicate. Pure (only needs
+     * the default {@code ObjectMapper}), so it wires for free on {@code @Import(AgentRuntimeConfig)};
+     * an agent injects it and keeps its own LLM round-trip + tool/flow dispatch around it.
+     */
+    @Bean
+    public SkillClassifier skillClassifier(ObjectMapper json) {
+        return new SkillClassifier(json);
     }
 
     /**
