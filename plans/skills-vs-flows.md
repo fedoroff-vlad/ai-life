@@ -1,7 +1,8 @@
 # Skills vs flows — the in-agent refactor track
 
-> **Status (2026-07-29): Bucket 1 ✅ COMPLETE (#363 slice 1 + #365 slice 2 + slice 3); Bucket 2 model-gated,
-> not started.** Both routing agents (finance, tasks) now share one `agent-runtime` `SkillClassifier`.
+> **Status (2026-07-30): Bucket 1 ✅ COMPLETE (#363/#365 + slice 3); Bucket 2 pilot — validate-only half ✅
+> (#360, `finance FinancialAdvisor`); the model-gated production cutover stays deferred (Mac).** Both routing
+> agents (finance, tasks) now share one `agent-runtime` `SkillClassifier`.
 > Model- and hardware-independent. Sparked by wrapping the WORK agent with skills (opencode + `SKILL.md`, in
 > the `coding-agent` repo) → "how much of that pattern applies to ai-life?"
 
@@ -51,6 +52,18 @@ against the WORK LLM golden ([model-strategy.md](model-strategy.md) — the dev-
 committing; a stronger MoE default on the Mac makes it viable at runtime. **Keep DETERMINISTIC flows in
 Java** (`MonthlyReporter` / `YearReporter` — reproducibility + cheapness matter more than model-driven
 flexibility there).
+
+**Pilot — validate-only half ✅ (#360, 2026-07-30, `finance FinancialAdvisor`).** The recipe form is
+authored as `finance-agent/src/test/resources/recipes/financial-advisor.recipe.md` (a **test fixture** —
+NOT loaded in production; the Java `FinancialAdvisor` still runs the live flow) and validated on a real
+model. The only thing the recipe adds over the existing synthesis flow is that the **model plans the
+gather itself** (which `spending_by_category` windows to fetch) instead of the plan being hard-coded in
+Java — so the new `advisor.GoldenAdvisorRecipeTest` asserts exactly that (parseable `gather` plan, grounded
+in the one tool the recipe exposes, ≥2 trend windows incl. a recent one), while the existing
+`GoldenAdvisorSynthesisTest` still covers synthesis. Together the two goldens prove the recipe is correct
+end-to-end. Passed on local qwen3:8b (56s); runnable against the `openai:`-tier work gateway too (#359).
+**Not yet done → the production cutover** (`## Next` in STATUS): replace the Java flow with a runtime that
+loads the recipe and executes the model-planned gather — that's the model-gated part, kept for the Mac.
 
 ## Guardrails
 - **Value = simplicity + a simpler lifecycle layer** (fewer flow-JVMs / classes / tests, less drift) — **not**

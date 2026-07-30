@@ -5,15 +5,14 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **➡️ Bucket 2 pilot — validation half ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360)).**
-  Evolve ONE advisory flow (`finance FinancialAdvisor` / coach `Reflector`) from a Java class into an
-  executable `SKILL.md` recipe run over the `Coordinator` + generic tools, and **validate it against a strong
-  hosted model via the new `GOLDEN_PROFILE=openai` golden lane** (below). Feasible now for the *design +
-  work-LLM-validated pilot*; the **production cutover** (ripping the Java flow out) stays gated on the Mac /
-  a stronger local MoE default. Enablers both shipped: **#358 Bucket 1 ✅** (shared `SkillClassifier`) +
-  **#359 openai:-tier golden profile ✅ (2026-07-30, this PR)** — `scripts/golden.sh GOLDEN_PROFILE=openai`
-  points the gateway at an env-only OpenAI-compatible endpoint (scrub-identity), no Ollama, on `:8091`.
-  Detail → HISTORY + [skills-vs-flows.md](skills-vs-flows.md) §Feasible now.
+- **skills-vs-flows track has reached its feasible-now boundary — pick next priority from the backlog.**
+  **Bucket 2 pilot — validate-only half ✅ (#360, 2026-07-30):** the `finance FinancialAdvisor` recipe form
+  (a test fixture, not loaded in production) drives a real model to **plan the gather itself**; new
+  `GoldenAdvisorRecipeTest` proves it (qwen3:8b, 56s), the existing `GoldenAdvisorSynthesisTest` still covers
+  synthesis. Enablers shipped: #358 Bucket 1 ✅ + #359 openai:-tier golden ✅. Detail → HISTORY +
+  [skills-vs-flows.md](skills-vs-flows.md) §Bucket 2. **Everything still open on this track is Mac-gated**
+  (the Bucket 2 *production cutover* — see `## Next`), so the next in-flight slice is an owner pick from the
+  backlog below / GitHub Issues.
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
