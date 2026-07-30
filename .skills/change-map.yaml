@@ -38,6 +38,10 @@ couplings:
       embed-NNN migration. The mock/dev default stays 384 (004-memory, no context);
       only the real-provider deploy overrides all three. A new dim (e.g. bge-m3 =
       1024) needs its own embed-1024 context + migration — do NOT amend 091.
+      Mechanized (partly): scripts/check-consistency.sh check 3 asserts
+      MEMORY_EMBED_DIM ↔ the embed-NNN context ↔ the migration's ALTER … vector(N)
+      agree in infra/.env.mac.example. The model↔dim half and the other doc knobs
+      stay a human checklist.
 
   - id: new-service-or-mcp-module
     trigger: Added a new service or MCP module
