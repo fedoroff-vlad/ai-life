@@ -54,6 +54,35 @@ for m in $pinned; do
   fi
 done
 
+# ── Check 3: embedding dim ↔ Liquibase context ↔ migration vector(N) move as one ──────
+# The change-map `embedding-model-dimension` coupling: swapping the real embedding provider
+# changes three knobs that MUST agree — MEMORY_EMBED_DIM, the `embed-NNN` Liquibase context
+# that activates the widen migration, and the `vector(N)` the migration ALTERs the column to.
+# Drift here is silent and only surfaces as a runtime dim-mismatch on the deploy. We scan the
+# canonical real-deploy overlay ($CANON) — the only file that overrides the mock 384 default —
+# plus the migration its context activates. Zero false positives: dev/mock (no embed-* context)
+# is deliberately not scanned.
+echo "check 3: embedding dim ↔ embed-NNN context ↔ migration vector(N) agree in $CANON"
+# `|| true` on every substitution below: a non-match is a *finding* we report via err(),
+# not a reason for `set -e` to abort the script mid-check.
+embed_dim="$(grep -oE '^MEMORY_EMBED_DIM=[0-9]+' "$CANON" | head -1 | sed 's/.*=//' || true)"
+ctx_dim="$(grep -oE '^LIQUIBASE_CONTEXTS=[^ ]+' "$CANON" | head -1 | grep -oE 'embed-[0-9]+' | head -1 | sed 's/embed-//' || true)"
+if [ -z "$ctx_dim" ]; then
+  echo "        (no embed-NNN context active in $CANON — mock/dev dim, nothing to cross-check)"
+elif [ "$embed_dim" != "$ctx_dim" ]; then
+  err "MEMORY_EMBED_DIM=$embed_dim but LIQUIBASE_CONTEXTS activates embed-$ctx_dim in $CANON"
+  err "→ the fail-fast dim check and the widen migration would disagree; make them equal"
+else
+  migration="$(grep -rlE "contexts: *embed-$ctx_dim( |$)" infra/liquibase/features/ 2>/dev/null | head -1 || true)"
+  if [ -z "$migration" ]; then
+    err "no Liquibase migration declares 'contexts: embed-$ctx_dim' (activated by $CANON)"
+    err "→ add the embed-$ctx_dim widen migration under infra/liquibase/features/ (do NOT amend an existing embed-NNN)"
+  elif ! grep -qE "TYPE +vector\($ctx_dim\)" "$migration"; then
+    err "$migration is the embed-$ctx_dim migration but does not ALTER the column to vector($ctx_dim)"
+    err "→ its 'ALTER … TYPE vector(N)' must match MEMORY_EMBED_DIM=$embed_dim"
+  fi
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
