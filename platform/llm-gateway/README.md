@@ -324,6 +324,22 @@ GOLDEN_PROFILE=openai scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenR
 GOLDEN_PROFILE=openai scripts/golden.sh down        # stop the openai-profile gateway on :8091
 ```
 
+### Bucket 2 pilot golden (#360) — model plans the gather from a recipe
+
+`finance-agent`'s `advisor.GoldenAdvisorRecipeTest` validates the **skills-vs-flows Bucket 2 pilot**
+([`plans/skills-vs-flows.md`](../../plans/skills-vs-flows.md)): the executable-recipe form of the
+`financial-advisor` flow (a **test fixture** at `finance-agent/src/test/resources/recipes/`, not loaded in
+production). It asserts the one thing the recipe adds over the existing synthesis flow — that the **model
+plans the gather itself** (a parseable `gather` plan grounded in the single `spending_by_category` tool the
+recipe exposes, ≥2 trend windows incl. a recent one) rather than the plan being hard-coded in Java. Synthesis
+stays covered by `GoldenAdvisorSynthesisTest`; the two together prove the recipe end-to-end. Passed on local
+qwen3:8b (56s); run it against either profile:
+
+```sh
+scripts/golden.sh -pl domains/finance/finance-agent -Dtest=GoldenAdvisorRecipeTest
+GOLDEN_PROFILE=openai scripts/golden.sh -pl domains/finance/finance-agent -Dtest=GoldenAdvisorRecipeTest
+```
+
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
 the analysis flow (the classifier prompt now pins the action to an exact enum). See `infra/.env.example`
