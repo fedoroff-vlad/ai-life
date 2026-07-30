@@ -2,14 +2,31 @@
 #
 # Run the Stage-5 golden tests (@GoldenLlmTest, #199) against a real model with ONE command.
 #
-# It brings up the whole local stack — Ollama on :11434 and an Ollama-backed llm-gateway on :8081 —
-# then runs the mvn args you pass with GOLDEN_LLM=true. Both are left running, so the *next* invocation
-# skips startup entirely and the launch is instant. Idempotent: anything already healthy is reused.
+# Two profiles, selected by GOLDEN_PROFILE (default: ollama):
+#   ollama  — the free local stack: Ollama on :11434 + an Ollama-backed llm-gateway on :8081.
+#   openai  — an OpenAI-compatible gateway supplied entirely by env (the work dev-validator, #359):
+#             no Ollama, no local model — the gateway just proxies to $GOLDEN_OPENAI_BASE_URL. Runs
+#             on :8091 by default so it can coexist with a warm ollama-profile gateway on :8081.
+#
+# It brings up whatever the profile needs, then runs the mvn args you pass with GOLDEN_LLM=true. What
+# it started is left running, so the *next* invocation skips startup entirely and the launch is
+# instant. Idempotent: anything already healthy is reused.
 #
 # Usage:
 #   scripts/golden.sh -pl domains/knowledge/notes-agent -Dtest='GoldenNoteWriterTest,GoldenNoteFinderTest'
 #   scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest
-#   scripts/golden.sh down     # stop the gateway (and Ollama, if THIS script started it)
+#   GOLDEN_PROFILE=openai scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest
+#   scripts/golden.sh down                          # stop the ollama-profile stack (gateway + Ollama, if this script started it)
+#   GOLDEN_PROFILE=openai scripts/golden.sh down    # stop the openai-profile gateway on :8091
+#
+# openai profile — all employer specifics via ENV ONLY (never commit a hostname/model — scrub-identity):
+#   GOLDEN_OPENAI_BASE_URL           (required) the gateway's OpenAI /v1 base URL, e.g. https://host/v1
+#   GOLDEN_OPENAI_MODEL              (required) chat model to validate against (default + fast channel)
+#   GOLDEN_OPENAI_API_KEY           (optional) sent as Authorization: Bearer <key> when set
+#   GOLDEN_OPENAI_FAST_MODEL        (optional) fast-channel model; defaults to GOLDEN_OPENAI_MODEL
+#   GOLDEN_OPENAI_EMBEDDING_MODEL   (optional) embedding model; defaults to nomic-embed-text
+#   GOLDEN_OPENAI_SUPPRESS_THINKING (optional) send reasoning_effort:none; defaults to false (hosted models don't need it)
+#   GOLDEN_OPENAI_TIMEOUT_SECONDS   (optional) upstream chat/embed timeout; defaults to 180
 #
 # Notes:
 # - Auto-starts `ollama serve` only if :11434 isn't already answering; a pre-existing Ollama daemon is
@@ -26,7 +43,17 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."   # repo root, wherever this is invoked from
 
-PORT="${LLM_GATEWAY_PORT:-8081}"
+PROFILE="${GOLDEN_PROFILE:-ollama}"
+case "$PROFILE" in
+  ollama|openai) ;;
+  *) echo "ERROR: unknown GOLDEN_PROFILE '$PROFILE' (expected: ollama | openai)" >&2; exit 2 ;;
+esac
+
+# Each profile defaults to its own port so an ollama gateway (:8081) and an openai one (:8082) can
+# stay warm side by side; LLM_GATEWAY_PORT still overrides.
+DEFAULT_PORT=8081
+[ "$PROFILE" = openai ] && DEFAULT_PORT=8091   # 8082 is profile-service; keep the openai golden gateway clear of it
+PORT="${LLM_GATEWAY_PORT:-$DEFAULT_PORT}"
 URL="http://localhost:${PORT}"
 OLLAMA_URL="http://localhost:11434"
 JAR="platform/llm-gateway/target/llm-gateway.jar"
@@ -106,9 +133,35 @@ ensure_gateway() {
   echo "llm-gateway healthy."
 }
 
+ensure_gateway_openai() {
+  # All employer specifics come from env — nothing about the work gateway is written into the repo.
+  : "${GOLDEN_OPENAI_BASE_URL:?set GOLDEN_OPENAI_BASE_URL to the work gateway OpenAI /v1 base URL}"
+  : "${GOLDEN_OPENAI_MODEL:?set GOLDEN_OPENAI_MODEL to the chat model to validate against}"
+  if gateway_up; then
+    echo "llm-gateway already warm on $URL — skipping startup"
+    return
+  fi
+  mkdir -p logs
+  [ -f "$JAR" ] || mvn -q -pl platform/llm-gateway -am -DskipTests package
+  echo "starting llm-gateway on $URL (openai-compatible → work gateway) …"
+  LLM_PROVIDER=openai-compatible LLM_BASE_URL="$GOLDEN_OPENAI_BASE_URL" \
+  LLM_API_KEY="${GOLDEN_OPENAI_API_KEY:-}" \
+  LLM_DEFAULT_MODEL="${GOLDEN_OPENAI_MODEL}" LLM_FAST_MODEL="${GOLDEN_OPENAI_FAST_MODEL:-$GOLDEN_OPENAI_MODEL}" \
+  LLM_EMBEDDING_MODEL="${GOLDEN_OPENAI_EMBEDDING_MODEL:-nomic-embed-text}" \
+  LLM_SUPPRESS_THINKING="${GOLDEN_OPENAI_SUPPRESS_THINKING:-false}" \
+  LLM_REQUEST_TIMEOUT_SECONDS="${GOLDEN_OPENAI_TIMEOUT_SECONDS:-180}" LLM_GATEWAY_PORT="$PORT" \
+    nohup "$(java_bin)" -jar "$JAR" > "$GATEWAY_LOG" 2>&1 &
+  disown || true
+  for _ in $(seq 1 60); do gateway_up && break; sleep 2; done
+  gateway_up || { echo "ERROR: gateway did not become healthy — see $GATEWAY_LOG" >&2; exit 1; }
+  echo "llm-gateway healthy."
+}
+
 stop_stack() {
   local pids; pids="$(port_pids)"
   if [ -n "$pids" ]; then for pid in $pids; do kill_pid "$pid"; done; echo "stopped llm-gateway on :$PORT (pids: $pids)"; else echo "no llm-gateway listening on :$PORT"; fi
+  # The openai profile never touches Ollama — only the ollama profile owns a daemon it may have started.
+  if [ "$PROFILE" = openai ]; then return; fi
   if [ -f "$OLLAMA_PIDFILE" ]; then
     local opid; opid="$(cat "$OLLAMA_PIDFILE")"
     kill_pid "$opid"; rm -f "$OLLAMA_PIDFILE"
@@ -121,13 +174,17 @@ stop_stack() {
 if [ "${1:-}" = "down" ]; then stop_stack; exit 0; fi
 
 if [ "$#" -eq 0 ]; then
-  echo "usage: scripts/golden.sh -pl <module> -Dtest=<GoldenTest[,GoldenTest2]>   (or: scripts/golden.sh down)" >&2
+  echo "usage: [GOLDEN_PROFILE=ollama|openai] scripts/golden.sh -pl <module> -Dtest=<GoldenTest[,GoldenTest2]>   (or: scripts/golden.sh down)" >&2
   exit 2
 fi
 
-ensure_ollama
-check_models
-ensure_gateway
+if [ "$PROFILE" = openai ]; then
+  ensure_gateway_openai
+else
+  ensure_ollama
+  check_models
+  ensure_gateway
+fi
 
 # Run the golden tests against the warm gateway.
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL="$URL" mvn "$@" test

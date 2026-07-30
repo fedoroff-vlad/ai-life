@@ -5,15 +5,15 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **➡️ openai:-tier golden profile ([#359](https://github.com/fedoroff-vlad/ai-life/issues/359)).** Let
-  `@GoldenLlmTest` target the work OpenAI-compatible gateway (env-only, scrub-identity) instead of only local
-  Ollama — the enabler for the Bucket 2 pilot's dev-time validation. Feasible now (model/hardware-independent);
-  keep the employer unnamed (scrub-identity skill). **skills-vs-flows Bucket 1 ✅ COMPLETE (2026-07-29)** — the
-  shared `IntentRouter` lift is done end-to-end: slice 1 shared `SkillClassifier` (#363), slice 2 finance
-  (#365), slice 3 tasks (this PR); both agents now route through one `agent-runtime` classifier driven by
-  `SkillRegistry` descriptions + tool defs (SKILL.md = the in-agent-routing SSOT, finishing PR#339). Detail →
-  HISTORY + [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1. **Bucket 2** (flow-class → executable SKILL.md)
-  stays model-gated → `## Next`.
+- **➡️ Bucket 2 pilot — validation half ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360)).**
+  Evolve ONE advisory flow (`finance FinancialAdvisor` / coach `Reflector`) from a Java class into an
+  executable `SKILL.md` recipe run over the `Coordinator` + generic tools, and **validate it against a strong
+  hosted model via the new `GOLDEN_PROFILE=openai` golden lane** (below). Feasible now for the *design +
+  work-LLM-validated pilot*; the **production cutover** (ripping the Java flow out) stays gated on the Mac /
+  a stronger local MoE default. Enablers both shipped: **#358 Bucket 1 ✅** (shared `SkillClassifier`) +
+  **#359 openai:-tier golden profile ✅ (2026-07-30, this PR)** — `scripts/golden.sh GOLDEN_PROFILE=openai`
+  points the gateway at an env-only OpenAI-compatible endpoint (scrub-identity), no Ollama, on `:8091`.
+  Detail → HISTORY + [skills-vs-flows.md](skills-vs-flows.md) §Feasible now.
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
@@ -29,7 +29,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **Bucket 2 pilot ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — one advisory flow (`coach Reflector` / `FinancialAdvisor`) → executable SKILL.md, validated against the #359 golden; production cutover stays gated on the Mac. Depends on #358 ✅ + #359.
+1. **Bucket 2 pilot — production cutover ([#360](https://github.com/fedoroff-vlad/ai-life/issues/360), model-gated)** — once the pilot recipe is validated (the `## Now` design half), rip the Java flow out and run it from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
 2. **(Optional) fast/slow test split** — surefire unit vs failsafe container ITs, to speed the local inner loop; low value since full `verify` runs the same tests and iterating already uses `-Dtest=Class`. Pick up only if the dev loop hurts.
 
 ## Backlog (all mirrored as Issues — not near-term)
