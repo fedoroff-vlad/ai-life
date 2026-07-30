@@ -302,6 +302,28 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
 > surface's own contract (routing token vs JSON shape vs grounded free-text), so only the plumbing is
 > shared, never the assertions.
 
+### `openai:`-tier profile — validate against a strong hosted model (#359)
+
+The same runner has a second profile, `GOLDEN_PROFILE=openai`, that points the gateway at an
+**OpenAI-compatible endpoint supplied entirely by env** instead of local Ollama — the dev-time validator
+for the skills-vs-flows Bucket 2 pilot ([`plans/skills-vs-flows.md`](../../plans/skills-vs-flows.md)): it
+answers "is the recipe correct?" against a strong model, decoupled from "which local model runs it in
+production". It reuses the `openai-compatible` provider path (base URL + `Authorization: Bearer` key), so
+**no gateway code is specific to it**. It starts no Ollama and pulls no model; the gateway defaults to
+`:8091` (8082 is profile-service) so it can run alongside a warm Ollama-profile gateway on `:8081`.
+
+**All endpoint specifics are env-only — never commit a hostname/service/model** (scrub-identity; the repo
+is public). Set the `GOLDEN_OPENAI_*` vars (see [`infra/.env.example`](../../infra/.env.example) §openai:-tier
+golden profile), then:
+
+```sh
+export GOLDEN_OPENAI_BASE_URL=https://<host>/v1     # required
+export GOLDEN_OPENAI_MODEL=<model>                  # required (default + fast channel)
+export GOLDEN_OPENAI_API_KEY=<key>                  # optional (Bearer)
+GOLDEN_PROFILE=openai scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest
+GOLDEN_PROFILE=openai scripts/golden.sh down        # stop the openai-profile gateway on :8091
+```
+
 What the first run surfaced on `qwen2.5:7b` (and the fixes, per #199 part 3): the model **flattens** the
 tool shape to `{"action":"<toolName>"}` (IntentRouter now tolerates it) and once invented `"analysis"` for
 the analysis flow (the classifier prompt now pins the action to an exact enum). See `infra/.env.example`

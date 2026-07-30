@@ -41,10 +41,12 @@ done
 # ── Check 2: golden.sh must pin a model the canonical deploy actually pulls ────────────
 # Ties the golden runner to the SSOT: whatever chat/fast model golden.sh boots the gateway
 # with must be a tag the Mac deploy declares (assignment or pull list), so the runner can't
-# silently drift onto a model nobody pulls.
+# silently drift onto a model nobody pulls. Env-indirected models (the openai profile's
+# LLM_*_MODEL="$GOLDEN_OPENAI_MODEL", #359) are NOT pins — the operator supplies the tag at
+# run time — so values starting with $ / " / ' are excluded; only literal tags are checked.
 echo "check 2: golden.sh gateway models are a subset of the canonical Ollama set ($CANON)"
 allowed="$(grep -oE 'qwen[0-9][A-Za-z0-9._:-]*|minicpm-v|nomic-embed-text|bge-m3' "$CANON" | sort -u)"
-pinned="$(grep -oE 'LLM_(DEFAULT|FAST)_MODEL=[^ ]+' scripts/golden.sh | sed 's/.*=//' | sort -u || true)"
+pinned="$(grep -oE 'LLM_(DEFAULT|FAST)_MODEL=[^ ]+' scripts/golden.sh | sed 's/.*=//' | grep -vE '^[$"'\'']' | sort -u || true)"
 for m in $pinned; do
   if ! printf '%s\n' "$allowed" | grep -qxF -- "$m"; then
     err "golden.sh pins '$m', which is not in the canonical model set of $CANON"
