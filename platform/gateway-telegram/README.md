@@ -7,13 +7,17 @@ Telegram entry point. Long-polling bot that:
 3. Builds a `NormalizedMessage` and sends it to `orchestrator`.
 4. Replies to the chat with the orchestrator's response.
 
-**Family invites — `/start <token>` (ADR-0001 slice 4b).** A deep-link `t.me/<bot>?start=<token>` opens
-as the text `/start <token>`. The gateway intercepts it (not a routable message): it resolves/creates
-the opener's identity, then redeems the invite via `profile-service`
-(`POST /v1/invites/by-token/{token}/redeem`) so they join the inviter's family household, replies to the
-invitee with a join confirmation, and DMs the **holder** (inviter) that they joined. An unknown /
-already-used token is graceful — the opener just keeps their own isolated personal space. The owner-side
-"mint an invite" command lands in slice 4b-ii.
+**Family invites (ADR-0001 slice 4b).** Two owner-gated commands, both handled at the gateway level
+(identity plumbing, not routable messages):
+- **`/invite <name> as <relationship>` (slice 4b-ii)** — the owner mints a pre-authorized invite into
+  their own household via `profile-service` (`POST /v1/invites`); the bot replies with a
+  `t.me/<bot>?start=<token>` deep-link to forward out-of-band. `<name>` is a label for the reply only;
+  `<relationship>` tags the invitee. A bare `/invite` replies with usage.
+- **`/start <token>` (slice 4b-i)** — a deep-link opens as the text `/start <token>`; the gateway
+  resolves/creates the opener's identity, then redeems the invite
+  (`POST /v1/invites/by-token/{token}/redeem`) so they join the inviter's family household, replies to
+  the invitee with a join confirmation, and DMs the **holder** (inviter) that they joined. An unknown /
+  already-used token is graceful — the opener just keeps their own isolated personal space.
 
 Photo, document and voice messages are supported: the bytes are downloaded and uploaded to
 `media-service`, and the returned object id rides on the `NormalizedMessage` as an attachment
@@ -74,14 +78,14 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 
 ## Key classes
 - `GatewayApplication`.
-- `bot/AiLifeBot` — Telegram bot impl. Intercepts `/start <token>` deep-links (family-invite redemption) before the normal media/text dispatch, sending the invitee reply + the holder ping.
+- `bot/AiLifeBot` — Telegram bot impl. Intercepts the family-invite commands before the normal media/text dispatch: `/start <token>` (redemption → invitee reply + holder ping) and `/invite <name> as <relationship>` (owner mint → deep-link reply, or usage on a bare `/invite`).
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
 - `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio (`transcribeIfVoice`) and routes the transcript as `text`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
 - `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → transcript text (front-door STT for voice notes). Not soft-failed: the transcript is the voice message's payload.
-- `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join: resolve identity → redeem → resolve the inviter's Telegram id, returning an `InviteOutcome`.
+- `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join (resolve → redeem → resolve inviter → `InviteOutcome`) — and `mintInvite(...)` — the owner-side mint (resolve → `POST /v1/invites` → format the `t.me/<bot>?start=<token>` deep-link reply).
 - `identity/InviteOutcome` — the reply to show the invitee + the (optional) holder-ping target/text; keeps the redeem logic free of any Telegram API dependency (the bot layer does the sends).
-- `identity/ProfileClient` — WebClient → profile-service (`by-telegram`/create identity + `redeem` an invite + `findById` for the inviter's Telegram id).
+- `identity/ProfileClient` — WebClient → profile-service (`by-telegram`/create identity + `mintInvite`/`redeem` + `findById` for the inviter's Telegram id).
 - `orchestrator/OrchestratorClient` — POST `/v1/intent`.
 - `internal/InternalSendController` — `POST /internal/send`, Bearer-gated.
 - `config/GatewayProperties`, `config/HttpClientsConfig`, `config/TelegramClientConfig` — `TelegramClient` exposed as a conditional bean so both `BotRegistration` and `InternalSendController` share it via `ObjectProvider`.

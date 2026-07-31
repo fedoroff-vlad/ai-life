@@ -59,6 +59,22 @@ public class IdentityResolver {
                                 ex -> Mono.just(InviteOutcome.noJoin(failedReply(ru)))));
     }
 
+    /**
+     * Mint a family invite for the owner (ADR-0001, slice 4b-ii). Resolves the sender's identity, then
+     * mints a pre-authorized invite into <em>their own</em> household tagged {@code relationship}, and
+     * formats a {@code t.me/<bot>?start=<token>} deep-link reply for the owner to forward out-of-band.
+     * {@code personLabel} is a human tag for the reply only (the invite is redeemed by whoever opens
+     * the link, per slice 4b-i). Handled at the gateway level, symmetric with {@code /start}.
+     */
+    public Mono<String> mintInvite(long telegramUserId, String displayName, String languageCode,
+                                   String personLabel, String relationship) {
+        boolean ru = languageCode == null || languageCode.startsWith("ru");
+        return resolve(telegramUserId, displayName, languageCode)
+                .flatMap(owner -> profile.mintInvite(
+                        owner.householdId().toString(), owner.id().toString(), relationship)
+                        .map(invite -> mintReply(ru, personLabel, relationship, deepLink(invite.token()))));
+    }
+
     /** Build the join outcome, resolving the inviter's Telegram id for the holder ping. */
     private Mono<InviteOutcome> joined(UserDto invitee, HouseholdInviteDto invite, boolean ru) {
         String inviteeReply = joinedReply(ru, invite.relationship());
@@ -89,6 +105,21 @@ public class IdentityResolver {
     private static String failedReply(boolean ru) {
         return ru ? "Приглашение недействительно или уже использовано."
                 : "This invite is invalid or already used.";
+    }
+
+    /** The `t.me/<bot>?start=<token>` deep-link an invitee opens to redeem the invite (slice 4b-i). */
+    private String deepLink(String token) {
+        return "https://t.me/" + props.getTelegram().getBotUsername() + "?start=" + token;
+    }
+
+    private static String mintReply(boolean ru, String personLabel, String relationship, String link) {
+        String rel = relationship != null && !relationship.isBlank() ? relationship : (ru ? "участник" : "member");
+        String who = personLabel != null && !personLabel.isBlank() ? personLabel : (ru ? "этого человека" : "them");
+        return ru
+                ? "Ссылка-приглашение для «" + who + "» как " + rel + ":\n" + link
+                        + "\nОтправьте её этому человеку — открыв ссылку, он присоединится к вашему семейному пространству."
+                : "Invite link for \"" + who + "\" as " + rel + ":\n" + link
+                        + "\nSend it to them — opening the link joins them to your family space.";
     }
 
     private static String holderReply(String locale, String inviteeName, String relationship) {

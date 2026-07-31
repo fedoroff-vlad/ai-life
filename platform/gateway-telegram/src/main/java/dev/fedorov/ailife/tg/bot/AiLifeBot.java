@@ -60,6 +60,13 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
             handleInvite(msg, from, startToken);
             return;
         }
+        // The owner-side `/invite <name> as <relationship>` command (ADR-0001 slice 4b-ii) mints a
+        // family-invite deep-link — also identity plumbing, handled before the normal dispatch.
+        InviteCommand mint = inviteCommandOf(msg);
+        if (mint != null) {
+            handleMint(msg, from, mint);
+            return;
+        }
         // Text, photo, document and voice messages are supported; everything else
         // (stickers, video, …) is ignored until its own processing path lands.
         if (!msg.hasText() && !msg.hasPhoto() && !msg.hasDocument() && !msg.hasVoice()) {
@@ -125,6 +132,69 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         }
         String payload = parts[1].trim();
         return payload.isEmpty() ? null : payload;
+    }
+
+    /**
+     * Parses an owner-side {@code /invite [<name>] [as <relationship>]} command, or {@code null} for
+     * any other message. {@code <name>} is a human label for the reply only; {@code <relationship>} is
+     * how the invitee is tagged in the household. A bare {@code /invite} parses to an empty command
+     * (the handler then shows usage) rather than falling through to the orchestrator.
+     */
+    private static InviteCommand inviteCommandOf(Message msg) {
+        if (!msg.hasText() || msg.getText() == null) {
+            return null;
+        }
+        String text = msg.getText().trim();
+        if (!text.startsWith("/invite")) {
+            return null;
+        }
+        String[] head = text.split("\\s+", 2);
+        String remainder = head.length < 2 ? "" : head[1].trim();
+        if (remainder.isEmpty()) {
+            return new InviteCommand(null, null);
+        }
+        String[] parts = remainder.split("(?i)\\s+as\\s+", 2);
+        if (parts.length == 2) {
+            String label = parts[0].trim();
+            return new InviteCommand(label.isEmpty() ? null : label, parts[1].trim());
+        }
+        return new InviteCommand(null, remainder);
+    }
+
+    /**
+     * Mints a family invite for the owner (ADR-0001 slice 4b-ii) and replies with the deep-link to
+     * forward. A {@code /invite} with no relationship shows usage instead of minting.
+     */
+    private void handleMint(Message msg, User from, InviteCommand cmd) {
+        if (cmd.relationship() == null || cmd.relationship().isBlank()) {
+            send(msg.getChatId(), inviteUsage(from.getLanguageCode()));
+            return;
+        }
+        try {
+            var incoming = new MessageProcessor.IncomingMessage(
+                    from.getId(),
+                    displayNameOf(from),
+                    from.getLanguageCode(),
+                    null,
+                    scopeFor(msg),
+                    String.valueOf(msg.getMessageId()));
+            String reply = processor.mintInvite(incoming, cmd.personLabel(), cmd.relationship()).block();
+            send(msg.getChatId(), reply != null ? reply : "(no response)");
+        } catch (Exception e) {
+            log.error("Failed to mint invite from update {}", msg.getMessageId(), e);
+            send(msg.getChatId(), "Sorry, something broke. Please try again.");
+        }
+    }
+
+    private static String inviteUsage(String languageCode) {
+        boolean ru = languageCode == null || languageCode.startsWith("ru");
+        return ru
+                ? "Использование: /invite <имя> as <кто>\nНапример: /invite Маша as дочь"
+                : "Usage: /invite <name> as <relationship>\nExample: /invite Masha as daughter";
+    }
+
+    /** Parsed {@code /invite} command: an optional human label and the household relationship tag. */
+    private record InviteCommand(String personLabel, String relationship) {
     }
 
     /**

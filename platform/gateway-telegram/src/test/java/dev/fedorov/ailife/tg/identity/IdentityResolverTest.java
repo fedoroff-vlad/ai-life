@@ -100,6 +100,25 @@ class IdentityResolverTest {
     }
 
     @Test
+    void ownerMintsInviteIntoTheirHouseholdAndGetsADeepLink() {
+        UUID ownerId = UUID.randomUUID();
+        UUID household = UUID.randomUUID();
+        UserDto owner = new UserDto(ownerId, household, "vlad", "ru-RU", 42L, "admin", Instant.now());
+
+        when(profile.findByTelegramId(42L)).thenReturn(Mono.just(owner));
+        when(profile.mintInvite(household.toString(), ownerId.toString(), "daughter"))
+                .thenReturn(Mono.just(new HouseholdInviteDto(
+                        UUID.randomUUID(), "TOK123", household, ownerId, "daughter", true,
+                        "pending", null, Instant.now(), null)));
+
+        String reply = resolver.mintInvite(42L, "vlad", "ru", "Masha", "daughter").block();
+
+        assertThat(reply).contains("https://t.me/ai_life_bot?start=TOK123");
+        assertThat(reply).contains("Masha").contains("daughter");
+        verify(profile).mintInvite(household.toString(), ownerId.toString(), "daughter");
+    }
+
+    @Test
     void unknownOrUsedTokenYieldsGracefulNoJoinReplyWithoutHolderLookup() {
         UUID inviteeId = UUID.randomUUID();
         UserDto invitee = new UserDto(inviteeId, UUID.randomUUID(), "Masha", "ru-RU", 555L, "member", Instant.now());

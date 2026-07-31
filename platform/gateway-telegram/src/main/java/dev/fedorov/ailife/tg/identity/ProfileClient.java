@@ -55,6 +55,25 @@ public class ProfileClient {
                 .bodyToMono(HouseholdInviteDto.class);
     }
 
+    /**
+     * Mint a pre-authorized family invite (ADR-0001, slice 4b-ii): the owner invites someone into
+     * their {@code familyHouseholdId} tagged {@code relationship}. profile-service returns the invite
+     * with its {@code token}, which the gateway turns into a {@code /start <token>} deep-link.
+     * {@code grantSharedAccess} defaults to true server-side.
+     */
+    public Mono<HouseholdInviteDto> mintInvite(String familyHouseholdId, String inviterUserId,
+                                               String relationship) {
+        return http.post()
+                .uri("/v1/invites")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "familyHouseholdId", familyHouseholdId,
+                        "inviterUserId", inviterUserId,
+                        "relationship", relationship))
+                .retrieve()
+                .bodyToMono(HouseholdInviteDto.class);
+    }
+
     public Mono<HouseholdDto> createHousehold(String name) {
         return http.post()
                 .uri("/v1/households")

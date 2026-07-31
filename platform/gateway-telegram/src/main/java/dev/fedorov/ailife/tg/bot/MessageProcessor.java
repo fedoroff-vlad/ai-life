@@ -50,6 +50,16 @@ public class MessageProcessor {
                 incoming.telegramUserId(), incoming.displayName(), incoming.languageCode(), token);
     }
 
+    /**
+     * Handle the owner-side {@code /invite <name> as <relationship>} command (ADR-0001 slice 4b-ii):
+     * mint a family invite into the sender's household and return the deep-link reply for them to
+     * forward. Gateway-level identity plumbing, symmetric with the {@code /start} redemption.
+     */
+    public Mono<String> mintInvite(IncomingMessage incoming, String personLabel, String relationship) {
+        return identity.mintInvite(incoming.telegramUserId(), incoming.displayName(),
+                incoming.languageCode(), personLabel, relationship);
+    }
+
     public Mono<IntentResponse> process(IncomingMessage incoming) {
         return identity.resolve(incoming.telegramUserId(), incoming.displayName(), incoming.languageCode())
                 .flatMap(user -> attachmentsFor(user, incoming)
