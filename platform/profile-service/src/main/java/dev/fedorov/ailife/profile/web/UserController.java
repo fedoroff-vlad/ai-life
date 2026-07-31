@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.profile.web;
 
+import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
+import dev.fedorov.ailife.profile.domain.HouseholdMember;
 import dev.fedorov.ailife.profile.domain.HouseholdMemberRepository;
 import dev.fedorov.ailife.profile.domain.HouseholdRepository;
 import dev.fedorov.ailife.profile.domain.User;
@@ -99,6 +101,31 @@ public class UserController {
         return ResponseEntity.ok(memberships.findByUserIdOrderByJoinedAt(id).stream()
                 .map(m -> m.getHouseholdId())
                 .toList());
+    }
+
+    /**
+     * Tenant-routing split of the caller's memberships (ADR-0001 slice 4): the single
+     * <b>personal</b> household (self-membership, {@code relationship IS NULL} — the private-scope
+     * target) vs the <b>shared</b> family households ({@code relationship} set). The write path
+     * (calendar-agent) resolves a private/shared choice to a concrete {@code household_id} with this.
+     * 404 if the user does not exist.
+     */
+    @GetMapping("/{id}/household-routing")
+    public ResponseEntity<HouseholdRoutingDto> householdRouting(@PathVariable UUID id) {
+        if (!users.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        java.util.List<HouseholdMember> members = memberships.findByUserIdOrderByJoinedAt(id);
+        UUID personal = members.stream()
+                .filter(m -> m.getRelationship() == null)
+                .map(HouseholdMember::getHouseholdId)
+                .findFirst()
+                .orElseGet(() -> members.isEmpty() ? null : members.get(0).getHouseholdId());
+        java.util.List<UUID> shared = members.stream()
+                .filter(m -> m.getRelationship() != null)
+                .map(HouseholdMember::getHouseholdId)
+                .toList();
+        return ResponseEntity.ok(new HouseholdRoutingDto(personal, shared));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

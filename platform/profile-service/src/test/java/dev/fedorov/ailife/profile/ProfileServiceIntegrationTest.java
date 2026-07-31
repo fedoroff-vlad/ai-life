@@ -5,6 +5,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
 import dev.fedorov.ailife.contracts.profile.HouseholdInviteDto;
+import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.profile.web.dto.CreateHouseholdRequest;
@@ -132,6 +133,50 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
                 () -> http.getForObject(
                         "/v1/users/" + java.util.UUID.randomUUID() + "/households",
                         java.util.UUID[].class),
+                RestClientResponseException.class);
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void householdRoutingSplitsPersonalFromShared() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+
+        // A fresh user has only their personal (self-membership) household → no shared targets.
+        HouseholdDto personal = http.postForObject("/v1/households",
+                new CreateHouseholdRequest("anna"), HouseholdDto.class);
+        UserDto invitee = http.postForObject("/v1/users",
+                new CreateUserRequest(personal.id(), "anna", null, 6001L, "admin"), UserDto.class);
+
+        HouseholdRoutingDto before = http.getForObject(
+                "/v1/users/" + invitee.id() + "/household-routing", HouseholdRoutingDto.class);
+        assertThat(before.personalHouseholdId()).isEqualTo(personal.id());
+        assertThat(before.sharedHouseholdIds()).isEmpty();
+
+        // After joining a family household via invite, the family household is a shared target while
+        // the personal one stays the private-scope default.
+        HouseholdDto family = http.postForObject("/v1/households",
+                new CreateHouseholdRequest("Fedorov family"), HouseholdDto.class);
+        UserDto owner = http.postForObject("/v1/users",
+                new CreateUserRequest(family.id(), "vlad", null, 6002L, "admin"), UserDto.class);
+        HouseholdInviteDto minted = http.postForObject("/v1/invites",
+                new MintInviteRequest(family.id(), owner.id(), "wife", null), HouseholdInviteDto.class);
+        http.postForObject("/v1/invites/by-token/" + minted.token() + "/redeem",
+                new RedeemInviteRequest(invitee.id()), HouseholdInviteDto.class);
+
+        HouseholdRoutingDto after = http.getForObject(
+                "/v1/users/" + invitee.id() + "/household-routing", HouseholdRoutingDto.class);
+        assertThat(after.personalHouseholdId()).isEqualTo(personal.id());
+        assertThat(after.sharedHouseholdIds()).containsExactly(family.id());
+    }
+
+    @Test
+    void householdRoutingForUnknownUserIs404() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        RestClientResponseException ex = catchThrowableOfType(
+                () -> http.getForObject(
+                        "/v1/users/" + java.util.UUID.randomUUID() + "/household-routing",
+                        HouseholdRoutingDto.class),
                 RestClientResponseException.class);
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
