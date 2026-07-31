@@ -183,8 +183,11 @@ an event scope column) is proportionate and lands in independent slices.
    existing user is backfilled as a member of their current household, `users.household_id` kept as the
    read-through default during transition. profile-service reads memberships via
    `GET /v1/users/{id}/households` (and inserts a self-membership on user creation). *(slice 2)*
-3. [ ] **Onboarding flow:** new-registration → create personal household → notify holder → approve adds
-   a `household_members` row with `relationship`. (Reuses conversation-state confirm + notifier.)
+3. [x] **Onboarding flow:** new-registration → personal household (slice 3); owner mints a deep-link
+   invite `/invite <name> as <relationship>` → `POST /v1/invites` (slice 4a store + 4b-ii gateway
+   command, PR#381); invitee opens `/start <token>` → redeem inserts the `household_members` row +
+   the holder is pinged on join (slice 4b-i, PR#379). Handled at the gateway level, not via a domain
+   skill.
 4. [ ] **Per-item scope on calendar (tenant routing):** events are created in the author's personal
    or the family household per the default-sharing policy; `CreateEventInput` gains the private/shared
    choice; reads honor the caller's household set.

@@ -24,10 +24,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `POST /v1/invites/by-token/{token}/redeem` (join the inviter's family household) → reply to the
   invitee + DM the holder; unknown/used token is graceful (opener keeps their isolated space). Carries
   the cross-service invite-contract E2E (`E2EInviteRedeemFlowTest`). Slice 4b was split into two PRs
-  (>5 files). NEXT = **slice 4b-ii: owner mint command** — owner-facing "invite &lt;person&gt; as
-  &lt;relationship&gt;" mints the deep-link via `POST /v1/invites`; **decided: handled at the gateway
-  level**, symmetric with `/start` (identity plumbing, not a routable domain skill). Then calendar
-  per-item scope → **#295 feed filter** (closer). Detail →
+  (>5 files). **Slice 4b-ii ✅** (owner mint command, PR#381): `/invite &lt;name&gt; as &lt;relationship&gt;`
+  mints a pre-authorized invite into the sender's household via `POST /v1/invites` → gateway replies with
+  the `t.me/&lt;bot&gt;?start=&lt;token&gt;` deep-link to forward (bare `/invite` → usage); handled at the
+  **gateway level**, symmetric with `/start`. **Telegram-wiring half of slice 4 done.** NEXT = **slice 4
+  (calendar per-item scope):** events created in the author's personal or the family household per the
+  default-sharing policy; `CreateEventInput` gains the private/shared choice; reads honor the caller's
+  household set. Then **slice 5 = #295 feed filter** (epic closer). Detail →
   [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
