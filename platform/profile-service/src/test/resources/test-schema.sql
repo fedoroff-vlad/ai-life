@@ -21,6 +21,18 @@ CREATE TABLE IF NOT EXISTS core.users (
     created_at        timestamptz  NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS core.household_members (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id  uuid NOT NULL REFERENCES core.households(id),
+    user_id       uuid NOT NULL REFERENCES core.users(id),
+    role          varchar(32)  NOT NULL DEFAULT 'member',
+    relationship  varchar(64),
+    joined_at     timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT uq_hm_household_user UNIQUE (household_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS ix_hm_user ON core.household_members (user_id);
+CREATE INDEX IF NOT EXISTS ix_hm_household ON core.household_members (household_id);
+
 CREATE TABLE IF NOT EXISTS core.people (
     id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id         uuid NOT NULL REFERENCES core.households(id),

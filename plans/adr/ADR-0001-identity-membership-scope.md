@@ -178,9 +178,11 @@ an event scope column) is proportionate and lands in independent slices.
 
 1. [x] **Accept this ADR**; update [architecture.md](../architecture.md) §Locked decisions (1:1 →
    1:N membership) + [core.md](../core.md) + register in [INDEX.md](../INDEX.md). *(this PR)*
-2. [ ] **Membership schema + backfill:** `core.household_members` migration; every existing user gets a
-   personal household + a membership row into their current household; keep `users.household_id` as a
-   read-through default during transition. profile-service reads memberships.
+2. [x] **Membership schema + backfill:** `core.household_members` migration
+   ([013-household-members.yml](../../infra/liquibase/features/013-household-members.yml)); every
+   existing user is backfilled as a member of their current household, `users.household_id` kept as the
+   read-through default during transition. profile-service reads memberships via
+   `GET /v1/users/{id}/households` (and inserts a self-membership on user creation). *(slice 2)*
 3. [ ] **Onboarding flow:** new-registration → create personal household → notify holder → approve adds
    a `household_members` row with `relationship`. (Reuses conversation-state confirm + notifier.)
 4. [ ] **Per-item scope on calendar (tenant routing):** events are created in the author's personal

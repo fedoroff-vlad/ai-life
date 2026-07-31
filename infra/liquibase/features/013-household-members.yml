@@ -1,0 +1,86 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 013-household-members
+      author: ai-life
+      comment: >-
+        M:N household membership (ADR-0001). `user → household` becomes 1:N: a user is a member of
+        one or more households and reads the union over their memberships. Backfill: every existing
+        user becomes a member of their current `users.household_id` (kept as read-through default).
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: household_members
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_hm_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_hm_user
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: role
+                  type: varchar(32)
+                  defaultValue: member
+                  constraints:
+                    nullable: false
+              - column:
+                  name: relationship
+                  type: varchar(64)
+              - column:
+                  name: joined_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: core
+            tableName: household_members
+            columnNames: household_id, user_id
+            constraintName: uq_hm_household_user
+
+        - createIndex:
+            schemaName: core
+            tableName: household_members
+            indexName: ix_hm_user
+            columns:
+              - column:
+                  name: user_id
+
+        - createIndex:
+            schemaName: core
+            tableName: household_members
+            indexName: ix_hm_household
+            columns:
+              - column:
+                  name: household_id
+
+        - sql:
+            comment: Backfill — every existing user is a member of their current household.
+            splitStatements: false
+            stripComments: false
+            sql: >-
+              INSERT INTO core.household_members (household_id, user_id, role, relationship, joined_at)
+              SELECT u.household_id, u.id, u.role, NULL, now()
+              FROM core.users u
+              ON CONFLICT (household_id, user_id) DO NOTHING;
