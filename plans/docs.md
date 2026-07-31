@@ -31,7 +31,7 @@ Everything reuses an existing pattern — flag nothing new:
   MVP (a "document list" board is a possible later nicety, not the critical path).
 
 ## Golden tests — from the start
-Real model access is unblocked (local Ollama `qwen2.5:7b` via llm-gateway). Each LLM seam gets an
+Real model access is unblocked (local Ollama `qwen3:8b` via llm-gateway). Each LLM seam gets an
 **opt-in `@GoldenLlmTest`** (`libs/golden-test-support`, gated by `GOLDEN_LLM` — NOT in the default
 fast CI): `GoldenDocArchiverTest` (metadata-extract JSON structure) and `GoldenDocFinderTest`
 (query→filter structure), plus a `docs` routing golden in orchestrator. Assert **structure, not

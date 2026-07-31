@@ -109,9 +109,9 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 | **2 — finance** | done | `finance.*`, `mcp-finance`, Money Pro CSV import, `finance-agent` + categorizer + receipt-parser, budgets + alerts, investment-advisor (advisory-only) |
 | **3 — tasks (GTD)** | done | `mcp-tasks` (full GTD), `tasks-agent`, weekly review cron, catch-all inbox |
 | **4 — memory + inter-agent** | done | memory-service (pgvector recall + scope), graph relations (SQL; AGE deferred), LISTEN/NOTIFY bus + outbox, conversation-state (route-lock / confirm), first Coordinator chains |
-| **5 — real LLM** | done ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) | Langfuse tracing + Anthropic/openai-compatible/Ollama providers; **local Ollama** baseline (`qwen2.5:7b` + `nomic-embed-text`, free). Opt-in, CI-skipped **golden tests** (structure-not-text, `@Tag("golden")` + `GOLDEN_LLM`) now cover all agents + orchestrator routing via `libs/golden-test-support`. CI default stays `mock` |
+| **5 — real LLM** | done ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) | Langfuse tracing + Anthropic/openai-compatible/Ollama providers; **local Ollama** baseline (`qwen3:8b` + `nomic-embed-text`, free). Opt-in, CI-skipped **golden tests** (structure-not-text, `@Tag("golden")` + `GOLDEN_LLM`) now cover all agents + orchestrator routing via `libs/golden-test-support`. CI default stays `mock` |
 | **6 — domain agents** | done (current domains) | researcher (+ `mcp-web`), stylist, nutrition (nutritionist + chef), creator — each MVP-complete. Future agents extracted to [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issues |
-| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), and coach-agent CO-1/CO-2 (now parked). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline; **current in-flight = Mac deployment + hot/cold lifecycle** ([`plans/lifecycle.md`](../plans/lifecycle.md)) |
+| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), coach-agent CO-1/CO-2 (now parked), the **skills-vs-flows** in-agent refactor (shared `SkillClassifier` #358 + Bucket 2 pilot #360; cutover #369 Mac-gated). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. **Mac deployment + hot/cold lifecycle is PARKED** (hardware-blocked, [`plans/lifecycle.md`](../plans/lifecycle.md)); **current in-flight = the identity & membership epic** ([`plans/adr/ADR-0001-identity-membership-scope.md`](../plans/adr/ADR-0001-identity-membership-scope.md), Accepted) |
 
 ### Live domains (current)
 
@@ -147,7 +147,7 @@ Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper side
 
 ### Not done / deferred
 
-- **Real LLM (Stage 5)** — **unblocked / closed** ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) via local Ollama (`qwen2.5:7b`). Opt-in, CI-skipped **golden tests** (structure-not-text) now cover all 8 agents + the orchestrator, sharing `libs/golden-test-support`. CI default stays `mock` (fast, no model); golden runs on demand against a running llm-gateway (`GOLDEN_LLM=1`).
+- **Real LLM (Stage 5)** — **unblocked / closed** ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) via local Ollama (`qwen3:8b`). Opt-in, CI-skipped **golden tests** (structure-not-text) now cover all 8 agents + the orchestrator, sharing `libs/golden-test-support`. CI default stays `mock` (fast, no model); golden runs on demand against a running llm-gateway (`GOLDEN_LLM=1`).
 - **GPU line** — real image-gen engine, virtual try-on (CatVTON), VLM-OCR (Unlimited-OCR) — wait on a GPU host.
 - **Apache AGE graph** — deferred (SQL `memory.relations` suffices).
 - **creator-deferred** — Threads/Instagram/Pinterest via `mcp-browser`, post imagery, scheduling/auto-posting.
@@ -169,8 +169,8 @@ mvn -T1C -DskipTests install   # fast local compile (respects the module DAG)
 ### Honest caveat first
 
 The system is wired **end-to-end** and **CI runs on a mock LLM by default** (deterministic, free). Stage 5
-([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) is in progress: a **real model is now wired**
-via local Ollama (`qwen2.5:7b`), and opt-in golden tests validate the finance routing spine against it.
+([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) is **done**: a **real model is wired**
+via local Ollama (`qwen3:8b`), and opt-in golden tests validate the finance routing spine against it.
 Routing, the database, MCP tools, the event bus, schedules, and the HTML deliverables all work for real;
 on the mock provider the language-model answers are deterministic stubs. To run it "smart", point it at a
 real model — a single `.env` change in `llm-gateway`:
