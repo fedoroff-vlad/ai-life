@@ -11,11 +11,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   an item lives in **exactly one household = its visibility boundary** (tenant routing: private → personal,
   shared → family; read = union over memberships), onboarding is **invite-only** (deep-link token,
   owner-gated), a friend registers into their own isolated household. 6-slice plan owner-approved.
-  **Slices 1–2 ✅.** Slice 1 (accept ADR + doc alignment, PR#373); slice 2 (`core.household_members`
+  **Slices 1–3 ✅.** Slice 1 (accept ADR + doc alignment, PR#373); slice 2 (`core.household_members`
   schema + backfill + profile-service read `GET /v1/users/{id}/households`, self-membership on user
-  create; `users.household_id` kept as read-through default). NEXT = **slice 3: onboarding** —
-  registration → personal household → notify holder → approve adds a `household_members` row with
-  `relationship`. Then calendar per-item scope → **#295 feed filter** (closer). Detail →
+  create; PR#376); slice 3 (registration → **personal** household: `gateway-telegram/IdentityResolver`
+  names the new user's own household after them + they are its `admin`, never auto-attached; membership
+  recorded by profile-service on user create). `users.household_id` kept as read-through default.
+  NEXT = **slice 4: invite + approve flow** — deep-link `start` token store, owner "invite &lt;person&gt;
+  as &lt;relationship&gt;", `/start &lt;token&gt;` binds the new registration, holder notified on join →
+  inserts the `household_members(family, invitee, relationship)` row (reuses conversation-state
+  pending-action + notifier). Then calendar per-item scope → **#295 feed filter** (closer). Detail →
   [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →

@@ -2,7 +2,8 @@
 
 Telegram entry point. Long-polling bot that:
 1. Receives Telegram updates.
-2. Resolves identity via `profile-service` (creates household + user on first contact).
+2. Resolves identity via `profile-service` — on first contact creates the user's **personal household**
+   (named after them, ADR-0001) + user as `admin`, never attaching them to another user's household.
 3. Builds a `NormalizedMessage` and sends it to `orchestrator`.
 4. Replies to the chat with the orchestrator's response.
 
@@ -54,7 +55,7 @@ GATEWAY_TELEGRAM_BOT_TOKEN=... \
     mvn -B -pl platform/gateway-telegram -am spring-boot:run
 ```
 
-Then DM your bot. The first message creates your household and you as `admin`.
+Then DM your bot. The first message creates your personal household and you as `admin`.
 
 ## `POST /internal/send`
 
@@ -70,7 +71,7 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio (`transcribeIfVoice`) and routes the transcript as `text`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
 - `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → transcript text (front-door STT for voice notes). Not soft-failed: the transcript is the voice message's payload.
-- `identity/IdentityResolver` — `tg_user_id → User` (creates user + household on first contact).
+- `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001; family-household join is the separate invite/approve flow).
 - `identity/ProfileClient` — WebClient → profile-service.
 - `orchestrator/OrchestratorClient` — POST `/v1/intent`.
 - `internal/InternalSendController` — `POST /internal/send`, Bearer-gated.
