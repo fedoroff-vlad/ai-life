@@ -27,6 +27,16 @@ Indexes: `(household_id)`; GIN `interests` jsonb_path_ops; trgm `display_name` g
 
 Person ↔ calendar event link: via `calendar.events_cache.person_id` (FK NULL) for now. No separate person_events table in calendar stage.
 
+## Identity & membership (ADR-0001, Accepted 2026-07-31)
+`user → household` is **1:N**, not 1:1: each user owns a **personal household** and can be an approved
+**member** of shared (family) households via `core.household_members(household_id, user_id, role,
+relationship, joined_at)`. An item lives in exactly one household = its visibility boundary (**tenant
+routing**): private → personal household, shared → family household; a member reads the **union** over
+their memberships. A friend registers into their own personal household → full isolation. Onboarding is
+invite-only (deep-link token, owner-gated). `users.household_id` is retained as the user's personal
+household (read-through default) during the migration. Full model + slice sequence:
+[adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md).
+
 ## Notes
 - Growth happens as **rows / JSONB**, never runtime DDL.
-- Multi-tenancy (vlad + wife + later others) is `household_id` + scope, not per-user schemas.
+- Multi-tenancy (vlad + wife + later others) is `household_id` + membership, not per-user schemas.
