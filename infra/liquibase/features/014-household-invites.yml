@@ -1,0 +1,87 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 014-household-invites
+      author: ai-life
+      comment: >-
+        Invite-only onboarding (ADR-0001). The owner mints a pre-authorized invite (target family
+        household + relationship + share-access) → a deep-link `start` token. The invitee redeems it on
+        first contact, which inserts the household_members(family, invitee, relationship) row. Token
+        store only; the Telegram /start wiring + owner command land in the gateway slice (4b).
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: household_invites
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: token
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_invite_token
+              - column:
+                  name: family_household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_invite_family_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: inviter_user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_invite_inviter
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: relationship
+                  type: varchar(64)
+              - column:
+                  name: grant_shared_access
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: pending
+                  constraints:
+                    nullable: false
+              - column:
+                  name: invitee_user_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_invite_invitee
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: accepted_at
+                  type: timestamptz
+
+        - createIndex:
+            schemaName: core
+            tableName: household_invites
+            indexName: ix_invite_family_household
+            columns:
+              - column:
+                  name: family_household_id

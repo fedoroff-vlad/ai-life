@@ -16,10 +16,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   create; PR#376); slice 3 (registration → **personal** household: `gateway-telegram/IdentityResolver`
   names the new user's own household after them + they are its `admin`, never auto-attached; membership
   recorded by profile-service on user create). `users.household_id` kept as read-through default.
-  NEXT = **slice 4: invite + approve flow** — deep-link `start` token store, owner "invite &lt;person&gt;
-  as &lt;relationship&gt;", `/start &lt;token&gt;` binds the new registration, holder notified on join →
-  inserts the `household_members(family, invitee, relationship)` row (reuses conversation-state
-  pending-action + notifier). Then calendar per-item scope → **#295 feed filter** (closer). Detail →
+  **Slice 4a ✅** (invite token store): `core.household_invites` migration (014) + profile-service
+  `POST /v1/invites` (owner mints pre-authorized invite → token), `GET /v1/invites/by-token/{token}`,
+  `POST …/redeem` (invitee redeems → inserts the `household_members(family, invitee, relationship)` row);
+  new `HouseholdInviteDto` contract. NEXT = **slice 4b: Telegram wiring** — `/start &lt;token&gt;` binds a
+  new registration to a pending invite + calls redeem, owner-facing "invite &lt;person&gt; as
+  &lt;relationship&gt;" command mints the deep-link, notifier pings the holder on join (reuses
+  conversation-state pending-action + notifier; the cross-service E2E for the invite contract lands
+  here). Then calendar per-item scope → **#295 feed filter** (closer). Detail →
   [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →

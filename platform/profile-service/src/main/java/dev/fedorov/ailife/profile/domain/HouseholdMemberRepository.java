@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface HouseholdMemberRepository extends JpaRepository<HouseholdMember, UUID> {
 
     List<HouseholdMember> findByUserIdOrderByJoinedAt(UUID userId);
+
+    boolean existsByHouseholdIdAndUserId(UUID householdId, UUID userId);
 }
