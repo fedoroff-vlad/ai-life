@@ -1,9 +1,12 @@
 package dev.fedorov.ailife.tg.identity;
 
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
+import dev.fedorov.ailife.contracts.profile.HouseholdInviteDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.tg.config.GatewayProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -13,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -71,5 +75,45 @@ class IdentityResolverTest {
         assertThat(result).isEqualTo(existing);
         verify(profile).findByTelegramId(99L);
         verifyNoMoreInteractions(profile); // no household/user creation for a known user
+    }
+
+    @Test
+    void invitedUserJoinsAndHolderIsNamedForThePing() {
+        UUID inviteeId = UUID.randomUUID();
+        UUID inviterId = UUID.randomUUID();
+        UUID family = UUID.randomUUID();
+        UserDto invitee = new UserDto(inviteeId, UUID.randomUUID(), "Masha", "ru-RU", 555L, "member", Instant.now());
+        UserDto inviter = new UserDto(inviterId, family, "vlad", "ru-RU", 42L, "admin", Instant.now());
+
+        when(profile.findByTelegramId(555L)).thenReturn(Mono.just(invitee));
+        when(profile.redeem("tok", inviteeId.toString())).thenReturn(Mono.just(new HouseholdInviteDto(
+                UUID.randomUUID(), "tok", family, inviterId, "daughter", true,
+                "accepted", inviteeId, Instant.now(), Instant.now())));
+        when(profile.findById(inviterId.toString())).thenReturn(Mono.just(inviter));
+
+        InviteOutcome outcome = resolver.redeemInvite(555L, "Masha", "ru", "tok").block();
+
+        assertThat(outcome).isNotNull();
+        assertThat(outcome.inviteeReply()).contains("daughter");
+        assertThat(outcome.holderTelegramId()).isEqualTo(42L);
+        assertThat(outcome.holderReply()).contains("Masha").contains("daughter");
+    }
+
+    @Test
+    void unknownOrUsedTokenYieldsGracefulNoJoinReplyWithoutHolderLookup() {
+        UUID inviteeId = UUID.randomUUID();
+        UserDto invitee = new UserDto(inviteeId, UUID.randomUUID(), "Masha", "ru-RU", 555L, "member", Instant.now());
+
+        when(profile.findByTelegramId(555L)).thenReturn(Mono.just(invitee));
+        when(profile.redeem("badtoken", inviteeId.toString())).thenReturn(Mono.error(
+                WebClientResponseException.create(409, "Conflict", HttpHeaders.EMPTY, new byte[0], null)));
+
+        InviteOutcome outcome = resolver.redeemInvite(555L, "Masha", "ru", "badtoken").block();
+
+        assertThat(outcome).isNotNull();
+        assertThat(outcome.holderTelegramId()).isNull();
+        assertThat(outcome.holderReply()).isNull();
+        assertThat(outcome.inviteeReply()).isEqualTo("Приглашение недействительно или уже использовано.");
+        verify(profile, never()).findById(anyString()); // no inviter lookup when the redeem failed
     }
 }
