@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.tg.identity.IdentityResolver;
+import dev.fedorov.ailife.tg.identity.InviteOutcome;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
 import dev.fedorov.ailife.tg.media.TranscribeClient;
 import dev.fedorov.ailife.tg.orchestrator.OrchestratorClient;
@@ -36,6 +37,17 @@ public class MessageProcessor {
         this.orchestrator = orchestrator;
         this.media = media;
         this.transcribe = transcribe;
+    }
+
+    /**
+     * Handle a {@code /start <token>} deep-link (ADR-0001 slice 4b): redeem the family invite for the
+     * opener (resolving/creating their identity first). Returns the {@link InviteOutcome} the bot layer
+     * uses to reply to the invitee and DM the holder — kept off the normal orchestrator route since an
+     * invite redemption is identity plumbing, not a routable message.
+     */
+    public Mono<InviteOutcome> redeemInvite(IncomingMessage incoming, String token) {
+        return identity.redeemInvite(
+                incoming.telegramUserId(), incoming.displayName(), incoming.languageCode(), token);
     }
 
     public Mono<IntentResponse> process(IncomingMessage incoming) {

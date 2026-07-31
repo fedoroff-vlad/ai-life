@@ -53,6 +53,13 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         if (from == null || from.getIsBot()) {
             return;
         }
+        // A `/start <token>` deep-link (ADR-0001 slice 4b) is a family-invite redemption, not a
+        // routable message — handle it before the normal media/text dispatch.
+        String startToken = startTokenOf(msg);
+        if (startToken != null) {
+            handleInvite(msg, from, startToken);
+            return;
+        }
         // Text, photo, document and voice messages are supported; everything else
         // (stickers, video, …) is ignored until its own processing path lands.
         if (!msg.hasText() && !msg.hasPhoto() && !msg.hasDocument() && !msg.hasVoice()) {
@@ -95,6 +102,56 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
             send(msg.getChatId(), reply);
         } catch (Exception e) {
             log.error("Failed to handle update {}", update.getUpdateId(), e);
+            send(msg.getChatId(), "Sorry, something broke. Please try again.");
+        }
+    }
+
+    /**
+     * The payload of a {@code /start <token>} deep-link, or {@code null} for a bare {@code /start} or
+     * any other message. Telegram delivers a deep-link open as the text {@code /start <payload>}
+     * (optionally {@code /start@botname <payload>} in a shared context).
+     */
+    private static String startTokenOf(Message msg) {
+        if (!msg.hasText() || msg.getText() == null) {
+            return null;
+        }
+        String text = msg.getText().trim();
+        if (!text.startsWith("/start")) {
+            return null;
+        }
+        String[] parts = text.split("\\s+", 2);
+        if (parts.length < 2) {
+            return null;
+        }
+        String payload = parts[1].trim();
+        return payload.isEmpty() ? null : payload;
+    }
+
+    /**
+     * Redeems a family invite for the deep-link opener (ADR-0001 slice 4b): replies to the invitee
+     * with the join confirmation and, on a successful join, DMs the holder that they joined. The
+     * blocking {@code block()} is safe — we are already on a long-poll thread, as everywhere here.
+     */
+    private void handleInvite(Message msg, User from, String token) {
+        try {
+            var incoming = new MessageProcessor.IncomingMessage(
+                    from.getId(),
+                    displayNameOf(from),
+                    from.getLanguageCode(),
+                    null,
+                    scopeFor(msg),
+                    String.valueOf(msg.getMessageId()));
+            var outcome = processor.redeemInvite(incoming, token).block();
+            if (outcome == null) {
+                send(msg.getChatId(), "Sorry, something broke. Please try again.");
+                return;
+            }
+            send(msg.getChatId(), outcome.inviteeReply());
+            if (outcome.holderTelegramId() != null && outcome.holderReply() != null) {
+                send(outcome.holderTelegramId(), outcome.holderReply());
+            }
+        } catch (Exception e) {
+            log.error("Failed to redeem invite from update {}", msg.getMessageId(), e);
             send(msg.getChatId(), "Sorry, something broke. Please try again.");
         }
     }
