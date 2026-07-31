@@ -238,7 +238,7 @@ exist so its corpus is ready when it lands.
   layout). Deferred until ambient capture lands (owner order).
 
 ## Golden tests — from the start
-Real model access is unblocked (local Ollama `qwen2.5:7b` via llm-gateway). Each LLM seam gets an
+Real model access is unblocked (local Ollama `qwen3:8b` via llm-gateway). Each LLM seam gets an
 opt-in `@GoldenLlmTest` (`libs/golden-test-support`, gated by `GOLDEN_LLM`, CI-skipped):
 `GoldenNoteWriterTest` (message → structured note JSON) and `GoldenNoteFinderTest` (question → query
 distil). Assert **structure, not wording**. Each cross-service slice adds an `E2E…Test` per the

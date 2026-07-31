@@ -5,14 +5,20 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **skills-vs-flows track has reached its feasible-now boundary — pick next priority from the backlog.**
-  **Bucket 2 pilot — validate-only half ✅ (#360, 2026-07-30):** the `finance FinancialAdvisor` recipe form
-  (a test fixture, not loaded in production) drives a real model to **plan the gather itself**; new
-  `GoldenAdvisorRecipeTest` proves it (qwen3:8b, 56s), the existing `GoldenAdvisorSynthesisTest` still covers
-  synthesis. Enablers shipped: #358 Bucket 1 ✅ + #359 openai:-tier golden ✅. Detail → HISTORY +
-  [skills-vs-flows.md](skills-vs-flows.md) §Bucket 2. **Everything still open on this track is Mac-gated**
-  (the Bucket 2 *production cutover* — see `## Next`), so the next in-flight slice is an owner pick from the
-  backlog below / GitHub Issues.
+- **Identity & membership epic — IN FLIGHT ([adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md),
+  Accepted 2026-07-31).** Multi-tenant **workspace** identity, surfaced while scoping the #295 per-person
+  ICS feed: `user → household` becomes **1:N** (personal household per user + M:N `core.household_members`),
+  an item lives in **exactly one household = its visibility boundary** (tenant routing: private → personal,
+  shared → family; read = union over memberships), onboarding is **invite-only** (deep-link token,
+  owner-gated), a friend registers into their own isolated household. 6-slice plan owner-approved.
+  **Slice 1 (accept ADR + doc alignment) ✅ (PR#373).** NEXT = **slice 2: `core.household_members` schema +
+  backfill + profile-service read** (transition keeps `users.household_id` as the personal-household
+  read-through default). Then registration→personal household → invite/approve flow → calendar per-item
+  scope → **#295 feed filter** (closer). Detail → [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md)
+  §Action Items.
+- **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
+  closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
+  [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:

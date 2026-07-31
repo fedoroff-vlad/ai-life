@@ -41,7 +41,7 @@ profile via `mcp-briefing`. Mirrors `creator-profiler`. The digest synthesis is 
 `briefing-composer`.
 
 ## Golden tests — from the start (real LLM now available)
-Real model access is unblocked (local Ollama `qwen2.5:7b` via llm-gateway). Each LLM seam gets an
+Real model access is unblocked (local Ollama `qwen3:8b` via llm-gateway). Each LLM seam gets an
 **opt-in `@GoldenLlmTest`** (`libs/golden-test-support`, gated by `GOLDEN_LLM` — NOT in the default
 fast CI, which stays on the mock LLM): `GoldenBriefingProfileTest` (profiler JSON structure),
 `GoldenBriefingComposerTest` (digest structure), and a `briefing` routing golden in orchestrator.
