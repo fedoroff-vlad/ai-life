@@ -12,6 +12,7 @@ and serves as the source of truth for identity across the system.
 | POST   | `/v1/users`                             | create user under a household    |
 | GET    | `/v1/users/{id}`                        | fetch by id                      |
 | GET    | `/v1/users/by-telegram/{telegram_user_id}` | reverse lookup for gateway     |
+| GET    | `/v1/users/{id}/households`             | the user's household set (memberships) |
 | GET    | `/actuator/health`                      | liveness                         |
 
 Validation errors → 400; missing household → 422; duplicate telegram_user_id → 409.
@@ -41,15 +42,16 @@ applies a tiny test schema, and runs full Spring Boot context with REST calls.
 
 ## Key classes
 - `ProfileServiceApplication`.
-- `domain/Household`, `domain/User`, `domain/Person` + `*Repository` — JPA over `core.{households,users,people}`.
+- `domain/Household`, `domain/User`, `domain/Person`, `domain/HouseholdMember` + `*Repository` — JPA over `core.{households,users,people,household_members}`.
 - `web/HouseholdController` — `/v1/households` CRUD.
-- `web/UserController` — `/v1/users`, `/by-telegram/{id}`, `/by-household/{id}`.
+- `web/UserController` — `/v1/users`, `/by-telegram/{id}`, `/by-household/{id}`, `/{id}/households` (membership set). Creating a user also inserts its self-membership.
 - `web/PeopleController` — `/v1/people` POST/GET/by-household/PATCH (partial).
 - `web/dto/Create*Request`, `web/dto/UpdatePersonRequest` — request bodies. Response payloads use shared `*Dto` records from [libs/contracts](../../libs/contracts).
 
 ## Schema
 [001-core.yml](../../infra/liquibase/features/001-core.yml) (households, users) +
-[003-people.yml](../../infra/liquibase/features/003-people.yml) (people + `pg_trgm` GIN indexes on `interests` and `display_name`).
+[003-people.yml](../../infra/liquibase/features/003-people.yml) (people + `pg_trgm` GIN indexes on `interests` and `display_name`) +
+[013-household-members.yml](../../infra/liquibase/features/013-household-members.yml) (M:N `core.household_members`, ADR-0001 — 1:N identity + backfill).
 
 ## Endpoint additions since the table above
 - `GET /v1/users/by-household/{id}` — added in PR10 (notifier fan-out).

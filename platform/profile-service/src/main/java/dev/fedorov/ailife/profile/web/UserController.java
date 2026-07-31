@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.profile.web;
 
 import dev.fedorov.ailife.contracts.profile.UserDto;
+import dev.fedorov.ailife.profile.domain.HouseholdMemberRepository;
 import dev.fedorov.ailife.profile.domain.HouseholdRepository;
 import dev.fedorov.ailife.profile.domain.User;
 import dev.fedorov.ailife.profile.domain.UserRepository;
@@ -28,10 +29,13 @@ public class UserController {
 
     private final UserRepository users;
     private final HouseholdRepository households;
+    private final HouseholdMemberRepository memberships;
 
-    public UserController(UserRepository users, HouseholdRepository households) {
+    public UserController(UserRepository users, HouseholdRepository households,
+                          HouseholdMemberRepository memberships) {
         this.users = users;
         this.households = households;
+        this.memberships = memberships;
     }
 
     @PostMapping
@@ -49,6 +53,11 @@ public class UserController {
                 locale,
                 request.telegramUserId(),
                 role));
+        // Every user is a member of their own household (ADR-0001). The backfill covers pre-existing
+        // users; this covers new ones so the membership read path is never empty for a live user.
+        // Personal-household creation + approve-into-family layer on top in slice 3 (onboarding).
+        memberships.save(new dev.fedorov.ailife.profile.domain.HouseholdMember(
+                UUID.randomUUID(), saved.getHouseholdId(), saved.getId(), role, null));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
                 .buildAndExpand(saved.getId())
@@ -75,6 +84,21 @@ public class UserController {
         return users.findByHouseholdIdOrderByDisplayName(householdId).stream()
                 .map(UserController::toDto)
                 .toList();
+    }
+
+    /**
+     * The caller's household set (ADR-0001 tenant routing): every household the user is a member of
+     * (personal ∪ shared), ordered by join time. Downstream reads (e.g. the per-member ICS feed, #295)
+     * scope to this set. 404 if the user does not exist.
+     */
+    @GetMapping("/{id}/households")
+    public ResponseEntity<java.util.List<UUID>> households(@PathVariable UUID id) {
+        if (!users.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(memberships.findByUserIdOrderByJoinedAt(id).stream()
+                .map(m -> m.getHouseholdId())
+                .toList());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

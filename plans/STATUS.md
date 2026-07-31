@@ -11,11 +11,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   an item lives in **exactly one household = its visibility boundary** (tenant routing: private → personal,
   shared → family; read = union over memberships), onboarding is **invite-only** (deep-link token,
   owner-gated), a friend registers into their own isolated household. 6-slice plan owner-approved.
-  **Slice 1 (accept ADR + doc alignment) ✅ (PR#373).** NEXT = **slice 2: `core.household_members` schema +
-  backfill + profile-service read** (transition keeps `users.household_id` as the personal-household
-  read-through default). Then registration→personal household → invite/approve flow → calendar per-item
-  scope → **#295 feed filter** (closer). Detail → [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md)
-  §Action Items.
+  **Slices 1–2 ✅.** Slice 1 (accept ADR + doc alignment, PR#373); slice 2 (`core.household_members`
+  schema + backfill + profile-service read `GET /v1/users/{id}/households`, self-membership on user
+  create; `users.household_id` kept as read-through default). NEXT = **slice 3: onboarding** —
+  registration → personal household → notify holder → approve adds a `household_members` row with
+  `relationship`. Then calendar per-item scope → **#295 feed filter** (closer). Detail →
+  [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
   [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).

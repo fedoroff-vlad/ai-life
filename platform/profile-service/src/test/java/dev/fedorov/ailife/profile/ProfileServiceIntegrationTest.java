@@ -107,6 +107,34 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void userHouseholdSetReflectsMembership() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        HouseholdDto h = http.postForObject(
+                "/v1/households",
+                new CreateHouseholdRequest("membership test"),
+                HouseholdDto.class);
+
+        UserDto user = http.postForObject("/v1/users",
+                new CreateUserRequest(h.id(), "vlad", null, 4242L, "admin"), UserDto.class);
+
+        java.util.UUID[] set = http.getForObject(
+                "/v1/users/" + user.id() + "/households", java.util.UUID[].class);
+        assertThat(set).containsExactly(h.id());
+    }
+
+    @Test
+    void householdSetForUnknownUserIs404() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        RestClientResponseException ex = catchThrowableOfType(
+                () -> http.getForObject(
+                        "/v1/users/" + java.util.UUID.randomUUID() + "/households",
+                        java.util.UUID[].class),
+                RestClientResponseException.class);
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void duplicateTelegramIdRejectedAsConflict() {
         RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
         HouseholdDto h = http.postForObject(

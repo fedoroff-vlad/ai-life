@@ -14,6 +14,8 @@
     <include file="features/001-core.yml" relativeToChangelogFile="true"/>
     <include file="features/002-scheduling.yml" relativeToChangelogFile="true"/>
     <include file="features/003-people.yml" relativeToChangelogFile="true"/>
+    <!-- 013 makes core identity 1:N (ADR-0001): M:N core.household_members + backfill. -->
+    <include file="features/013-household-members.yml" relativeToChangelogFile="true"/>
     <include file="features/004-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/005-memory-relations.yml" relativeToChangelogFile="true"/>
     <include file="features/007-bus.yml" relativeToChangelogFile="true"/>
