@@ -29,6 +29,15 @@ Env: `CALDAV_URL`, `CALDAV_USER`, `CALDAV_PASSWORD`, `CALDAV_DEFAULT_CALENDAR`, 
 ## mcp-ics-import (mcp/, port 8091)
 Tool `pull_calendar(url)` — GET ICS, parse ical4j, store into Radicale `external` calendar (read-only marker in metadata). Scheduler registers an hourly cron per subscription.
 
+## Per-item tenant scope (ADR-0001 slice 4)
+Each event lives in **exactly one household = its visibility boundary**. On `create_event`, calendar-agent
+resolves the item's `SharingScope` (explicit on `CreateEventInput.sharing`, else the default-sharing
+policy: occasion categories → shared, everything else → private) against the acting user's
+`GET /v1/users/{id}/household-routing` split (personal vs family) to a concrete `household_id`. A shared
+choice with no family household degrades to personal; a request with no `userId` falls back to the
+envelope household (pre-membership path). mcp-caldav stays tenant-agnostic — it writes to whatever
+household it is handed. Reads honoring the caller's household set (personal ∪ shared) = slice 5 (#295).
+
 ## calendar-agent (agents/, port 8086)
 AGENT.md (frontmatter + EN prompt). REST: `POST /agents/calendar/intent` (from orchestrator), `POST /agents/calendar/triggers/{kind}` (from scheduler), `POST /agents/calendar/skills/{skill}/invoke`.
 Tools: all mcp-caldav. Cross-cutting: web-fetch, media, memory, telegram. May ask finance (gift budget) via orchestrator.

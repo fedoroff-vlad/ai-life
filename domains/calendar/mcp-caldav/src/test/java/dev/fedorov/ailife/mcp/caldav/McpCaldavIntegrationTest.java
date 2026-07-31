@@ -94,7 +94,7 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
                 start, end,
                 "FREQ=YEARLY",
                 List.of("birthday"),
-                null));
+                null, null));
 
         assertThat(created.id()).isNotNull();
         assertThat(created.summary()).isEqualTo("ДР Маши");
@@ -152,7 +152,7 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
         Instant start = Instant.parse("2027-09-10T18:00:00Z");
         var input = new CreateEventInput(
                 householdId, "Pay rent", null, null,
-                start, start.plus(1, ChronoUnit.HOURS), null, null, null);
+                start, start.plus(1, ChronoUnit.HOURS), null, null, null, null);
 
         CalendarEventDto created = client().post().uri("/internal/event")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -177,7 +177,7 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
         Instant start = Instant.parse("2028-03-15T09:00:00Z");
         tools.createEvent(new CreateEventInput(
                 householdId, "Dentist appointment", null, null,
-                start, start.plus(1, ChronoUnit.HOURS), null, null, null));
+                start, start.plus(1, ChronoUnit.HOURS), null, null, null, null));
 
         List<CalendarEventDto> events = client().get()
                 .uri(b -> b.path("/internal/events")
