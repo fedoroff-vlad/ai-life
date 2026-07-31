@@ -27,11 +27,17 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   (>5 files). **Slice 4b-ii ✅** (owner mint command, PR#381): `/invite &lt;name&gt; as &lt;relationship&gt;`
   mints a pre-authorized invite into the sender's household via `POST /v1/invites` → gateway replies with
   the `t.me/&lt;bot&gt;?start=&lt;token&gt;` deep-link to forward (bare `/invite` → usage); handled at the
-  **gateway level**, symmetric with `/start`. **Telegram-wiring half of slice 4 done.** NEXT = **slice 4
-  (calendar per-item scope):** events created in the author's personal or the family household per the
-  default-sharing policy; `CreateEventInput` gains the private/shared choice; reads honor the caller's
-  household set. Then **slice 5 = #295 feed filter** (epic closer). Detail →
-  [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
+  **gateway level**, symmetric with `/start`. **Telegram-wiring half of slice 4 done.**
+  **Slice 4 ✅** — per-item calendar tenant routing, split into two PRs: **4a** (PR#383) profile-service
+  `GET /v1/users/{id}/household-routing` → `{personalHouseholdId, sharedHouseholdIds}` (personal =
+  self-membership `relationship IS NULL`; shared = `relationship`-set); **4b** (PR#384) `CreateEventInput`
+  gains a `SharingScope{PRIVATE,SHARED}` choice, calendar-agent's `create_event` resolves it (explicit,
+  else default-sharing policy: occasion categories → shared, else private) against the routing split to a
+  concrete personal/family `household_id`; mcp-caldav stays tenant-agnostic; `userId`-absent / profile-404
+  falls back to the envelope household; shared-with-no-family degrades to personal. NEXT = **slice 5 = #295
+  feed filter (epic closer):** `GET /internal/events` filters by the requesting member's household set
+  (personal ∪ shared); calendar-web passes the resolved feed's member; ICS feed serves own + shared only.
+  Detail → [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
   [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).

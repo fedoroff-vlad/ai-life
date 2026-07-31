@@ -19,7 +19,7 @@ All tool method descriptions are in English (token economy).
 
 | method | path              | purpose                                                            |
 |--------|-------------------|--------------------------------------------------------------------|
-| POST   | `/internal/event` | Create an event deterministically (body `CreateEventInput` → `CalendarEventDto`, 400 on bad input). |
+| POST   | `/internal/event` | Create an event deterministically (body `CreateEventInput` → `CalendarEventDto`, 400 on bad input). Writes to whatever `householdId` it is handed — mcp-caldav is **tenant-agnostic**; the private/shared → personal/family household routing (ADR-0001 slice 4, `CreateEventInput.sharing`) is resolved upstream by calendar-agent. |
 | GET    | `/internal/events?householdId=&from=&to=` | Read events whose start is within `[from, to)` (ISO-8601 instants) for the household → `List<CalendarEventDto>`, ordered by start; reads from cache only. |
 | POST   | `/internal/feeds` | Mint a read-only ICS feed token (body `CreateFeedInput{householdId, ownerId?, label}` → `CalendarFeedDto`). Token generated server-side (#195). |
 | GET    | `/internal/feeds/{token}` | Resolve a token → `CalendarFeedDto` (404 if unknown or revoked). Used by `calendar-web`. |

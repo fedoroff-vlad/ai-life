@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agentruntime.http;
 
+import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -60,5 +61,18 @@ public class ProfileClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
                 .bodyToMono(PersonDto.class);
+    }
+
+    /**
+     * The caller's tenant-routing split (ADR-0001 slice 4): personal vs shared households, used by the
+     * calendar write path to resolve a private/shared choice to a concrete {@code household_id}.
+     * {@link Mono#empty()} on 404 (unknown user) so the caller can fall back to the envelope household.
+     */
+    public Mono<HouseholdRoutingDto> householdRouting(UUID userId) {
+        return http.get()
+                .uri("/v1/users/{id}/household-routing", userId)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
+                .bodyToMono(HouseholdRoutingDto.class);
     }
 }

@@ -188,9 +188,13 @@ an event scope column) is proportionate and lands in independent slices.
    command, PR#381); invitee opens `/start <token>` → redeem inserts the `household_members` row +
    the holder is pinged on join (slice 4b-i, PR#379). Handled at the gateway level, not via a domain
    skill.
-4. [ ] **Per-item scope on calendar (tenant routing):** events are created in the author's personal
-   or the family household per the default-sharing policy; `CreateEventInput` gains the private/shared
-   choice; reads honor the caller's household set.
+4. [x] **Per-item scope on calendar (tenant routing):** `CreateEventInput` gained a
+   `SharingScope{PRIVATE,SHARED}` choice; calendar-agent's `create_event` resolves it (explicit, else
+   the default-sharing policy — occasion categories → shared, everything else → private) against the new
+   profile-service `GET /v1/users/{id}/household-routing` split (slice 4a, PR#383) to a concrete
+   personal/family `household_id` (slice 4b, PR#384). mcp-caldav stays tenant-agnostic; a `userId`-absent
+   request (or profile 404) falls back to the envelope household; a shared choice with no family household
+   degrades to personal. Reads honoring the caller's household set = slice 5.
 5. [ ] **#295 feed filter:** `GET /internal/events` filters by the requesting member's household set
    (personal ∪ shared); calendar-web passes the resolved feed's member; ICS feed now serves own +
    shared only.
