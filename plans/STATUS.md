@@ -19,11 +19,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   **Slice 4a ✅** (invite token store): `core.household_invites` migration (014) + profile-service
   `POST /v1/invites` (owner mints pre-authorized invite → token), `GET /v1/invites/by-token/{token}`,
   `POST …/redeem` (invitee redeems → inserts the `household_members(family, invitee, relationship)` row);
-  new `HouseholdInviteDto` contract. NEXT = **slice 4b: Telegram wiring** — `/start &lt;token&gt;` binds a
-  new registration to a pending invite + calls redeem, owner-facing "invite &lt;person&gt; as
-  &lt;relationship&gt;" command mints the deep-link, notifier pings the holder on join (reuses
-  conversation-state pending-action + notifier; the cross-service E2E for the invite contract lands
-  here). Then calendar per-item scope → **#295 feed filter** (closer). Detail →
+  new `HouseholdInviteDto` contract. **Slice 4b-i ✅** (Telegram invitee side, PR#379): gateway
+  intercepts a `/start &lt;token&gt;` deep-link as a family-invite redemption — resolve/create identity →
+  `POST /v1/invites/by-token/{token}/redeem` (join the inviter's family household) → reply to the
+  invitee + DM the holder; unknown/used token is graceful (opener keeps their isolated space). Carries
+  the cross-service invite-contract E2E (`E2EInviteRedeemFlowTest`). Slice 4b was split into two PRs
+  (>5 files). NEXT = **slice 4b-ii: owner mint command** — owner-facing "invite &lt;person&gt; as
+  &lt;relationship&gt;" mints the deep-link via `POST /v1/invites`; **decided: handled at the gateway
+  level**, symmetric with `/start` (identity plumbing, not a routable domain skill). Then calendar
+  per-item scope → **#295 feed filter** (closer). Detail →
   [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
