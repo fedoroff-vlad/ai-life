@@ -13,6 +13,7 @@ and serves as the source of truth for identity across the system.
 | GET    | `/v1/users/{id}`                        | fetch by id                      |
 | GET    | `/v1/users/by-telegram/{telegram_user_id}` | reverse lookup for gateway     |
 | GET    | `/v1/users/{id}/households`             | the user's household set (memberships) |
+| GET    | `/v1/users/{id}/household-routing`      | tenant-routing split: personal vs shared households (ADR-0001 slice 4) |
 | POST   | `/v1/invites`                           | owner mints a pre-authorized family invite (→ token) |
 | GET    | `/v1/invites/by-token/{token}`          | look up a pending invite         |
 | POST   | `/v1/invites/by-token/{token}/redeem`   | invitee redeems → joins the family household |
@@ -48,7 +49,7 @@ applies a tiny test schema, and runs full Spring Boot context with REST calls.
 - `ProfileServiceApplication`.
 - `domain/Household`, `domain/User`, `domain/Person`, `domain/HouseholdMember`, `domain/HouseholdInvite` + `*Repository` — JPA over `core.{households,users,people,household_members,household_invites}`.
 - `web/HouseholdController` — `/v1/households` CRUD.
-- `web/UserController` — `/v1/users`, `/by-telegram/{id}`, `/by-household/{id}`, `/{id}/households` (membership set). Creating a user also inserts its self-membership.
+- `web/UserController` — `/v1/users`, `/by-telegram/{id}`, `/by-household/{id}`, `/{id}/households` (membership set), `/{id}/household-routing` (personal-vs-shared split for write-path tenant routing, ADR-0001 slice 4). Creating a user also inserts its self-membership.
 - `web/InviteController` — `/v1/invites` mint + `by-token/{token}` lookup + `redeem` (redeem inserts the invitee's `household_members` row into the family household). ADR-0001 invite-only onboarding; the Telegram `/start <token>` wiring is in gateway-telegram (slice 4b).
 - `web/PeopleController` — `/v1/people` POST/GET/by-household/PATCH (partial).
 - `web/dto/Create*Request`, `web/dto/UpdatePersonRequest` — request bodies. Response payloads use shared `*Dto` records from [libs/contracts](../../libs/contracts).
