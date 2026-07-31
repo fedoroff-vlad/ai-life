@@ -62,8 +62,10 @@ Java — so the new `advisor.GoldenAdvisorRecipeTest` asserts exactly that (pars
 in the one tool the recipe exposes, ≥2 trend windows incl. a recent one), while the existing
 `GoldenAdvisorSynthesisTest` still covers synthesis. Together the two goldens prove the recipe is correct
 end-to-end. Passed on local qwen3:8b (56s); runnable against the `openai:`-tier work gateway too (#359).
-**Not yet done → the production cutover** (`## Next` in STATUS): replace the Java flow with a runtime that
-loads the recipe and executes the model-planned gather — that's the model-gated part, kept for the Mac.
+**Not yet done → the production cutover** ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369),
+`## Next` in STATUS): replace the Java flow with a runtime that loads the recipe and executes the
+model-planned gather — that's the model-gated part, kept for the Mac. (#358 + #360 are closed; #369 is the
+only open thread on this track.)
 
 ## Guardrails
 - **Value = simplicity + a simpler lifecycle layer** (fewer flow-JVMs / classes / tests, less drift) — **not**

@@ -1,6 +1,10 @@
 # Lifecycle & Mac deployment — design (owner-signed 2026-07-10)
 
-**Status: SIGNED, implementation not started.** Target machine: **Apple Mac Studio M4 Max (16 CPU /
+**Status: SIGNED; partially implemented, then PARKED on hardware.** Shipped: `deploy-mvp` config
+(`.env.mac.example`, per-JVM heap caps), **LC-1** hot/cold compose profiles (2026-07-15), **LC-4**
+`/v1/model-profile` evict-before-load swap (2026-07-21). **Parked** (Mac not yet purchased, no Docker
+daemon on the dev box): **LC-2** (`platform/supervisor` + socket-proxy) and everything after it, plus
+`deploy-mvp`'s first real `--profile hot up`. Target machine: **Apple Mac Studio M4 Max (16 CPU /
 40 GPU), 64 GB unified / 512 GB**, running ai-life **24/7**. Goal: keep a small **hot** set of services
 always-on and start the rest **cold** on demand (auto, never manual), so a single 64 GB box hosts both
 ai-life and an occasional heavy second tenant (the separate coding-agent project) without holding two
