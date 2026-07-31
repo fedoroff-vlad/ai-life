@@ -33,6 +33,21 @@ CREATE TABLE IF NOT EXISTS core.household_members (
 CREATE INDEX IF NOT EXISTS ix_hm_user ON core.household_members (user_id);
 CREATE INDEX IF NOT EXISTS ix_hm_household ON core.household_members (household_id);
 
+CREATE TABLE IF NOT EXISTS core.household_invites (
+    id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    token                varchar(64) NOT NULL UNIQUE,
+    family_household_id  uuid NOT NULL REFERENCES core.households(id),
+    inviter_user_id      uuid NOT NULL REFERENCES core.users(id),
+    relationship         varchar(64),
+    grant_shared_access  boolean NOT NULL DEFAULT true,
+    status               varchar(16) NOT NULL DEFAULT 'pending',
+    invitee_user_id      uuid REFERENCES core.users(id),
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    accepted_at          timestamptz
+);
+CREATE INDEX IF NOT EXISTS ix_invite_family_household
+    ON core.household_invites (family_household_id);
+
 CREATE TABLE IF NOT EXISTS core.people (
     id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id         uuid NOT NULL REFERENCES core.households(id),

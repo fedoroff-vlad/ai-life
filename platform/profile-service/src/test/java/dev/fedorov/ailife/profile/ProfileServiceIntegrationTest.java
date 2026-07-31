@@ -4,11 +4,14 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.profile.HouseholdDto;
+import dev.fedorov.ailife.contracts.profile.HouseholdInviteDto;
 import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.profile.web.dto.CreateHouseholdRequest;
 import dev.fedorov.ailife.profile.web.dto.CreatePersonRequest;
 import dev.fedorov.ailife.profile.web.dto.CreateUserRequest;
+import dev.fedorov.ailife.profile.web.dto.MintInviteRequest;
+import dev.fedorov.ailife.profile.web.dto.RedeemInviteRequest;
 import dev.fedorov.ailife.profile.web.dto.UpdatePersonRequest;
 import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeAll;
@@ -132,6 +135,64 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
                 RestClientResponseException.class);
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void inviteRedeemAddsInviteeToFamilyHousehold() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+
+        // Owner + their family household, and an invitee living in their own personal household.
+        HouseholdDto family = http.postForObject("/v1/households",
+                new CreateHouseholdRequest("Fedorov family"), HouseholdDto.class);
+        UserDto owner = http.postForObject("/v1/users",
+                new CreateUserRequest(family.id(), "vlad", null, 5001L, "admin"), UserDto.class);
+        HouseholdDto inviteePersonal = http.postForObject("/v1/households",
+                new CreateHouseholdRequest("anna"), HouseholdDto.class);
+        UserDto invitee = http.postForObject("/v1/users",
+                new CreateUserRequest(inviteePersonal.id(), "anna", null, 5002L, "admin"), UserDto.class);
+
+        // Owner mints a pre-authorized invite; token round-trips via by-token lookup.
+        HouseholdInviteDto minted = http.postForObject("/v1/invites",
+                new MintInviteRequest(family.id(), owner.id(), "wife", null), HouseholdInviteDto.class);
+        assertThat(minted.token()).isNotBlank();
+        assertThat(minted.status()).isEqualTo("pending");
+        assertThat(minted.grantSharedAccess()).isTrue();
+        HouseholdInviteDto looked = http.getForObject(
+                "/v1/invites/by-token/" + minted.token(), HouseholdInviteDto.class);
+        assertThat(looked.id()).isEqualTo(minted.id());
+
+        // Redeem → invitee joins the family household (keeping their personal one).
+        HouseholdInviteDto redeemed = http.postForObject(
+                "/v1/invites/by-token/" + minted.token() + "/redeem",
+                new RedeemInviteRequest(invitee.id()), HouseholdInviteDto.class);
+        assertThat(redeemed.status()).isEqualTo("accepted");
+        assertThat(redeemed.inviteeUserId()).isEqualTo(invitee.id());
+
+        java.util.UUID[] set = http.getForObject(
+                "/v1/users/" + invitee.id() + "/households", java.util.UUID[].class);
+        assertThat(set).containsExactlyInAnyOrder(inviteePersonal.id(), family.id());
+
+        // Second redeem is rejected — a pending invite is single-use.
+        RestClientResponseException ex = catchThrowableOfType(
+                () -> http.postForObject(
+                        "/v1/invites/by-token/" + minted.token() + "/redeem",
+                        new RedeemInviteRequest(invitee.id()), HouseholdInviteDto.class),
+                RestClientResponseException.class);
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void mintInviteForUnknownHouseholdIsUnprocessable() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        RestClientResponseException ex = catchThrowableOfType(
+                () -> http.postForObject("/v1/invites",
+                        new MintInviteRequest(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                                "friend", true),
+                        HouseholdInviteDto.class),
+                RestClientResponseException.class);
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatusCode().value()).isEqualTo(422);
     }
 
     @Test
