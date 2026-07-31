@@ -1,6 +1,6 @@
 # ADR-0001: Identity, membership, and per-item scope (multi-tenant workspace model)
 
-**Status:** Proposed
+**Status:** Accepted (2026-07-31 — Option B; implementation plan owner-approved)
 **Date:** 2026-07-31
 **Deciders:** repo owner (holder/admin)
 **Drives:** #295 (per-person ICS feed content filtering) — the concrete use-case that surfaced this gap.
@@ -66,23 +66,42 @@ Concretely:
    of their personal household + optionally of shared (family) households they were approved into.
    This is the mechanism behind "merge is not 100%": joining a shared household **does not move**
    personal items — they stay in the personal household, invisible to other members.
-4. **Item scope = `user:<id>` (private) | `household:<id>` (shared).** Extend this from memory to
-   **calendar events** (and later tasks): add an owner/scope to `calendar.events_cache`. An item
-   scoped `user:<id>` is visible only to that user; `household:<id>` is visible to all members.
-5. **Admin-gated onboarding (owner's A).** On a new `/start`: create the user + their personal
-   household → **notify the holder** ("who is this, how do they relate, add to the shared space?").
-   Approve → insert a `household_members(family, newUser, relationship)` row. Decline (a friend) →
-   the user simply keeps their own personal household; **full isolation with no special logic**.
+4. **Item scope = the item's `household_id` (tenant routing).** An item lives in **exactly one**
+   household: private → the author's **personal** household; shared → the **family** household. Reading
+   = the union over the caller's memberships. No per-item `user:` tag is needed — the household *is* the
+   visibility boundary, which is also what isolates a friend (his own household) with zero special
+   logic. **Reuse finding:** `memory.memories` already implements the "own vs shared" *read filter* as
+   `WHERE household_id=? AND (user_id IS NULL OR user_id=?)` (an **owner-tag** model inside one
+   household — `platform/memory-service/.../domain/MemoryRepository.java`). New work (calendar, tasks)
+   adopts **tenant routing** because only it delivers "personal-space-first + friend-fully-isolated +
+   partial-merge". Memory is **left as-is** and reconciled later (tech-debt), not retrofitted here.
+5. **Invite-only onboarding (owner's A — deep-link token).** The **owner is the admin**; there is no
+   separate admin surface. A Telegram bot cannot DM a user first, so onboarding is a **deep-link invite
+   token**: owner mints an invite (pre-tagging relationship + share-access + target family household) →
+   `t.me/<bot>?start=<token>` → forwards it out-of-band → invitee opens it, `/start` carries the token →
+   a new user + **personal** household is created and bound to the pending invite → the holder is
+   **notified** on join, which inserts the `household_members(family, invitee, relationship)` row. A
+   user who registers **without** an invite (or is declined) simply keeps their own personal household —
+   **full isolation, no special logic**. M:N already leaves room for a friend to run *their own* shared
+   space later; nothing extra is built for that now.
 6. **`person → user` optional link.** Add nullable `core.people.user_id`. A contact may *become* an
    operator; prior notes/events about them keep their existing scope, and the now-user gains a private
    space. Not required for #295 — added when the "contact becomes a user" path is first exercised.
-7. **Default-sharing policy (owner's D) — smart default + override + learn**, not "ask every time":
-   - per-type default: birthdays/anniversaries → `household`; personal tasks/meetings → `user`;
-   - content inference: an item involving a household member ("dinner with my wife") → the agent
-     *proposes* `household` and confirms **only** on ambiguous cases;
+7. **Default-sharing policy (owner's D) — smart default + override + learn**, not "ask every time".
+   Grounded in family-calendar best practice (Google/Apple: *avoid all-or-nothing; default new personal
+   items private; keep a dedicated shared surface; per-item override*):
+
+   | Item type | Default household | Rationale |
+   |---|---|---|
+   | Birthdays / anniversaries / occasions | **family (shared)** | inherently household-relevant |
+   | Personal tasks, personal meetings/events | **personal (private)** | avoid oversharing |
+   | Item explicitly involving a household member | propose **family**, confirm only if ambiguous | content inference |
+   | Everything else | **personal (private)** | safe default |
+
+   - content inference proposes `family` and confirms **only** on ambiguous cases (don't nag);
    - learn the owner's choices over time (reuses the ambient-capture tiering: explicit→auto,
      important→approve, trivial→ignore — [ambient-capture.md](../ambient-capture.md));
-   - a manual `private/shared` flag is always available to override.
+   - a manual `private/shared` flag always overrides.
 
 ## Options Considered
 
@@ -139,14 +158,15 @@ an event scope column) is proportionate and lands in independent slices.
 ## Consequences
 
 **Easier:**
-- Per-member ICS feeds (#295) become `scope ∈ {user:<member>, household:<their shared space>}` — a
+- Per-member ICS feeds (#295) become "events in the caller's household set (personal ∪ shared)" — a
   clean read filter, no contact/user confusion.
 - New members, friends-as-separate-tenants, and "contact becomes user" all fall out of one model.
-- Privacy is one primitive (`scope`) across memory, calendar, and later tasks.
+- Privacy is one primitive (household membership) across calendar and later tasks; memory's owner-tag
+  model is reconciled to it later.
 
 **Harder / to revisit:**
 - The locked `telegram_user_id → user_id → household_id` (1:1) becomes 1:N — **architecture.md
-  §Locked decisions must be updated when this ADR is Accepted** (not before).
+  §Locked decisions is updated in the accepting PR** (this one).
 - Every household-scoped read must go through membership (`household_members`) instead of a single
   `users.household_id`. Existing queries that assume 1:1 need an audit.
 - Default-sharing inference is a policy surface that will need tuning (start conservative: default
@@ -156,18 +176,19 @@ an event scope column) is proportionate and lands in independent slices.
 
 ## Action Items (slice sequence — each its own PR, ≤5 files)
 
-1. [ ] **Accept this ADR**; update [architecture.md](../architecture.md) §Locked decisions (1:1 →
-   1:N membership) + [core.md](../core.md) + register in [INDEX.md](../INDEX.md).
+1. [x] **Accept this ADR**; update [architecture.md](../architecture.md) §Locked decisions (1:1 →
+   1:N membership) + [core.md](../core.md) + register in [INDEX.md](../INDEX.md). *(this PR)*
 2. [ ] **Membership schema + backfill:** `core.household_members` migration; every existing user gets a
    personal household + a membership row into their current household; keep `users.household_id` as a
    read-through default during transition. profile-service reads memberships.
 3. [ ] **Onboarding flow:** new-registration → create personal household → notify holder → approve adds
    a `household_members` row with `relationship`. (Reuses conversation-state confirm + notifier.)
-4. [ ] **Per-item scope on calendar:** add owner/scope to `calendar.events_cache` + write-path
-   (`CreateEventInput` gains scope, default policy per type) + read filters honor membership.
-5. [ ] **#295 feed filter:** `GET /internal/events` filters by the requesting member's scope set
-   (`user:<member> ∪ household:<shared>`); calendar-web passes the resolved feed's member; ICS feed now
-   serves own + shared only.
+4. [ ] **Per-item scope on calendar (tenant routing):** events are created in the author's personal
+   or the family household per the default-sharing policy; `CreateEventInput` gains the private/shared
+   choice; reads honor the caller's household set.
+5. [ ] **#295 feed filter:** `GET /internal/events` filters by the requesting member's household set
+   (personal ∪ shared); calendar-web passes the resolved feed's member; ICS feed now serves own +
+   shared only.
 6. [ ] **(deferred) `people.user_id` link** — when the "contact becomes a user" path is first needed.
 7. [ ] **(deferred) default-sharing inference** — the learn/confirm policy (own tracking issue).
 
