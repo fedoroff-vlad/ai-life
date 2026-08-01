@@ -195,6 +195,50 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void internalEventsGetUnionsAcrossHouseholdSet() {
+        UUID family = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", family, "family household");
+        Instant personalStart = Instant.parse("2029-03-15T09:00:00Z");
+        Instant familyStart = Instant.parse("2029-03-20T09:00:00Z");
+        tools.createEvent(new CreateEventInput(
+                householdId, "Personal dentist", null, null,
+                personalStart, personalStart.plus(1, ChronoUnit.HOURS), null, null, null, null));
+        tools.createEvent(new CreateEventInput(
+                family, "Family dinner", null, null,
+                familyStart, familyStart.plus(1, ChronoUnit.HOURS), null, null, null, null));
+
+        // Two householdId params → union over the set, ordered by start ascending (ADR-0001 slice 5).
+        List<CalendarEventDto> events = client().get()
+                .uri(b -> b.path("/internal/events")
+                        .queryParam("householdId", householdId, family)
+                        .queryParam("from", "2029-03-01T00:00:00Z")
+                        .queryParam("to", "2029-04-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(events).isNotNull();
+        assertThat(events).extracting(CalendarEventDto::summary)
+                .containsExactly("Personal dentist", "Family dinner");
+
+        // A single householdId still scopes to just that household (back-compat).
+        List<CalendarEventDto> personalOnly = client().get()
+                .uri(b -> b.path("/internal/events")
+                        .queryParam("householdId", householdId)
+                        .queryParam("from", "2029-03-01T00:00:00Z")
+                        .queryParam("to", "2029-04-01T00:00:00Z")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+        assertThat(personalOnly).extracting(CalendarEventDto::summary)
+                .containsExactly("Personal dentist");
+    }
+
+    @Test
     void internalEventsGetRejectsBadInstants() {
         client().get()
                 .uri(b -> b.path("/internal/events")

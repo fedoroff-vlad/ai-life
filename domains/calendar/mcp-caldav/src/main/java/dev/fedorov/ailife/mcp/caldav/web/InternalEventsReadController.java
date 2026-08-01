@@ -1,7 +1,6 @@
 package dev.fedorov.ailife.mcp.caldav.web;
 
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
-import dev.fedorov.ailife.contracts.calendar.ListEventsInput;
 import dev.fedorov.ailife.mcp.caldav.tools.CalendarMcpTools;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,13 +31,18 @@ public class InternalEventsReadController {
 
     /**
      * {@code GET /internal/events?householdId=&from=&to=} — events whose start is within
-     * {@code [from, to)} for the household, ordered by start ascending. {@code from}/{@code to} are
-     * ISO-8601 instants (e.g. {@code 2026-07-01T00:00:00Z}).
+     * {@code [from, to)}, ordered by start ascending. {@code householdId} is <b>repeatable</b>: pass it
+     * once for a single household, or several times to read the union over a household set (personal ∪
+     * shared — the per-member ICS feed, ADR-0001 slice 5 / #295). {@code from}/{@code to} are ISO-8601
+     * instants (e.g. {@code 2026-07-01T00:00:00Z}).
      */
     @GetMapping("/internal/events")
-    public ResponseEntity<?> list(@RequestParam UUID householdId,
+    public ResponseEntity<?> list(@RequestParam("householdId") List<UUID> householdIds,
                                   @RequestParam String from,
                                   @RequestParam String to) {
+        if (householdIds == null || householdIds.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "at least one householdId is required"));
+        }
         Instant fromInstant;
         Instant toInstant;
         try {
@@ -48,7 +52,7 @@ public class InternalEventsReadController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "from/to must be ISO-8601 instants, e.g. 2026-07-01T00:00:00Z"));
         }
-        List<CalendarEventDto> events = tools.listEvents(new ListEventsInput(householdId, fromInstant, toInstant));
+        List<CalendarEventDto> events = tools.listEventsInHouseholds(householdIds, fromInstant, toInstant);
         return ResponseEntity.ok(events);
     }
 }
