@@ -164,11 +164,13 @@ shared and the *policy* local — the correct seam.
 2. [x] **Foundation — the `libs/sharing` module:** create the leaf module (`DefaultSharingPolicy`,
    `SharingContext`, `SharingResolver`, `ProfileSharingClient`); lift `SharingScope` → `contracts/common`.
    No domain wired yet beyond keeping the build green. *(the shared engine)*
-3. [ ] **Retrofit calendar (reference impl):** calendar-agent uses `SharingResolver` +
-   `sharing/CalendarSharingPolicy` (occasions → shared) on its write path; calendar-web uses
-   `libs/sharing`'s `ProfileSharingClient.households` on its read path. Behaviour unchanged; the inline
-   logic deleted. Calendar becomes the canonical example the PATTERNS recipe points at. *(may split
-   write/read if >5 files)*
+3. **Retrofit calendar (reference impl):** *(split write/read — >5 files)*
+   - [x] **3a — write:** calendar-agent uses `SharingResolver` + `sharing/CalendarSharingPolicy`
+     (occasions → shared) on its write path; the inline routing/fallback logic deleted. Behaviour
+     unchanged (7 `ActionControllerTest` cases green). Calendar is now the canonical example the PATTERNS
+     recipe points at.
+   - [ ] **3b — read:** calendar-web uses `libs/sharing`'s `ProfileSharingClient.households` on its read
+     path (retire the local `ProfileHouseholdsClient`). Behaviour unchanged.
 4. [ ] **Finance** — a short scoping pass first (joint-account-level vs per-transaction sharing; what the
    spouse sees; report cuts), then `sharing/FinanceSharingPolicy` + route writes + read the union.
 5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union

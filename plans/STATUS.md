@@ -15,11 +15,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   default-when-unspecified is policy, later memory-driven via the same seam.** **Slices 1–2 ✅** (1 = accept
   ADR + docs; 2 = the `libs/sharing` engine — `SharingResolver` + `DefaultSharingPolicy` seam +
   `SharingContext` + `ProfileSharingClient`, `SharingScope` lifted to `contracts/common`, 13 tests, no
-  domain wired yet → [HISTORY](HISTORY.md) row 2026-08-01). NEXT = **slice 3 = retrofit calendar as the
-  reference** (calendar-agent write path onto `SharingResolver` + `sharing/CalendarSharingPolicy`;
-  calendar-web read path onto `ProfileSharingClient.households`; inline logic deleted — may split write/read
-  if >5 files) → 4 finance (w/ scoping) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag
-  reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  domain wired yet → [HISTORY](HISTORY.md) row 2026-08-01). Slice 3 (retrofit calendar as the reference)
+  **split write/read** (>5 files): **slice 3a ✅** = calendar-agent write path onto `SharingResolver` +
+  new `sharing/CalendarSharingPolicy`, inline routing deleted, behaviour unchanged (7 ActionControllerTest
+  cases green). NEXT = **slice 3b = calendar-web read path** onto `libs/sharing`'s
+  `ProfileSharingClient.households` (retire the local `ProfileHouseholdsClient`) → 4 finance (w/ scoping) →
+  5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
+  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the

@@ -1,6 +1,9 @@
 package dev.fedorov.ailife.agents.calendar.config;
 
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,5 +38,26 @@ public class OutboundHttpConfig {
     public OrchestratorInvokeClient orchestratorInvokeClient(
             @Qualifier("orchestratorWebClient") WebClient orchestratorWebClient) {
         return new OrchestratorInvokeClient(orchestratorWebClient);
+    }
+
+    /**
+     * The sharing capability's identity read (ADR-0002), over the shared {@code profileServiceWebClient}
+     * (built by agent-runtime from {@code SharedClientProperties}) — the same client backing
+     * {@link dev.fedorov.ailife.agentruntime.http.ProfileClient}.
+     */
+    @Bean
+    public ProfileSharingClient profileSharingClient(
+            @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
+        return new ProfileSharingClient(profileServiceWebClient);
+    }
+
+    /**
+     * The write-path routing engine, wired with calendar's {@code CalendarSharingPolicy} (injected as the
+     * {@link DefaultSharingPolicy}). Replaces the tenant-routing logic formerly inline in the action controller.
+     */
+    @Bean
+    public SharingResolver sharingResolver(ProfileSharingClient profileSharingClient,
+                                           DefaultSharingPolicy defaultSharingPolicy) {
+        return new SharingResolver(profileSharingClient, defaultSharingPolicy);
     }
 }
