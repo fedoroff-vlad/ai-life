@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.contracts.calendar;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import dev.fedorov.ailife.contracts.common.SharingScope;
 
 import java.time.Instant;
 import java.util.List;

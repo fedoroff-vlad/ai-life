@@ -12,10 +12,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   extension point + `SharingContext` + `ProfileSharingClient`) taken by **all** agents *and* read-only web
   services; `SharingScope` → `contracts/common`; each domain plugs a same-named **`sharing/`** package with
   its `<Domain>SharingPolicy`. **Mechanism deterministic (privacy boundary, never LLM-decided); only the
-  default-when-unspecified is policy, later memory-driven via the same seam.** **Slice 1 ✅** (this PR —
-  accept ADR + architecture.md §Locked decisions + INDEX + PATTERNS "add sharing to a domain" recipe).
-  NEXT = **slice 2 = the `libs/sharing` module** (engine, no domain wired yet) → slice 3 retrofit calendar
-  as the reference → 4 finance (w/ scoping) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag
+  default-when-unspecified is policy, later memory-driven via the same seam.** **Slices 1–2 ✅** (1 = accept
+  ADR + docs; 2 = the `libs/sharing` engine — `SharingResolver` + `DefaultSharingPolicy` seam +
+  `SharingContext` + `ProfileSharingClient`, `SharingScope` lifted to `contracts/common`, 13 tests, no
+  domain wired yet → [HISTORY](HISTORY.md) row 2026-08-01). NEXT = **slice 3 = retrofit calendar as the
+  reference** (calendar-agent write path onto `SharingResolver` + `sharing/CalendarSharingPolicy`;
+  calendar-web read path onto `ProfileSharingClient.households`; inline logic deleted — may split write/read
+  if >5 files) → 4 finance (w/ scoping) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag
   reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
