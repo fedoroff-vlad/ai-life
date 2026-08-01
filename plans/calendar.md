@@ -36,7 +36,15 @@ policy: occasion categories → shared, everything else → private) against the
 `GET /v1/users/{id}/household-routing` split (personal vs family) to a concrete `household_id`. A shared
 choice with no family household degrades to personal; a request with no `userId` falls back to the
 envelope household (pre-membership path). mcp-caldav stays tenant-agnostic — it writes to whatever
-household it is handed. Reads honoring the caller's household set (personal ∪ shared) = slice 5 (#295).
+household it is handed.
+
+**Per-member reads (slice 5, #295 — epic closer):** `mcp-caldav` `GET /internal/events` takes a
+**repeatable** `householdId` and returns the union over the set. `calendar-web` resolves a per-person
+feed's `ownerId` → the member's household set (personal ∪ shared) via profile-service
+`GET /v1/users/{id}/households` and reads that union, so each member's ICS feed serves their own events
+plus the shared family ones and nothing private to another member. An owner-less feed (static env feed /
+legacy whole-household) serves its single household; a profile lookup failure falls back to the feed's
+own household. mcp-caldav stays tenant-agnostic — the member→set resolution lives in calendar-web.
 
 ## calendar-agent (agents/, port 8086)
 AGENT.md (frontmatter + EN prompt). REST: `POST /agents/calendar/intent` (from orchestrator), `POST /agents/calendar/triggers/{kind}` (from scheduler), `POST /agents/calendar/skills/{skill}/invoke`.

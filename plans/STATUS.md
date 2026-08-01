@@ -5,39 +5,12 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Identity & membership epic — IN FLIGHT ([adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md),
-  Accepted 2026-07-31).** Multi-tenant **workspace** identity, surfaced while scoping the #295 per-person
-  ICS feed: `user → household` becomes **1:N** (personal household per user + M:N `core.household_members`),
-  an item lives in **exactly one household = its visibility boundary** (tenant routing: private → personal,
-  shared → family; read = union over memberships), onboarding is **invite-only** (deep-link token,
-  owner-gated), a friend registers into their own isolated household. 6-slice plan owner-approved.
-  **Slices 1–3 ✅.** Slice 1 (accept ADR + doc alignment, PR#373); slice 2 (`core.household_members`
-  schema + backfill + profile-service read `GET /v1/users/{id}/households`, self-membership on user
-  create; PR#376); slice 3 (registration → **personal** household: `gateway-telegram/IdentityResolver`
-  names the new user's own household after them + they are its `admin`, never auto-attached; membership
-  recorded by profile-service on user create). `users.household_id` kept as read-through default.
-  **Slice 4a ✅** (invite token store): `core.household_invites` migration (014) + profile-service
-  `POST /v1/invites` (owner mints pre-authorized invite → token), `GET /v1/invites/by-token/{token}`,
-  `POST …/redeem` (invitee redeems → inserts the `household_members(family, invitee, relationship)` row);
-  new `HouseholdInviteDto` contract. **Slice 4b-i ✅** (Telegram invitee side, PR#379): gateway
-  intercepts a `/start &lt;token&gt;` deep-link as a family-invite redemption — resolve/create identity →
-  `POST /v1/invites/by-token/{token}/redeem` (join the inviter's family household) → reply to the
-  invitee + DM the holder; unknown/used token is graceful (opener keeps their isolated space). Carries
-  the cross-service invite-contract E2E (`E2EInviteRedeemFlowTest`). Slice 4b was split into two PRs
-  (>5 files). **Slice 4b-ii ✅** (owner mint command, PR#381): `/invite &lt;name&gt; as &lt;relationship&gt;`
-  mints a pre-authorized invite into the sender's household via `POST /v1/invites` → gateway replies with
-  the `t.me/&lt;bot&gt;?start=&lt;token&gt;` deep-link to forward (bare `/invite` → usage); handled at the
-  **gateway level**, symmetric with `/start`. **Telegram-wiring half of slice 4 done.**
-  **Slice 4 ✅** — per-item calendar tenant routing, split into two PRs: **4a** (PR#383) profile-service
-  `GET /v1/users/{id}/household-routing` → `{personalHouseholdId, sharedHouseholdIds}` (personal =
-  self-membership `relationship IS NULL`; shared = `relationship`-set); **4b** (PR#384) `CreateEventInput`
-  gains a `SharingScope{PRIVATE,SHARED}` choice, calendar-agent's `create_event` resolves it (explicit,
-  else default-sharing policy: occasion categories → shared, else private) against the routing split to a
-  concrete personal/family `household_id`; mcp-caldav stays tenant-agnostic; `userId`-absent / profile-404
-  falls back to the envelope household; shared-with-no-family degrades to personal. NEXT = **slice 5 = #295
-  feed filter (epic closer):** `GET /internal/events` filters by the requesting member's household set
-  (personal ∪ shared); calendar-web passes the resolved feed's member; ICS feed serves own + shared only.
-  Detail → [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items.
+- **No slice in flight.** The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) —
+  slices 1–5 shipped (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed,
+  closing #295). Deferred by design: action items 6 (`people.user_id` contact→user link) and 7
+  (default-sharing learn/confirm inference) — pick up when first needed. Detail →
+  [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items + [HISTORY.md](HISTORY.md)
+  (rows 2026-08-01). Next work is owner-prioritized from `## Next` below.
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
   [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).
@@ -61,7 +34,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
-Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294, per-person ICS filtering #295, **off-site DB backup replication** (daily local dumps ship 2026-07-13; a second host over Tailscale or a cloud bucket is the follow-up — see [infra/README.md](../infra/README.md) §Database backups).
+Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294, **off-site DB backup replication** (daily local dumps ship 2026-07-13; a second host over Tailscale or a cloud bucket is the follow-up — see [infra/README.md](../infra/README.md) §Database backups).
 Tech-debt: Apache AGE upgrade #296 (gated), real-Ollama opt-in E2E #297. Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
 

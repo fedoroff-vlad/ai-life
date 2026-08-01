@@ -20,6 +20,12 @@ public class CalendarWebProperties {
     /** Base URL of mcp-caldav (its {@code /internal/events} read passthrough). */
     private String mcpCaldavUrl = "http://mcp-caldav:8090";
 
+    /**
+     * Base URL of profile-service. Used to resolve a per-person feed's {@code ownerId} to that member's
+     * household set (personal ∪ shared) so the feed serves own + shared events (ADR-0001 slice 5 / #295).
+     */
+    private String profileServiceUrl = "http://profile-service:8082";
+
     /** How far back / ahead the feed window spans from "now". */
     private int pastDays = 31;
     private int futureDays = 366;
@@ -28,6 +34,8 @@ public class CalendarWebProperties {
 
     public String getMcpCaldavUrl() { return mcpCaldavUrl; }
     public void setMcpCaldavUrl(String mcpCaldavUrl) { this.mcpCaldavUrl = mcpCaldavUrl; }
+    public String getProfileServiceUrl() { return profileServiceUrl; }
+    public void setProfileServiceUrl(String profileServiceUrl) { this.profileServiceUrl = profileServiceUrl; }
     public int getPastDays() { return pastDays; }
     public void setPastDays(int pastDays) { this.pastDays = pastDays; }
     public int getFutureDays() { return futureDays; }

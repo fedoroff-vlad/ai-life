@@ -7,6 +7,7 @@ spring:
 
 calendar-web:
   mcp-caldav-url: ${MCP_CALDAV_URL:http://mcp-caldav:8090}
+  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   past-days: ${CALENDAR_WEB_PAST_DAYS:31}
   future-days: ${CALENDAR_WEB_FUTURE_DAYS:366}
   # Feeds are env-bound (Spring relaxed list binding), one per household member, e.g.:
