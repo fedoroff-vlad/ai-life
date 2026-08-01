@@ -1,7 +1,9 @@
 # libs/sharing
 
 **Status (2026-08-01):** engine shipped (ADR-0002 slice 2); **calendar fully wired as the reference impl** —
-write path (slice 3a, `calendar-agent`) + read path (slice 3b, `calendar-web`). finance/tasks/nutrition/docs next.
+write path (slice 3a, `calendar-agent`) + read path (slice 3b, `calendar-web`). **finance read path started (slice
+4a):** `finance-agent`'s `FinancialAdvisor` unions spending across the member's personal ∪ shared households via
+`ProfileSharingClient.households` on the shared-scope ("наши траты") cut. tasks/nutrition/docs next.
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -19,7 +21,9 @@ leaf (`contracts` + WebClient, no LLM / no agent-runtime) precisely so web servi
 without pulling the agent runtime. **calendar** is the reference: `calendar-agent` (write path — slice 3a:
 `sharing/CalendarSharingPolicy` + `SharingResolver`/`ProfileSharingClient` beans in its `OutboundHttpConfig`);
 `calendar-web` (read path — slice 3b: `ProfileSharingClient.households` via `config/SharingConfig`, retiring
-its former local `ProfileHouseholdsClient`).
+its former local `ProfileHouseholdsClient`). **finance** is the second read consumer (slice 4a): `finance-agent`
+declares the `ProfileSharingClient` bean in its `OutboundHttpConfig` and `FinancialAdvisor.households` reads the
+union for the shared-scope analysis.
 
 ## Depends on
 `libs/contracts` (`SharingScope` in `contracts/common`, `HouseholdRoutingDto` in `contracts/profile`) +

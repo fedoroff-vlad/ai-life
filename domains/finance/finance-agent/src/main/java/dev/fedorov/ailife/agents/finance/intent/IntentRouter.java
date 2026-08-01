@@ -105,7 +105,8 @@ public class IntentRouter {
         this.skills = skills;
         this.classifier = classifier;
         this.flows = Map.of(
-                "advice", (msg, node) -> advisor.advise(msg)
+                "advice", (msg, node) -> advisor
+                        .advise(msg, "shared".equalsIgnoreCase(node.path("scope").asText("")))
                         .map(a -> new RouterResult(a.text(), "advice", a.model())),
                 "invest", (msg, node) -> investmentAdvisor.advise(msg, readSymbols(node))
                         .map(a -> new RouterResult(a.text(), "invest", a.model())),
@@ -188,7 +189,9 @@ public class IntentRouter {
                         "There is also a built-in spending ANALYSIS flow (not a tool): "
                                 + flowTrigger("financial-advisor",
                                 "use it when the user asks to analyse / review their own spending or wants recommendations.")
-                                + " Prefer it over the monthly REPORT when the user wants advice / reasons / where to save.",
+                                + " Prefer it over the monthly REPORT when the user wants advice / reasons / where to save."
+                                + " By default it analyses the user's OWN spending; add \"scope\":\"shared\" ONLY when they"
+                                + " explicitly ask about SHARED / FAMILY / joint spending (\"наши траты\", \"семейный бюджет\").",
                         "{\"action\":\"advice\"}"),
                 new Choice("report",
                         "There is also a built-in REPORT flow (not a tool): "
