@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.ChartRenderClient;
-import dev.fedorov.ailife.agents.finance.http.SpendingClient;
+import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.chart.ChartSpec;
@@ -65,7 +65,7 @@ public class MonthlyReporter {
     private static final int MAX_CHART_CATEGORIES = 8;
 
     private final Coordinator coordinator;
-    private final SpendingClient spending;
+    private final SpendingReads reads;
     private final DeliverablePublisher publisher;
     private final ChartRenderClient chartRender;
     private final SkillRegistry skills;
@@ -73,14 +73,14 @@ public class MonthlyReporter {
     private final ObjectMapper json;
 
     public MonthlyReporter(Coordinator coordinator,
-                           SpendingClient spending,
+                           SpendingReads reads,
                            DeliverablePublisher publisher,
                            ChartRenderClient chartRender,
                            SkillRegistry skills,
                            AgentManifest manifest,
                            ObjectMapper json) {
         this.coordinator = coordinator;
-        this.spending = spending;
+        this.reads = reads;
         this.publisher = publisher;
         this.chartRender = chartRender;
         this.skills = skills;
@@ -88,7 +88,16 @@ public class MonthlyReporter {
         this.json = json;
     }
 
+    /** Report the requester's own (personal-household) spending for the current month. */
     public Mono<ReportResult> report(NormalizedMessage msg) {
+        return report(msg, false);
+    }
+
+    /**
+     * @param shared when {@code true}, the report covers the member's personal ∪ shared households (the
+     *               "семейный отчёт" cut); otherwise only the envelope (personal) household.
+     */
+    public Mono<ReportResult> report(NormalizedMessage msg, boolean shared) {
         UUID household = msg == null ? null : msg.householdId();
         if (household == null) {
             return Mono.just(new ReportResult(
@@ -100,14 +109,15 @@ public class MonthlyReporter {
                 .atStartOfDay(ZoneOffset.UTC).toInstant();
         String monthLabel = ReportFormatting.MONTHS_RU[nowZ.getMonthValue() - 1] + " " + nowZ.getYear();
 
-        return spending.spendingByCategory(household, monthStart, now)
+        return reads.households(household, msg.userId(), shared)
+                .flatMap(households -> reads.spendingUnion(households, monthStart, now))
                 .flatMap(rows -> {
                     if (rows.isEmpty()) {
                         return Mono.just(new ReportResult(
                                 "За " + monthLabel + " трат пока не записано — отчитываться не о чём. "
                                         + "Добавьте операции (чек фото или заметкой), и я соберу отчёт.", null));
                     }
-                    return synthesize(msg, rows, monthLabel);
+                    return synthesize(msg, rows, monthLabel, shared);
                 })
                 .onErrorResume(e -> {
                     log.warn("monthly-report failed for household {}: {}", household, e.toString());
@@ -116,7 +126,8 @@ public class MonthlyReporter {
                 });
     }
 
-    private Mono<ReportResult> synthesize(NormalizedMessage msg, List<SpendingByCategoryRow> rows, String monthLabel) {
+    private Mono<ReportResult> synthesize(NormalizedMessage msg, List<SpendingByCategoryRow> rows,
+                                          String monthLabel, boolean shared) {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("byCategory", Mono.just(json.valueToTree(rows)));
 
@@ -125,6 +136,7 @@ public class MonthlyReporter {
             payload.put("userText", msg.text());
         }
         payload.put("month", monthLabel);
+        payload.put("scope", shared ? "shared" : "personal");
 
         return coordinator.coordinate(
                         List.of(manifest.body(), skillBody()),

@@ -182,7 +182,11 @@ shared and the *policy* local — the correct seam.
      `ProfileSharingClient.households` (fan-out + `mergeByCategory`) when the classifier tags `scope:"shared"`;
      default stays the personal household. `libs/sharing` bound (bean in `OutboundHttpConfig`). mcp-finance
      untouched (tenant-agnostic).
-   - [ ] **4a-ii — read (reporters):** the same union onto `MonthlyReporter` / `YearReporter` (+ balances).
+   - [x] **4a-ii — read (reporters):** the shared-vs-personal cut + cross-household merge lifted into a shared
+     `read/SpendingReads` helper (adopted by the advisor too — no duplication); `MonthlyReporter` /
+     `YearReporter` gained `report(msg, shared)` and the `report` classifier flow reads `scope:"shared"`.
+     Balances have no dedicated agent read flow (only the `get_balance` MCP tool, tenant-scoped) → nothing to
+     retrofit there.
    - [ ] **4b — write:** `sharing/FinanceSharingPolicy` + route account creation once finance-agent has an
      account-create seam (today accounts are created only via the `upsert_account` MCP tool).
 5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union

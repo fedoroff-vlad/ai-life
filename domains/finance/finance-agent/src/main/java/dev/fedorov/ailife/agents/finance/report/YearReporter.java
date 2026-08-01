@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.ChartRenderClient;
-import dev.fedorov.ailife.agents.finance.http.SpendingClient;
+import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.chart.ChartSeries;
@@ -62,7 +62,7 @@ public class YearReporter {
     private static final int MAX_CHART_CATEGORIES = 10;
 
     private final Coordinator coordinator;
-    private final SpendingClient spending;
+    private final SpendingReads reads;
     private final DeliverablePublisher publisher;
     private final ChartRenderClient chartRender;
     private final SkillRegistry skills;
@@ -70,14 +70,14 @@ public class YearReporter {
     private final ObjectMapper json;
 
     public YearReporter(Coordinator coordinator,
-                        SpendingClient spending,
+                        SpendingReads reads,
                         DeliverablePublisher publisher,
                         ChartRenderClient chartRender,
                         SkillRegistry skills,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.coordinator = coordinator;
-        this.spending = spending;
+        this.reads = reads;
         this.publisher = publisher;
         this.chartRender = chartRender;
         this.skills = skills;
@@ -85,7 +85,16 @@ public class YearReporter {
         this.json = json;
     }
 
+    /** Report the requester's own (personal-household) spending for the current year. */
     public Mono<MonthlyReporter.ReportResult> report(NormalizedMessage msg) {
+        return report(msg, false);
+    }
+
+    /**
+     * @param shared when {@code true}, the report covers the member's personal ∪ shared households (the
+     *               "семейный отчёт за год" cut); otherwise only the envelope (personal) household.
+     */
+    public Mono<MonthlyReporter.ReportResult> report(NormalizedMessage msg, boolean shared) {
         UUID household = msg == null ? null : msg.householdId();
         if (household == null) {
             return Mono.just(new MonthlyReporter.ReportResult(
@@ -98,16 +107,17 @@ public class YearReporter {
         Instant yearStart = LocalDate.of(year, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
         String yearLabel = String.valueOf(year);
 
-        return spending.spendingByCategory(household, yearStart, now)
-                .flatMap(rows -> {
-                    if (rows.isEmpty()) {
-                        return Mono.just(new MonthlyReporter.ReportResult(
-                                "За " + yearLabel + " год трат пока не записано — отчитываться не о чём. "
-                                        + "Добавьте операции (чек фото или заметкой), и я соберу отчёт.", null));
-                    }
-                    return monthlyTrend(household, year, monthsElapsed, now)
-                            .flatMap(trend -> synthesize(msg, rows, trend, yearLabel));
-                })
+        return reads.households(household, msg.userId(), shared).flatMap(households ->
+                reads.spendingUnion(households, yearStart, now)
+                        .flatMap(rows -> {
+                            if (rows.isEmpty()) {
+                                return Mono.just(new MonthlyReporter.ReportResult(
+                                        "За " + yearLabel + " год трат пока не записано — отчитываться не о чём. "
+                                                + "Добавьте операции (чек фото или заметкой), и я соберу отчёт.", null));
+                            }
+                            return monthlyTrend(households, year, monthsElapsed, now)
+                                    .flatMap(trend -> synthesize(msg, rows, trend, yearLabel, shared));
+                        }))
                 .onErrorResume(e -> {
                     log.warn("year-report failed for household {}: {}", household, e.toString());
                     return Mono.just(new MonthlyReporter.ReportResult(
@@ -118,7 +128,8 @@ public class YearReporter {
     private Mono<MonthlyReporter.ReportResult> synthesize(NormalizedMessage msg,
                                                           List<SpendingByCategoryRow> rows,
                                                           List<MonthTotal> trend,
-                                                          String yearLabel) {
+                                                          String yearLabel,
+                                                          boolean shared) {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("byCategory", Mono.just(json.valueToTree(rows)));
         gather.put("monthlyTrend", Mono.just(json.valueToTree(trend)));
@@ -128,6 +139,7 @@ public class YearReporter {
             payload.put("userText", msg.text());
         }
         payload.put("year", yearLabel);
+        payload.put("scope", shared ? "shared" : "personal");
 
         return coordinator.coordinate(
                         List.of(manifest.body(), skillBody()),
@@ -179,8 +191,12 @@ public class YearReporter {
                 });
     }
 
-    /** Fetch each elapsed month's total spend (parallel, order-preserving, per-month soft-fail). */
-    private Mono<List<MonthTotal>> monthlyTrend(UUID household, int year, int monthsElapsed, Instant now) {
+    /**
+     * Fetch each elapsed month's total spend across the household set (parallel, order-preserving, per-month
+     * soft-fail). Each month is itself a union read via {@link SpendingReads}, so the trend honours the same
+     * personal-vs-shared cut as the year window.
+     */
+    private Mono<List<MonthTotal>> monthlyTrend(List<UUID> households, int year, int monthsElapsed, Instant now) {
         List<Mono<MonthTotal>> perMonth = new ArrayList<>();
         for (int m = 1; m <= monthsElapsed; m++) {
             String label = ReportFormatting.MONTHS_RU_SHORT[m - 1];
@@ -188,7 +204,7 @@ public class YearReporter {
             Instant to = (m < monthsElapsed)
                     ? LocalDate.of(year, m, 1).plusMonths(1).atStartOfDay(ZoneOffset.UTC).toInstant()
                     : now; // the current (last) month runs up to now
-            perMonth.add(spending.spendingByCategory(household, from, to)
+            perMonth.add(reads.spendingUnion(households, from, to)
                     .map(monthRows -> new MonthTotal(label, sumAbs(monthRows)))
                     .onErrorReturn(new MonthTotal(label, 0.0)));
         }

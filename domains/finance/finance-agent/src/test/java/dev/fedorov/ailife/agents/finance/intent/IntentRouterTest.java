@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -247,7 +248,7 @@ class IntentRouterTest {
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "{\"action\":\"report\",\"period\":\"month\"}")));
-        when(monthlyReporter.report(any(NormalizedMessage.class))).thenReturn(Mono.just(
+        when(monthlyReporter.report(any(NormalizedMessage.class), eq(false))).thenReturn(Mono.just(
                 new MonthlyReporter.ReportResult("Собрал отчёт за июнь.\n\nПолный отчёт: http://m/v1/media/x",
                         "mock-large")));
 
@@ -262,7 +263,24 @@ class IntentRouterTest {
         // The report path builds its own deliverable — no tool dispatch.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
         // No period (or month) → the monthly reporter, not the year one.
-        verify(yearReporter, never()).report(any(NormalizedMessage.class));
+        verify(yearReporter, never()).report(any(NormalizedMessage.class), anyBoolean());
+    }
+
+    @Test
+    void reportWithSharedScopeHandsOffTheFamilyCut() {
+        // ADR-0002 slice 4a-ii: "семейный отчёт" → the classifier tags scope:shared, and the router must
+        // pass shared=true so the reporter unions the family households.
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"report\",\"period\":\"month\",\"scope\":\"shared\"}")));
+        when(monthlyReporter.report(any(NormalizedMessage.class), eq(true))).thenReturn(Mono.just(
+                new MonthlyReporter.ReportResult("Семейный отчёт.\n\nПолный отчёт: http://m/v1/media/z", "mock-large")));
+
+        StepVerifier.create(router.route(msg("семейный отчёт за месяц")))
+                .assertNext(r -> assertThat(r.invokedTool()).isEqualTo("report"))
+                .verifyComplete();
+
+        verify(monthlyReporter).report(any(NormalizedMessage.class), eq(true));
     }
 
     @Test
@@ -270,7 +288,7 @@ class IntentRouterTest {
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "{\"action\":\"report\",\"period\":\"year\"}")));
-        when(yearReporter.report(any(NormalizedMessage.class))).thenReturn(Mono.just(
+        when(yearReporter.report(any(NormalizedMessage.class), eq(false))).thenReturn(Mono.just(
                 new MonthlyReporter.ReportResult("Собрал отчёт за 2026 год.\n\nПолный отчёт: http://m/v1/media/y",
                         "mock-large")));
 
@@ -283,7 +301,7 @@ class IntentRouterTest {
                 .verifyComplete();
 
         // period=year → the year reporter, not the monthly one.
-        verify(monthlyReporter, never()).report(any(NormalizedMessage.class));
+        verify(monthlyReporter, never()).report(any(NormalizedMessage.class), anyBoolean());
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 
