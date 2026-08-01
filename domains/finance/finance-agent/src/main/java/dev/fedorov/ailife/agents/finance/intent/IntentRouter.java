@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.finance.intent;
 
 import tools.jackson.databind.JsonNode;
+import dev.fedorov.ailife.agents.finance.account.AccountManager;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.category.CategoryManager;
@@ -71,8 +72,8 @@ public class IntentRouter {
      */
     private static final String ENUM_PINNING =
             "The \"action\" value MUST be exactly one of these literal strings: "
-                    + "\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"chat\". Do NOT invent any other "
-                    + "action value (not \"analysis\", not a tool name in the action field — a tool goes in "
+                    + "\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"account\", \"chat\". Do NOT invent "
+                    + "any other action value (not \"analysis\", not a tool name in the action field — a tool goes in "
                     + "\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n";
 
     private final LlmClient llm;
@@ -96,6 +97,7 @@ public class IntentRouter {
                         MonthlyReporter monthlyReporter,
                         YearReporter yearReporter,
                         CategoryManager categoryManager,
+                        AccountManager accountManager,
                         AgentManifest manifest,
                         SkillRegistry skills,
                         SkillClassifier classifier) {
@@ -120,7 +122,9 @@ public class IntentRouter {
                             : monthlyReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()));
                 },
                 "category", (msg, node) -> categoryManager.manage(msg)
-                        .map(r -> new RouterResult(r.text(), "category", r.model())));
+                        .map(r -> new RouterResult(r.text(), "category", r.model())),
+                "account", (msg, node) -> accountManager.create(msg)
+                        .map(r -> new RouterResult(r.text(), "account", r.model())));
     }
 
     public Mono<RouterResult> route(NormalizedMessage msg) {
@@ -224,7 +228,16 @@ public class IntentRouter {
                                 + " It reads the existing categories and applies the changes itself. This is about the "
                                 + "category LIST/structure — not recording a spend (that's the add_transaction tool) "
                                 + "and not analysing spend (that's advice).",
-                        "{\"action\":\"category\"}"));
+                        "{\"action\":\"category\"}"),
+                new Choice("account",
+                        "There is also a built-in ACCOUNT-CREATION flow (not a tool): "
+                                + flowTrigger("account-manager",
+                                "use it when the user wants to CREATE / open a new finance account (card, cash, "
+                                        + "deposit, credit).")
+                                + " It plans the account and creates it itself, routing it to the personal or the "
+                                + "shared household. This is about opening an ACCOUNT — not recording a spend (that's "
+                                + "the add_transaction tool) and not managing categories (that's category).",
+                        "{\"action\":\"account\"}"));
     }
 
     /**
@@ -239,7 +252,7 @@ public class IntentRouter {
                 toolSpecs(tools),
                 choices(),
                 "Decide: run a tool, run the spending analysis, build the finance report, "
-                        + "run the investment advisory, manage categories, or just talk?",
+                        + "run the investment advisory, manage categories, create an account, or just talk?",
                 List.of(ENUM_PINNING));
     }
 

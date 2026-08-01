@@ -1013,6 +1013,44 @@ class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void internalAccountPostPersistsRowAnd400OnBadInput() {
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // Happy path: POST a chat-planned account (account-manager, ADR-0002 slice 4b) → persisted,
+        // returns the DTO. The household is whichever one the agent's SharingResolver already routed to.
+        FinAccountDto created = client.post().uri("/internal/account")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpsertAccountInput(
+                        null, householdId, null, "Tinkoff card", "card", "RUB",
+                        new BigDecimal("0.00"), null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinAccountDto.class)
+                .returnResult().getResponseBody();
+        assertThat(created).isNotNull();
+        assertThat(created.id()).isNotNull();
+        assertThat(created.householdId()).isEqualTo(householdId);
+        assertThat(created.name()).isEqualTo("Tinkoff card");
+        assertThat(created.currency()).isEqualTo("RUB");
+
+        // Row really landed (list round-trips it under the same household).
+        List<FinAccountDto> accounts = client.get()
+                .uri(uri -> uri.path("/internal/accounts").queryParam("householdId", householdId).build())
+                .exchange().expectStatus().isOk()
+                .expectBodyList(FinAccountDto.class).returnResult().getResponseBody();
+        assertThat(accounts).anyMatch(a -> a.id().equals(created.id()));
+
+        // Bad input (missing required currency) → 400, surfaced from the tool guard.
+        client.post().uri("/internal/account")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpsertAccountInput(
+                        null, householdId, null, "No currency", "card", null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
     void updateTransactionAppliesNonNullFieldsAndGuardsCrossHousehold() {
         FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
                 null, householdId, null, "Update-tx-acc", "card", "EUR",

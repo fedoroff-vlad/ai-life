@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.intent;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agents.finance.account.AccountManager;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.category.CategoryManager;
@@ -33,6 +34,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -66,7 +68,8 @@ import static org.mockito.Mockito.when;
 class GoldenRoutingTest {
 
     /** The contract actions the classifier prompt allows. */
-    private static final Set<String> ACTIONS = Set.of("tool", "advice", "report", "invest", "category", "chat");
+    private static final Set<String> ACTIONS =
+            Set.of("tool", "advice", "report", "invest", "category", "account", "chat");
 
     /** The mcp-finance tools the dispatcher exposes (must match the canonical tool set). */
     private static final List<ToolDefinition> TOOLS = List.of(
@@ -94,6 +97,7 @@ class GoldenRoutingTest {
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final YearReporter yearReporter = mock(YearReporter.class);
     private final CategoryManager categoryManager = mock(CategoryManager.class);
+    private final AccountManager accountManager = mock(AccountManager.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
@@ -104,12 +108,13 @@ class GoldenRoutingTest {
     private final SkillRegistry skills = loadFinanceSkills();
     private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router = new IntentRouter(
-            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager, manifest, skills, classifier);
+            llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager,
+            accountManager, manifest, skills, classifier);
 
     private static SkillRegistry loadFinanceSkills() {
         List<Skill> loaded = new java.util.ArrayList<>();
         for (String name : List.of("financial-advisor", "investment-advisor", "monthly-report",
-                "year-report", "category-manager")) {
+                "year-report", "category-manager", "account-manager")) {
             String path = "skills/finance/" + name + "/SKILL.md";
             try (var in = GoldenRoutingTest.class.getClassLoader().getResourceAsStream(path)) {
                 assertThat(in).as("classpath resource %s (finance skills are copied by the module pom)", path).isNotNull();
@@ -126,16 +131,20 @@ class GoldenRoutingTest {
         // A tool dispatch returns the tool's JSON result; stub a non-null body so the tool branch
         // emits a RouterResult (we assert the routing decision, not the tool's real output).
         when(dispatcher.dispatch(anyString(), anyString())).thenReturn("{\"ok\":true}");
-        when(advisor.advise(any(NormalizedMessage.class)))
+        // The advice/report flows take (msg, shared) since ADR-0002 slice 4a — stub the two-arg shape so
+        // the real-model behaviour test reaches a non-null flow result on either scope.
+        when(advisor.advise(any(NormalizedMessage.class), anyBoolean()))
                 .thenReturn(Mono.just(new FinancialAdvisor.AdviceResult("(advice)", "qwen2.5:7b")));
         when(investmentAdvisor.advise(any(NormalizedMessage.class), any()))
                 .thenReturn(Mono.just(new InvestmentAdvisor.AdviceResult("(invest)", "qwen2.5:7b")));
-        when(monthlyReporter.report(any(NormalizedMessage.class)))
+        when(monthlyReporter.report(any(NormalizedMessage.class), anyBoolean()))
                 .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(report)", "qwen2.5:7b")));
-        when(yearReporter.report(any(NormalizedMessage.class)))
+        when(yearReporter.report(any(NormalizedMessage.class), anyBoolean()))
                 .thenReturn(Mono.just(new MonthlyReporter.ReportResult("(year-report)", "qwen2.5:7b")));
         when(categoryManager.manage(any(NormalizedMessage.class)))
                 .thenReturn(Mono.just(new CategoryManager.CategoryResult("(category)", "qwen2.5:7b")));
+        when(accountManager.create(any(NormalizedMessage.class)))
+                .thenReturn(Mono.just(new AccountManager.AccountResult("(account)", "qwen2.5:7b")));
     }
 
     /**
@@ -153,6 +162,7 @@ class GoldenRoutingTest {
                 "проанализируй мои траты за квартал",
                 "сделай финансовый отчёт за месяц",
                 "что думаешь про биткоин и золото?",
+                "заведи карту Тинькофф в рублях",
                 "привет, как дела?")) {
             String raw = chat(prompt, msg);
             JsonNode node = extractJson(raw);
@@ -187,11 +197,19 @@ class GoldenRoutingTest {
      */
     @Test
     void routesUnambiguousRequestsToTheRightAction() {
+        // Warm-up (not asserted): the classifier system prompt is large (AGENT.md + the full tool list +
+        // flow blocks), so its FIRST prefill on a CPU-only box can exceed the 60s per-call block below.
+        // Ollama caches the prompt PREFIX after one call, so this primes it — every asserted call then
+        // reuses the cached prefix and comfortably fits the strict 60s per-call SLA. A generous block here
+        // absorbs the one-time cold prefill without loosening the real assertions' budget.
+        router.route(GoldenLlm.message("привет")).block(Duration.ofSeconds(180));
+
         assertRoutesTo("запиши расход 1500 рублей на продукты", "add_transaction");
         assertRoutesTo("какой сейчас баланс на карте?", "get_balance");
         assertRoutesTo("проанализируй мои траты и подскажи где сэкономить", "advice");
         assertRoutesTo("сделай финансовый отчёт за месяц", "report");
         assertRoutesTo("стоит ли смотреть на акции Apple?", "invest");
+        assertRoutesTo("заведи новую карту в рублях", "account");
     }
 
     private void assertRoutesTo(String text, String expectedInvokedTool) {
