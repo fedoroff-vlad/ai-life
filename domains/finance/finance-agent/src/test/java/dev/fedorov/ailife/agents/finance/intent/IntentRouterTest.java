@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.finance.intent;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agents.finance.account.AccountManager;
 import dev.fedorov.ailife.agents.finance.advisor.FinancialAdvisor;
 import dev.fedorov.ailife.agents.finance.advisor.InvestmentAdvisor;
 import dev.fedorov.ailife.agents.finance.category.CategoryManager;
@@ -64,6 +65,7 @@ class IntentRouterTest {
     private final MonthlyReporter monthlyReporter = mock(MonthlyReporter.class);
     private final YearReporter yearReporter = mock(YearReporter.class);
     private final CategoryManager categoryManager = mock(CategoryManager.class);
+    private final AccountManager accountManager = mock(AccountManager.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -77,7 +79,7 @@ class IntentRouterTest {
     private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router =
             new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter,
-                    categoryManager, manifest, skills, classifier);
+                    categoryManager, accountManager, manifest, skills, classifier);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {
@@ -322,6 +324,28 @@ class IntentRouterTest {
                 .verifyComplete();
 
         // The category flow does its own gather + apply — no direct tool dispatch.
+        verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void llmPicksAccountHandsOffToAccountManager() {
+        // ADR-0002 slice 4b: "заведи карту" → the classifier picks the account action, and the router
+        // hands off to AccountManager (which plans + routes + creates the account itself).
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("upsert_account", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"account\"}")));
+        when(accountManager.create(any(NormalizedMessage.class))).thenReturn(Mono.just(
+                new AccountManager.AccountResult("Готово. Личный счёт «Тинькофф» создан.", "mock-large")));
+
+        StepVerifier.create(router.route(msg("заведи карту Тинькофф в рублях")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("Тинькофф");
+                    assertThat(r.invokedTool()).isEqualTo("account");
+                    assertThat(r.llmModel()).isEqualTo("mock-large");
+                })
+                .verifyComplete();
+
+        // The account flow plans + routes + creates itself — no direct tool dispatch.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
     }
 

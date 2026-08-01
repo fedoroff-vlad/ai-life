@@ -2,7 +2,9 @@ package dev.fedorov.ailife.agents.finance.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -72,5 +74,17 @@ public class OutboundHttpConfig {
     public ProfileSharingClient profileSharingClient(
             @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
         return new ProfileSharingClient(profileServiceWebClient);
+    }
+
+    /**
+     * The sharing capability's <b>write-path</b> engine (ADR-0002 slice 4b), wired with finance's
+     * {@code FinanceSharingPolicy} (injected as the {@link DefaultSharingPolicy}). {@code AccountManager}
+     * routes a chat-created account against the acting user's household-routing split to a concrete
+     * personal/shared {@code household_id}; mirrors calendar-agent's wiring.
+     */
+    @Bean
+    public SharingResolver sharingResolver(ProfileSharingClient profileSharingClient,
+                                           DefaultSharingPolicy defaultSharingPolicy) {
+        return new SharingResolver(profileSharingClient, defaultSharingPolicy);
     }
 }

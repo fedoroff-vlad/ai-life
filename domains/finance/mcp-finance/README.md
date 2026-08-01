@@ -115,6 +115,9 @@ layer's job — this MCP is intentionally low-level.
 - `web/InternalCategoryController` — `GET /internal/categories` + `POST /internal/category`
   passthroughs (delegate to `list_categories` / `upsert_category`), for finance-agent's
   `category-manager` chat-driven category create/group flow (#291).
+- `web/InternalAccountController` — `GET /internal/accounts` + `POST /internal/account`
+  passthroughs (delegate to `list_accounts` / `upsert_account`), for finance-agent's
+  `receipt-parser` (read) + `account-manager` chat-driven account creation (write, ADR-0002 slice 4b).
 - `domain/FinAccount` + `FinAccountRepository` — JPA over `finance.fin_account`.
 - `domain/FinCategory` + `FinCategoryRepository` — JPA over `finance.fin_category`.
 - `domain/FinTransaction` + `FinTransactionRepository` — JPA over
@@ -173,7 +176,13 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `GET /internal/accounts?householdId=<uuid>` → `List<FinAccountDto>` (ordered by
   name). Delegates to the `list_accounts` tool. Used by finance-agent's
   `receipt-parser` flow to resolve a target account for a parsed transaction
-  without an LLM-driven MCP tool call.
+  without an LLM-driven MCP tool call. **POST `/internal/account`** (body
+  `UpsertAccountInput`) → `FinAccountDto` (200) | 400 — delegates to
+  `upsert_account`. Used by finance-agent's `account-manager` flow (ADR-0002
+  slice 4b) to create a chat-planned account under the household its
+  `SharingResolver` already routed to (personal vs shared). mcp-finance stays
+  tenant-agnostic — it writes to whatever household it is handed. Mirrors
+  `/internal/category` + `/internal/transaction`.
 - `GET /internal/categories?householdId=<uuid>` → `List<FinCategoryDto>` (ordered
   by name). Delegates to the `list_categories` tool. **POST `/internal/category`**
   (body `UpsertCategoryInput`) → `FinCategoryDto` (200) | 400 — delegates to

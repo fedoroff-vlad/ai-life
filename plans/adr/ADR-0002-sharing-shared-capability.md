@@ -187,8 +187,14 @@ shared and the *policy* local — the correct seam.
      `YearReporter` gained `report(msg, shared)` and the `report` classifier flow reads `scope:"shared"`.
      Balances have no dedicated agent read flow (only the `get_balance` MCP tool, tenant-scoped) → nothing to
      retrofit there.
-   - [ ] **4b — write:** `sharing/FinanceSharingPolicy` + route account creation once finance-agent has an
-     account-create seam (today accounts are created only via the `upsert_account` MCP tool).
+   - [x] **4b — write:** the finance sharing write path. Built the account-create seam (owner-chosen: a
+     chat-driven `AccountManager` flow, the sibling of `CategoryManager`) — mcp-finance `POST /internal/account`
+     passthrough + `AccountClient.upsert` + `account` classifier action + `account-manager` SKILL — and routed
+     it through the shared `SharingResolver` wired with a new `sharing/FinanceSharingPolicy` (joint account
+     → shared household, personal → the member's own; the account is the sharing boundary). mcp-finance stays
+     tenant-agnostic. Validated: unit `AccountManagerTest`/`IntentRouterTest` + mcp-finance controller test
+     green; `GoldenRoutingTest` structure + behaviour green on the real model (the `account` route confirmed).
+     **Finance is now fully retrofitted (read 4a + write 4b).**
 5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union
    read. Near-mechanical once the recipe is proven.
 6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**
