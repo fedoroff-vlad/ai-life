@@ -18,9 +18,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   domain wired yet → [HISTORY](HISTORY.md) row 2026-08-01). Slice 3 (retrofit calendar as the reference)
   **split write/read** (>5 files): **slice 3a ✅** = calendar-agent write path onto `SharingResolver` +
   new `sharing/CalendarSharingPolicy`, inline routing deleted, behaviour unchanged (7 ActionControllerTest
-  cases green). NEXT = **slice 3b = calendar-web read path** onto `libs/sharing`'s
-  `ProfileSharingClient.households` (retire the local `ProfileHouseholdsClient`) → 4 finance (w/ scoping) →
-  5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
+  cases green). **Slice 3b ✅** = calendar-web read path onto `libs/sharing`'s
+  `ProfileSharingClient.households` (via `config/SharingConfig`; local `ProfileHouseholdsClient` retired,
+  7 calendar-web tests green). **Calendar is now fully retrofitted — the capability's reference impl (both
+  paths).** NEXT = **slice 4 = finance** (short scoping pass first: joint-account vs per-txn sharing / what
+  the spouse sees / report cuts, then `sharing/FinanceSharingPolicy` + route writes + read the union) → 5
+  tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
   [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
