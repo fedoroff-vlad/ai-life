@@ -5,12 +5,22 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **No slice in flight.** The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) —
-  slices 1–5 shipped (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed,
-  closing #295). Deferred by design: action items 6 (`people.user_id` contact→user link) and 7
-  (default-sharing learn/confirm inference) — pick up when first needed. Detail →
-  [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md) §Action Items + [HISTORY.md](HISTORY.md)
-  (rows 2026-08-01). Next work is owner-prioritized from `## Next` below.
+- **Sharing-as-a-capability epic — IN FLIGHT ([adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md),
+  Accepted 2026-08-01).** Generalise ADR-0001's calendar tenant-routing into a reusable cross-domain
+  capability so finance/tasks/nutrition/docs get "own vs shared" without copy-paste. Design (owner-approved):
+  a shared leaf module **`libs/sharing`** (`SharingResolver` write-engine + `DefaultSharingPolicy`
+  extension point + `SharingContext` + `ProfileSharingClient`) taken by **all** agents *and* read-only web
+  services; `SharingScope` → `contracts/common`; each domain plugs a same-named **`sharing/`** package with
+  its `<Domain>SharingPolicy`. **Mechanism deterministic (privacy boundary, never LLM-decided); only the
+  default-when-unspecified is policy, later memory-driven via the same seam.** **Slice 1 ✅** (this PR —
+  accept ADR + architecture.md §Locked decisions + INDEX + PATTERNS "add sharing to a domain" recipe).
+  NEXT = **slice 2 = the `libs/sharing` module** (engine, no domain wired yet) → slice 3 retrofit calendar
+  as the reference → 4 finance (w/ scoping) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag
+  reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+- The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
+  (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
+  Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the
+  `DefaultSharingPolicy` seam of ADR-0002). Detail → [HISTORY.md](HISTORY.md) (rows 2026-08-01).
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
   [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).

@@ -1,0 +1,185 @@
+# ADR-0002: Sharing (personal vs shared) as a reusable cross-domain capability
+
+**Status:** Accepted (2026-08-01 — Option B; owner-approved: `libs/sharing` shared module + per-module
+`sharing/` policy; deterministic mechanism, extensible default-policy seam)
+**Date:** 2026-08-01
+**Deciders:** repo owner (holder/admin)
+**Builds on:** [ADR-0001](ADR-0001-identity-membership-scope.md) (multi-tenant workspace identity —
+personal household per user + M:N membership + per-item tenant routing). ADR-0001 shipped the identity
+substrate and proved the routing on **calendar** (slices 4–5). This ADR generalises that one-off into a
+**shared capability** every domain reuses.
+
+## Context
+
+ADR-0001 delivered "own vs shared" for calendar by routing each item to exactly one household (personal
+or family) and reading the union over the caller's membership set. The **infrastructure** it produced is
+already domain-neutral:
+
+- profile-service `GET /v1/users/{id}/household-routing` → `{personalHouseholdId, sharedHouseholdIds}`
+  (the write-path split) and `GET /v1/users/{id}/households` (the read-path union) — **not** calendar-specific.
+
+But the **consumer-side** logic landed inline in calendar:
+
+- `SharingScope{PRIVATE,SHARED}` lives in `contracts/calendar` (domain-tagged, but conceptually neutral).
+- the write-path resolution (explicit choice → else default-sharing policy → `householdRouting` → pick
+  personal/family → fallbacks) is hand-written in `calendar-agent`'s `ActionController`.
+- the read-path member→set resolution is hand-written in `calendar-web`.
+
+The owner's decision (design chat, 2026-08-01): **this must be a cemented architecture, not copied per
+domain.** Concretely:
+
+1. The reusable mechanism lives in a **shared location and is used by all** domains.
+2. Each domain's own tweak on top lives in a **same-named directory in every module** (one convention).
+3. The second household member (spouse) exists **from the start**, so the capability delivers value
+   immediately — this is not speculative.
+
+The domains that need it beyond calendar: **finance** (joint budget/expenses vs personal spending),
+**tasks** (household chores / shared shopping list vs personal todos), **nutrition** (shared meal plan /
+shopping vs the inherently-personal food log), **documents** (household warranty/contract vs personal ID).
+Copying calendar's inline logic into each is exactly the silent-drift failure the change-propagation
+rules exist to prevent.
+
+### Forces / constraints
+
+- **No duplication.** One engine, N thin policies. A change to the routing/fallback rules must land in
+  one place.
+- **Domain-specific "what is shared" is real.** The *default* of an item (occasion → shared; personal
+  meeting → private; joint-account txn → shared) is genuinely per-domain. The engine must accept a
+  domain policy, not hard-code one.
+- **Simplicity (owner value).** The per-domain cost of adopting sharing should be ~one small policy
+  class + wiring, not a re-derivation. Aim: a domain joins in ≤5 files.
+- **Not every domain shares.** coach / health / stylist-wardrobe are private by nature; creator /
+  research / market-data are single-owner. The capability is *opt-in* — a domain that never calls it is
+  unaffected.
+- **Reuse the ADR-0001 primitives** (`household-routing`, `/households`) rather than inventing new
+  identity surfaces.
+
+## Decision
+
+Adopt a **shared engine + per-module policy** design, named **`sharing`** throughout (aligns with the
+existing `SharingScope`).
+
+### 1. Shared core — a new leaf module `libs/sharing`, taken by **everyone**
+
+The mechanism is a small, dependency-light module both **domain agents** and **read-only web services**
+depend on (it pulls only `contracts` + reactor WebClient — no LLM, no skill registry), so there is **zero
+duplication**, including on the read side.
+
+- **`SharingScope` → `libs/contracts` `contracts/common`** (lifted out of `contracts/calendar`;
+  domain-neutral, and it is a wire type — it rides in `CreateEventInput` JSON). All domains reference the
+  one enum.
+- **`libs/sharing`:**
+  - `DefaultSharingPolicy` — the domain extension point: `SharingScope decide(SharingContext ctx)`.
+    `SharingContext` carries the neutral signals a policy reads (categories/tags, whether a household
+    member is involved, item kind). Implemented once per domain, in that domain's `sharing/` package.
+  - `SharingResolver` — the **write-path** engine: `resolveHousehold(userId, explicitScope, ctx,
+    fallbackHousehold) → Mono<UUID>`. Encapsulates the whole rule set currently inline in calendar:
+    explicit choice wins → else `policy.decide(ctx)` → household-routing → pick personal vs first-shared →
+    `userId`-absent / profile-404 → `fallbackHousehold` → shared-with-no-family degrades to personal.
+  - `ProfileSharingClient` — the thin identity read: `householdRouting(userId)` (write split) +
+    `households(userId)` (read union, personal ∪ shared). This is the one client both agents and web
+    services call, so the read-side member→set resolution is shared too (no per-service 2-liner).
+- **Policy is extensible by design (the seam).** `DefaultSharingPolicy` is the single point where the
+  *default* decision is made. Today each domain plugs a **deterministic** rule (occasions → shared,
+  joint-account → shared, else private). Later, the *same interface* can be backed by a
+  **memory/second-brain-driven** implementation (learn the owner's past choices, confirm only on
+  ambiguity — ADR-0001 action item 7) **without touching `SharingResolver` or any domain**. The
+  *mechanism* (which household a row lands in / which set a read spans) stays deterministic — it is a
+  privacy boundary, not a place for probabilistic inference; only the *default-when-unspecified* is where
+  judgement (and later, learning) lives.
+- **Cementing:** `architecture.md` §Locked decisions records "sharing (`libs/sharing`) is *the*
+  cross-domain personal/shared privacy primitive; the mechanism is deterministic, the default-policy is a
+  per-domain `DefaultSharingPolicy` that may later be memory-driven" (on acceptance); `PATTERNS.md` gets
+  an "**add sharing to a domain**" recipe pointing at calendar as the canonical example.
+
+### 2. Per-module convention (same-named directory)
+
+Every domain agent that opts in gets a package **`sharing/`** containing **only its domain tweak**:
+
+```
+domains/<domain>/<domain>-agent/.../sharing/
+    <Domain>SharingPolicy.java   implements DefaultSharingPolicy   // the "what is shared here" rule
+    (wiring: the agent injects SharingResolver with this policy)
+```
+
+The engine, the enum, the identity calls — all shared. The folder name is identical in every module, so
+"where's the sharing tweak for domain X" has one answer.
+
+### 3. Read side for non-agent web services
+
+`calendar-web` (a platform read service) is not a domain agent and must not pull the heavy
+`agent-runtime`. Because the mechanism lives in the light `libs/sharing` leaf, web services depend on
+**that** instead and call `ProfileSharingClient.households(userId)` for the member→set resolution — the
+same code agents use. No per-service duplication; the module boundary keeps web services free of the
+agent runtime while still sharing the identity read.
+
+## Options Considered
+
+### Option A: Copy calendar's inline logic into each domain
+**Rejected.** Every domain re-implements the resolver + fallbacks; a rule change (e.g. the
+shared-with-no-family degrade) must be found and fixed in N places — the exact silent-drift the
+change-propagation map exists to stop. Fails the owner's "no duplication" requirement.
+
+### Option B: Shared engine (`libs/sharing`) + per-module `sharing/` policy (**recommended**)
+| Dimension | Assessment |
+|-----------|------------|
+| Duplication | **None** — one resolver, N thin policies |
+| Per-domain cost | **Low** — a policy class + wiring, ≤5 files |
+| Domain fidelity | **High** — each domain keeps its own "what is shared" rule |
+| Fit to owner's ask | **Full** — shared mechanism used by all + same-named per-module dir |
+
+**Cons:** an up-front refactor (lift the enum, extract the engine, retrofit calendar as the reference)
+before the first new domain sees value.
+
+### Option C: Fully centralize, including the default-sharing policy
+One central policy that inspects item type for all domains. **Rejected** — "what is shared" is genuinely
+domain-specific and evolving (finance's joint-account rule has nothing to do with calendar's occasion
+rule); centralising it couples every domain to one file and one release. Option B keeps the *mechanism*
+shared and the *policy* local — the correct seam.
+
+## Consequences
+
+**Easier:**
+- Adding sharing to finance/tasks/nutrition/docs becomes a recipe (policy + wiring), not a design task.
+- The routing/fallback rules have exactly one home; a fix propagates to all domains at once.
+- calendar stops being a special case — it's the reference implementation of the shared engine.
+
+**Harder / to revisit:**
+- One refactor PR moves `SharingScope` and rewrites calendar onto the engine (blast radius: calendar
+  contract + calendar-agent + tests) before any new value — sequenced as the foundation slice.
+- The `SharingContext` shape is a new shared contract; it will need a field or two as new domains reveal
+  signals (start minimal: `categories`, `involvesHouseholdMember`, `itemKind`).
+- One new leaf module (`libs/sharing`) enters the build; it is small and dependency-light, and it is the
+  price of removing duplication across both agents and web services.
+- memory/second-brain still uses the older owner-tag model (ADR-0001 noted the reconciliation as
+  tech-debt); this ADR does **not** retrofit it — it stays a separate later item. When the
+  default-sharing *policy* graduates to memory-driven (ADR-0001 item 7), it plugs into the
+  `DefaultSharingPolicy` seam — no engine or domain change.
+
+## Action Items (slice sequence — each its own PR, ≤5 files)
+
+1. [x] **Accept this ADR**; update `architecture.md` §Locked decisions (sharing = the cross-domain
+   personal/shared primitive) + register in `INDEX.md` + add the `PATTERNS.md` "add sharing to a domain"
+   recipe. *(docs — this PR)*
+2. [ ] **Foundation — the `libs/sharing` module:** create the leaf module (`DefaultSharingPolicy`,
+   `SharingContext`, `SharingResolver`, `ProfileSharingClient`); lift `SharingScope` → `contracts/common`.
+   No domain wired yet beyond keeping the build green. *(the shared engine)*
+3. [ ] **Retrofit calendar (reference impl):** calendar-agent uses `SharingResolver` +
+   `sharing/CalendarSharingPolicy` (occasions → shared) on its write path; calendar-web uses
+   `libs/sharing`'s `ProfileSharingClient.households` on its read path. Behaviour unchanged; the inline
+   logic deleted. Calendar becomes the canonical example the PATTERNS recipe points at. *(may split
+   write/read if >5 files)*
+4. [ ] **Finance** — a short scoping pass first (joint-account-level vs per-transaction sharing; what the
+   spouse sees; report cuts), then `sharing/FinanceSharingPolicy` + route writes + read the union.
+5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union
+   read. Near-mechanical once the recipe is proven.
+6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**
+   (household vs personal docs).
+7. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
+
+## Notes
+
+Second ADR in the repo. `SharingContext` and `DefaultSharingPolicy` are new shared contracts — flagged
+here (new layer) rather than invented silently. Per the ADR convention, `architecture.md` §Locked
+decisions is updated only when this ADR reaches **Accepted**; until then it is the proposal and
+architecture.md remains current truth.
