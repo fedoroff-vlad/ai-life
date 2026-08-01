@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,5 +59,18 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpChartRenderWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpChartRenderUrl()).build();
+    }
+
+    /**
+     * The sharing capability's identity read (ADR-0002 slice 4), over the shared
+     * {@code profileServiceWebClient} (built by agent-runtime from {@code SharedClientProperties}) — the
+     * same client backing {@link dev.fedorov.ailife.agentruntime.http.ProfileClient}. Used by the read
+     * path ({@code financial-advisor} shared-scope) to union spending across the member's personal ∪
+     * shared households; mirrors calendar-agent's wiring.
+     */
+    @Bean
+    public ProfileSharingClient profileSharingClient(
+            @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
+        return new ProfileSharingClient(profileServiceWebClient);
     }
 }

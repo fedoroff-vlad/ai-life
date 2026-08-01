@@ -9,15 +9,20 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.SpendingClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,6 +42,16 @@ import java.util.UUID;
  * optimisation hints. Text-first — chart rendering is a deferred shared capability
  * (see finance.md "recorded vision"). Each gather step soft-fails independently
  * (Coordinator), and the whole flow degrades to a friendly message on error.
+ *
+ * <p><b>Sharing scope (ADR-0002 slice 4a — the shared personal/shared read capability).</b> By default
+ * the analysis is the member's <b>own</b> spending — the envelope {@code householdId} is their personal
+ * household ({@code IdentityResolver} creates it on first contact). When the user explicitly asks about
+ * <b>shared/family</b> spending ("наши траты"), the classifier sets {@code scope:"shared"} and this flow
+ * unions the read across the member's household set (personal ∪ shared) via
+ * {@link ProfileSharingClient#households(UUID)}, fanning the spend-by-category read out per household and
+ * merging the rows by category. mcp-finance stays tenant-agnostic — the member→household-set resolution
+ * lives here, in the agent, exactly like calendar-web's read path. An empty/failed set degrades to the
+ * envelope household, so a profile hiccup never breaks the analysis.
  */
 @Component
 public class FinancialAdvisor {
@@ -47,60 +62,114 @@ public class FinancialAdvisor {
 
     private final Coordinator coordinator;
     private final SpendingClient spending;
+    private final ProfileSharingClient profileSharing;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public FinancialAdvisor(Coordinator coordinator,
                             SpendingClient spending,
+                            ProfileSharingClient profileSharing,
                             SkillRegistry skills,
                             AgentManifest manifest,
                             ObjectMapper json) {
         this.coordinator = coordinator;
         this.spending = spending;
+        this.profileSharing = profileSharing;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
     }
 
+    /** Analyse the member's own (personal-household) spending. */
     public Mono<AdviceResult> advise(NormalizedMessage msg) {
+        return advise(msg, false);
+    }
+
+    /**
+     * @param shared when {@code true}, union the read across the member's personal ∪ shared households
+     *               (the "наши траты" cut); otherwise analyse only the envelope (personal) household.
+     */
+    public Mono<AdviceResult> advise(NormalizedMessage msg, boolean shared) {
         UUID household = msg == null ? null : msg.householdId();
         if (household == null) {
             return Mono.just(new AdviceResult(
                     "Не вижу, чей это бюджет — не могу проанализировать траты.", null));
         }
-        Instant now = Instant.now();
-        Instant recentFrom = now.minus(WINDOW);
-        Instant prevFrom = recentFrom.minus(WINDOW);
+        UUID userId = msg.userId();
+        return resolveHouseholds(household, userId, shared).flatMap(households -> {
+            Instant now = Instant.now();
+            Instant recentFrom = now.minus(WINDOW);
+            Instant prevFrom = recentFrom.minus(WINDOW);
 
-        Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
-        gather.put("recent", spendingNode(household, recentFrom, now));
-        gather.put("previous", spendingNode(household, prevFrom, recentFrom));
+            Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
+            gather.put("recent", spendingNode(households, recentFrom, now));
+            gather.put("previous", spendingNode(households, prevFrom, recentFrom));
 
-        ObjectNode payload = json.createObjectNode();
-        if (msg.text() != null && !msg.text().isBlank()) {
-            payload.put("userText", msg.text());
-        }
-        payload.put("recentWindowDays", WINDOW.toDays());
-        payload.put("comparedToPriorWindow", true);
+            ObjectNode payload = json.createObjectNode();
+            if (msg.text() != null && !msg.text().isBlank()) {
+                payload.put("userText", msg.text());
+            }
+            payload.put("recentWindowDays", WINDOW.toDays());
+            payload.put("comparedToPriorWindow", true);
+            // Tell the synthesis which cut it is analysing so it frames the reply ("твои"/"семейные").
+            payload.put("scope", shared ? "shared" : "personal");
 
-        return coordinator.coordinate(
-                        java.util.List.of(manifest.body(), skillBody()),
-                        payload,
-                        gather,
-                        LlmChannel.DEFAULT)
-                .map(r -> new AdviceResult(r.text(), r.llmModel()))
-                .onErrorResume(e -> {
-                    log.warn("financial-advisor failed for household {}: {}", household, e.toString());
-                    return Mono.just(new AdviceResult(
-                            "Не смог собрать данные для анализа трат. Попробуйте позже.", null));
-                });
+            return coordinator.coordinate(
+                            List.of(manifest.body(), skillBody()),
+                            payload,
+                            gather,
+                            LlmChannel.DEFAULT)
+                    .map(r -> new AdviceResult(r.text(), r.llmModel()));
+        }).onErrorResume(e -> {
+            log.warn("financial-advisor failed for household {}: {}", household, e.toString());
+            return Mono.just(new AdviceResult(
+                    "Не смог собрать данные для анализа трат. Попробуйте позже.", null));
+        });
     }
 
-    /** One spend-by-category window as JSON; an empty window is omitted by the Coordinator. */
-    private Mono<JsonNode> spendingNode(UUID household, Instant from, Instant to) {
-        return spending.spendingByCategory(household, from, to)
+    /**
+     * The household set the analysis reads across. Personal cut → just the envelope household. Shared cut →
+     * the member's personal ∪ shared set from profile-service, degrading to the envelope household when the
+     * set is empty (unknown user / profile down) so the read never breaks.
+     */
+    private Mono<List<UUID>> resolveHouseholds(UUID household, UUID userId, boolean shared) {
+        if (!shared || userId == null) {
+            return Mono.just(List.of(household));
+        }
+        return profileSharing.households(userId)
+                .map(set -> set.isEmpty() ? List.of(household) : set);
+    }
+
+    /**
+     * One spend-by-category window as JSON, unioned across {@code households} (a single-element list on the
+     * personal cut → identical to the pre-sharing behaviour). Rows from each household are merged by
+     * category. An empty window is omitted by the Coordinator.
+     */
+    private Mono<JsonNode> spendingNode(List<UUID> households, Instant from, Instant to) {
+        return Flux.fromIterable(households)
+                .flatMap(h -> spending.spendingByCategory(h, from, to))
+                .collectList()
+                .map(FinancialAdvisor::mergeByCategory)
                 .map(rows -> (JsonNode) json.valueToTree(rows));
+    }
+
+    /**
+     * Sum spend-by-category rows across households by category — {@code spent} and {@code txCount} add up,
+     * name/currency taken from the first row seen for a category. Deterministic (privacy boundary, no LLM);
+     * multi-currency categories keep the first currency (mcp-finance doesn't convert — see
+     * {@link SpendingByCategoryRow}).
+     */
+    static List<SpendingByCategoryRow> mergeByCategory(List<List<SpendingByCategoryRow>> perHousehold) {
+        Map<UUID, SpendingByCategoryRow> byCategory = new LinkedHashMap<>();
+        for (List<SpendingByCategoryRow> rows : perHousehold) {
+            for (SpendingByCategoryRow r : rows) {
+                byCategory.merge(r.categoryId(), r, (a, b) -> new SpendingByCategoryRow(
+                        a.categoryId(), a.categoryName(), a.currency(),
+                        a.spent().add(b.spent()), a.txCount() + b.txCount()));
+            }
+        }
+        return new ArrayList<>(byCategory.values());
     }
 
     private String skillBody() {

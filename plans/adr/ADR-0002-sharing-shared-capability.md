@@ -172,8 +172,19 @@ shared and the *policy* local — the correct seam.
    - [x] **3b — read:** calendar-web uses `libs/sharing`'s `ProfileSharingClient.households` on its read
      path (via `config/SharingConfig`; the local `ProfileHouseholdsClient` retired). Behaviour unchanged
      (7 calendar-web tests green). **Calendar fully retrofitted — the capability's reference impl.**
-4. [ ] **Finance** — a short scoping pass first (joint-account-level vs per-transaction sharing; what the
-   spouse sees; report cuts), then `sharing/FinanceSharingPolicy` + route writes + read the union.
+4. **Finance** — scoping decided (owner, 2026-08-01): **account-level, not per-transaction** — mcp-finance's
+   `addTransaction` cross-household guard already forces a transaction's household to equal its account's, so
+   the account is the sharing boundary (joint account → shared, personal card → private). **Report cut:**
+   default = the member's **own** (personal-household) spending; **shared/family on explicit request** ("наши
+   траты"). Split write/read like calendar:
+   - [x] **4a-i — read (advisor):** `finance-agent`'s `FinancialAdvisor` gained a shared-scope union read —
+     `advise(msg, shared)` reads across the member's personal ∪ shared households via
+     `ProfileSharingClient.households` (fan-out + `mergeByCategory`) when the classifier tags `scope:"shared"`;
+     default stays the personal household. `libs/sharing` bound (bean in `OutboundHttpConfig`). mcp-finance
+     untouched (tenant-agnostic).
+   - [ ] **4a-ii — read (reporters):** the same union onto `MonthlyReporter` / `YearReporter` (+ balances).
+   - [ ] **4b — write:** `sharing/FinanceSharingPolicy` + route account creation once finance-agent has an
+     account-create seam (today accounts are created only via the `upsert_account` MCP tool).
 5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union
    read. Near-mechanical once the recipe is proven.
 6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**

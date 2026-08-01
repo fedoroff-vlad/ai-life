@@ -186,7 +186,7 @@ class IntentRouterTest {
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
                 "{\"action\":\"advice\"}")));
-        when(advisor.advise(any(NormalizedMessage.class))).thenReturn(Mono.just(
+        when(advisor.advise(any(NormalizedMessage.class), eq(false))).thenReturn(Mono.just(
                 new FinancialAdvisor.AdviceResult("Больше всего ушло на еду: 300 EUR.", "mock-large")));
 
         StepVerifier.create(router.route(msg("проанализируй мои траты")))
@@ -199,6 +199,26 @@ class IntentRouterTest {
 
         // The analysis path does NOT touch the tool dispatcher.
         verify(dispatcher, never()).dispatch(anyString(), anyString());
+    }
+
+    @Test
+    void adviceWithSharedScopeHandsOffToTheUnionRead() {
+        // ADR-0002 slice 4a: "наши траты" → the classifier tags scope:shared, and the router must pass
+        // shared=true so FinancialAdvisor unions the read across personal ∪ shared households.
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("spending_by_category", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"advice\",\"scope\":\"shared\"}")));
+        when(advisor.advise(any(NormalizedMessage.class), eq(true))).thenReturn(Mono.just(
+                new FinancialAdvisor.AdviceResult("Семейные траты на еду: 200 EUR.", "mock-large")));
+
+        StepVerifier.create(router.route(msg("сколько мы потратили")))
+                .assertNext(r -> {
+                    assertThat(r.text()).isEqualTo("Семейные траты на еду: 200 EUR.");
+                    assertThat(r.invokedTool()).isEqualTo("advice");
+                })
+                .verifyComplete();
+
+        verify(advisor).advise(any(NormalizedMessage.class), eq(true));
     }
 
     @Test

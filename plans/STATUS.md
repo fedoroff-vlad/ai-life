@@ -21,10 +21,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   cases green). **Slice 3b ✅** = calendar-web read path onto `libs/sharing`'s
   `ProfileSharingClient.households` (via `config/SharingConfig`; local `ProfileHouseholdsClient` retired,
   7 calendar-web tests green). **Calendar is now fully retrofitted — the capability's reference impl (both
-  paths).** NEXT = **slice 4 = finance** (short scoping pass first: joint-account vs per-txn sharing / what
-  the spouse sees / report cuts, then `sharing/FinanceSharingPolicy` + route writes + read the union) → 5
-  tasks → 6 nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
-  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  paths).** **Slice 4 = finance — IN FLIGHT.** Scoping decided (owner, 2026-08-01): **account-level** (the
+  mcp-finance cross-household guard forces txn.household = account.household, so the account is the boundary),
+  **report cut = own/personal by default, shared on explicit request** ("наши траты"). **Slice 4a-i ✅** =
+  `FinancialAdvisor` shared-scope union read (`advise(msg, shared)` reads personal ∪ shared via
+  `ProfileSharingClient.households` + `mergeByCategory` when the classifier tags `scope:"shared"`; default
+  stays personal; `libs/sharing` bound in `OutboundHttpConfig`; mcp-finance untouched). NEXT = **4a-ii** same
+  union onto `MonthlyReporter`/`YearReporter` + balances → **4b** `sharing/FinanceSharingPolicy` + route
+  account creation (needs an account-create seam first) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory
+  owner-tag reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the

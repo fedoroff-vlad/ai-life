@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.SpendingClient;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.golden.GoldenLlm;
@@ -64,8 +65,10 @@ class GoldenAdvisorSynthesisTest {
             GoldenLlm.agentBody(GoldenAdvisorSynthesisTest.class.getClassLoader()));
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenAdvisorSynthesisTest.class.getClassLoader(), "skills/finance/financial-advisor/SKILL.md")));
+    // Personal-scope synthesis — the sharing read is never hit, so a bare mock suffices.
+    private final ProfileSharingClient profileSharing = mock(ProfileSharingClient.class);
     private final FinancialAdvisor advisor =
-            new FinancialAdvisor(coordinator, spending, skills, manifest, json);
+            new FinancialAdvisor(coordinator, spending, profileSharing, skills, manifest, json);
 
     // The recent window — the top category leads; currency is consistent so amounts are comparable.
     private static final String TOP = "Продукты";
