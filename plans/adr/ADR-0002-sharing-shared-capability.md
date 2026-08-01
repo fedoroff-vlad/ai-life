@@ -161,7 +161,7 @@ shared and the *policy* local — the correct seam.
 1. [x] **Accept this ADR**; update `architecture.md` §Locked decisions (sharing = the cross-domain
    personal/shared primitive) + register in `INDEX.md` + add the `PATTERNS.md` "add sharing to a domain"
    recipe. *(docs — this PR)*
-2. [ ] **Foundation — the `libs/sharing` module:** create the leaf module (`DefaultSharingPolicy`,
+2. [x] **Foundation — the `libs/sharing` module:** create the leaf module (`DefaultSharingPolicy`,
    `SharingContext`, `SharingResolver`, `ProfileSharingClient`); lift `SharingScope` → `contracts/common`.
    No domain wired yet beyond keeping the build green. *(the shared engine)*
 3. [ ] **Retrofit calendar (reference impl):** calendar-agent uses `SharingResolver` +

@@ -39,7 +39,8 @@ ai-life/
 │   ├── event-bus/           Postgres LISTEN/NOTIFY + outbox adapter
 │   ├── platform-common/     logging, metrics, error envelopes
 │   ├── agent-runtime/       AGENT.md/SKILL.md loaders + shared HTTP clients (agents @Import this)
-│   └── doc-render/           shared HTML deliverable renderer (stylist/nutrition boards)
+│   ├── doc-render/           shared HTML deliverable renderer (stylist/nutrition boards)
+│   └── sharing/             personal-vs-shared privacy engine (SharingResolver + per-domain policy seam)
 ├── platform/                cross-cutting SERVICES (the brain + infra):
 │                            orchestrator, gateway-telegram, llm-gateway, memory-service,
 │                            profile-service, scheduler-service, notifier-service,

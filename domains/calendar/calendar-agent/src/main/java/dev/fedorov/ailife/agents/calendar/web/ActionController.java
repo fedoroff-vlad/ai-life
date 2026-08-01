@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agents.calendar.http.CaldavEventClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.calendar.CreateEventInput;
-import dev.fedorov.ailife.contracts.calendar.SharingScope;
+import dev.fedorov.ailife.contracts.common.SharingScope;
 import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
