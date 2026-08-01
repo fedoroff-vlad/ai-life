@@ -3,8 +3,8 @@ package dev.fedorov.ailife.calendarweb.web;
 import dev.fedorov.ailife.calendarweb.config.CalendarWebProperties;
 import dev.fedorov.ailife.calendarweb.http.CalendarReadClient;
 import dev.fedorov.ailife.calendarweb.http.FeedResolveClient;
-import dev.fedorov.ailife.calendarweb.http.ProfileHouseholdsClient;
 import dev.fedorov.ailife.calendarweb.ics.IcsWriter;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -46,14 +46,14 @@ public class IcsFeedController {
     private final CalendarWebProperties props;
     private final CalendarReadClient client;
     private final FeedResolveClient feeds;
-    private final ProfileHouseholdsClient profileHouseholds;
+    private final ProfileSharingClient profileSharing;
 
     public IcsFeedController(CalendarWebProperties props, CalendarReadClient client,
-                            FeedResolveClient feeds, ProfileHouseholdsClient profileHouseholds) {
+                            FeedResolveClient feeds, ProfileSharingClient profileSharing) {
         this.props = props;
         this.client = client;
         this.feeds = feeds;
-        this.profileHouseholds = profileHouseholds;
+        this.profileSharing = profileSharing;
     }
 
     @GetMapping("/ics/{token}.ics")
@@ -89,7 +89,7 @@ public class IcsFeedController {
         if (feed.ownerId() == null) {
             return Mono.just(List.of(feed.householdId()));
         }
-        return profileHouseholds.households(feed.ownerId())
+        return profileSharing.households(feed.ownerId())
                 .map(set -> set.isEmpty() ? List.of(feed.householdId()) : set);
     }
 

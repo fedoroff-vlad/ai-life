@@ -93,7 +93,7 @@ collection — but the ICS feed is the one URL that works for all three.
 - `config/CalendarWebProperties` — `calendar-web.{mcp-caldav-url, profile-service-url, past-days, future-days, feeds[]}`; `feedByToken`.
 - `http/CalendarReadClient` — `GET /internal/events` over mcp-caldav (the deterministic read surface); reads the union over a household set (repeatable `householdId`).
 - `http/FeedResolveClient` — resolves a token → `CalendarFeedDto` via mcp-caldav `GET /internal/feeds/{token}` (404 → env fallback).
-- `http/ProfileHouseholdsClient` — resolves a feed `ownerId` → household set (personal ∪ shared) via profile-service `GET /v1/users/{id}/households`; any failure → empty (caller falls back to the feed household). ADR-0001 slice 5 / #295.
+- `config/SharingConfig` — wires `libs/sharing`'s `ProfileSharingClient` bean (over a profile-service-bound `WebClient`). The read path resolves a feed `ownerId` → household set (personal ∪ shared) via `ProfileSharingClient.households` (profile-service `GET /v1/users/{id}/households`); any failure → empty (caller falls back to the feed household). ADR-0002 slice 3b retired the former local `ProfileHouseholdsClient` so the member→set resolution lives once in `libs/sharing` (shared with the agents).
 - `ics/IcsWriter` — hand-rolled RFC-5545 renderer (escaping + CRLF + 75-octet folding).
 - `web/IcsFeedController` — `GET /ics/{token}.ics`; token → household set (per-person for owner-set feeds, single household otherwise) → events → ICS; 404 on unknown token.
 

@@ -169,8 +169,9 @@ shared and the *policy* local — the correct seam.
      (occasions → shared) on its write path; the inline routing/fallback logic deleted. Behaviour
      unchanged (7 `ActionControllerTest` cases green). Calendar is now the canonical example the PATTERNS
      recipe points at.
-   - [ ] **3b — read:** calendar-web uses `libs/sharing`'s `ProfileSharingClient.households` on its read
-     path (retire the local `ProfileHouseholdsClient`). Behaviour unchanged.
+   - [x] **3b — read:** calendar-web uses `libs/sharing`'s `ProfileSharingClient.households` on its read
+     path (via `config/SharingConfig`; the local `ProfileHouseholdsClient` retired). Behaviour unchanged
+     (7 calendar-web tests green). **Calendar fully retrofitted — the capability's reference impl.**
 4. [ ] **Finance** — a short scoping pass first (joint-account-level vs per-transaction sharing; what the
    spouse sees; report cuts), then `sharing/FinanceSharingPolicy` + route writes + read the union.
 5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union
