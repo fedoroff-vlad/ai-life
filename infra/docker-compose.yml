@@ -1642,10 +1642,13 @@ services:
     depends_on:
       mcp-caldav:
         condition: service_healthy
+      profile-service:
+        condition: service_healthy
     environment:
       JAVA_TOOL_OPTIONS: *jvm-opts
       CALENDAR_WEB_PORT: 8113
       MCP_CALDAV_URL: http://mcp-caldav:8090
+      PROFILE_SERVICE_URL: http://profile-service:8082
       CALENDAR_WEB_PAST_DAYS: ${CALENDAR_WEB_PAST_DAYS:-31}
       CALENDAR_WEB_FUTURE_DAYS: ${CALENDAR_WEB_FUTURE_DAYS:-366}
     healthcheck:

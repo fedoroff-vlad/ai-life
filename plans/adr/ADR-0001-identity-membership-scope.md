@@ -1,6 +1,8 @@
 # ADR-0001: Identity, membership, and per-item scope (multi-tenant workspace model)
 
-**Status:** Accepted (2026-07-31 — Option B; implementation plan owner-approved)
+**Status:** Accepted (2026-07-31 — Option B; implementation plan owner-approved). **Implementation epic
+COMPLETE 2026-08-01** — slices 1–5 shipped (invite onboarding + calendar per-item routing + per-member
+ICS feed / #295); action items 6 (`people.user_id`) and 7 (default-sharing inference) remain deferred.
 **Date:** 2026-07-31
 **Deciders:** repo owner (holder/admin)
 **Drives:** #295 (per-person ICS feed content filtering) — the concrete use-case that surfaced this gap.
@@ -195,9 +197,12 @@ an event scope column) is proportionate and lands in independent slices.
    personal/family `household_id` (slice 4b, PR#384). mcp-caldav stays tenant-agnostic; a `userId`-absent
    request (or profile 404) falls back to the envelope household; a shared choice with no family household
    degrades to personal. Reads honoring the caller's household set = slice 5.
-5. [ ] **#295 feed filter:** `GET /internal/events` filters by the requesting member's household set
-   (personal ∪ shared); calendar-web passes the resolved feed's member; ICS feed now serves own +
-   shared only.
+5. [x] **#295 feed filter (epic closer):** `GET /internal/events` accepts a repeatable `householdId`
+   and returns the union over the set (slice 5a, PR#385); calendar-web resolves a per-person feed's
+   `ownerId` → the member's household set (personal ∪ shared) via profile-service
+   `GET /v1/users/{id}/households` and reads that union, so the ICS feed serves own + shared only
+   (slice 5b, PR#386). Owner-less feeds keep serving their single household; a profile failure falls
+   back to the feed's own household. mcp-caldav stays tenant-agnostic.
 6. [ ] **(deferred) `people.user_id` link** — when the "contact becomes a user" path is first needed.
 7. [ ] **(deferred) default-sharing inference** — the learn/confirm policy (own tracking issue).
 

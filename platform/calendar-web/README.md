@@ -20,11 +20,11 @@ and a full CalDAV client exposes writes — a second write path.)
 
 | method | path | purpose |
 |--------|------|---------|
-| GET | `/ics/{token}.ics` | Read-only `text/calendar` feed for the household behind `{token}`. Unknown token → 404. |
+| GET | `/ics/{token}.ics` | Read-only `text/calendar` feed behind `{token}`. A per-person feed (owner set) serves the member's household set (own + shared); an owner-less feed serves its single household. Unknown token → 404. |
 | GET | `/actuator/health` | liveness |
 
 The feed window is `[now-pastDays, now+futureDays)` (defaults 31 / 366 days). Events come from
-`mcp-caldav` `GET /internal/events`.
+`mcp-caldav` `GET /internal/events` (a repeatable `householdId` param → the union over the household set).
 
 ## Configuration
 
@@ -32,6 +32,7 @@ The feed window is `[now-pastDays, now+futureDays)` (defaults 31 / 366 days). Ev
 |---|---|---|
 | `CALENDAR_WEB_PORT` | `8113` | HTTP port |
 | `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | mcp-caldav base URL (the read passthrough) |
+| `PROFILE_SERVICE_URL` | `http://profile-service:8082` | profile-service base URL — resolves a per-person feed's `ownerId` → household set (personal ∪ shared, #295) |
 | `CALENDAR_WEB_PAST_DAYS` | `31` | how far back the feed spans |
 | `CALENDAR_WEB_FUTURE_DAYS` | `366` | how far ahead the feed spans |
 
@@ -51,9 +52,12 @@ CALENDAR_WEB_FEEDS_1_HOUSEHOLD_ID=<uuid>
 CALENDAR_WEB_FEEDS_1_LABEL=Maria
 ```
 
-> **MVP scope:** a feed currently exposes the **whole household's** events (a 2-person household shares a
-> calendar). Per-person private/shared filtering is a follow-up — `events_cache` carries `person_id` but
-> no visibility flag yet.
+**Per-person filtering (ADR-0001 slice 5 / #295):** a minted feed carries an `ownerId` (the member it
+was issued to). calendar-web resolves that owner to their **household set** (personal ∪ shared) via
+profile-service `GET /v1/users/{id}/households` and reads the union — so each member sees their own
+events **plus** the shared family ones, and nothing private to another member. A feed with **no** owner
+(the static env feeds, or a legacy whole-household feed) still serves its single household. Any profile
+lookup failure falls back to the feed's own household — the feed never breaks on a profile hiccup.
 
 ## Public HTTPS — bundled Tailscale Funnel (one-time setup, then automatic)
 
@@ -86,10 +90,12 @@ collection — but the ICS feed is the one URL that works for all three.
 
 ## Key classes
 - `CalendarWebApplication`.
-- `config/CalendarWebProperties` — `calendar-web.{mcp-caldav-url, past-days, future-days, feeds[]}`; `feedByToken`.
-- `http/CalendarReadClient` — `GET /internal/events` over mcp-caldav (the deterministic read surface).
+- `config/CalendarWebProperties` — `calendar-web.{mcp-caldav-url, profile-service-url, past-days, future-days, feeds[]}`; `feedByToken`.
+- `http/CalendarReadClient` — `GET /internal/events` over mcp-caldav (the deterministic read surface); reads the union over a household set (repeatable `householdId`).
+- `http/FeedResolveClient` — resolves a token → `CalendarFeedDto` via mcp-caldav `GET /internal/feeds/{token}` (404 → env fallback).
+- `http/ProfileHouseholdsClient` — resolves a feed `ownerId` → household set (personal ∪ shared) via profile-service `GET /v1/users/{id}/households`; any failure → empty (caller falls back to the feed household). ADR-0001 slice 5 / #295.
 - `ics/IcsWriter` — hand-rolled RFC-5545 renderer (escaping + CRLF + 75-octet folding).
-- `web/IcsFeedController` — `GET /ics/{token}.ics`; token → household → events → ICS; 404 on unknown token.
+- `web/IcsFeedController` — `GET /ics/{token}.ics`; token → household set (per-person for owner-set feeds, single household otherwise) → events → ICS; 404 on unknown token.
 
 ## Run locally
 
