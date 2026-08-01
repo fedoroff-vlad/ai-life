@@ -26,10 +26,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   **report cut = own/personal by default, shared on explicit request** ("наши траты"). **Slice 4a-i ✅** =
   `FinancialAdvisor` shared-scope union read (`advise(msg, shared)` reads personal ∪ shared via
   `ProfileSharingClient.households` + `mergeByCategory` when the classifier tags `scope:"shared"`; default
-  stays personal; `libs/sharing` bound in `OutboundHttpConfig`; mcp-finance untouched). NEXT = **4a-ii** same
-  union onto `MonthlyReporter`/`YearReporter` + balances → **4b** `sharing/FinanceSharingPolicy` + route
-  account creation (needs an account-create seam first) → 5 tasks → 6 nutrition+docs → 7 (deferred) memory
-  owner-tag reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  stays personal; `libs/sharing` bound in `OutboundHttpConfig`; mcp-finance untouched). **Slice 4a-ii ✅** =
+  the cut + merge lifted into a shared `read/SpendingReads` helper (advisor adopts it too — no duplication);
+  `MonthlyReporter`/`YearReporter` gained `report(msg, shared)` + the `report` flow reads `scope:"shared"`
+  (balances have no agent read flow → nothing to retrofit). **Finance read side done.** NEXT = **4b**
+  `sharing/FinanceSharingPolicy` + route account creation (needs an account-create seam first) → 5 tasks →
+  6 nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
+  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the

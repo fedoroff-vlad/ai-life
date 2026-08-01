@@ -111,10 +111,14 @@ public class IntentRouter {
                 "invest", (msg, node) -> investmentAdvisor.advise(msg, readSymbols(node))
                         .map(a -> new RouterResult(a.text(), "invest", a.model())),
                 // period=year → the YearReporter (year window + per-month trend chart); anything else
-                // (default month) → the MonthlyReporter. Both are Coordinator-backed HTML deliverables.
-                "report", (msg, node) -> "year".equalsIgnoreCase(node.path("period").asText(""))
-                        ? yearReporter.report(msg).map(r -> new RouterResult(r.text(), "report", r.model()))
-                        : monthlyReporter.report(msg).map(r -> new RouterResult(r.text(), "report", r.model())),
+                // (default month) → the MonthlyReporter. Both are Coordinator-backed HTML deliverables, and
+                // both honour scope=shared → the family cut (personal ∪ shared households), else own only.
+                "report", (msg, node) -> {
+                    boolean shared = "shared".equalsIgnoreCase(node.path("scope").asText(""));
+                    return "year".equalsIgnoreCase(node.path("period").asText(""))
+                            ? yearReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()))
+                            : monthlyReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()));
+                },
                 "category", (msg, node) -> categoryManager.manage(msg)
                         .map(r -> new RouterResult(r.text(), "category", r.model())));
     }
@@ -200,7 +204,9 @@ public class IntentRouter {
                                 + " " + flowTrigger("year-report", "The annual variant of the finance report.")
                                 + " It builds an HTML report of the spending and returns a link. Set \"period\":\"year\" "
                                 + "when the user asks for the YEAR / annual summary; otherwise \"period\":\"month\" "
-                                + "(the default — current month).",
+                                + "(the default — current month)."
+                                + " By default it reports the user's OWN spending; add \"scope\":\"shared\" ONLY when they"
+                                + " explicitly ask for a SHARED / FAMILY report (\"семейный отчёт\", \"наши траты\").",
                         "{\"action\":\"report\",\"period\":\"month\"}"),
                 new Choice("invest",
                         "There is also a built-in INVESTMENT ADVISORY flow (not a tool): "
