@@ -189,6 +189,38 @@ Rules:
    `-- Mirrors infra/liquibase/features/{…}.yml` header comment so the next
    maintainer can re-sync.
 
+## Recipe: add sharing (personal vs shared) to a domain
+Canonical example: **calendar** (`calendar-agent` write path + `calendar-web` read path) — the reference
+implementation of [ADR-0002](adr/ADR-0002-sharing-shared-capability.md). The mechanism lives once in
+`libs/sharing`; a domain adds only its **policy** + wiring. **The routing mechanism is deterministic — a
+privacy boundary, never LLM-decided.** Only the *default-when-unspecified* is judgement, and it plugs into
+the `DefaultSharingPolicy` seam (a static rule today; a memory-driven one later — same interface).
+
+Prereq: the domain's rows carry `household_id` (they already do — it is the visibility boundary), and the
+create-input can carry a `SharingScope` (`contracts/common`).
+
+1. **Write path (the agent).** In `domains/<domain>/<domain>-agent/.../sharing/`:
+   - `<Domain>SharingPolicy implements DefaultSharingPolicy` — the one domain rule: `SharingScope
+     decide(SharingContext)` (e.g. finance: joint-account → shared, else private). This is the **only**
+     "what is shared here" logic; everything else is shared.
+   - Wire `SharingResolver` (from `libs/sharing`) with that policy; on create, call
+     `resolveHousehold(userId, input.sharing(), ctx, envelopeHousehold)` and write the returned
+     `household_id`. Do **not** re-implement the personal/family pick or the fallbacks — they are in
+     `SharingResolver`.
+   - Add a `SharingScope sharing` field (+ a `withHouseholdId` copy) to the domain's create-input contract.
+2. **Read path (the union).** Wherever the domain reads "own + shared":
+   - resolve the member's household set via `libs/sharing` `ProfileSharingClient.households(userId)`
+     (agents and read-only web services both depend on `libs/sharing` — no per-service duplication);
+   - read the domain rows across that set (a repeatable `householdId` / `IN (:set)` query — mirror
+     mcp-caldav's `GET /internal/events` + `findInRangeForHouseholds`).
+3. **Do not** put routing in the domain-MCP — MCPs stay **tenant-agnostic** (they write/read whatever
+   household they are handed). The member→household resolution lives in the agent / web layer.
+4. Tests: assert the explicit choice, the policy default, and the fallbacks (no `userId` / no shared
+   household) route to the right `household_id`; assert the read unions own + shared and leaks nothing
+   private to another member. Mirror `ActionControllerTest` (write) + `IcsFeedControllerTest` (read).
+5. Docs: the domain plan's tenant-scope section + the module READMEs; if the create-input contract gained
+   `sharing`, that is a public-surface change (README-upkeep rule).
+
 ## Recipe: add a new contract DTO
 Canonical examples: any record in [libs/contracts](../libs/contracts) — they are
 deliberately tiny and `@JsonInclude(NON_NULL)`.
