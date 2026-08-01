@@ -2,22 +2,19 @@ package dev.fedorov.ailife.agents.calendar.web;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
-import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.calendar.http.CaldavEventClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.calendar.CreateEventInput;
-import dev.fedorov.ailife.contracts.common.SharingScope;
-import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
+import dev.fedorov.ailife.sharing.SharingContext;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
-import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -29,13 +26,15 @@ import java.util.UUID;
  * Always replies with an {@link AgentActionResult} (never an HTTP error), so the
  * caller gets a structured {@code ok=false} on a bad request.
  *
- * <p><b>Tenant routing (ADR-0001 slice 4).</b> The event's household is no longer taken verbatim from
- * the envelope: the item's {@link SharingScope} choice (explicit on the args, else the default-sharing
- * policy — occasions shared, everything else private) is resolved against the acting user's
- * {@code household-routing} split to a concrete personal/family {@code household_id}. mcp-caldav stays
- * tenant-agnostic — it writes to whatever household it is handed. When the request carries no
- * {@code userId} (or profile-service can't resolve one), we fall back to the envelope household so the
- * pre-membership inter-agent path keeps working.
+ * <p><b>Tenant routing (ADR-0002 — the shared sharing capability).</b> The event's household is no longer
+ * taken verbatim from the envelope: the item's sharing choice (explicit on the args, else calendar's
+ * {@code CalendarSharingPolicy} default — occasions shared, everything else private) is resolved by the
+ * shared {@link SharingResolver} against the acting user's {@code household-routing} split to a concrete
+ * personal/family {@code household_id}. The routing/fallback rules live once in {@code libs/sharing}; this
+ * controller only builds the {@link SharingContext} and hands off. mcp-caldav stays tenant-agnostic — it
+ * writes to whatever household it is handed. When the request carries no {@code userId} (or profile-service
+ * can't resolve one), the resolver falls back to the envelope household so the pre-membership inter-agent
+ * path keeps working. Calendar is the reference implementation of this capability (ADR-0002 slice 3).
  *
  * <p>Also registers the generic <b>{@code brief}</b> read-action (#290, Slice B2-followup): it delegates
  * to the shared {@link BriefResponder} so the coordinator can ask calendar a focused sub-question
@@ -45,18 +44,15 @@ import java.util.UUID;
 @RestController
 public class ActionController extends AgentActionController {
 
-    /** Category tags that default an event to the shared household (ADR-0001 default-sharing policy). */
-    private static final Set<String> OCCASION_CATEGORIES = Set.of("birthday", "anniversary", "occasion");
-
     private final CaldavEventClient caldav;
-    private final ProfileClient profile;
+    private final SharingResolver sharing;
     private final ObjectMapper json;
 
-    public ActionController(CaldavEventClient caldav, ProfileClient profile,
+    public ActionController(CaldavEventClient caldav, SharingResolver sharing,
                             BriefResponder briefResponder, ObjectMapper json) {
         super("calendar");
         this.caldav = caldav;
-        this.profile = profile;
+        this.sharing = sharing;
         this.json = json;
         register("create_event", this::createEvent);
         // Generic read-only cross-agent query (#290, Slice B): the coordinator can ask calendar a
@@ -86,54 +82,15 @@ public class ActionController extends AgentActionController {
                     "create_event requires summary and dtstart"));
         }
 
-        SharingScope sharing = parsed.sharing() != null ? parsed.sharing() : defaultSharing(parsed);
         UUID envelopeHousehold = request.householdId() != null
                 ? request.householdId() : parsed.householdId();
+        SharingContext ctx = SharingContext.ofCategories(parsed.categories());
 
-        return resolveHousehold(request.userId(), sharing, envelopeHousehold)
+        return sharing.resolveHousehold(request.userId(), parsed.sharing(), ctx, envelopeHousehold)
                 .flatMap(household -> caldav.createEvent(parsed.withHouseholdId(household))
                         .map(dto -> AgentActionResult.ok(
                                 json.createObjectNode().put("eventUid", dto.calendarUid()))))
                 .switchIfEmpty(Mono.just(AgentActionResult.error(
                         "create_event requires a resolvable household (userId or householdId)")));
-    }
-
-    /**
-     * Resolve the concrete household to write into. With a {@code userId}, ask profile-service for the
-     * routing split and pick personal vs shared per the choice; with none (or on a 404), fall back to
-     * the envelope household so the pre-membership path is unchanged.
-     */
-    private Mono<UUID> resolveHousehold(UUID userId, SharingScope sharing, UUID envelopeHousehold) {
-        if (userId == null) {
-            return Mono.justOrEmpty(envelopeHousehold);
-        }
-        return profile.householdRouting(userId)
-                .flatMap(routing -> Mono.justOrEmpty(pickHousehold(routing, sharing)))
-                .switchIfEmpty(Mono.justOrEmpty(envelopeHousehold));
-    }
-
-    /**
-     * SHARED → the first family household when the user has one, else personal; PRIVATE → personal.
-     * A shared choice with no family household degrades to personal — the single-owner reality where
-     * no shared space exists yet (ADR-0001).
-     */
-    private static UUID pickHousehold(HouseholdRoutingDto routing, SharingScope sharing) {
-        if (sharing == SharingScope.SHARED
-                && routing.sharedHouseholdIds() != null && !routing.sharedHouseholdIds().isEmpty()) {
-            return routing.sharedHouseholdIds().get(0);
-        }
-        return routing.personalHouseholdId();
-    }
-
-    /** Static default-sharing policy (ADR-0001): occasions → shared, everything else → private. */
-    private static SharingScope defaultSharing(CreateEventInput input) {
-        if (input.categories() != null) {
-            for (String c : input.categories()) {
-                if (c != null && OCCASION_CATEGORIES.contains(c.trim().toLowerCase(Locale.ROOT))) {
-                    return SharingScope.SHARED;
-                }
-            }
-        }
-        return SharingScope.PRIVATE;
     }
 }
