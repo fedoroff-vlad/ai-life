@@ -125,7 +125,14 @@ public class ModelProfileService {
         return evict(outgoing)
                 .then(Mono.fromRunnable(() -> adopt(profile, incoming)))
                 .then(warm(incoming))
-                .doFinally(signal -> switching.set(false))
+                // Release the in-flight guard *before* the terminal signal reaches a subscriber.
+                // doFinally runs its callback AFTER propagating onComplete/onError downstream, so a
+                // caller's switchTo(...).block() could return before switching flipped back to false —
+                // a following switch would then spuriously see one in flight (SwitchInProgressException).
+                // doOnTerminate runs before the signal is propagated (the correct ordering); doOnCancel
+                // keeps the cancellation coverage doFinally gave us.
+                .doOnTerminate(() -> switching.set(false))
+                .doOnCancel(() -> switching.set(false))
                 .then();
     }
 
