@@ -15,6 +15,7 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -112,6 +113,22 @@ public class CalendarMcpTools {
     @Transactional(readOnly = true)
     public List<CalendarEventDto> listEvents(ListEventsInput input) {
         return repo.findInRange(input.householdId(), input.from(), input.to())
+                .stream().map(EventMirror::toDto).toList();
+    }
+
+    /**
+     * Read events across a <b>set</b> of households in {@code [from, to)}, ordered by start. Not an MCP
+     * {@code @Tool} (the LLM tool stays single-household); this is the deterministic read the per-member
+     * ICS feed uses to serve the caller's household union (personal ∪ shared, ADR-0001 slice 5, #295).
+     * An empty set yields an empty list.
+     */
+    @Transactional(readOnly = true)
+    public List<CalendarEventDto> listEventsInHouseholds(Collection<UUID> householdIds,
+                                                         java.time.Instant from, java.time.Instant to) {
+        if (householdIds == null || householdIds.isEmpty()) {
+            return List.of();
+        }
+        return repo.findInRangeForHouseholds(householdIds, from, to)
                 .stream().map(EventMirror::toDto).toList();
     }
 
