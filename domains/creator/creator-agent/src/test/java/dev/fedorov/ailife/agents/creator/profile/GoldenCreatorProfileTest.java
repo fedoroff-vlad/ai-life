@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the creator {@code creator-profiler} <b>JSON-extract
- * skill</b> against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway),
+ * skill</b> against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway),
  * asserting <b>structure, not text</b> (roadmap §Risks). The sixth agent on the JSON-extract surface:
  * given a typed description of a creator track, the real model must emit a profile object the production
  * {@link CreatorProfiler} parses into a {@link SetCreatorProfileInput} — a real niche plus at least one

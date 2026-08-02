@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the finance {@code financial-advisor} <b>synthesis
- * skill</b> against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway),
+ * skill</b> against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway),
  * asserting <b>structure, not text</b> (roadmap §Risks). Complements the researcher synthesis golden
  * test (link provenance) by covering the issue's other synthesis concern — <i>"a synthesis contains
  * its required content, grounded in the data"</i>: given two fixed spend-by-category windows, the real
@@ -38,10 +38,10 @@ import static org.mockito.Mockito.when;
  *
  * <p><b>Opt-in / gated.</b> Skipped unless {@code GOLDEN_LLM} is set (CI default = unset). To run it:
  * <pre>
- *   # 1. local Ollama with qwen2.5:7b pulled (see project memory / llm-gateway README)
+ *   # 1. local Ollama with qwen3:8b pulled (see project memory / llm-gateway README)
  *   # 2. a llm-gateway pointed at it (raise the timeout — synthesis is a long generation):
  *   LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
- *   LLM_DEFAULT_MODEL=qwen2.5:7b LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
+ *   LLM_DEFAULT_MODEL=qwen3:8b LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
  *     mvn -q -pl platform/llm-gateway spring-boot:run
  *   # 3. the test, pointed at the gateway:
  *   GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \

@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the briefing {@code briefing-composer} <b>synthesis
- * skill</b> against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway),
+ * skill</b> against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway),
  * asserting <b>structure, not text</b> (roadmap §Risks). Given a fixed, pre-gathered corpus (the
  * cheap-first gather is mocked), the real model must write a grounded morning briefing whose every cited
  * link is a corpus link — the failure mode that matters for a briefing agent is a fabricated headline or

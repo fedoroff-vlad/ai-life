@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> — exercises the docs {@code doc-finder} <b>JSON-extract skill</b> against a
- * <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b> (roadmap §Risks): given a "find my X" request, the real model must distil a
  * non-blank search {@code query} the production {@link DocFinder} passes to the archive search.
  *

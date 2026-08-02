@@ -38,7 +38,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Golden test — the {@code reflect} <b>strict-JSON synthesis</b> against a <b>real model</b> (local
- * Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting <b>structure, not text</b>: over a
+ * Ollama {@code qwen3:8b} via a running llm-gateway), asserting <b>structure, not text</b>: over a
  * strongly-patterned journal fixture the model must return an object the production {@link Reflector}
  * parses and persists — a {@code reflect} session plus at least one observation carrying a whitelisted
  * method tag. Wording is never asserted.

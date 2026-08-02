@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> — exercises the docs {@code doc-archiver} <b>JSON-extract skill</b> against
- * a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b> (roadmap §Risks): given a real document's OCR text, the real model must
  * emit a metadata object the production {@link DocArchiver} parses into a {@link SaveDocumentInput} with
  * a usable {@code docType} plus at least one other extracted field (title / party / date).

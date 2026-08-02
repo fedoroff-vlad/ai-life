@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the briefing {@code briefing-profiler} <b>JSON-extract
- * skill</b> against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway),
+ * skill</b> against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway),
  * asserting <b>structure, not text</b> (roadmap §Risks): given a typed briefing config, the real model
  * must emit a preferences object the production {@link BriefingProfiler} parses into a
  * {@link SetBriefingProfileInput} with a location plus at least one other extracted field.

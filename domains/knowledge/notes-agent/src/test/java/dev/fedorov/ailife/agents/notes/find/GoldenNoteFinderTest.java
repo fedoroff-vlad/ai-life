@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> — exercises the {@code note-finder} <b>JSON-extract skill</b> against a
- * <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b>: given a "что я думал про …" request, the real model must distil a
  * non-blank search {@code query} the production {@link NoteFinder} passes to memory-service recall.
  *
