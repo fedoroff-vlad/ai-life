@@ -180,8 +180,8 @@ public class ModelProfileService {
                 .map(json -> {
                     for (JsonNode entry : json.path("models")) {
                         // Ollama reports the tag as `model`; older builds used `name`.
-                        if (model.equals(entry.path("model").asText(""))
-                                || model.equals(entry.path("name").asText(""))) {
+                        if (model.equals(entry.path("model").asString(""))
+                                || model.equals(entry.path("name").asString(""))) {
                             return true;
                         }
                     }
@@ -209,12 +209,14 @@ public class ModelProfileService {
 
     /** The switch could not be completed — the caller must treat this as "did not happen". */
     public static class ModelSwitchException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         public ModelSwitchException(String message) {
             super(message);
         }
     }
 
     public static class EvictionTimeoutException extends ModelSwitchException {
+        private static final long serialVersionUID = 1L;
         public EvictionTimeoutException(String model, Duration waited) {
             super("model '" + model + "' was still resident in Ollama after " + waited.toSeconds()
                     + "s — refusing to switch, because loading the incoming model on top of it "
@@ -223,12 +225,14 @@ public class ModelProfileService {
     }
 
     public static class SwitchInProgressException extends ModelSwitchException {
+        private static final long serialVersionUID = 1L;
         public SwitchInProgressException() {
             super("another model-profile switch is in flight — retry once it settles");
         }
     }
 
     public static class UnknownProfileException extends ModelSwitchException {
+        private static final long serialVersionUID = 1L;
         public UnknownProfileException(String profile) {
             super("unknown profile '" + profile + "' (expected '" + NORMAL + "' or '" + CODER_ACTIVE + "')");
         }

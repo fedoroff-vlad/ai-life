@@ -99,7 +99,7 @@ class InternalRedditTrendsControllerTest {
         assertThat(hit.title()).isEqualTo("How I learned IT English in 3 months");
         assertThat(hit.url()).isEqualTo("https://www.reddit.com/r/EnglishLearning/comments/abc/how_i_learned/");
         assertThat(hit.summary()).isEqualTo("Here is what worked for me.");
-        assertThat(hit.metrics().get("subreddit").asText()).isEqualTo("EnglishLearning");
+        assertThat(hit.metrics().get("subreddit").asString()).isEqualTo("EnglishLearning");
         assertThat(hit.metrics().get("score").asInt()).isEqualTo(1280);
         assertThat(hit.metrics().get("numComments").asInt()).isEqualTo(95);
 

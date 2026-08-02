@@ -100,13 +100,13 @@ public class TriggerController {
             return null;
         }
         JsonNode node = payload.get("ownerId");
-        if (node == null || node.isNull() || node.asText().isBlank()) {
+        if (node == null || node.isNull() || node.asString().isBlank()) {
             return null;
         }
         try {
-            return UUID.fromString(node.asText());
+            return UUID.fromString(node.asString());
         } catch (IllegalArgumentException e) {
-            log.warn("payload.ownerId not a UUID: {}", node.asText());
+            log.warn("payload.ownerId not a UUID: {}", node.asString());
             return null;
         }
     }

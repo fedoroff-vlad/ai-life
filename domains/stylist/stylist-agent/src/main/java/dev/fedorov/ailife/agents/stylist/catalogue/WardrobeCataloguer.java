@@ -136,7 +136,7 @@ public class WardrobeCataloguer {
     }
 
     private static String text(JsonNode node, String field) {
-        return node.hasNonNull(field) ? node.get(field).asText() : null;
+        return node.hasNonNull(field) ? node.get(field).asString() : null;
     }
 
     /** The media id arrives as the attachment's storageUri (a UUID string); null if unparseable. */

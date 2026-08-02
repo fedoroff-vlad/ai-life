@@ -546,7 +546,7 @@ class TriggerControllerTest {
         public MockResponse dispatch(RecordedRequest req) {
             try {
                 JsonNode root = M.readTree(req.getBody().clone().readUtf8());
-                String action = root.path("action").asText("");
+                String action = root.path("action").asString("");
                 AgentActionResult result;
                 if ("draft_greeting".equals(action)) {
                     result = (creatorDeclines || greeting == null)

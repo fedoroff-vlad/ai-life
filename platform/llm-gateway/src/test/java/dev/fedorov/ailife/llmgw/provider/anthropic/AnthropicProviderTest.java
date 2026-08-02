@@ -92,18 +92,18 @@ class AnthropicProviderTest {
         assertThat(sent.getHeader("anthropic-version")).isEqualTo("2023-06-01");
 
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("claude-opus-4-7");
+        assertThat(body.path("model").asString()).isEqualTo("claude-opus-4-7");
         assertThat(body.path("max_tokens").asInt()).isEqualTo(4096);
-        assertThat(body.path("system").asText()).isEqualTo("you are a friend\n\nanswer briefly");
+        assertThat(body.path("system").asString()).isEqualTo("you are a friend\n\nanswer briefly");
         assertThat(body.has("stream")).isFalse();
         JsonNode messages = body.path("messages");
         assertThat(messages.isArray()).isTrue();
         assertThat(messages.size()).isEqualTo(3);
-        assertThat(messages.get(0).path("role").asText()).isEqualTo("user");
-        assertThat(messages.get(0).path("content").asText()).isEqualTo("hi");
-        assertThat(messages.get(1).path("role").asText()).isEqualTo("assistant");
-        assertThat(messages.get(2).path("role").asText()).isEqualTo("user");
-        assertThat(messages.get(2).path("content").asText()).isEqualTo("how are you");
+        assertThat(messages.get(0).path("role").asString()).isEqualTo("user");
+        assertThat(messages.get(0).path("content").asString()).isEqualTo("hi");
+        assertThat(messages.get(1).path("role").asString()).isEqualTo("assistant");
+        assertThat(messages.get(2).path("role").asString()).isEqualTo("user");
+        assertThat(messages.get(2).path("content").asString()).isEqualTo("how are you");
     }
 
     @Test
@@ -124,7 +124,7 @@ class AnthropicProviderTest {
 
         RecordedRequest sent = server.takeRequest();
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("claude-haiku-4-5");
+        assertThat(body.path("model").asString()).isEqualTo("claude-haiku-4-5");
         assertThat(body.path("max_tokens").asInt()).isEqualTo(64);
         assertThat(body.path("temperature").asDouble()).isEqualTo(0.0);
     }
@@ -151,18 +151,18 @@ class AnthropicProviderTest {
 
         RecordedRequest sent = server.takeRequest();
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("claude-opus-4-7");
-        assertThat(body.path("system").asText()).isEqualTo("describe the photo");
+        assertThat(body.path("model").asString()).isEqualTo("claude-opus-4-7");
+        assertThat(body.path("system").asString()).isEqualTo("describe the photo");
         JsonNode content = body.path("messages").get(0).path("content");
         assertThat(content.isArray()).isTrue();
         assertThat(content.size()).isEqualTo(2);
-        assertThat(content.get(0).path("type").asText()).isEqualTo("text");
-        assertThat(content.get(0).path("text").asText()).isEqualTo("what is this?");
-        assertThat(content.get(1).path("type").asText()).isEqualTo("image");
+        assertThat(content.get(0).path("type").asString()).isEqualTo("text");
+        assertThat(content.get(0).path("text").asString()).isEqualTo("what is this?");
+        assertThat(content.get(1).path("type").asString()).isEqualTo("image");
         JsonNode source = content.get(1).path("source");
-        assertThat(source.path("type").asText()).isEqualTo("base64");
-        assertThat(source.path("media_type").asText()).isEqualTo("image/jpeg");
-        assertThat(source.path("data").asText()).isEqualTo("QUJD");
+        assertThat(source.path("type").asString()).isEqualTo("base64");
+        assertThat(source.path("media_type").asString()).isEqualTo("image/jpeg");
+        assertThat(source.path("data").asString()).isEqualTo("QUJD");
     }
 
     @Test

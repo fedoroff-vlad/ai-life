@@ -96,12 +96,12 @@ class NoteWriterTest {
         RecordedRequest saveReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/v1/notes");
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(body.path("title").asText()).isEqualTo("Мама — что любит");
-        assertThat(body.path("type").asText()).isEqualTo("person");
-        assertThat(body.path("source").asText()).isEqualTo("user");
-        assertThat(body.path("bodyMd").asText()).contains("[[Мама]]");
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(body.path("title").asString()).isEqualTo("Мама — что любит");
+        assertThat(body.path("type").asString()).isEqualTo("person");
+        assertThat(body.path("source").asString()).isEqualTo("user");
+        assertThat(body.path("bodyMd").asString()).contains("[[Мама]]");
         assertThat(body.path("tags").isArray()).isTrue();
     }
 
@@ -128,8 +128,8 @@ class NoteWriterTest {
         RecordedRequest saveReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
         // Body falls back to the raw user text; title is derived from it (non-blank).
-        assertThat(body.path("bodyMd").asText()).contains("купить лампочки");
-        assertThat(body.path("title").asText()).isNotBlank();
+        assertThat(body.path("bodyMd").asString()).contains("купить лампочки");
+        assertThat(body.path("title").asString()).isNotBlank();
     }
 
     private IntentResponse post(NormalizedMessage msg) {

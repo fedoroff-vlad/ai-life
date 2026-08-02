@@ -277,7 +277,7 @@ public class ContentStrategist {
         if (node == null) return null;
         JsonNode v = node.get(field);
         if (v == null || v.isNull()) return null;
-        String s = v.asText().strip();
+        String s = v.asString().strip();
         return s.isEmpty() ? null : s;
     }
 

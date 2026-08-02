@@ -134,11 +134,11 @@ public class TaskCapturer {
         } catch (Exception e) {
             return null;
         }
-        String title = node.path("title").asText("").trim();
+        String title = node.path("title").asString("").trim();
         if (title.isEmpty()) {
             return null;
         }
-        String note = node.hasNonNull("note") ? node.get("note").asText().trim() : null;
+        String note = node.hasNonNull("note") ? node.get("note").asString().trim() : null;
         boolean shared = node.path("shared").asBoolean(false);
         return new Planned(title, (note == null || note.isEmpty()) ? null : note, shared);
     }

@@ -87,7 +87,7 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(meal.eatenAt()).isNotNull();           // defaulted to now
         assertThat(meal.kcal()).isEqualTo(420);
         assertThat(meal.proteinG()).isEqualByComparingTo("12.5");
-        assertThat(meal.items().get(0).get("name").asText()).isEqualTo("oats");
+        assertThat(meal.items().get(0).get("name").asString()).isEqualTo("oats");
         assertThat(meal.createdAt()).isNotNull();
     }
 
@@ -155,8 +155,8 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(created.id()).isNotNull();
         assertThat(created.goalKcal()).isEqualTo(2200);
         assertThat(created.goalProteinG()).isEqualByComparingTo("150.0");
-        assertThat(created.restrictions().get(0).asText()).isEqualTo("halal");
-        assertThat(created.tastes().get("likes").get(0).asText()).isEqualTo("fish");
+        assertThat(created.restrictions().get(0).asString()).isEqualTo("halal");
+        assertThat(created.tastes().get("likes").get(0).asString()).isEqualTo("fish");
 
         // Same (household, owner) → updates the same row.
         DietProfileDto updated = tools.setDietProfile(new SetDietProfileInput(
@@ -202,7 +202,7 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(saved.items().get(0).name()).isEqualTo("молоко");
         assertThat(saved.items().get(0).qty()).isEqualTo("1 л");
         assertThat(saved.kcal()).isEqualTo(580);
-        assertThat(saved.analysis().get("good").get(0).asText()).isEqualTo("яблоки");
+        assertThat(saved.analysis().get("good").get(0).asString()).isEqualTo("яблоки");
         assertThat(saved.createdAt()).isNotNull();
 
         // get by id round-trips the items.
@@ -298,7 +298,7 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
                 .returnResult().getResponseBody();
         assertThat(saved).isNotNull();
         assertThat(saved.goalKcal()).isEqualTo(2000);
-        assertThat(saved.restrictions().get(0).asText()).isEqualTo("no-nuts");
+        assertThat(saved.restrictions().get(0).asString()).isEqualTo("no-nuts");
 
         // Second post for the same (household, owner) updates in place — still one row.
         client.post().uri("/internal/diet-profile")
@@ -346,7 +346,7 @@ class McpNutritionIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(saved.merchant()).isEqualTo("Лента");
         assertThat(saved.source()).isEqualTo("receipt");
         assertThat(saved.items()).hasSize(1);
-        assertThat(saved.analysis().get("good").get(0).asText()).isEqualTo("молоко");
+        assertThat(saved.analysis().get("good").get(0).asString()).isEqualTo("молоко");
 
         // Missing householdId → the tool's required-field guard surfaces as 400.
         client.post().uri("/internal/basket")

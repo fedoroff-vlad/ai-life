@@ -173,9 +173,9 @@ public final class SkillClassifier {
         if (node == null || !node.isObject() || !node.hasNonNull("action")) {
             return new Chat(body);
         }
-        String action = node.get("action").asText();
+        String action = node.get("action").asString();
         if ("tool".equals(action)) {
-            return toolCall(node.path("name").asText(), node);
+            return toolCall(node.path("name").asString(), node);
         }
         if (isKnownTool(action, tools)) {
             // Format-drift tolerance (Stage 5 golden finding): smaller models flatten
@@ -187,7 +187,7 @@ public final class SkillClassifier {
                 return new FlowCall(action, node);
             }
         }
-        String text = node.has("text") ? node.get("text").asText() : body;
+        String text = node.has("text") ? node.get("text").asString() : body;
         return new Chat(text);
     }
 

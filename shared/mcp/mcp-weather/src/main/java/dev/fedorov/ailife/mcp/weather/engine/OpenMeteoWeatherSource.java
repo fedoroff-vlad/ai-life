@@ -120,7 +120,7 @@ public class OpenMeteoWeatherSource implements WeatherSource {
 
     private static String str(JsonNode node, String field) {
         JsonNode v = node.path(field);
-        return v.isMissingNode() || v.isNull() ? null : v.asText();
+        return v.isMissingNode() || v.isNull() ? null : v.asString();
     }
 
     private static Double dblField(JsonNode node, String field) {
@@ -150,7 +150,7 @@ public class OpenMeteoWeatherSource implements WeatherSource {
 
     private static String text(JsonNode array) {
         JsonNode v = first(array);
-        return v == null || v.isNull() ? null : v.asText();
+        return v == null || v.isNull() ? null : v.asString();
     }
 
     private static Double dbl(JsonNode array) {

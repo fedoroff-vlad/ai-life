@@ -90,7 +90,7 @@ class E2EStage3TasksWakeFlowTest extends AbstractPostgresIntegrationTest {
                             .post(RequestBody.create(
                                     rawBody, okhttp3.MediaType.get("application/json")))
                             .build();
-                    try (Response ignored = FORWARDER.newCall(forward).execute()) {
+                    try (var _ = FORWARDER.newCall(forward).execute()) {
                         // tasks-agent stub always 202s — see the per-test enqueue.
                     }
                     return new MockResponse().setResponseCode(202);

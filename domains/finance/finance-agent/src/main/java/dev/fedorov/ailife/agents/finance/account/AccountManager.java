@@ -141,20 +141,20 @@ public class AccountManager {
         } catch (Exception e) {
             return null;
         }
-        String name = node.path("name").asText("").trim();
+        String name = node.path("name").asString("").trim();
         if (name.isEmpty()) {
             return null;
         }
-        String type = node.path("type").asText(DEFAULT_TYPE).trim().toLowerCase(Locale.ROOT);
+        String type = node.path("type").asString(DEFAULT_TYPE).trim().toLowerCase(Locale.ROOT);
         if (!TYPES.contains(type)) {
             type = DEFAULT_TYPE;
         }
         String currency = node.hasNonNull("currency")
-                ? node.get("currency").asText().trim().toUpperCase(Locale.ROOT) : "";
+                ? node.get("currency").asString().trim().toUpperCase(Locale.ROOT) : "";
         BigDecimal openingBalance = null;
         if (node.hasNonNull("openingBalance")) {
             try {
-                openingBalance = new BigDecimal(node.get("openingBalance").asText().trim());
+                openingBalance = new BigDecimal(node.get("openingBalance").asString().trim());
             } catch (NumberFormatException ignored) {
                 // A malformed balance is non-fatal — the account is created without an opening balance.
             }

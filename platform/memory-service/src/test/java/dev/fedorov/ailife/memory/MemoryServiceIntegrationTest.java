@@ -84,7 +84,7 @@ class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
                                 .setBody(json.writeValueAsString(chat));
                     }
                     var node = json.readTree(req.getBody().readUtf8());
-                    String input = node.get("inputs").get(0).asText();
+                    String input = node.get("inputs").get(0).asString();
                     LlmEmbedResponse body = new LlmEmbedResponse(
                             "mock-embed", List.of(embeddingFor(input)), new LlmUsage(0, 0, 0));
                     return new MockResponse()

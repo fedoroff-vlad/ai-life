@@ -354,7 +354,7 @@ public class CaptureService {
             return null;
         }
         try {
-            return UUID.fromString(meta.get("refId").asText());
+            return UUID.fromString(meta.get("refId").asString());
         } catch (IllegalArgumentException e) {
             return null;
         }

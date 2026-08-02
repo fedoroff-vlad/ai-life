@@ -99,9 +99,9 @@ public class StylistAdvisor {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("wardrobe", Mono.just(json.valueToTree(items)));
         gather.put("profile", wardrobe.getProfile(msg.householdId(), msg.userId())
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
         gather.put("trends", web.search(trendQuery(season, msg.text()), TREND_LIMIT)
-                .map(r -> (JsonNode) json.valueToTree(r)));
+                .map(r -> json.valueToTree(r)));
 
         ObjectNode payload = json.createObjectNode();
         if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());

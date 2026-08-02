@@ -111,7 +111,7 @@ public class AnalyseMe {
                 draft.has("suitableFabrics") && draft.get("suitableFabrics").isArray()
                         ? draft.get("suitableFabrics") : null,
                 draft.hasNonNull("heightCm") ? draft.get("heightCm").asInt() : null,
-                draft.hasNonNull("weightKg") ? new BigDecimal(draft.get("weightKg").asText()) : null,
+                draft.hasNonNull("weightKg") ? new BigDecimal(draft.get("weightKg").asString()) : null,
                 draft.has("measurements") && draft.get("measurements").isObject()
                         ? draft.get("measurements") : null,
                 text(draft, "notes"),
@@ -158,8 +158,8 @@ public class AnalyseMe {
                 if (notBlank(text(n, "note"))) s.append(" — ").append(text(n, "note"));
                 if (notBlank(text(n, "harmony"))) s.append(" (гармония: ").append(text(n, "harmony")).append(")");
                 if (s.length() > 0) silhouettes.add(s.toString());
-            } else if (notBlank(n.asText())) {
-                silhouettes.add(n.asText());
+            } else if (notBlank(n.asString())) {
+                silhouettes.add(n.asString());
             }
         }
         if (notBlank(text(d, "waist"))) silhouettes.add("Талия: " + text(d, "waist") + ".");
@@ -169,7 +169,7 @@ public class AnalyseMe {
 
         List<String> fabrics = new ArrayList<>();
         for (JsonNode n : array(d, "fabricLogic")) {
-            if (notBlank(n.asText())) fabrics.add(n.asText());
+            if (notBlank(n.asString())) fabrics.add(n.asString());
         }
         String suitable = joinStrings(array(d, "suitableFabrics"));
         if (suitable != null) fabrics.add("Вам подходят: " + suitable + ".");
@@ -187,8 +187,8 @@ public class AnalyseMe {
                 StringBuilder c = new StringBuilder(text(n, "code") == null ? "" : text(n, "code"));
                 if (notBlank(text(n, "look"))) c.append(" — ").append(text(n, "look"));
                 if (c.length() > 0) codes.add(c.toString());
-            } else if (notBlank(n.asText())) {
-                codes.add(n.asText());
+            } else if (notBlank(n.asString())) {
+                codes.add(n.asString());
             }
         }
         if (!codes.isEmpty()) b.section("Стиль-коды", codes);
@@ -215,11 +215,11 @@ public class AnalyseMe {
     private static String bodyParams(JsonNode d) {
         List<String> parts = new ArrayList<>();
         if (d.hasNonNull("heightCm")) parts.add("рост " + d.get("heightCm").asInt() + " см");
-        if (d.hasNonNull("weightKg")) parts.add("вес " + d.get("weightKg").asText() + " кг");
+        if (d.hasNonNull("weightKg")) parts.add("вес " + d.get("weightKg").asString() + " кг");
         JsonNode m = d.get("measurements");
         if (m != null && m.isObject() && !m.isEmpty()) {
             List<String> mm = new ArrayList<>();
-            m.properties().forEach(e -> mm.add(e.getKey() + " " + e.getValue().asText()));
+            m.properties().forEach(e -> mm.add(e.getKey() + " " + e.getValue().asString()));
             if (!mm.isEmpty()) parts.add("мерки: " + String.join(", ", mm));
         }
         return parts.isEmpty() ? null : capitalize(String.join(", ", parts)) + ".";
@@ -275,7 +275,7 @@ public class AnalyseMe {
     private static List<String> stringList(JsonNode array) {
         List<String> out = new ArrayList<>();
         for (JsonNode n : array) {
-            if (notBlank(n.asText())) out.add(n.asText());
+            if (notBlank(n.asString())) out.add(n.asString());
         }
         return out;
     }
@@ -292,7 +292,7 @@ public class AnalyseMe {
     private static String text(JsonNode node, String field) {
         if (node == null) return null;
         JsonNode v = node.get(field);
-        return (v != null && !v.isNull()) ? v.asText() : null;
+        return (v != null && !v.isNull()) ? v.asString() : null;
     }
 
     private static UUID parseMediaId(String mediaId) {

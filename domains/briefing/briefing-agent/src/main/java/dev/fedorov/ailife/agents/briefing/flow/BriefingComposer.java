@@ -199,12 +199,12 @@ public class BriefingComposer {
                 continue;
             }
             for (JsonNode hit : hits) {
-                String url = hit.hasNonNull("url") ? hit.get("url").asText() : null;
+                String url = hit.hasNonNull("url") ? hit.get("url").asString() : null;
                 if (url == null || url.isBlank() || !seen.add(url)) {
                     continue;
                 }
-                String title = hit.hasNonNull("title") ? hit.get("title").asText() : url;
-                String snippet = hit.hasNonNull("snippet") ? hit.get("snippet").asText() : null;
+                String title = hit.hasNonNull("title") ? hit.get("title").asString() : url;
+                String snippet = hit.hasNonNull("snippet") ? hit.get("snippet").asString() : null;
                 links.add(new Doc.LinkItem(title, url, snippet));
                 if (links.size() >= MAX_LINKS) {
                     return links;
@@ -258,7 +258,7 @@ public class BriefingComposer {
             return DEFAULT_SECTIONS;
         }
         Set<String> out = new LinkedHashSet<>();
-        arr.forEach(n -> out.add(n.asText().toLowerCase(Locale.ROOT)));
+        arr.forEach(n -> out.add(n.asString().toLowerCase(Locale.ROOT)));
         return out;
     }
 
@@ -267,7 +267,7 @@ public class BriefingComposer {
         List<String> out = new ArrayList<>();
         if (arr != null && arr.isArray()) {
             for (JsonNode n : arr) {
-                String tag = n.asText();
+                String tag = n.asString();
                 if (tag != null && !tag.isBlank()) out.add(tag);
                 if (out.size() >= MAX_TOPICS) break;
             }

@@ -25,7 +25,7 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code 202 ACCEPTED} — delivered.</li>
  *   <li>{@code 404 NOT_FOUND} — no such user (permanent).</li>
- *   <li>{@code 422 UNPROCESSABLE_ENTITY} — user has no telegram link yet (permanent).</li>
+ *   <li>{@code 422 UNPROCESSABLE_CONTENT} — user has no telegram link yet (permanent).</li>
  * </ul>
  * Any other failure (profile/gateway 5xx, timeout, network) is propagated as an error so
  * callers can decide retry policy — the bus consumer leaves the outbox row PENDING.
@@ -55,7 +55,7 @@ public class NotifySender {
                 .flatMap(user -> {
                     if (user.telegramUserId() == null) {
                         log.warn("user {} has no telegram_user_id; cannot notify", user.id());
-                        return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).<Void>build());
+                        return Mono.just(ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).<Void>build());
                     }
                     return forwardToGateway(user.telegramUserId(), text);
                 })

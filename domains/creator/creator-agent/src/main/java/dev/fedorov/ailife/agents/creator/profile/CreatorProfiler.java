@@ -121,7 +121,7 @@ public class CreatorProfiler {
     }
 
     private static String text(JsonNode node, String field) {
-        return node.hasNonNull(field) ? node.get(field).asText() : null;
+        return node.hasNonNull(field) ? node.get(field).asString() : null;
     }
 
     private static String successText(boolean household, String niche) {

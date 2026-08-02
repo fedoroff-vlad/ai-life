@@ -107,7 +107,7 @@ public class BriefResponder {
         if (q == null || q.isNull()) {
             return null;
         }
-        String s = q.asText().trim();
+        String s = q.asString().trim();
         return s.isEmpty() ? null : s;
     }
 }

@@ -105,24 +105,24 @@ class GoldenInboxClarifyTest {
         if (pending == null || pending.path("proposals").isMissingNode()) {
             fail("model did not produce parseable proposals — agent reply was:\n%s".formatted(r.text()));
         }
-        assertThat(pending.path("flow").asText()).isEqualTo(InboxClarifier.FLOW);
+        assertThat(pending.path("flow").asString()).isEqualTo(InboxClarifier.FLOW);
         JsonNode proposals = pending.path("proposals");
         assertThat(proposals.isArray()).as("proposals is not an array: %s", pending).isTrue();
         assertThat(proposals).as("model proposed nothing for a clearly-actionable inbox").isNotEmpty();
 
         for (JsonNode p : proposals) {
-            String taskId = p.path("taskId").asText("");
-            String status = p.path("status").asText("");
+            String taskId = p.path("taskId").asString("");
+            String status = p.path("status").asString("");
             assertThat(inboxIds)
                     .as("hallucinated taskId '%s' (not in the inbox): %s", taskId, p)
                     .contains(taskId);
             assertThat(STATUSES)
                     .as("unknown status '%s': %s", status, p)
                     .contains(status);
-            assertThat(p.path("title").asText(""))
+            assertThat(p.path("title").asString(""))
                     .as("empty title: %s", p).isNotBlank();
             // Contract: context belongs only to 'next' actions, and is an @-tag when present.
-            String context = p.path("context").asText("");
+            String context = p.path("context").asString("");
             if (!context.isBlank()) {
                 assertThat(context).as("context is not an @-tag: %s", p).startsWith("@");
             }

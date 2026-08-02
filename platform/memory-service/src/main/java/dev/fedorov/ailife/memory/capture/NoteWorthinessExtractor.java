@@ -116,15 +116,15 @@ public class NoteWorthinessExtractor {
     }
 
     private NoteCandidate toCandidate(JsonNode c) {
-        String title = c.path("title").asText("").trim();
-        String body = c.path("body").asText("").trim();
+        String title = c.path("title").asString("").trim();
+        String body = c.path("body").asString("").trim();
         // A candidate needs at least something to store; drop empty shells.
         if (title.isBlank() && body.isBlank()) {
             return null;
         }
-        String type = c.path("type").asText("").trim();
-        String subject = normalizeSubject(c.path("subject").asText("").trim());
-        String importance = c.path("importance").asText("").trim();
+        String type = c.path("type").asString("").trim();
+        String subject = normalizeSubject(c.path("subject").asString("").trim());
+        String importance = c.path("importance").asString("").trim();
         boolean explicitFixation = c.path("explicitFixation").asBoolean(false);
         return new NoteCandidate(title, type, body, subject, importance, explicitFixation);
     }

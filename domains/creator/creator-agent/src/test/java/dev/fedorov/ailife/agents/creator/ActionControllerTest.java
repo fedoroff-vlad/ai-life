@@ -67,8 +67,8 @@ class ActionControllerTest {
         AgentActionResult result = post("draft_greeting", req);
         assertThat(result).isNotNull();
         assertThat(result.ok()).isTrue();
-        assertThat(result.result().get("greeting").asText()).isEqualTo("С днём рождения, Аня!");
-        assertThat(result.result().get("model").asText()).isEqualTo("mock-large");
+        assertThat(result.result().get("greeting").asString()).isEqualTo("С днём рождения, Аня!");
+        assertThat(result.result().get("model").asString()).isEqualTo("mock-large");
 
         // The skill body + the person/occasion payload reached the LLM.
         RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);

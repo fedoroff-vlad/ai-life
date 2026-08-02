@@ -91,13 +91,13 @@ public class TriggerController {
             return null;
         }
         JsonNode node = payload.get(field);
-        if (node == null || node.isNull() || node.asText().isBlank()) {
+        if (node == null || node.isNull() || node.asString().isBlank()) {
             return null;
         }
         try {
-            return UUID.fromString(node.asText());
+            return UUID.fromString(node.asString());
         } catch (IllegalArgumentException e) {
-            log.warn("payload.{} not a UUID: {}", field, node.asText());
+            log.warn("payload.{} not a UUID: {}", field, node.asString());
             return null;
         }
     }
@@ -107,6 +107,6 @@ public class TriggerController {
             return null;
         }
         JsonNode node = payload.get(field);
-        return (node == null || node.isNull()) ? null : node.asText();
+        return (node == null || node.isNull()) ? null : node.asString();
     }
 }

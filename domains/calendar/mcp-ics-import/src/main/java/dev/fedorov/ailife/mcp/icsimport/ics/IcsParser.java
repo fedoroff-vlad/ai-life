@@ -40,6 +40,10 @@ public class IcsParser {
 
     private static final String PRODID = "-//ai-life//mcp-ics-import 0.0.1//EN";
 
+    // ical4j 4.2 deprecates VEvent.getStartDate() but ships no non-deprecated equivalent on VEvent
+    // itself (the only accessor is the generic getStartDate()); suppress locally until ical4j offers a
+    // stable replacement.
+    @SuppressWarnings("deprecation")
     public List<ParsedEvent> parse(String icsBody) {
         Calendar source;
         try {

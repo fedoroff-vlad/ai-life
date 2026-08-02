@@ -92,15 +92,15 @@ class OpenAiCompatibleProviderTest {
         assertThat(sent.getHeader("Authorization")).isEqualTo("Bearer sk-test");
 
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("qwen2.5:72b-instruct");
+        assertThat(body.path("model").asString()).isEqualTo("qwen2.5:72b-instruct");
         assertThat(body.path("max_tokens").asInt()).isEqualTo(128);
         assertThat(body.path("temperature").asDouble()).isEqualTo(0.2);
         assertThat(body.has("stream")).isFalse();
         JsonNode messages = body.path("messages");
         assertThat(messages.size()).isEqualTo(2);
-        assertThat(messages.get(0).path("role").asText()).isEqualTo("system");
-        assertThat(messages.get(0).path("content").asText()).isEqualTo("you are kind");
-        assertThat(messages.get(1).path("role").asText()).isEqualTo("user");
+        assertThat(messages.get(0).path("role").asString()).isEqualTo("system");
+        assertThat(messages.get(0).path("content").asString()).isEqualTo("you are kind");
+        assertThat(messages.get(1).path("role").asString()).isEqualTo("user");
     }
 
     @Test
@@ -121,12 +121,12 @@ class OpenAiCompatibleProviderTest {
 
         RecordedRequest sent = server.takeRequest();
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("reasoning_effort").asText()).isEqualTo("none");
+        assertThat(body.path("reasoning_effort").asString()).isEqualTo("none");
         // messages are left untouched — the tag goes in the body, not the prompt
         JsonNode messages = body.path("messages");
         assertThat(messages.size()).isEqualTo(2);
-        assertThat(messages.get(0).path("content").asText()).isEqualTo("you are kind");
-        assertThat(messages.get(1).path("content").asText()).isEqualTo("hello");
+        assertThat(messages.get(0).path("content").asString()).isEqualTo("you are kind");
+        assertThat(messages.get(1).path("content").asString()).isEqualTo("hello");
     }
 
     @Test
@@ -167,7 +167,7 @@ class OpenAiCompatibleProviderTest {
         RecordedRequest sent = server.takeRequest();
         assertThat(sent.getHeader("Authorization")).isNull();
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("qwen2.5:7b-instruct");
+        assertThat(body.path("model").asString()).isEqualTo("qwen2.5:7b-instruct");
         assertThat(body.has("max_tokens")).isFalse();
         assertThat(body.has("temperature")).isFalse();
     }
@@ -193,14 +193,14 @@ class OpenAiCompatibleProviderTest {
 
         RecordedRequest sent = server.takeRequest();
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("qwen2.5-vl:32b");
+        assertThat(body.path("model").asString()).isEqualTo("qwen2.5-vl:32b");
         JsonNode content = body.path("messages").get(0).path("content");
         assertThat(content.isArray()).isTrue();
         assertThat(content.size()).isEqualTo(2);
-        assertThat(content.get(0).path("type").asText()).isEqualTo("text");
-        assertThat(content.get(0).path("text").asText()).isEqualTo("what is this?");
-        assertThat(content.get(1).path("type").asText()).isEqualTo("image_url");
-        assertThat(content.get(1).path("image_url").path("url").asText())
+        assertThat(content.get(0).path("type").asString()).isEqualTo("text");
+        assertThat(content.get(0).path("text").asString()).isEqualTo("what is this?");
+        assertThat(content.get(1).path("type").asString()).isEqualTo("image_url");
+        assertThat(content.get(1).path("image_url").path("url").asString())
                 .isEqualTo("data:image/png;base64,QUJD");
     }
 
@@ -266,11 +266,11 @@ class OpenAiCompatibleProviderTest {
         RecordedRequest sent = server.takeRequest();
         assertThat(sent.getPath()).isEqualTo("/v1/embeddings");
         JsonNode body = MAPPER.readTree(sent.getBody().readUtf8());
-        assertThat(body.path("model").asText()).isEqualTo("bge-m3");
+        assertThat(body.path("model").asString()).isEqualTo("bge-m3");
         JsonNode input = body.path("input");
         assertThat(input.isArray()).isTrue();
-        assertThat(input.get(0).asText()).isEqualTo("first");
-        assertThat(input.get(1).asText()).isEqualTo("second");
+        assertThat(input.get(0).asString()).isEqualTo("first");
+        assertThat(input.get(1).asString()).isEqualTo("second");
     }
 
     @Test

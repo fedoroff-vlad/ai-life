@@ -154,7 +154,7 @@ public class SpecialistBriefs {
             JsonNode arr = json.readTree(content.substring(open, close + 1));
             if (arr.isArray()) {
                 for (JsonNode n : arr) {
-                    String name = canonical.get(n.asText("").trim().toLowerCase());
+                    String name = canonical.get(n.asString("").trim().toLowerCase());
                     if (name != null && !picked.contains(name)) {
                         picked.add(name);
                     }
@@ -197,7 +197,7 @@ public class SpecialistBriefs {
         if (answer == null || answer.isNull()) {
             return null;
         }
-        String text = answer.asText("").strip();
+        String text = answer.asString("").strip();
         return text.isEmpty() ? null : text;
     }
 }

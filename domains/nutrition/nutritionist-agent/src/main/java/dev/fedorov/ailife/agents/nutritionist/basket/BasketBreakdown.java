@@ -341,8 +341,8 @@ public class BasketBreakdown {
             if (n.isObject()) {
                 String name = text(n, "name");
                 if (name != null && !name.isBlank()) b.verdict(name, verdict, text(n, "reason"), null);
-            } else if (n.isTextual() && !n.asText().isBlank()) {
-                b.verdict(n.asText(), verdict, null, null);
+            } else if (n.isString() && !n.asString().isBlank()) {
+                b.verdict(n.asString(), verdict, null, null);
             }
         }
     }
@@ -442,7 +442,7 @@ public class BasketBreakdown {
     private static String text(JsonNode node, String field) {
         if (node == null) return null;
         JsonNode v = node.get(field);
-        return (v != null && !v.isNull()) ? v.asText() : null;
+        return (v != null && !v.isNull()) ? v.asString() : null;
     }
 
     private static Integer intOrNull(JsonNode node, String field) {

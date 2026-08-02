@@ -90,7 +90,7 @@ class E2EBriefingWakeFlowTest extends AbstractPostgresIntegrationTest {
                             .post(RequestBody.create(
                                     rawBody, okhttp3.MediaType.get("application/json")))
                             .build();
-                    try (Response ignored = FORWARDER.newCall(forward).execute()) {
+                    try (var _ = FORWARDER.newCall(forward).execute()) {
                         // briefing-agent stub always 202s — see the per-test enqueue.
                     }
                     return new MockResponse().setResponseCode(202);
@@ -137,7 +137,7 @@ class E2EBriefingWakeFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(wakeBody.kind()).isEqualTo("briefing.digest");
         assertThat(wakeBody.scheduleId()).isEqualTo(due.id());
         assertThat(wakeBody.householdId()).isEqualTo(householdId);
-        assertThat(wakeBody.payload().path("ownerId").asText()).isEqualTo(ownerId.toString());
+        assertThat(wakeBody.payload().path("ownerId").asString()).isEqualTo(ownerId.toString());
 
         // Hop 2: orchestrator (forwarding) → briefing-agent trigger endpoint
         RecordedRequest trigger = briefingAgent.takeRequest();
@@ -149,6 +149,6 @@ class E2EBriefingWakeFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(triggerBody.householdId()).isEqualTo(householdId);
         assertThat(triggerBody.agent()).isEqualTo("briefing");
         assertThat(triggerBody.kind()).isEqualTo("briefing.digest");
-        assertThat(triggerBody.payload().path("ownerId").asText()).isEqualTo(ownerId.toString());
+        assertThat(triggerBody.payload().path("ownerId").asString()).isEqualTo(ownerId.toString());
     }
 }

@@ -79,7 +79,7 @@ class AgentInvokeControllerTest {
                 .expectBody(AgentActionResult.class)
                 .value(res -> {
                     assertThat(res.ok()).isTrue();
-                    assertThat(res.result().get("eventUid").asText()).isEqualTo("evt-123");
+                    assertThat(res.result().get("eventUid").asString()).isEqualTo("evt-123");
                 });
 
         // The orchestrator forwarded to /agents/calendar/actions/create_event with the args.

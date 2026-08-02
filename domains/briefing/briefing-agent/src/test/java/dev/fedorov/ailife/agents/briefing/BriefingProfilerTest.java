@@ -111,14 +111,14 @@ class BriefingProfilerTest {
         RecordedRequest setReq = mcpBriefing.takeRequest(2, TimeUnit.SECONDS);
         assertThat(setReq.getPath()).isEqualTo("/internal/briefing-profile");
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(body.path("locationLabel").asText()).isEqualTo("Москва");
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(body.path("locationLabel").asString()).isEqualTo("Москва");
         assertThat(body.path("latitude").asDouble()).isEqualTo(55.75);
-        assertThat(body.path("timezone").asText()).isEqualTo("Europe/Moscow");
-        assertThat(body.path("interests").get(0).asText()).isEqualTo("AI");
+        assertThat(body.path("timezone").asString()).isEqualTo("Europe/Moscow");
+        assertThat(body.path("interests").get(0).asString()).isEqualTo("AI");
         assertThat(body.path("sections")).hasSize(4);
-        assertThat(body.path("scheduleTime").asText()).isEqualTo("08:00");
+        assertThat(body.path("scheduleTime").asString()).isEqualTo("08:00");
         assertThat(body.path("scheduleEnabled").asBoolean()).isTrue();
     }
 
@@ -148,7 +148,7 @@ class BriefingProfilerTest {
         RecordedRequest setReq = mcpBriefing.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
         assertThat(body.has("ownerId")).isFalse();   // NON_NULL → absent
-        assertThat(body.path("sections").get(0).asText()).isEqualTo("weather");
+        assertThat(body.path("sections").get(0).asString()).isEqualTo("weather");
     }
 
     @Test
@@ -196,7 +196,7 @@ class BriefingProfilerTest {
         mcpWeather.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest setReq = mcpBriefing.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
-        assertThat(body.path("locationLabel").asText()).isEqualTo("Нигдетаун");
+        assertThat(body.path("locationLabel").asString()).isEqualTo("Нигдетаун");
         assertThat(body.has("latitude")).isFalse();   // NON_NULL → absent (no coords)
     }
 

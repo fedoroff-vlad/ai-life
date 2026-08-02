@@ -256,7 +256,7 @@ public class DocFinder {
 
     private static String text(JsonNode node, String field) {
         if (node == null || !node.hasNonNull(field)) return null;
-        String v = node.get(field).asText();
+        String v = node.get(field).asString();
         return v.isBlank() ? null : v;
     }
 

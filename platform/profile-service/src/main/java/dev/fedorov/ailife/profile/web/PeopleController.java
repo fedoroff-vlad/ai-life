@@ -42,7 +42,7 @@ public class PeopleController {
     @Transactional
     public ResponseEntity<PersonDto> create(@Valid @RequestBody CreatePersonRequest request) {
         if (!households.existsById(request.householdId())) {
-            return ResponseEntity.unprocessableEntity().build();
+            return ResponseEntity.unprocessableContent().build();
         }
         JsonNode interests = request.interests() != null ? request.interests() : json.createArrayNode();
         Person saved = people.save(new Person(

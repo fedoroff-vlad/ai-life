@@ -105,10 +105,10 @@ class AmbientApproveResumeTest {
         RecordedRequest saveReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/v1/notes");
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(body.path("source").asText()).isEqualTo("ambient");
-        assertThat(body.path("personId").asText()).isEqualTo(mama.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(owner.toString());
-        assertThat(body.path("bodyMd").asText()).contains("[[Мама]]");
+        assertThat(body.path("source").asString()).isEqualTo("ambient");
+        assertThat(body.path("personId").asString()).isEqualTo(mama.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(owner.toString());
+        assertThat(body.path("bodyMd").asString()).contains("[[Мама]]");
     }
 
     @Test

@@ -122,12 +122,12 @@ class AmbientApprovalPushE2ETest extends AbstractPostgresIntegrationTest {
         assertThat(lock.getMethod()).isEqualTo("PUT");
         assertThat(lock.getPath()).isEqualTo("/v1/conversation-state");
         JsonNode lockBody = json.readTree(lock.getBody().readUtf8());
-        assertThat(lockBody.path("householdId").asText()).isEqualTo(household.toString());
-        assertThat(lockBody.path("userId").asText()).isEqualTo(owner.toString());
-        assertThat(lockBody.path("channel").asText()).isEqualTo("telegram");
-        assertThat(lockBody.path("routeLock").asText()).isEqualTo("notes");
+        assertThat(lockBody.path("householdId").asString()).isEqualTo(household.toString());
+        assertThat(lockBody.path("userId").asString()).isEqualTo(owner.toString());
+        assertThat(lockBody.path("channel").asString()).isEqualTo("telegram");
+        assertThat(lockBody.path("routeLock").asString()).isEqualTo("notes");
         JsonNode pending = lockBody.path("pendingAction");
-        assertThat(pending.path("flow").asText()).isEqualTo("ambient-approve");
+        assertThat(pending.path("flow").asString()).isEqualTo("ambient-approve");
 
         // The stashed note is a valid WriteNoteRequest — exactly what notes-agent's AmbientApprover parses.
         WriteNoteRequest note = json.treeToValue(pending.path("note"), WriteNoteRequest.class);
@@ -141,7 +141,7 @@ class AmbientApprovalPushE2ETest extends AbstractPostgresIntegrationTest {
         assertThat(push.getMethod()).isEqualTo("POST");
         assertThat(push.getPath()).isEqualTo("/v1/notify");
         JsonNode pushBody = json.readTree(push.getBody().readUtf8());
-        assertThat(pushBody.path("userId").asText()).isEqualTo(owner.toString());
-        assertThat(pushBody.path("text").asText()).contains("записать");
+        assertThat(pushBody.path("userId").asString()).isEqualTo(owner.toString());
+        assertThat(pushBody.path("text").asString()).contains("записать");
     }
 }

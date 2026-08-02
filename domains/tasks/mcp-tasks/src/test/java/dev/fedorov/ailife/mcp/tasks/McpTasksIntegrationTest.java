@@ -362,10 +362,10 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(post.getMethod()).isEqualTo("POST");
         assertThat(post.getPath()).isEqualTo("/v1/schedules");
         JsonNode body = MAPPER.readTree(post.getBody().readUtf8());
-        assertThat(body.get("householdId").asText()).isEqualTo(h.toString());
-        assertThat(body.get("ownerAgent").asText()).isEqualTo("tasks");
-        assertThat(body.get("kind").asText()).isEqualTo("weekly.review");
-        assertThat(body.get("cron").asText()).isEqualTo("0 0 9 * * MON"); // default
+        assertThat(body.get("householdId").asString()).isEqualTo(h.toString());
+        assertThat(body.get("ownerAgent").asString()).isEqualTo("tasks");
+        assertThat(body.get("kind").asString()).isEqualTo("weekly.review");
+        assertThat(body.get("cron").asString()).isEqualTo("0 0 9 * * MON"); // default
         assertThat(body.hasNonNull("runAt")).isFalse();
 
         assertThat(scheduler.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
@@ -400,7 +400,7 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
         // Register-first ordering: new POST, then delete the old one.
         RecordedRequest post = scheduler.takeRequest(2, TimeUnit.SECONDS);
         assertThat(post.getMethod()).isEqualTo("POST");
-        assertThat(MAPPER.readTree(post.getBody().readUtf8()).get("cron").asText())
+        assertThat(MAPPER.readTree(post.getBody().readUtf8()).get("cron").asString())
                 .isEqualTo("0 0 18 * * FRI");
         RecordedRequest delete = scheduler.takeRequest(2, TimeUnit.SECONDS);
         assertThat(delete.getMethod()).isEqualTo("DELETE");

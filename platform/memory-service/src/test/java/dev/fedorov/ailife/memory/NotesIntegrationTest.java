@@ -99,7 +99,7 @@ class NotesIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(got.source()).isEqualTo("user");
         assertThat(got.personId()).isEqualTo(mama);
         assertThat(got.bodyMd()).contains("пионы").contains("[[Мама]]");
-        assertThat(got.frontmatter().path("mood").asText()).isEqualTo("warm");
+        assertThat(got.frontmatter().path("mood").asString()).isEqualTo("warm");
     }
 
     @Test

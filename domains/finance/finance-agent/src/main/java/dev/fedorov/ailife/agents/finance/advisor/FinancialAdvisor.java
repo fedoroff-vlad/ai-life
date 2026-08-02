@@ -127,7 +127,7 @@ public class FinancialAdvisor {
      */
     private Mono<JsonNode> spendingNode(List<UUID> households, Instant from, Instant to) {
         return reads.spendingUnion(households, from, to)
-                .map(rows -> (JsonNode) json.valueToTree(rows));
+                .map(rows -> json.valueToTree(rows));
     }
 
     private String skillBody() {

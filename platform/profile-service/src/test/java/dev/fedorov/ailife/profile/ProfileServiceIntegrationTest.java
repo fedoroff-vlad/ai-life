@@ -130,10 +130,10 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     void householdSetForUnknownUserIs404() {
         RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
         RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
                 () -> http.getForObject(
                         "/v1/users/" + java.util.UUID.randomUUID() + "/households",
-                        java.util.UUID[].class),
-                RestClientResponseException.class);
+                        java.util.UUID[].class));
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -174,10 +174,10 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     void householdRoutingForUnknownUserIs404() {
         RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
         RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
                 () -> http.getForObject(
                         "/v1/users/" + java.util.UUID.randomUUID() + "/household-routing",
-                        HouseholdRoutingDto.class),
-                RestClientResponseException.class);
+                        HouseholdRoutingDto.class));
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -219,10 +219,10 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
         // Second redeem is rejected — a pending invite is single-use.
         RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
                 () -> http.postForObject(
                         "/v1/invites/by-token/" + minted.token() + "/redeem",
-                        new RedeemInviteRequest(invitee.id()), HouseholdInviteDto.class),
-                RestClientResponseException.class);
+                        new RedeemInviteRequest(invitee.id()), HouseholdInviteDto.class));
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -231,11 +231,11 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     void mintInviteForUnknownHouseholdIsUnprocessable() {
         RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
         RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
                 () -> http.postForObject("/v1/invites",
                         new MintInviteRequest(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                                 "friend", true),
-                        HouseholdInviteDto.class),
-                RestClientResponseException.class);
+                        HouseholdInviteDto.class));
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode().value()).isEqualTo(422);
     }
@@ -253,10 +253,10 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
                 UserDto.class);
 
         RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
                 () -> http.postForObject("/v1/users",
                         new CreateUserRequest(h.id(), "wife", null, 777L, null),
-                        UserDto.class),
-                RestClientResponseException.class);
+                        UserDto.class));
 
         assertThat(ex).isNotNull();
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);

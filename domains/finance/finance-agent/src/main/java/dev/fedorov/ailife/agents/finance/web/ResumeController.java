@@ -31,7 +31,7 @@ public class ResumeController {
     @PostMapping("/resume")
     public Mono<IntentResponse> resume(@RequestBody ResumeRequest request) {
         String flow = request.pendingAction() == null ? null
-                : request.pendingAction().path("flow").asText(null);
+                : request.pendingAction().path("flow").asString(null);
         if (ReceiptParser.FLOW.equals(flow)) {
             return receiptParser.resume(request);
         }

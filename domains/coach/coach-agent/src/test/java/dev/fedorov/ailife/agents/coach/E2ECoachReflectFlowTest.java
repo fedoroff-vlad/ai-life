@@ -159,15 +159,15 @@ class E2ECoachReflectFlowTest {
         RecordedRequest sessionWrite = mcpCoach.takeRequest(2, TimeUnit.SECONDS);
         assertThat(sessionWrite.getPath()).isEqualTo("/internal/coach/sessions");
         JsonNode sessionBody = json.readTree(sessionWrite.getBody().readUtf8());
-        assertThat(sessionBody.path("householdId").asText()).isEqualTo(HOUSEHOLD.toString());
-        assertThat(sessionBody.path("subject").asText()).isEqualTo(SUBJECT.toString());
-        assertThat(sessionBody.path("mode").asText()).isEqualTo("reflect");
+        assertThat(sessionBody.path("householdId").asString()).isEqualTo(HOUSEHOLD.toString());
+        assertThat(sessionBody.path("subject").asString()).isEqualTo(SUBJECT.toString());
+        assertThat(sessionBody.path("mode").asString()).isEqualTo("reflect");
 
         RecordedRequest observationWrite = mcpCoach.takeRequest(2, TimeUnit.SECONDS);
         assertThat(observationWrite.getPath()).isEqualTo("/internal/coach/observations");
         JsonNode observationBody = json.readTree(observationWrite.getBody().readUtf8());
-        assertThat(observationBody.path("method").asText()).isEqualTo("cbt");
-        assertThat(observationBody.path("sessionId").asText()).isEqualTo(SESSION_ID.toString());
+        assertThat(observationBody.path("method").asString()).isEqualTo("cbt");
+        assertThat(observationBody.path("sessionId").asString()).isEqualTo(SESSION_ID.toString());
 
         // The "gestalt" observation was dropped — the next write is already the hypothesis.
         RecordedRequest hypothesisWrite = mcpCoach.takeRequest(2, TimeUnit.SECONDS);

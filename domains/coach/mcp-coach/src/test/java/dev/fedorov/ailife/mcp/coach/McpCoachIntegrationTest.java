@@ -88,7 +88,7 @@ class McpCoachIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(updated.id()).isEqualTo(created.id()); // same row (unique per subject)
         assertThat(updated.tone()).isEqualTo("warm, direct");
         assertThat(updated.methodWeights().get("cbt").asDouble()).isEqualTo(0.6); // untouched
-        assertThat(updated.boundaries().get(0).asText()).isEqualTo("no diagnosis");
+        assertThat(updated.boundaries().get(0).asString()).isEqualTo("no diagnosis");
         assertThat(updated.active()).isFalse();
     }
 

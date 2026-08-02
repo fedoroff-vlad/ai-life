@@ -238,7 +238,7 @@ public class DocArchiver {
     }
 
     private static String text(JsonNode node, String field) {
-        return node != null && node.hasNonNull(field) ? blankToNull(node.get(field).asText()) : null;
+        return node != null && node.hasNonNull(field) ? blankToNull(node.get(field).asString()) : null;
     }
 
     private static JsonNode array(JsonNode node, String field) {
@@ -249,7 +249,7 @@ public class DocArchiver {
         if (node == null || !node.hasNonNull(field)) return null;
         JsonNode v = node.get(field);
         try {
-            return v.isNumber() ? v.decimalValue() : new BigDecimal(v.asText().trim());
+            return v.isNumber() ? v.decimalValue() : new BigDecimal(v.asString().trim());
         } catch (Exception e) {
             return null;
         }

@@ -171,14 +171,14 @@ public class OpenAiCompatibleProvider implements LlmProvider {
 
     private LlmChatResponse parseChatResponse(JsonNode json, String fallbackModel) {
         JsonNode choice = json.path("choices").path(0);
-        String content = choice.path("message").path("content").asText("");
-        String finish = choice.path("finish_reason").asText("stop");
+        String content = choice.path("message").path("content").asString("");
+        String finish = choice.path("finish_reason").asString("stop");
         JsonNode usage = json.path("usage");
         int prompt = usage.path("prompt_tokens").asInt(0);
         int completion = usage.path("completion_tokens").asInt(0);
         int total = usage.path("total_tokens").asInt(prompt + completion);
         return new LlmChatResponse(
-                json.path("model").asText(fallbackModel),
+                json.path("model").asString(fallbackModel),
                 content,
                 finish,
                 new LlmUsage(prompt, completion, total));
@@ -201,7 +201,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         int prompt = usage.path("prompt_tokens").asInt(0);
         int total = usage.path("total_tokens").asInt(prompt);
         return new LlmEmbedResponse(
-                json.path("model").asText(fallbackModel),
+                json.path("model").asString(fallbackModel),
                 vectors,
                 new LlmUsage(prompt, 0, total));
     }
@@ -215,7 +215,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         if (dataLine == null || dataLine.isEmpty()) return null;
         try {
             JsonNode json = MAPPER.readTree(dataLine);
-            return json.path("choices").path(0).path("delta").path("content").asText("");
+            return json.path("choices").path(0).path("delta").path("content").asString("");
         } catch (Exception e) {
             return null;
         }

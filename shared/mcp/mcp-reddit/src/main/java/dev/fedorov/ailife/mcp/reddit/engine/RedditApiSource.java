@@ -75,7 +75,7 @@ public class RedditApiSource implements SocialTrendsSource {
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .timeout(Duration.ofSeconds(10))
-                .map(n -> n == null || n.get("access_token") == null ? "" : n.get("access_token").asText());
+                .map(n -> n == null || n.get("access_token") == null ? "" : n.get("access_token").asString());
     }
 
     private Mono<JsonNode> listing(String token, String sub, String q, int limit) {
@@ -175,7 +175,7 @@ public class RedditApiSource implements SocialTrendsSource {
         if (v == null || v.isNull()) {
             return null;
         }
-        String s = v.asText().trim();
+        String s = v.asString().trim();
         return s.isEmpty() ? null : s;
     }
 }

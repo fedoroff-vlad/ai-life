@@ -96,8 +96,8 @@ class InternalYoutubeTrendsControllerTest {
         assertThat(first.title()).isEqualTo("10 idioms every IT pro should know");
         assertThat(first.url()).isEqualTo("https://www.youtube.com/watch?v=abc123");
         assertThat(first.summary()).isEqualTo("Quick rundown of common idioms.");
-        assertThat(first.metrics().get("channel").asText()).isEqualTo("English4IT");
-        assertThat(first.metrics().get("publishedAt").asText()).isEqualTo("2026-06-01T10:00:00Z");
+        assertThat(first.metrics().get("channel").asString()).isEqualTo("English4IT");
+        assertThat(first.metrics().get("publishedAt").asString()).isEqualTo("2026-06-01T10:00:00Z");
 
         RecordedRequest req = yt.takeRequest();
         assertThat(req.getPath())

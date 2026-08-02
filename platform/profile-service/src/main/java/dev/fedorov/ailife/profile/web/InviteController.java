@@ -55,7 +55,7 @@ public class InviteController {
     public ResponseEntity<HouseholdInviteDto> mint(@Valid @RequestBody MintInviteRequest request) {
         if (!households.existsById(request.familyHouseholdId())
                 || !users.existsById(request.inviterUserId())) {
-            return ResponseEntity.unprocessableEntity().build();
+            return ResponseEntity.unprocessableContent().build();
         }
         boolean grant = request.grantSharedAccess() == null || request.grantSharedAccess();
         HouseholdInvite saved = invites.save(new HouseholdInvite(
@@ -96,7 +96,7 @@ public class InviteController {
             return ResponseEntity.status(409).build();
         }
         if (!users.existsById(request.inviteeUserId())) {
-            return ResponseEntity.unprocessableEntity().build();
+            return ResponseEntity.unprocessableContent().build();
         }
         if (invite.isGrantSharedAccess()
                 && !memberships.existsByHouseholdIdAndUserId(

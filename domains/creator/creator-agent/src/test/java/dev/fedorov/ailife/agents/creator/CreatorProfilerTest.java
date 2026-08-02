@@ -99,10 +99,10 @@ class CreatorProfilerTest {
         RecordedRequest setReq = mcpCreator.takeRequest(2, TimeUnit.SECONDS);
         assertThat(setReq.getPath()).isEqualTo("/internal/creator-profile");
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(body.path("niche").asText()).isEqualTo("English for IT");
-        assertThat(body.path("platforms").get(0).asText()).isEqualTo("youtube");
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(body.path("niche").asString()).isEqualTo("English for IT");
+        assertThat(body.path("platforms").get(0).asString()).isEqualTo("youtube");
     }
 
     @Test
@@ -129,7 +129,7 @@ class CreatorProfilerTest {
         RecordedRequest setReq = mcpCreator.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
         assertThat(body.has("ownerId")).isFalse();   // NON_NULL → absent
-        assertThat(body.path("niche").asText()).isEqualTo("family brand");
+        assertThat(body.path("niche").asString()).isEqualTo("family brand");
     }
 
     @Test

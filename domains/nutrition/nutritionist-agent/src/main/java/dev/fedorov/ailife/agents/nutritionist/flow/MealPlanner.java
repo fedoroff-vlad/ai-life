@@ -102,16 +102,16 @@ public class MealPlanner {
 
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("profile", profiles.get(msg.householdId(), msg.userId())
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
         gather.put("householdProfile", profiles.get(msg.householdId(), null)
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
         gather.put("meals", meals.listMeals(msg.householdId(), msg.userId(), MEAL_LIMIT)
                 .filter(m -> !m.isEmpty())
-                .map(m -> (JsonNode) json.valueToTree(m)));
+                .map(m -> json.valueToTree(m)));
         String store = namedStore(msg.text());
         if (store != null) {
             gather.put("store", web.search(storeQuery(store, season), STORE_HITS)
-                    .map(r -> (JsonNode) json.valueToTree(r)));
+                    .map(r -> json.valueToTree(r)));
         }
 
         ObjectNode payload = json.createObjectNode();
@@ -154,7 +154,7 @@ public class MealPlanner {
                 .filter(AgentActionResult::ok)
                 .map(AgentActionResult::result)
                 .map(r -> r != null && r.hasNonNull("link")
-                        ? "\n\nРецепты от шефа: " + r.get("link").asText() : "")
+                        ? "\n\nРецепты от шефа: " + r.get("link").asString() : "")
                 .defaultIfEmpty("")
                 .onErrorResume(e -> {
                     log.warn("chef recipes invoke failed (dropping it): {}", e.toString());

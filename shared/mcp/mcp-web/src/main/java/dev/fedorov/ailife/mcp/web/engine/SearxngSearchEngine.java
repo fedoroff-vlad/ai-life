@@ -63,6 +63,6 @@ public class SearxngSearchEngine implements SearchEngine {
 
     private static String text(JsonNode node, String field) {
         JsonNode v = node.get(field);
-        return (v == null || v.isNull()) ? null : v.asText();
+        return (v == null || v.isNull()) ? null : v.asString();
     }
 }

@@ -86,7 +86,7 @@ class E2EInviteRedeemFlowTest {
         // Hop 2 asserted via the CONTRACT: the redeem body carries the invitee id at the token path.
         RecordedRequest redeem = profile.takeRequest();
         assertThat(redeem.getPath()).isEqualTo("/v1/invites/by-token/" + token + "/redeem");
-        assertThat(json.readTree(redeem.getBody().readUtf8()).path("inviteeUserId").asText())
+        assertThat(json.readTree(redeem.getBody().readUtf8()).path("inviteeUserId").asString())
                 .isEqualTo(inviteeId.toString());
 
         // Hop 3 asserted: the inviter is looked up by id to resolve the holder ping target.

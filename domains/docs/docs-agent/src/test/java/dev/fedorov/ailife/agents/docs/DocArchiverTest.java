@@ -115,15 +115,15 @@ class DocArchiverTest {
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(body.path("mediaId").asText()).isEqualTo("media-1");
-        assertThat(body.path("docType").asText()).isEqualTo("contract");
-        assertThat(body.path("title").asText()).isEqualTo("Договор аренды");
-        assertThat(body.path("party").asText()).isEqualTo("ООО Ромашка");
-        assertThat(body.path("docDate").asText()).isEqualTo("2026-01-15");
-        assertThat(body.path("ocrText").asText()).contains("ДОГОВОР АРЕНДЫ");
-        assertThat(body.path("tags").get(0).asText()).isEqualTo("аренда");
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(body.path("mediaId").asString()).isEqualTo("media-1");
+        assertThat(body.path("docType").asString()).isEqualTo("contract");
+        assertThat(body.path("title").asString()).isEqualTo("Договор аренды");
+        assertThat(body.path("party").asString()).isEqualTo("ООО Ромашка");
+        assertThat(body.path("docDate").asString()).isEqualTo("2026-01-15");
+        assertThat(body.path("ocrText").asString()).contains("ДОГОВОР АРЕНДЫ");
+        assertThat(body.path("tags").get(0).asString()).isEqualTo("аренда");
     }
 
     @Test
@@ -154,9 +154,9 @@ class DocArchiverTest {
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(body.path("docType").asText()).isEqualTo("receipt");
-        assertThat(new BigDecimal(body.path("amount").asText())).isEqualByComparingTo("1234.56");
-        assertThat(body.path("currency").asText()).isEqualTo("RUB");
+        assertThat(body.path("docType").asString()).isEqualTo("receipt");
+        assertThat(new BigDecimal(body.path("amount").asString())).isEqualByComparingTo("1234.56");
+        assertThat(body.path("currency").asString()).isEqualTo("RUB");
     }
 
     @Test

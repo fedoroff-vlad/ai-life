@@ -138,7 +138,7 @@ public class BriefingProfiler {
     }
 
     private static String text(JsonNode node, String field) {
-        return node.hasNonNull(field) ? node.get(field).asText() : null;
+        return node.hasNonNull(field) ? node.get(field).asString() : null;
     }
 
     private static JsonNode array(JsonNode node, String field) {

@@ -99,7 +99,7 @@ public class BirthdayGreeter {
         if (g == null || g.isNull()) {
             return null;
         }
-        String text = g.asText().strip();
+        String text = g.asString().strip();
         return text.isEmpty() ? null : text;
     }
 

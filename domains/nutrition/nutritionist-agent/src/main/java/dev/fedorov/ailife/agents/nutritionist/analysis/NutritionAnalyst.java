@@ -89,7 +89,7 @@ public class NutritionAnalyst {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("meals", Mono.just(json.valueToTree(recent)));
         gather.put("profile", profiles.get(msg.householdId(), msg.userId())
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
 
         ObjectNode payload = json.createObjectNode();
         if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());

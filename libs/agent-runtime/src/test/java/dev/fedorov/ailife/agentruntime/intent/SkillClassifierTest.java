@@ -81,7 +81,7 @@ class SkillClassifierTest {
         FlowCall f = (FlowCall) d;
         assertThat(f.action()).isEqualTo("report");
         // The agent's flow-map reads its own fields off the node.
-        assertThat(f.node().path("period").asText()).isEqualTo("year");
+        assertThat(f.node().path("period").asString()).isEqualTo("year");
     }
 
     @Test
@@ -92,7 +92,7 @@ class SkillClassifierTest {
         assertThat(d).isInstanceOf(FlowCall.class);
         FlowCall f = (FlowCall) d;
         assertThat(f.action()).isEqualTo("skill");
-        assertThat(f.node().path("name").asText()).isEqualTo("inbox-clarify");
+        assertThat(f.node().path("name").asString()).isEqualTo("inbox-clarify");
     }
 
     // --- parse: chat + lenient fallback ---

@@ -113,7 +113,7 @@ public class OpenFoodFactsDataSource implements FoodDataSource {
         if (v == null || v.isNull()) {
             return null;
         }
-        String s = v.asText().trim();
+        String s = v.asString().trim();
         return s.isEmpty() ? null : s;
     }
 

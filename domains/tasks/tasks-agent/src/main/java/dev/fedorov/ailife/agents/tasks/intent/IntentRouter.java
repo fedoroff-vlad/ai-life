@@ -111,13 +111,13 @@ public class IntentRouter {
      */
     private Mono<RouterResult> resolveSkill(SkillClassifier.FlowCall f, List<Skill> intentSkills,
                                             String raw, String model) {
-        String skillName = f.node().path("name").asText(null);
+        String skillName = f.node().path("name").asString(null);
         if (skillName != null && intentSkills.stream().anyMatch(s -> skillName.equals(s.name()))) {
-            boolean shared = "shared".equalsIgnoreCase(f.node().path("scope").asText(""));
+            boolean shared = "shared".equalsIgnoreCase(f.node().path("scope").asString(""));
             return Mono.just(new RouterResult(null, null, model, skillName, shared));
         }
         log.warn("LLM routed to unknown intent skill '{}' — falling back to chat", skillName);
-        String text = f.node().has("text") ? f.node().get("text").asText() : raw;
+        String text = f.node().has("text") ? f.node().get("text").asString() : raw;
         return Mono.just(new RouterResult(text, null, model, null, false));
     }
 
