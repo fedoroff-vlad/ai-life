@@ -205,7 +205,11 @@ class GoldenRoutingTest {
         router.route(GoldenLlm.message("привет")).block(Duration.ofSeconds(180));
 
         assertRoutesTo("запиши расход 1500 рублей на продукты", "add_transaction");
-        assertRoutesTo("какой сейчас баланс на карте?", "get_balance");
+        // Name the account so the balance request is unambiguous: an account-less "какой баланс на
+        // карте?" is legitimately treated as ambiguous by newer models (e.g. qwen3:8b) and routed to
+        // chat for clarification, which made this behaviour case flaky (#395). The structure test above
+        // still exercises the account-less phrasing (well-formed-JSON only, no branch assertion).
+        assertRoutesTo("какой сейчас баланс на карте Тинькофф?", "get_balance");
         assertRoutesTo("проанализируй мои траты и подскажи где сэкономить", "advice");
         assertRoutesTo("сделай финансовый отчёт за месяц", "report");
         assertRoutesTo("стоит ли смотреть на акции Apple?", "invest");
