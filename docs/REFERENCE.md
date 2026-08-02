@@ -1,7 +1,7 @@
 # ai-life — project reference
 
 A consolidated, two-lens overview of the system: first for a **developer**, then for a **user** who
-wants to try it. This is a **light snapshot (last refreshed 2026-07-10)** — much has shipped since it was
+wants to try it. This is a **light snapshot (last refreshed 2026-08-02)** — much has shipped since it was
 first written and it is deliberately not exhaustive; the authoritative, always-current sources are
 [`plans/architecture.md`](../plans/architecture.md) (design), [`plans/roadmap.md`](../plans/roadmap.md)
 (stages), and [`plans/STATUS.md`](../plans/STATUS.md) (in-flight). When this file and `plans/` disagree,
@@ -111,7 +111,7 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 | **4 — memory + inter-agent** | done | memory-service (pgvector recall + scope), graph relations (SQL; AGE deferred), LISTEN/NOTIFY bus + outbox, conversation-state (route-lock / confirm), first Coordinator chains |
 | **5 — real LLM** | done ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) | Langfuse tracing + Anthropic/openai-compatible/Ollama providers; **local Ollama** baseline (`qwen3:8b` + `nomic-embed-text`, free). Opt-in, CI-skipped **golden tests** (structure-not-text, `@Tag("golden")` + `GOLDEN_LLM`) now cover all agents + orchestrator routing via `libs/golden-test-support`. CI default stays `mock` |
 | **6 — domain agents** | done (current domains) | researcher (+ `mcp-web`), stylist, nutrition (nutritionist + chef), creator — each MVP-complete. Future agents extracted to [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issues |
-| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), coach-agent CO-1/CO-2 (now parked), the **skills-vs-flows** in-agent refactor (shared `SkillClassifier` #358 + Bucket 2 pilot #360; cutover #369 Mac-gated). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. **Mac deployment + hot/cold lifecycle is PARKED** (hardware-blocked, [`plans/lifecycle.md`](../plans/lifecycle.md)); **current in-flight = the identity & membership epic** ([`plans/adr/ADR-0001-identity-membership-scope.md`](../plans/adr/ADR-0001-identity-membership-scope.md), Accepted) |
+| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), coach-agent CO-1/CO-2 (now parked), the **skills-vs-flows** in-agent refactor (shared `SkillClassifier` #358 + Bucket 2 pilot #360; cutover #369 Mac-gated), and the **identity & membership epic COMPLETE** ([ADR-0001](../plans/adr/ADR-0001-identity-membership-scope.md), 2026-08-01 — invite-only onboarding + per-member calendar routing + per-person ICS feed, closed #295). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. **Mac deployment + hot/cold lifecycle is PARKED** (hardware-blocked, [`plans/lifecycle.md`](../plans/lifecycle.md)); **current in-flight = the sharing-as-a-capability epic** ([`plans/adr/ADR-0002-sharing-shared-capability.md`](../plans/adr/ADR-0002-sharing-shared-capability.md), Accepted 2026-08-01 — a reusable `libs/sharing` "own vs shared" capability; slices 1–5 shipped, next = nutrition/docs) |
 
 ### Live domains (current)
 
