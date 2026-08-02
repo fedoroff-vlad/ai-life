@@ -3,6 +3,9 @@ package dev.fedorov.ailife.agents.nutritionist.config;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -65,5 +68,30 @@ public class OutboundHttpConfig {
     public OrchestratorInvokeClient orchestratorInvokeClient(
             @Qualifier("orchestratorWebClient") WebClient orchestratorWebClient) {
         return new OrchestratorInvokeClient(orchestratorWebClient);
+    }
+
+    /**
+     * The sharing capability's identity read (ADR-0002 slice 6), over the shared
+     * {@code profileServiceWebClient} (built by agent-runtime from {@code SharedClientProperties}) — the
+     * same client backing {@link dev.fedorov.ailife.agentruntime.http.ProfileClient}. Used by the basket
+     * write path to route a grocery basket to the member's personal ∪ shared household; mirrors
+     * finance-agent's wiring.
+     */
+    @Bean
+    public ProfileSharingClient profileSharingClient(
+            @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
+        return new ProfileSharingClient(profileServiceWebClient);
+    }
+
+    /**
+     * The sharing capability's <b>write-path</b> engine (ADR-0002 slice 6), wired with nutrition's
+     * {@code NutritionSharingPolicy} (injected as the {@link DefaultSharingPolicy}). {@code BasketBreakdown}
+     * routes a saved grocery basket against the acting user's household-routing split to a concrete
+     * personal/shared {@code household_id}; mirrors finance-agent's wiring.
+     */
+    @Bean
+    public SharingResolver sharingResolver(ProfileSharingClient profileSharingClient,
+                                           DefaultSharingPolicy defaultSharingPolicy) {
+        return new SharingResolver(profileSharingClient, defaultSharingPolicy);
     }
 }

@@ -213,9 +213,19 @@ shared and the *policy* local — the correct seam.
      (a proactive scheduler cron — no user/scope axis). Validated: `TaskReadsTest` (own vs shared set +
      union/cap) + `NextActionSuggesterTest` shared-cut + `IntentRouterTest` scope-parse. **Tasks fully
      retrofitted (write 5a + read 5b).**
-6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**
-   (household vs personal docs).
-7. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
+6. **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) — split write/read:
+   - [x] **6a — write:** the direct basket breakdown (`BasketBreakdown`) routes the saved `basket` to the
+     acting member's shared vs personal household via `SharingResolver` + new `sharing/NutritionSharingPolicy`
+     (a grocery basket is a household-provisioning act → shared by default, degrading to personal with no
+     family household). Only the direct path routes; the IA-b bus fan-out keeps finance's already-resolved
+     household; the food log stays personal. mcp-nutrition stays tenant-agnostic. Validated:
+     `BasketBreakdownTest` (grocery basket → shared household; no-family → degrade to personal) + full
+     nutritionist suite green.
+   - [ ] **6b — read:** `MealPlanner` (ration/shopping list) unions diet profiles + recent meals across the
+     member's personal ∪ shared households on a family-scoped request (`ProfileSharingClient.households`);
+     default = own. Mirrors finance's `SpendingReads` / tasks' `TaskReads`.
+7. [ ] **Documents** (household vs personal docs) — the remaining domain of slice 6's original pairing.
+8. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
 
 ## Notes
 

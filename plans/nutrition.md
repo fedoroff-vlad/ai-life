@@ -250,6 +250,20 @@ Data precision:
   real reference macros where Open Food Facts matches** — the nutrition domain's first precise-data
   consumer of the shared capability.
 
+## Tenant scope / sharing (ADR-0002, slice 6)
+Nutrition adopts the shared sharing capability ([adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md)):
+**shared meal-plan/shopping surface only; the food log stays personal.**
+- **Write (6a — DONE).** The direct basket breakdown (`BasketBreakdown`) routes the saved `basket` row to
+  the acting member's shared vs personal household via `libs/sharing`'s `SharingResolver` +
+  `sharing/NutritionSharingPolicy` (a grocery basket is a household-provisioning act → **shared by
+  default**, degrading to personal when the member has no family household yet). Only the direct path
+  routes; the IA-b bus fan-out keeps finance's already-resolved household. The food log (`meal_log`) and
+  diet profiles never route here. mcp-nutrition stays tenant-agnostic.
+- **Read (6b — NEXT).** The ration/shopping-list flow (`MealPlanner`) will, on a family-scoped request
+  ("наш рацион", "на всю семью"), union diet profiles + recent meals across the member's personal ∪ shared
+  households via `ProfileSharingClient.households`; default stays the sender's own. Mirrors finance's
+  `SpendingReads` / tasks' `TaskReads` own-by-default read.
+
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
 |---|---|---|
