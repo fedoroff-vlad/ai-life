@@ -47,15 +47,18 @@ class DocArchiverTest {
     static MockWebServer mcpDocs;
     static MockWebServer mcpMediaProcessing;
     static MockWebServer llmGateway;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
         mcpDocs = new MockWebServer();
         mcpMediaProcessing = new MockWebServer();
         llmGateway = new MockWebServer();
+        profileService = new MockWebServer();
         mcpDocs.start();
         mcpMediaProcessing.start();
         llmGateway.start();
+        profileService.start();
     }
 
     @AfterAll
@@ -63,12 +66,14 @@ class DocArchiverTest {
         mcpDocs.shutdown();
         mcpMediaProcessing.shutdown();
         llmGateway.shutdown();
+        profileService.shutdown();
     }
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
         r.add("docs-agent.mcp-docs-url", () -> "http://localhost:" + mcpDocs.getPort());
         r.add("docs-agent.mcp-media-processing-url", () -> "http://localhost:" + mcpMediaProcessing.getPort());
+        r.add("docs-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -77,7 +82,9 @@ class DocArchiverTest {
 
     @Test
     void documentPhotoIsOcrdExtractedAndArchived() throws Exception {
-        UUID householdId = UUID.randomUUID();
+        UUID envelopeHh = UUID.randomUUID();  // a rental contract is a household doc → must re-route to shared
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
         mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
@@ -86,12 +93,15 @@ class DocArchiverTest {
                 + "\"docDate\":\"2026-01-15\",\"tags\":[\"аренда\"]}";
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(120, 30, 150)))));
+        // household-routing: the user's personal + one shared household (ADR-0002 slice 7 write path).
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
         mcpDocs.enqueue(jsonResponse(json.writeValueAsString(new DocumentDto(
-                UUID.randomUUID(), householdId, userId, "media-1", "contract", "Договор аренды",
+                UUID.randomUUID(), sharedHh, userId, "media-1", "contract", "Договор аренды",
                 "ООО Ромашка", LocalDate.of(2026, 1, 15), null, null,
                 "ДОГОВОР АРЕНДЫ квартиры", json.readTree("[\"аренда\"]"), Instant.now()))));
 
-        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+        NormalizedMessage msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
                 "вот договор аренды, сохрани",
                 List.of(new Attachment("image", "image/jpeg", "media-1", null)),
                 "telegram", "80", Instant.now());
@@ -111,11 +121,16 @@ class DocArchiverTest {
         String llmBody = llmReq.getBody().readUtf8();
         assertThat(llmBody).contains("strict JSON").contains("ДОГОВОР АРЕНДЫ").contains("сохрани");
 
-        // The document was archived with the blob id, extracted metadata, and full OCR text.
+        // The household-routing split was read for the acting user.
+        RecordedRequest routingReq = profileService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(routingReq.getPath()).contains("/household-routing").contains(userId.toString());
+
+        // The document was archived with the blob id, extracted metadata, and full OCR text — and under
+        // the SHARED household (a contract → shared per DocsSharingPolicy), not the envelope one.
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("householdId").asString()).isEqualTo(sharedHh.toString());
         assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
         assertThat(body.path("mediaId").asString()).isEqualTo("media-1");
         assertThat(body.path("docType").asString()).isEqualTo("contract");
@@ -127,8 +142,10 @@ class DocArchiverTest {
     }
 
     @Test
-    void receiptPhotoExtractsAmountAndCurrency() throws Exception {
-        UUID householdId = UUID.randomUUID();
+    void receiptPhotoStaysPersonalEvenWithSharedHousehold() throws Exception {
+        UUID envelopeHh = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();  // a family household exists, but a receipt is a personal paper
         UUID userId = UUID.randomUUID();
 
         mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
@@ -137,12 +154,15 @@ class DocArchiverTest {
                 "mock-large",
                 "{\"docType\":\"receipt\",\"title\":\"Чек Пятёрочка\",\"party\":\"Пятёрочка\",\"amount\":1234.56,\"currency\":\"RUB\"}",
                 "stop", new LlmUsage(80, 20, 100)))));
+        // household-routing: a shared household is available, but a receipt (PRIVATE) still routes personal.
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
         mcpDocs.enqueue(jsonResponse(json.writeValueAsString(new DocumentDto(
-                UUID.randomUUID(), householdId, userId, "media-2", "receipt", "Чек Пятёрочка",
+                UUID.randomUUID(), personalHh, userId, "media-2", "receipt", "Чек Пятёрочка",
                 "Пятёрочка", null, new BigDecimal("1234.56"), "RUB", "ПЯТЁРОЧКА ИТОГО 1234.56 RUB",
                 null, Instant.now()))));
 
-        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE, null,
+        NormalizedMessage msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE, null,
                 List.of(new Attachment("image", "image/jpeg", "media-2", null)),
                 "telegram", "81", Instant.now());
 
@@ -152,8 +172,11 @@ class DocArchiverTest {
 
         mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        profileService.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(saveReq.getBody().readUtf8());
+        // a receipt is PRIVATE → the personal household, never the shared one.
+        assertThat(body.path("householdId").asString()).isEqualTo(personalHh.toString());
         assertThat(body.path("docType").asString()).isEqualTo("receipt");
         assertThat(new BigDecimal(body.path("amount").asString())).isEqualByComparingTo("1234.56");
         assertThat(body.path("currency").asString()).isEqualTo("RUB");

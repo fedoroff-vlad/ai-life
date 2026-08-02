@@ -18,6 +18,8 @@ import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.llm.LlmClient;
+import dev.fedorov.ailife.sharing.SharingContext;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Turns an inbound document photo into an archived {@code docs.document} row (D-c ingest).
@@ -58,16 +61,19 @@ public class DocArchiver {
     private final DocumentClient documents;
     private final MemoryClient memory;
     private final LlmClient llm;
+    private final SharingResolver sharing;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public DocArchiver(OcrClient ocr, DocumentClient documents, MemoryClient memory, LlmClient llm,
-                       SkillRegistry skills, AgentManifest manifest, ObjectMapper json) {
+                       SharingResolver sharing, SkillRegistry skills, AgentManifest manifest,
+                       ObjectMapper json) {
         this.ocr = ocr;
         this.documents = documents;
         this.memory = memory;
         this.llm = llm;
+        this.sharing = sharing;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -91,8 +97,15 @@ public class DocArchiver {
                 LlmMessage.user(extractionInput(ocrText, msg.text()))), 0.0);
         return llm.chat(request).flatMap(r -> {
             JsonNode draft = parseDraft(r.content());
-            SaveDocumentInput input = buildInput(msg, mediaId, ocrText, draft);
-            return documents.save(input)
+            // ADR-0002 slice 7 (sharing write path): a document is routed to the acting member's shared
+            // vs personal household deterministically by the shared SharingResolver + DocsSharingPolicy
+            // (warranty/contract → the family's shared household, else private; a shared choice with no
+            // family household degrades to personal). The routing/fallback rules live once in libs/sharing;
+            // any profile hiccup degrades to the envelope household so a document never fails to save on it.
+            SharingContext ctx = new SharingContext(List.of(), false, text(draft, "docType"));
+            return resolveHousehold(msg, ctx).flatMap(household -> {
+                SaveDocumentInput input = buildInput(household, msg, mediaId, ocrText, draft);
+                return documents.save(input)
                     // SB-5: seed the archived document into the second-brain as an authored note
                     // (memory-service /v1/notes) rather than a raw memory row. The note auto-seeds recall
                     // (SB-2) so doc-finder still surfaces it by meaning, but it now lands in the ONE store
@@ -105,7 +118,23 @@ public class DocArchiver {
                         log.warn("save_document failed for media {}: {}", mediaId, e.toString());
                         return Mono.just(reply("Не смог сохранить документ в архив. Попробуйте позже.", null));
                     });
+            });
         });
+    }
+
+    /**
+     * Resolve the household to archive the document into (ADR-0002 slice 7). The
+     * {@link SharingResolver} applies {@code DocsSharingPolicy} against the acting member's household-routing
+     * split; any profile failure degrades to the envelope household so a document is never lost to a routing
+     * hiccup, and an absent routing (unknown user) falls back the same way.
+     */
+    private Mono<UUID> resolveHousehold(NormalizedMessage msg, SharingContext ctx) {
+        return sharing.resolveHousehold(msg.userId(), null, ctx, msg.householdId())
+                .onErrorResume(e -> {
+                    log.debug("document household routing failed, using envelope household: {}", e.toString());
+                    return Mono.justOrEmpty(msg.householdId());
+                })
+                .switchIfEmpty(Mono.justOrEmpty(msg.householdId()));
     }
 
     /**
@@ -162,9 +191,10 @@ public class DocArchiver {
         return fm;
     }
 
-    private SaveDocumentInput buildInput(NormalizedMessage msg, String mediaId, String ocrText, JsonNode draft) {
+    private SaveDocumentInput buildInput(UUID householdId, NormalizedMessage msg, String mediaId,
+                                         String ocrText, JsonNode draft) {
         return new SaveDocumentInput(
-                msg.householdId(),
+                householdId,                        // resolved shared vs personal household (ADR-0002 slice 7)
                 msg.userId(),                       // archived under the sender; search is household-scoped
                 mediaId,
                 text(draft, "docType"),

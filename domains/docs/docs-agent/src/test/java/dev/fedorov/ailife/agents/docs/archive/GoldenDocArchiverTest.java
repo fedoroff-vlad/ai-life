@@ -5,6 +5,9 @@ import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
 import dev.fedorov.ailife.agents.docs.http.OcrClient;
+import dev.fedorov.ailife.agents.docs.sharing.DocsSharingPolicy;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
@@ -55,8 +58,12 @@ class GoldenDocArchiverTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenDocArchiverTest.class.getClassLoader(),
                     "skills/docs/doc-archiver/SKILL.md")));
+    // Sharing routing isn't the subject here — mock the profile read to empty so the resolver falls back
+    // to the envelope household; the real DocsSharingPolicy still runs (ADR-0002 slice 7).
+    private final ProfileSharingClient profileSharing = mock(ProfileSharingClient.class);
+    private final SharingResolver sharing = new SharingResolver(profileSharing, new DocsSharingPolicy());
     private final DocArchiver archiver =
-            new DocArchiver(ocr, documents, memory, GoldenLlm.client(), skills, manifest, json);
+            new DocArchiver(ocr, documents, memory, GoldenLlm.client(), sharing, skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real archiver prompt and a concrete document's OCR text,
@@ -80,6 +87,7 @@ class GoldenDocArchiverTest {
                     in.tags(), Instant.now()));
         });
         when(memory.note(any())).thenReturn(Mono.empty());   // SB-5: the seed is now a note write
+        when(profileSharing.householdRouting(any())).thenReturn(Mono.empty()); // → envelope household fallback
 
         var msg = GoldenLlm.message(household, user, "вот гарантия на холодильник, сохрани");
 

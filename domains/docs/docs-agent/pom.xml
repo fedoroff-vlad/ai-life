@@ -32,6 +32,12 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- The sharing capability (ADR-0002): route an archived document to the member's shared vs
+             personal household via SharingResolver + the local DocsSharingPolicy (slice 7 write path). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>sharing</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
