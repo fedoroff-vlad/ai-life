@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Golden test — the {@code safety-check} gate against a <b>real model</b> (local Ollama
- * {@code qwen2.5:7b} via a running llm-gateway), asserting <b>structure, not text</b>: a crisp crisis
+ * {@code qwen3:8b} via a running llm-gateway), asserting <b>structure, not text</b>: a crisp crisis
  * signal must classify {@code true} and an ordinary reflective request {@code false} — the gate that
  * decides whether the coaching frame is dropped (coach spec §Safety).
  *

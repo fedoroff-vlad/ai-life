@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Stage 5 <b>golden test</b> — exercises {@link NoteWorthinessExtractor} against a <b>real model</b>
- * (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting <b>structure, not wording</b>:
+ * (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting <b>structure, not wording</b>:
  * given a natural message with a fixation cue about a person, the real model must emit a parseable
  * candidate with a plausible type/subject and the explicit-fixation classification. Mirrors
  * {@code GoldenNoteWriterTest}.

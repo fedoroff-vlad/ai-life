@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the researcher's {@code research} <b>synthesis skill</b>
- * against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b> (roadmap §Risks). Where the inbox-clarify golden test covers a JSON skill,
  * this covers a <b>free-text synthesis</b> skill and its hardest contract rule: <i>"never invent URLs —
  * every link you give must be a url from the sources"</i>. Given a fixed, pre-gathered corpus (the
@@ -41,10 +41,10 @@ import static org.mockito.Mockito.when;
  * <p><b>Opt-in / gated.</b> Skipped unless {@code GOLDEN_LLM} is set (CI default = unset, so the suite
  * stays green on the mock provider without a model). To run it:
  * <pre>
- *   # 1. a real model — local Ollama with qwen2.5:7b pulled (see project memory / llm-gateway README)
+ *   # 1. a real model — local Ollama with qwen3:8b pulled (see project memory / llm-gateway README)
  *   # 2. a llm-gateway pointed at it (raise the timeout — synthesis over a corpus is a long generation):
  *   LLM_PROVIDER=openai-compatible LLM_BASE_URL=http://localhost:11434/v1 \
- *   LLM_DEFAULT_MODEL=qwen2.5:7b LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
+ *   LLM_DEFAULT_MODEL=qwen3:8b LLM_REQUEST_TIMEOUT_SECONDS=180 LLM_GATEWAY_PORT=8081 \
  *     mvn -q -pl platform/llm-gateway spring-boot:run
  *   # 3. the test, pointed at the gateway:
  *   GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \

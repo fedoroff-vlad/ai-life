@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the stylist {@code wardrobe-auditor} <b>JSON-synthesis
- * skill</b> against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway),
+ * skill</b> against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway),
  * asserting <b>structure, not text</b> (roadmap §Risks). Given a fixed catalogued wardrobe, the real
  * model must return a parseable {@code {"verdicts":[{name, verdict, reason}], …}} audit that the
  * production {@link WardrobeAuditor} turns into a verdict tally — i.e. a real KEEP/QUESTION/REMOVE

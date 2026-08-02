@@ -107,7 +107,7 @@ chosen agent, and returns the LLM content with the right `agent` / `llmModel`.
 `WakeDispatchTest` covers `/v1/agents/wake`.
 
 **Golden test (Stage 5 / #199):** `routing/GoldenRoutingTest` exercises agent routing
-against a **real model** (local Ollama `qwen2.5:7b` via a running llm-gateway),
+against a **real model** (local Ollama `qwen3:8b` via a running llm-gateway),
 asserting *structure, not text* — crisp domain messages reach the right agent and every
 message resolves to a known agent name. Opt-in (`@Tag("golden")` +
 `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`), **skipped in CI**. Run instructions live in

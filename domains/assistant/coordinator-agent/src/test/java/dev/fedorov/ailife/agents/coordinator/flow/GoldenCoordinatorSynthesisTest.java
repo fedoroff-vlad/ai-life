@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199 pattern) for the coordinator's synthesis against a <b>real model</b>
- * (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting <b>structure, not text</b>: given
+ * (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting <b>structure, not text</b>: given
  * a fixed set of recalled second-brain facts, the real model must synthesize a non-trivial answer that is
  * <i>grounded</i> in those facts — never one invented from thin air. This is the #290 output-half check on
  * a weak model; the same code scales up on a strong provider with no change.

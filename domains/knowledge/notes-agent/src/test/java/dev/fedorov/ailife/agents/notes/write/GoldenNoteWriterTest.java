@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> — exercises the {@code note-writer} <b>JSON-extract skill</b> against a
- * <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b>: given a "запомни …" request, the real model must emit a note object the
  * production {@link NoteWriter} parses into a {@link WriteNoteRequest} with a non-blank title + body.
  *

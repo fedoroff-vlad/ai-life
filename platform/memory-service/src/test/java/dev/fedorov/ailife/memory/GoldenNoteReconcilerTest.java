@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Stage 5 <b>golden test</b> — exercises {@link NoteReconciler} against a <b>real model</b> (local Ollama
- * {@code qwen2.5:7b} via a running llm-gateway), asserting <b>structure, not wording</b>: a near-duplicate
+ * {@code qwen3:8b} via a running llm-gateway), asserting <b>structure, not wording</b>: a near-duplicate
  * that adds a detail enriches, a contradiction supersedes, and an identical restatement is skipped. This is
  * the model behaviour the AC-5 merge/supersede path depends on. Mirrors {@code GoldenNoteWorthinessTest}.
  *

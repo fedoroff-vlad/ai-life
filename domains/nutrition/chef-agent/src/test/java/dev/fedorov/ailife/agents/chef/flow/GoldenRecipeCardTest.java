@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Stage 5 <b>golden test</b> (#199) — exercises the chef {@code recipe-finder} <b>synthesis skill</b>
- * against a <b>real model</b> (local Ollama {@code qwen2.5:7b} via a running llm-gateway), asserting
+ * against a <b>real model</b> (local Ollama {@code qwen3:8b} via a running llm-gateway), asserting
  * <b>structure, not text</b> (roadmap §Risks). Like the researcher synthesis test it covers a grounded
  * free-text skill, but the contract here is to <b>pick recipes from the provided search hits and
  * reference them by title</b>: given a fixed set of recipe hits, the real model must write a card that
