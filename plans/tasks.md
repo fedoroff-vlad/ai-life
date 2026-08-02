@@ -81,8 +81,12 @@ another member → shared) vs a personal todo (→ private).
   `SharingResolver` routes it to a concrete household, and mcp-tasks' `POST /internal/task`
   (`AddTaskClient`) captures it to the inbox. This is the deterministic capture an LLM-driven `add_task`
   tool call can't take — the classifier never sees the household id. mcp-tasks stays tenant-agnostic.
-- **Read (5b, next):** the read flows union across the member's personal ∪ shared households on an
-  explicit shared cut (default = own only, mirroring finance), via `ProfileSharingClient.households`.
+- **Read (5b, done):** `next-action-suggester` reads through the sharing-aware `read/TaskReads` (sibling
+  of finance's `SpendingReads`): default = the member's **own** tasks (envelope household, mirroring
+  finance); an explicit shared cut (`scope:"shared"` — "наши дела / семейные задачи") unions across the
+  member's personal ∪ shared households via `ProfileSharingClient.households`. weekly-review stays
+  per-household (a proactive scheduler cron — no user/scope axis). **Tasks fully retrofitted (write 5a +
+  read 5b).**
 
 Note this is a different axis from `owner_id` (private-within-a-household): sharing picks *which
 household* the row lands in; `owner_id` scopes visibility *within* one household.

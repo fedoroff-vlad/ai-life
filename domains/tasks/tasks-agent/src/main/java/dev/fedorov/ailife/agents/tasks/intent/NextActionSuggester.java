@@ -4,7 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.tasks.http.NextActionClient;
+import dev.fedorov.ailife.agents.tasks.read.TaskReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -22,11 +22,15 @@ import java.util.List;
 
 /**
  * Runs the reactive {@code next-action-suggester} skill: when {@link IntentRouter} classifies a
- * user message as "what should I do now / next actions", this fetches the household's open
- * next-actions (status=next via mcp-tasks' {@code /internal/tasks} passthrough) and asks the LLM —
- * primed with AGENT.md + the {@code next-action-suggester} SKILL.md — to rank and present them by
- * due date, priority and context. Read-only; suggests, doesn't change anything. Mirrors
- * {@link InboxClarifier}.
+ * user message as "what should I do now / next actions", this fetches the open next-actions (status=next)
+ * via the sharing-aware {@link TaskReads} and asks the LLM — primed with AGENT.md + the
+ * {@code next-action-suggester} SKILL.md — to rank and present them by due date, priority and context.
+ * Read-only; suggests, doesn't change anything. Mirrors {@link InboxClarifier}.
+ *
+ * <p><b>Sharing (ADR-0002 slice 5b).</b> By default the read is the member's <b>own</b> tasks (the envelope
+ * household — mirroring finance). When the router tags {@code shared} (the user asked about family / shared
+ * tasks — "наши дела", "семейные задачи"), {@link TaskReads} unions across the member's personal ∪ shared
+ * households. mcp-tasks stays tenant-agnostic; the member→set resolution lives in {@code TaskReads}.
  *
  * <p>Every failure degrades to a friendly Russian message (this is the user-facing intent path,
  * not a scheduler retry).
@@ -41,22 +45,30 @@ public class NextActionSuggester {
     private final LlmClient llm;
     private final AgentManifest manifest;
     private final SkillRegistry skills;
-    private final NextActionClient nextActions;
+    private final TaskReads taskReads;
     private final ObjectMapper json;
 
     public NextActionSuggester(LlmClient llm,
                                AgentManifest manifest,
                                SkillRegistry skills,
-                               NextActionClient nextActions,
+                               TaskReads taskReads,
                                ObjectMapper json) {
         this.llm = llm;
         this.manifest = manifest;
         this.skills = skills;
-        this.nextActions = nextActions;
+        this.taskReads = taskReads;
         this.json = json;
     }
 
     public Mono<IntentResponse> suggest(NormalizedMessage message) {
+        return suggest(message, false);
+    }
+
+    /**
+     * @param shared {@code true} for the family/shared cut (personal ∪ shared households); {@code false}
+     *               (the default) reads the member's own tasks only.
+     */
+    public Mono<IntentResponse> suggest(NormalizedMessage message, boolean shared) {
         if (message.householdId() == null) {
             return Mono.just(reply("Не знаю, к какому хозяйству относится запрос.", null));
         }
@@ -68,7 +80,8 @@ public class NextActionSuggester {
             log.warn("next-action-suggester skill not loaded — cannot run the flow");
             return Mono.just(reply("Навык подсказки задач сейчас недоступен.", null));
         }
-        return nextActions.fetchNextActions(message.householdId(), FETCH_LIMIT)
+        return taskReads.households(message.householdId(), message.userId(), shared)
+                .flatMap(households -> taskReads.nextActionsUnion(households, FETCH_LIMIT))
                 .flatMap(items -> {
                     if (items == null || items.isEmpty()) {
                         return Mono.just(reply(

@@ -213,7 +213,9 @@ a contract value; a tool name is real; unambiguous requests route to the right a
 `@Tag("golden")` + `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`, so a normal `mvn test` **skips** them — CI
 stays green without a model. Harnesses: `orchestrator`'s `routing.GoldenRoutingTest` (top-of-spine
 agent routing across the 8 real manifests), `finance-agent`'s `GoldenRoutingTest` (in-agent
-intent/tool routing), `tasks-agent`'s `intent.GoldenInboxClarifyTest` (skill output — the
+intent/tool routing), `tasks-agent`'s `intent.GoldenRoutingTest` (in-agent intent/skill routing — a
+plain capture must reach the `task-capture` flow not the `add_task` tool, and a family ask must carry
+`scope:"shared"`; ADR-0002 slice 5) and `intent.GoldenInboxClarifyTest` (skill output — the
 `inbox-clarify` skill must return strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD
 statuses), `researcher-agent`'s `flow.GoldenResearchSynthesisTest` (free-text synthesis — the
 `research` skill must write a grounded answer citing **only** corpus links, never a hallucinated URL),
@@ -275,7 +277,7 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/finance/finance-agent -Dtest=GoldenRoutingTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
-  mvn -q -pl domains/tasks/tasks-agent -Dtest=GoldenInboxClarifyTest test
+  mvn -q -pl domains/tasks/tasks-agent -Dtest='GoldenRoutingTest,GoldenInboxClarifyTest' test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
   mvn -q -pl domains/researcher/researcher-agent -Dtest=GoldenResearchSynthesisTest test
 GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \

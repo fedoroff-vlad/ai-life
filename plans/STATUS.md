@@ -36,10 +36,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   chat-captured task to a personal vs shared household via `SharingResolver` + new
   `sharing/TasksSharingPolicy`; persisted via mcp-tasks' new `POST /internal/task` passthrough. The
   deterministic capture an LLM-driven `add_task` tool call can't take (classifier never sees the household
-  id). Validated: `TaskCapturerTest` + mcp-tasks controller test green. NEXT = **slice 5b tasks read**
-  (union `next-action-suggester`/weekly-review via `ProfileSharingClient.households` on the shared cut) → 6
-  nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
-  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  id). **5b (read) ✅** = `next-action-suggester` reads through a new `read/TaskReads` helper (sibling of
+  finance's `SpendingReads`): default = own (envelope household), and on an explicit `scope:"shared"` cut
+  ("наши дела") it unions across the member's personal ∪ shared households via
+  `ProfileSharingClient.households`; the router threads `scope` onto `RouterResult.shared` → controller →
+  `suggest(msg, shared)`. weekly-review stays per-household (proactive cron, no user/scope). Added tasks'
+  first `GoldenRoutingTest` (real-model routing: capture → task-capture, own vs shared next-actions).
+  **Tasks fully retrofitted (write 5a + read 5b).** NEXT = **slice 6 nutrition+docs** → 7 (deferred) memory
+  owner-tag reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the
