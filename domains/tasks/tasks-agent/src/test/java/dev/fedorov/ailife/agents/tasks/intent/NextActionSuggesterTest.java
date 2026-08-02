@@ -3,7 +3,7 @@ package dev.fedorov.ailife.agents.tasks.intent;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.tasks.http.NextActionClient;
+import dev.fedorov.ailife.agents.tasks.read.TaskReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -32,14 +32,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link NextActionSuggester} — mock {@link LlmClient} + {@link NextActionClient}
- * exercise the rank / empty / failure branches without an external service. Mirrors
+ * Unit tests for {@link NextActionSuggester} — mock {@link LlmClient} + {@link TaskReads} exercise the
+ * rank / empty / failure / shared-cut branches without an external service. Mirrors
  * {@link InboxClarifierTest}.
  */
 class NextActionSuggesterTest {
 
     private final LlmClient llm = mock(LlmClient.class);
-    private final NextActionClient nextActions = mock(NextActionClient.class);
+    private final TaskReads taskReads = mock(TaskReads.class);
     // Jackson 3 auto-registers the built-in java.time support, so TaskItemDto Instant fields serialize.
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
@@ -52,12 +52,15 @@ class NextActionSuggesterTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(skill));
 
     private final NextActionSuggester suggester =
-            new NextActionSuggester(llm, manifest, skills, nextActions, json);
+            new NextActionSuggester(llm, manifest, skills, taskReads, json);
 
     @Test
     void ranksOpenNextActions() {
         UUID household = UUID.randomUUID();
-        when(nextActions.fetchNextActions(eq(household), anyInt())).thenReturn(Mono.just(List.of(
+        // Default (own) cut → the envelope household only; the union read returns the ranked candidates.
+        when(taskReads.households(eq(household), any(), eq(false)))
+                .thenReturn(Mono.just(List.of(household)));
+        when(taskReads.nextActionsUnion(eq(List.of(household)), anyInt())).thenReturn(Mono.just(List.of(
                 nextItem("позвонить врачу", "@calls"),
                 nextItem("починить кран", "@home"))));
         AtomicReference<LlmChatRequest> seen = new AtomicReference<>();
@@ -81,9 +84,32 @@ class NextActionSuggesterTest {
     }
 
     @Test
+    void sharedCutReadsAcrossTheMemberHouseholdSet() {
+        UUID envelope = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+        // The shared cut resolves the member's personal ∪ shared set and reads the union across it.
+        when(taskReads.households(eq(envelope), any(), eq(true)))
+                .thenReturn(Mono.just(List.of(envelope, sharedHh)));
+        when(taskReads.nextActionsUnion(eq(List.of(envelope, sharedHh)), anyInt()))
+                .thenReturn(Mono.just(List.of(nextItem("вынести мусор", "@home"))));
+        when(llm.chat(any(LlmChatRequest.class)))
+                .thenReturn(Mono.just(reply("mock-large", "Общее: вынести мусор.")));
+
+        StepVerifier.create(suggester.suggest(message(envelope, "что нам сделать по дому"), true))
+                .assertNext(r -> assertThat(r.text()).contains("вынести мусор"))
+                .verifyComplete();
+
+        // The shared flag reached the read helper (own-vs-shared cut lives in TaskReads).
+        verify(taskReads).households(eq(envelope), any(), eq(true));
+        verify(taskReads).nextActionsUnion(eq(List.of(envelope, sharedHh)), anyInt());
+    }
+
+    @Test
     void emptyNextActionsRepliesWithoutLlmCall() {
         UUID household = UUID.randomUUID();
-        when(nextActions.fetchNextActions(eq(household), anyInt())).thenReturn(Mono.just(List.of()));
+        when(taskReads.households(eq(household), any(), eq(false)))
+                .thenReturn(Mono.just(List.of(household)));
+        when(taskReads.nextActionsUnion(eq(List.of(household)), anyInt())).thenReturn(Mono.just(List.of()));
 
         StepVerifier.create(suggester.suggest(message(household, "что дальше")))
                 .assertNext(r -> {
@@ -98,7 +124,9 @@ class NextActionSuggesterTest {
     @Test
     void fetchFailureDegradesToFriendlyMessage() {
         UUID household = UUID.randomUUID();
-        when(nextActions.fetchNextActions(eq(household), anyInt()))
+        when(taskReads.households(eq(household), any(), eq(false)))
+                .thenReturn(Mono.just(List.of(household)));
+        when(taskReads.nextActionsUnion(eq(List.of(household)), anyInt()))
                 .thenReturn(Mono.error(new RuntimeException("mcp-tasks down")));
 
         StepVerifier.create(suggester.suggest(message(household, "что дальше")))

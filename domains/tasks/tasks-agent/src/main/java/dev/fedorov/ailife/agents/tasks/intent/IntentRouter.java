@@ -87,7 +87,7 @@ public class IntentRouter {
         List<Choice> choices = choices(intentSkills);
         LlmChatRequest req = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(manifest.body()),
-                LlmMessage.system(buildClassifierPrompt(tools, intentSkills)),
+                LlmMessage.system(buildClassifierPrompt(tools)),
                 LlmMessage.user(userText)));
 
         return llm.chat(req).flatMap(resp -> {
@@ -96,7 +96,7 @@ public class IntentRouter {
             return switch (classifier.parse(raw, toolSpecs, choices)) {
                 case SkillClassifier.ToolCall t -> invokeTool(t.name(), t.argsJson(), model);
                 case SkillClassifier.FlowCall f -> resolveSkill(f, intentSkills, raw, model);
-                case SkillClassifier.Chat c -> Mono.just(new RouterResult(c.text(), null, model, null));
+                case SkillClassifier.Chat c -> Mono.just(new RouterResult(c.text(), null, model, null, false));
             };
         });
     }
@@ -105,17 +105,20 @@ public class IntentRouter {
      * Resolve the {@code skill} choice: the LLM named an intent skill in {@code node.name}. A known
      * name → a {@link RouterResult} carrying it (the {@code IntentController} runs the flow, so the
      * text is null); an unknown name → the lenient chat fallback (the raw body, or its {@code text}
-     * field), matching the pre-migration behaviour.
+     * field), matching the pre-migration behaviour. An optional {@code "scope":"shared"} on the routing
+     * node selects the family/shared read cut (ADR-0002 slice 5b — today only {@code next-action-suggester}
+     * honours it; other flows ignore the flag).
      */
     private Mono<RouterResult> resolveSkill(SkillClassifier.FlowCall f, List<Skill> intentSkills,
                                             String raw, String model) {
         String skillName = f.node().path("name").asText(null);
         if (skillName != null && intentSkills.stream().anyMatch(s -> skillName.equals(s.name()))) {
-            return Mono.just(new RouterResult(null, null, model, skillName));
+            boolean shared = "shared".equalsIgnoreCase(f.node().path("scope").asText(""));
+            return Mono.just(new RouterResult(null, null, model, skillName, shared));
         }
         log.warn("LLM routed to unknown intent skill '{}' — falling back to chat", skillName);
         String text = f.node().has("text") ? f.node().get("text").asText() : raw;
-        return Mono.just(new RouterResult(text, null, model, null));
+        return Mono.just(new RouterResult(text, null, model, null, false));
     }
 
     /** Skills with no triggers are user-invoked (intent) rather than scheduler-fired. */
@@ -130,18 +133,18 @@ public class IntentRouter {
                 LlmMessage.system(manifest.body()),
                 LlmMessage.user(userText)));
         return llm.chat(req).map(r -> new RouterResult(
-                r.content() == null ? "" : r.content(), null, r.model(), null));
+                r.content() == null ? "" : r.content(), null, r.model(), null, false));
     }
 
     private Mono<RouterResult> invokeTool(String name, String argsJson, String llmModel) {
         return Mono.fromCallable(() -> dispatcher.dispatch(name, argsJson))
                 .subscribeOn(Schedulers.boundedElastic())
-                .map(result -> new RouterResult(result, name, llmModel, null))
+                .map(result -> new RouterResult(result, name, llmModel, null, false))
                 .onErrorResume(e -> {
                     log.warn("tool dispatch failed for {}: {}", name, e.toString());
                     return Mono.just(new RouterResult(
                             "Не удалось вызвать инструмент «" + name + "»: " + e.getMessage(),
-                            name, llmModel, null));
+                            name, llmModel, null, false));
                 });
     }
 
@@ -168,15 +171,24 @@ public class IntentRouter {
         for (Skill s : intentSkills) {
             block.append("\n- ").append(s.name()).append(": ").append(s.description());
         }
+        block.append("\nFor next-action-suggester, add \"scope\":\"shared\" ONLY when the user asks about "
+                + "SHARED / FAMILY tasks (\"наши дела\", \"семейные задачи\", \"что нам сделать\"); "
+                + "otherwise omit it (their own tasks).");
         return List.of(new Choice(SKILL_ACTION, block.toString(),
-                "{\"action\":\"skill\",\"name\":\"<skill-name>\"}"));
+                "{\"action\":\"skill\",\"name\":\"<skill-name>\",\"scope\":\"shared\"}"));
     }
 
-    private String buildClassifierPrompt(List<ToolDefinition> tools, List<Skill> intentSkills) {
+    /**
+     * Build the classifier system prompt via the shared {@link SkillClassifier#buildPrompt} scaffold.
+     * Kept package-private (not private) so the {@code @GoldenLlmTest} real-model test can replay the exact
+     * classifier prompt against a live model and assert the raw output's structure — single-sourced with
+     * {@link #route}, which calls it too.
+     */
+    String buildClassifierPrompt(List<ToolDefinition> tools) {
         return classifier.buildPrompt(
                 "You can reply directly to the user, invoke one MCP tool, or run one skill.",
                 toolSpecs(tools),
-                choices(intentSkills),
+                choices(intentSkills()),
                 "Decide: does the user want to run a tool, run a skill, or just talk?");
     }
 
@@ -184,9 +196,12 @@ public class IntentRouter {
      * Outcome of a single {@link #route} call: {@code text} for the orchestrator to show (null when
      * an intent skill was chosen — {@code IntentController} produces the text by running the flow),
      * {@code invokedTool} (non-null when a tool ran — informational), {@code llmModel} from the
-     * routing turn (preserves the {@code IntentResponse.llmModel} contract), and
-     * {@code invokedSkill} (non-null when the LLM routed to an intent skill).
+     * routing turn (preserves the {@code IntentResponse.llmModel} contract), {@code invokedSkill}
+     * (non-null when the LLM routed to an intent skill), and {@code shared} (the family/shared read cut
+     * flag — {@code true} only when the LLM tagged {@code "scope":"shared"} on a skill route; ADR-0002
+     * slice 5b).
      */
-    public record RouterResult(String text, String invokedTool, String llmModel, String invokedSkill) {
+    public record RouterResult(String text, String invokedTool, String llmModel, String invokedSkill,
+                               boolean shared) {
     }
 }

@@ -205,9 +205,14 @@ shared and the *policy* local — the correct seam.
      This is the deterministic capture an LLM-driven `add_task` tool call cannot take (the classifier
      never sees the household id). mcp-tasks stays tenant-agnostic. Validated: `TaskCapturerTest`
      (personal → personal hh, shared → shared hh, empty plan asks) + mcp-tasks controller test green.
-   - [ ] **5b — read:** union read — the read flows (`next-action-suggester`, weekly-review) read across
-     the member's personal ∪ shared households on the shared cut via `ProfileSharingClient.households`
-     (a `read/TaskReads` helper, the sibling of finance's `SpendingReads`); default stays own only.
+   - [x] **5b — read:** union read. `next-action-suggester` reads through a new `read/TaskReads` helper
+     (sibling of finance's `SpendingReads`): default = own (envelope household), and on an explicit
+     `scope:"shared"` cut it unions across the member's personal ∪ shared households via
+     `ProfileSharingClient.households`. The router threads the `scope` flag from the classifier node onto
+     `RouterResult.shared` → `IntentController` → `suggest(msg, shared)`. weekly-review stays per-household
+     (a proactive scheduler cron — no user/scope axis). Validated: `TaskReadsTest` (own vs shared set +
+     union/cap) + `NextActionSuggesterTest` shared-cut + `IntentRouterTest` scope-parse. **Tasks fully
+     retrofitted (write 5a + read 5b).**
 6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**
    (household vs personal docs).
 7. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.

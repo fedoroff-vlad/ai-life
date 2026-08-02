@@ -6,9 +6,11 @@ write path (slice 3a, `calendar-agent`) + read path (slice 3b, `calendar-web`). 
 shared-scope ("наши траты") cut — `FinancialAdvisor` (4a-i) + `MonthlyReporter`/`YearReporter` (4a-ii), all
 through the domain's `read/SpendingReads` helper over `ProfileSharingClient.households`; the write side
 (slice 4b) routes a chat-created account to a personal vs shared household via `SharingResolver` +
-`sharing/FinanceSharingPolicy` (`AccountManager` flow). **tasks write path wired (slice 5a):** `tasks-agent`
-routes a chat-captured task to a personal vs shared household via `SharingResolver` + `sharing/TasksSharingPolicy`
-(`TaskCapturer` flow). tasks read (5b) + nutrition/docs next.
+`sharing/FinanceSharingPolicy` (`AccountManager` flow). **tasks fully retrofitted (write 5a + read 5b):**
+the write side routes a chat-captured task to a personal vs shared household via `SharingResolver` +
+`sharing/TasksSharingPolicy` (`TaskCapturer` flow); the read side unions open next-actions across the
+member's personal ∪ shared households on the shared cut ("наши дела") through the domain's `read/TaskReads`
+helper over `ProfileSharingClient.households` (default own, mirroring finance). nutrition/docs next.
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -31,10 +33,11 @@ its former local `ProfileHouseholdsClient`). **finance** consumes both paths: th
 helper reads the union for the shared-scope analysis (`FinancialAdvisor`) and reports
 (`MonthlyReporter`/`YearReporter`); the write side (slice 4b) — the same `OutboundHttpConfig` declares the
 `SharingResolver` bean wired with `sharing/FinanceSharingPolicy`, and `AccountManager` routes a new account to a
-personal vs shared household through it. **tasks** consumes the write path (slice 5a): `tasks-agent`'s
-`OutboundHttpConfig` declares the `ProfileSharingClient` + `SharingResolver` beans (the resolver wired with
-`sharing/TasksSharingPolicy`), and the `TaskCapturer` flow routes a chat-captured task to a personal vs shared
-household through it (read path 5b next).
+personal vs shared household through it. **tasks** consumes both paths: the write path (slice 5a) —
+`tasks-agent`'s `OutboundHttpConfig` declares the `ProfileSharingClient` + `SharingResolver` beans (the
+resolver wired with `sharing/TasksSharingPolicy`), and the `TaskCapturer` flow routes a chat-captured task to
+a personal vs shared household through it; the read path (slice 5b) — its `read/TaskReads` helper reads the
+union for the shared cut in `next-action-suggester` over `ProfileSharingClient.households`.
 
 ## Depends on
 `libs/contracts` (`SharingScope` in `contracts/common`, `HouseholdRoutingDto` in `contracts/profile`) +

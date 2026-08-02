@@ -60,9 +60,15 @@ in dev/degraded environments.
   `TaskReviewClient` (`/internal/review`) → LLM returns structured proposals → render a confirm +
   stash them as a `pendingAction`. On `resume` an affirmative reply applies each via `ClarifyClient`
   (`/internal/clarify`); anything else cancels.
-- `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via
-  `NextActionClient` (`/internal/tasks?status=next`) → LLM ranks by due/priority/context. Read-only
-  (suggests, doesn't change tasks).
+- `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via the
+  sharing-aware `read/TaskReads` → LLM ranks by due/priority/context. Read-only (suggests, doesn't change
+  tasks). **Sharing (ADR-0002 slice 5b):** default reads the member's **own** tasks (envelope household,
+  mirroring finance); when the router tags `scope:"shared"` (family/shared tasks — "наши дела") it unions
+  across the member's personal ∪ shared households.
+- `read/TaskReads` — the sharing-aware **read** helper (sibling of finance's `read/SpendingReads`):
+  `households(envelope, userId, shared)` (own = envelope; shared = personal ∪ shared via
+  `ProfileSharingClient.households`, degrading to the envelope) + `nextActionsUnion(households, limit)`
+  (fan-out across the set + flatten). The own-vs-shared cut lives here, in one place.
 - `capture/TaskCapturer` — the sharing **write path** (ADR-0002 slice 5): runs the `task-capture`
   flow. The LLM plans `{title, note?, shared?}`, the shared `SharingResolver` (wired with
   `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
@@ -93,7 +99,9 @@ Skills live beside the agent under `domains/tasks/skills/<name>/SKILL.md`.
   the LLM emits strict `{"proposals":[…]}` JSON with verbatim task ids + valid GTD statuses, skipped
   in CI (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `next-action-suggester` — reactive (user-invoked, e.g. "что мне сейчас сделать"): fetches the open
-  next-actions and ranks them by due date / priority / context. Read-only suggestion.
+  next-actions and ranks them by due date / priority / context. Read-only suggestion. Defaults to the
+  member's own tasks; "наши дела / семейные задачи" (`scope:"shared"`) unions personal ∪ shared
+  households (ADR-0002 slice 5b).
 - `task-capture` — reactive (user-invoked, e.g. "напомни купить молоко"): plans the task and marks
   whether it belongs on the household/shared list; the agent routes it to the personal or shared
   household (ADR-0002 slice 5 — the sharing write path).

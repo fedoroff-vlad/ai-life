@@ -52,7 +52,7 @@ public class IntentController {
                         return inboxClarifier.clarify(message);
                     }
                     if (NextActionSuggester.SKILL_NAME.equals(r.invokedSkill())) {
-                        return nextActionSuggester.suggest(message);
+                        return nextActionSuggester.suggest(message, r.shared());
                     }
                     if (TaskCapturer.SKILL_NAME.equals(r.invokedSkill())) {
                         return taskCapturer.capture(message)

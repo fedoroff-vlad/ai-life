@@ -170,6 +170,25 @@ class IntentRouterTest {
     }
 
     @Test
+    void sharedScopeOnSkillRouteIsCarriedOnTheResult() {
+        Skill nextAction = new Skill("next-action-suggester", "Rank open next-actions.",
+                "0.1.0", "tasks", List.of(), List.of("en", "ru"), "body");
+        IntentRouter skillRouter = new IntentRouter(llm, dispatcher, manifest,
+                new SkillRegistry(List.of(nextAction)), classifier);
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of());
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"skill\",\"name\":\"next-action-suggester\",\"scope\":\"shared\"}")));
+
+        StepVerifier.create(skillRouter.route("что нам сделать по дому"))
+                .assertNext(r -> {
+                    assertThat(r.invokedSkill()).isEqualTo("next-action-suggester");
+                    // The family/shared cut flag rode through from the classifier node (ADR-0002 slice 5b).
+                    assertThat(r.shared()).isTrue();
+                })
+                .verifyComplete();
+    }
+
+    @Test
     void llmRoutesToUnknownSkillFallsBackToChat() {
         Skill inboxClarify = new Skill("inbox-clarify", "x", "0.1.0", "tasks",
                 List.of(), List.of("en"), "body");
