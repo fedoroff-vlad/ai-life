@@ -21,12 +21,15 @@ import java.util.Set;
  * <ul>
  *   <li>a message carrying a document photo (an {@code image} attachment) → {@link DocArchiver#archive}
  *       (OCR → metadata extract → archive, D-c);</li>
- *   <li>a "find my X" cue → {@link DocFinder#find} (distil a query → search the archive, D-d);</li>
+ *   <li>a "find my X" cue → {@link DocFinder#find} (distil a query → search the archive, D-d). An
+ *       explicit family cue ("наши документы") widens the search to the member's personal ∪ shared
+ *       households (ADR-0002 slice 7b); by default it stays the member's own archive.</li>
  *   <li>otherwise → the {@link DocsChat} fallback (plain questions).</li>
  * </ul>
  * The photo check comes first (a photo is unambiguously an ingest). The find-cue split is a
  * deterministic keyword heuristic — good enough for the MVP, MockWebServer-testable, replaceable by an
- * LLM classifier later. A {@code file} attachment (PDF/scan) is deferred — {@code
+ * LLM classifier later. The family/own scope is the same deterministic-keyword style (a read-breadth
+ * choice, never a privacy write boundary), mirroring nutrition's {@code FAMILY_CUES}. A {@code file} attachment (PDF/scan) is deferred — {@code
  * mcp-media-processing.ocr} decodes a single image today (see plans/docs.md "Deferred"); a non-image
  * attachment falls through to the cue check / chat.
  */
@@ -38,6 +41,17 @@ public class IntentController {
             "найди", "найти", "поищи", "найдётся", "где мой", "где моя", "где мои", "где найти",
             "покажи мой", "покажи мою", "покажи документ", "в архиве", "мои документы",
             "find my", "find the", "search my", "where is my", "where's my", "look up my", "do i have");
+
+    /**
+     * Widen the search to the member's personal ∪ shared households (ADR-0002 slice 7b). Default is the
+     * member's own archive; a family cue asks for "наши/семейные документы". Deterministic keyword match,
+     * mirroring nutrition's {@code FAMILY_CUES} (a read-breadth choice, never a privacy write boundary).
+     */
+    private static final Set<String> FAMILY_CUES = Set.of(
+            "наши документы", "наш документ", "семейные документы", "семейный документ", "у нас есть",
+            "у нас дома", "домашние документы", "документы семьи", "на всю семью", "для семьи",
+            "our documents", "our document", "family documents", "family document", "household documents",
+            "do we have", "shared documents");
 
     private final DocArchiver archiver;
     private final DocFinder finder;
@@ -56,7 +70,7 @@ public class IntentController {
             return archiver.archive(message, image.get().storageUri());
         }
         if (isMatch(message.text(), FIND_CUES)) {
-            return finder.find(message);
+            return finder.find(message, isMatch(message.text(), FAMILY_CUES));
         }
         return chat.reply(message);
     }

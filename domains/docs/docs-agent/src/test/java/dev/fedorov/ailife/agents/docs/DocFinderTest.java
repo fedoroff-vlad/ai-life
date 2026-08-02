@@ -41,24 +41,29 @@ class DocFinderTest {
 
     static MockWebServer mcpDocs;
     static MockWebServer llmGateway;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
         mcpDocs = new MockWebServer();
         llmGateway = new MockWebServer();
+        profileService = new MockWebServer();
         mcpDocs.start();
         llmGateway.start();
+        profileService.start();
     }
 
     @AfterAll
     static void stop() throws Exception {
         mcpDocs.shutdown();
         llmGateway.shutdown();
+        profileService.shutdown();
     }
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
         r.add("docs-agent.mcp-docs-url", () -> "http://localhost:" + mcpDocs.getPort());
+        r.add("docs-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
         r.add("docs-agent.public-media-base-url", () -> "https://media.example");
     }
@@ -120,6 +125,48 @@ class DocFinderTest {
         RecordedRequest searchReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         // No docType named → the filter is omitted from the query string.
         assertThat(searchReq.getPath()).doesNotContain("docType=");
+    }
+
+    @Test
+    void familyCueUnionsPersonalAndSharedHouseholds() throws Exception {
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"query\":\"гарантия\"}", "stop", new LlmUsage(20, 8, 28)))));
+        // households union: the member's personal + one shared household (ADR-0002 slice 7b read path).
+        profileService.enqueue(jsonResponse(json.writeValueAsString(List.of(personalHh, sharedHh))));
+        // one trigram search per household — a personal doc + a family (shared) doc.
+        mcpDocs.enqueue(jsonResponse(json.writeValueAsString(List.of(new DocumentDto(
+                UUID.randomUUID(), personalHh, userId, "media-p", "warranty", "Гарантия на ноутбук",
+                "DNS", LocalDate.of(2026, 3, 1), null, null, "гарантия ноутбук", null, Instant.now())))));
+        mcpDocs.enqueue(jsonResponse(json.writeValueAsString(List.of(new DocumentDto(
+                UUID.randomUUID(), sharedHh, null, "media-s", "warranty", "Гарантия на холодильник",
+                "М.Видео", LocalDate.of(2026, 2, 1), null, null, "гарантия холодильник", null, Instant.now())))));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "найди наши документы на гарантию", List.of(), "telegram", "92", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // both the personal and the shared-household documents appear (union across the set).
+        assertThat(resp.text())
+                .contains("Гарантия на ноутбук")
+                .contains("Гарантия на холодильник");
+
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        // the household set was resolved for the acting user.
+        RecordedRequest householdsReq = profileService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(householdsReq.getPath()).contains("/households").contains(userId.toString());
+        // two trigram searches ran — one per household in the set (order is non-deterministic).
+        RecordedRequest s1 = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
+        RecordedRequest s2 = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(s1.getPath()).startsWith("/internal/documents/search");
+        assertThat(s2.getPath()).startsWith("/internal/documents/search");
+        assertThat(s1.getPath() + s2.getPath())
+                .contains("householdId=" + personalHh)
+                .contains("householdId=" + sharedHh);
     }
 
     private IntentResponse post(NormalizedMessage msg) {

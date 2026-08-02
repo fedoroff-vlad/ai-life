@@ -5,6 +5,8 @@ import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
+import dev.fedorov.ailife.agents.docs.read.DocReads;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.golden.GoldenLlm;
@@ -53,8 +55,11 @@ class GoldenDocFinderTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenDocFinderTest.class.getClassLoader(),
                     "skills/docs/doc-finder/SKILL.md")));
-    private final DocFinder finder =
-            new DocFinder(documents, memory, GoldenLlm.client(), skills, manifest, json, new DocsAgentProperties());
+    // Own-cut search only (shared=false) — the profile read is never called; mock it to satisfy DocReads.
+    private final ProfileSharingClient profileSharing = mock(ProfileSharingClient.class);
+    private final DocReads docReads = new DocReads(documents, profileSharing);
+    private final DocFinder finder = new DocFinder(
+            docReads, documents, memory, GoldenLlm.client(), skills, manifest, json, new DocsAgentProperties());
 
     /**
      * STRUCTURE — the real model, given the real finder prompt and a "find my X" request, must distil a
@@ -73,7 +78,7 @@ class GoldenDocFinderTest {
 
         var msg = GoldenLlm.message(household, user, "найди мой договор аренды квартиры за прошлый год");
 
-        var resp = finder.find(msg).block(Duration.ofSeconds(120));
+        var resp = finder.find(msg, false).block(Duration.ofSeconds(120));
         assertThat(resp).as("null result — is llm-gateway up at %s?", GoldenLlm.gatewayUrl()).isNotNull();
 
         // Reaching the search means the model produced a usable query.

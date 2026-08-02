@@ -239,8 +239,15 @@ shared and the *policy* local — the correct seam.
      the signal (carried on `SharingContext.itemKind`, the nutrition sibling of `NutritionSharingPolicy`).
      mcp-docs stays tenant-agnostic; the SB-5 note seed follows the resolved household. Validated:
      `DocArchiverTest` (contract → shared, receipt → personal even with a shared household present).
-   - [ ] **7b — read:** `doc-finder` unions personal ∪ shared documents on an explicit "our documents"
-     cue (default = own), via `ProfileSharingClient.households` + a per-household search fan-out.
+   - [x] **7b — read:** `doc-finder` unions personal ∪ shared documents on an explicit "наши документы"
+     cue (default = own), via a new `read/DocReads` helper (sibling of finance `SpendingReads` / tasks
+     `TaskReads` / nutrition `MealReads`) — `households(...)` resolves the set via
+     `ProfileSharingClient.households`, `searchUnion(...)` fans the trigram search across it; the
+     semantic-recall source fans out over the same set. The family/own scope is a deterministic keyword
+     match (`FAMILY_CUES` in `IntentController`, the module's existing cue style), like nutrition 6b — so
+     no golden-routing test applies. `DocFinderTest` (own cut unchanged + family cue unions a personal +
+     shared-household doc) green. **Documents fully retrofitted → all opt-in domains done; only the
+     deferred item 8 remains.**
 8. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
 
 ## Notes

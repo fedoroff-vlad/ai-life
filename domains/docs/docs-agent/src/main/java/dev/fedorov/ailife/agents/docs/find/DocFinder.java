@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
+import dev.fedorov.ailife.agents.docs.read.DocReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -54,6 +55,7 @@ public class DocFinder {
     /** The {@code frontmatter.kind} a doc-archiver note carries, so we keep only document notes. */
     private static final String DOCUMENT_KIND = "document";
 
+    private final DocReads docReads;
     private final DocumentClient documents;
     private final MemoryClient memory;
     private final LlmClient llm;
@@ -62,8 +64,10 @@ public class DocFinder {
     private final ObjectMapper json;
     private final String publicMediaBaseUrl;
 
-    public DocFinder(DocumentClient documents, MemoryClient memory, LlmClient llm, SkillRegistry skills,
-                     AgentManifest manifest, ObjectMapper json, DocsAgentProperties props) {
+    public DocFinder(DocReads docReads, DocumentClient documents, MemoryClient memory, LlmClient llm,
+                     SkillRegistry skills, AgentManifest manifest, ObjectMapper json,
+                     DocsAgentProperties props) {
+        this.docReads = docReads;
         this.documents = documents;
         this.memory = memory;
         this.llm = llm;
@@ -73,20 +77,24 @@ public class DocFinder {
         this.publicMediaBaseUrl = stripTrailingSlash(props.getPublicMediaBaseUrl());
     }
 
-    public Mono<IntentResponse> find(NormalizedMessage msg) {
+    /**
+     * @param shared {@code true} for the "наши документы"/family cut — search personal ∪ shared households
+     *               (ADR-0002 slice 7b); {@code false} → the member's own archive only (default).
+     */
+    public Mono<IntentResponse> find(NormalizedMessage msg, boolean shared) {
         // temperature=0: distilling the query must be faithful, not creative.
         LlmChatRequest request = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(skillBody()),
                 LlmMessage.user(msg.text() == null ? "" : msg.text())), 0.0);
         return llm.chat(request)
-                .flatMap(r -> runSearch(msg, r.content(), r.model()))
+                .flatMap(r -> runSearch(msg, shared, r.content(), r.model()))
                 .onErrorResume(e -> {
                     log.warn("doc find failed: {}", e.toString());
                     return Mono.just(reply("Не удалось выполнить поиск по архиву. Попробуйте позже.", null));
                 });
     }
 
-    private Mono<IntentResponse> runSearch(NormalizedMessage msg, String llmContent, String model) {
+    private Mono<IntentResponse> runSearch(NormalizedMessage msg, boolean shared, String llmContent, String model) {
         JsonNode draft = parseDraft(llmContent);
         String query = draft == null ? null : text(draft, "query");
         if (query == null || query.isBlank()) {
@@ -97,16 +105,20 @@ public class DocFinder {
         }
         String docType = draft == null ? null : text(draft, "docType");
         String q = query.trim();
-        // Trigram (literal) and semantic (meaning) searches run in parallel; each soft-fails to an
-        // empty list so one source being down still returns whatever the other found.
-        Mono<List<DocumentDto>> trigram = documents.search(msg.householdId(), q, docType, LIMIT)
-                .onErrorResume(e -> {
-                    log.warn("search_documents failed: {}", e.toString());
-                    return Mono.just(List.of());
-                });
-        Mono<List<DocumentDto>> semantic = semanticHits(msg.householdId(), q, docType);
-        return Mono.zip(trigram, semantic)
-                .map(t -> reply(formatHits(merge(t.getT1(), t.getT2())), model));
+        // ADR-0002 slice 7b: resolve the household set once (own = the envelope household; the "наши
+        // документы" cut = the member's personal ∪ shared set), then union both search sources across it.
+        return docReads.households(msg.householdId(), msg.userId(), shared).flatMap(households -> {
+            // Trigram (literal) and semantic (meaning) searches run in parallel; each soft-fails to an
+            // empty list so one source being down still returns whatever the other found.
+            Mono<List<DocumentDto>> trigram = docReads.searchUnion(households, q, docType, LIMIT)
+                    .onErrorResume(e -> {
+                        log.warn("search_documents failed: {}", e.toString());
+                        return Mono.just(List.of());
+                    });
+            Mono<List<DocumentDto>> semantic = semanticHits(households, q, docType);
+            return Mono.zip(trigram, semantic)
+                    .map(t -> reply(formatHits(merge(t.getT1(), t.getT2())), model));
+        });
     }
 
     /**
@@ -115,11 +127,14 @@ public class DocFinder {
      * the document row (doc-archiver now seeds a note, not a raw memory — a recall hit is {@code
      * source=note, kind=note} pointing at the note, whose frontmatter points at the document). Notes that
      * are not document notes are skipped. Soft-fails to an empty list — semantic recall is a bonus on top
-     * of the trigram search, never a hard dependency.
+     * of the trigram search, never a hard dependency. Recall runs across the same household set as the
+     * trigram union (ADR-0002 slice 7b): the own cut is a single household, the shared cut spans personal ∪
+     * shared, matching where each document's note was seeded.
      */
-    private Mono<List<DocumentDto>> semanticHits(UUID householdId, String query, String docType) {
-        return memory.recall(householdId, null, null, query)   // household-scoped, matching the trigram search
-                .flatMapMany(Flux::fromIterable)
+    private Mono<List<DocumentDto>> semanticHits(List<UUID> households, String query, String docType) {
+        return Flux.fromIterable(households)
+                .flatMap(h -> memory.recall(h, null, null, query)   // per household, matching the trigram union
+                        .flatMapMany(Flux::fromIterable))
                 .map(this::noteId)
                 .filter(id -> id != null)
                 .distinct()
