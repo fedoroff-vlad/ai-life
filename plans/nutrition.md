@@ -250,7 +250,7 @@ Data precision:
   real reference macros where Open Food Facts matches** — the nutrition domain's first precise-data
   consumer of the shared capability.
 
-## Tenant scope / sharing (ADR-0002, slice 6)
+## Tenant scope / sharing (ADR-0002, slice 6) — DONE (nutrition fully retrofitted)
 Nutrition adopts the shared sharing capability ([adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md)):
 **shared meal-plan/shopping surface only; the food log stays personal.**
 - **Write (6a — DONE).** The direct basket breakdown (`BasketBreakdown`) routes the saved `basket` row to
@@ -259,10 +259,16 @@ Nutrition adopts the shared sharing capability ([adr/ADR-0002](adr/ADR-0002-shar
   default**, degrading to personal when the member has no family household yet). Only the direct path
   routes; the IA-b bus fan-out keeps finance's already-resolved household. The food log (`meal_log`) and
   diet profiles never route here. mcp-nutrition stays tenant-agnostic.
-- **Read (6b — NEXT).** The ration/shopping-list flow (`MealPlanner`) will, on a family-scoped request
-  ("наш рацион", "на всю семью"), union diet profiles + recent meals across the member's personal ∪ shared
-  households via `ProfileSharingClient.households`; default stays the sender's own. Mirrors finance's
-  `SpendingReads` / tasks' `TaskReads` own-by-default read.
+- **Read (6b — DONE).** The ration/shopping-list flow (`MealPlanner`) reads through a new `read/MealReads`
+  helper (sibling of finance's `SpendingReads` / tasks' `TaskReads`): on a **family-scoped** request
+  ("наш рацион", "на всю семью" — detected as a `FAMILY_CUES` keyword in `IntentController`, threaded as a
+  `shared` flag) it unions diet profiles + recent meals across the member's personal ∪ shared households
+  via `ProfileSharingClient.households`; the default stays the sender's own (envelope household). The
+  `meal-planner` SKILL gained the `payload.scope` (own|family) + `context.householdProfiles` (array) shape.
+- **Routing note:** nutrition's flow selection is a **deterministic keyword heuristic** (`IntentController`
+  cues), not an LLM classifier — so there is no real-model routing decision to golden-test for the family
+  cut (unlike tasks 5b, whose LLM `IntentRouter` warranted a `GoldenRoutingTest`). The one model-dependent
+  step, meal extraction, is already covered by the opt-in `GoldenMealLogTest`.
 
 ## Deferred (recorded vision — each maps to an architectural home)
 | Vision item | Home | Why deferred |
