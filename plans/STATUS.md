@@ -31,7 +31,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   + `account` classifier action + `account-manager` SKILL) routes a new account through the shared
   `SharingResolver` wired with a new `sharing/FinanceSharingPolicy` (joint → shared household, personal →
   the member's own; the account is the boundary). mcp-finance stays tenant-agnostic. **Finance fully
-  retrofitted.** NEXT = **slice 5 tasks** (`sharing/TasksSharingPolicy` + route + union read) → 6
+  retrofitted.** **Slice 5 tasks — split write/read (read default = own, mirror finance).** **5a (write)
+  ✅** = the `task-capture` flow (`TaskCapturer`, sibling of finance's `AccountManager`) routes a
+  chat-captured task to a personal vs shared household via `SharingResolver` + new
+  `sharing/TasksSharingPolicy`; persisted via mcp-tasks' new `POST /internal/task` passthrough. The
+  deterministic capture an LLM-driven `add_task` tool call can't take (classifier never sees the household
+  id). Validated: `TaskCapturerTest` + mcp-tasks controller test green. NEXT = **slice 5b tasks read**
+  (union `next-action-suggester`/weekly-review via `ProfileSharingClient.households` on the shared cut) → 6
   nutrition+docs → 7 (deferred) memory owner-tag reconcile. Detail →
   [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped

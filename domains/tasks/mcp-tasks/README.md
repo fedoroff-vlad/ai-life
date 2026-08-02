@@ -54,6 +54,12 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   `List<TaskItemDto>` — a filtered task list (same filters as the `list_tasks`
   tool, delegates straight to it). Used by tasks-agent's `next-action-suggester`
   skill to fetch open next-actions (`status=next`).
+- `POST /internal/task` (body `AddTaskInput`) → `TaskItemDto` | 400 — captures a
+  task to the inbox, delegating to the `add_task` tool (required-field guards
+  apply). Used by tasks-agent's `task-capture` flow (ADR-0002 slice 5) to persist a
+  task under the household the shared `SharingResolver` already routed to (personal
+  vs shared) — the deterministic write an LLM-driven MCP `add_task` call can't take.
+  mcp-tasks stays tenant-agnostic: it writes whatever household it is handed.
 - `POST /internal/clarify` (body `ClarifyTaskInput`) → `TaskItemDto` | 400 —
   applies a GTD clarification, delegating to the `clarify_task` tool (status
   whitelist + cross-household project guard apply). Used by tasks-agent's
@@ -104,6 +110,9 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `web/InternalLinkEventController` — `POST /internal/link-event`, delegates to `link_task_to_event` (400 on bad input / unknown id).
 - `web/InternalClarifyController` — `POST /internal/clarify`, delegates to
   `TasksMcpTools.clarifyTask` (validation failures → 400).
+- `web/InternalAddTaskController` — `POST /internal/task`, delegates to
+  `TasksMcpTools.addTask` (validation failures → 400). The sharing write path's
+  capture passthrough (ADR-0002 slice 5).
 
 ## Schema
 

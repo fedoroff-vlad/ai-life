@@ -8,8 +8,9 @@ Manifest, intent and the first trigger (`weekly.review`) are real. `intent` rout
 `IntentRouter` (PR58): when mcp-tasks tools are wired the LLM either invokes a tool
 (`add_task`/`clarify_task`/`list_tasks`/…), runs an **intent skill**, or replies directly; with the
 MCP client disabled it falls back to a plain chat. Intent skills are skills with no `triggers`
-(user-invoked, not scheduler-fired) — `inbox-clarify` is the first; when the router picks one,
-`IntentController` runs that skill's flow. `triggers/{kind}` resolves a skill from the
+(user-invoked, not scheduler-fired) — `inbox-clarify`, `next-action-suggester` and `task-capture`
+(the sharing write path, ADR-0002 slice 5); when the router picks one, `IntentController` runs that
+skill's flow. `triggers/{kind}` resolves a skill from the
 `SkillRegistry`, enriches the wake payload, runs the skill (LLM with AGENT.md + SKILL.md), and fans
 the result out to the household — unknown kinds still 404.
 
@@ -22,7 +23,7 @@ in dev/degraded environments.
 | method | path | purpose |
 |--------|------|---------|
 | GET  | `/agents/tasks/manifest`        | parsed AGENT.md (orchestrator scrapes at startup) |
-| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify`), or a chat reply (`IntentRouter`) |
+| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture`), or a chat reply (`IntentRouter`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
 | POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
 | GET  | `/actuator/health`              | liveness |
@@ -62,6 +63,15 @@ in dev/degraded environments.
 - `intent/NextActionSuggester` — runs the `next-action-suggester` flow: fetch open next-actions via
   `NextActionClient` (`/internal/tasks?status=next`) → LLM ranks by due/priority/context. Read-only
   (suggests, doesn't change tasks).
+- `capture/TaskCapturer` — the sharing **write path** (ADR-0002 slice 5): runs the `task-capture`
+  flow. The LLM plans `{title, note?, shared?}`, the shared `SharingResolver` (wired with
+  `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
+  (`POST /internal/task`) captures it to the inbox. The deterministic capture an LLM-driven `add_task`
+  tool call can't take (the classifier never sees the household id). Mirrors finance's `AccountManager`.
+- `sharing/TasksSharingPolicy` — tasks' `DefaultSharingPolicy`: a household/shared-list task (chore,
+  shared shopping, involves another member) defaults to the shared household, a personal todo to
+  private. The only "what is shared here" logic tasks owns; the routing mechanism lives in `libs/sharing`.
+- `http/AddTaskClient` — `POST /internal/task` passthrough (capture under a resolved household).
 - `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
   (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
   `/internal/link-event` via `LinkEventClient`. Always returns an `AgentActionResult`; calendar
@@ -84,3 +94,6 @@ Skills live beside the agent under `domains/tasks/skills/<name>/SKILL.md`.
   in CI (`GOLDEN_LLM` gate) — see `platform/llm-gateway/README.md` §Golden tests.
 - `next-action-suggester` — reactive (user-invoked, e.g. "что мне сейчас сделать"): fetches the open
   next-actions and ranks them by due date / priority / context. Read-only suggestion.
+- `task-capture` — reactive (user-invoked, e.g. "напомни купить молоко"): plans the task and marks
+  whether it belongs on the household/shared list; the agent routes it to the personal or shared
+  household (ADR-0002 slice 5 — the sharing write path).
