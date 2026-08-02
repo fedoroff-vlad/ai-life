@@ -42,8 +42,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `ProfileSharingClient.households`; the router threads `scope` onto `RouterResult.shared` → controller →
   `suggest(msg, shared)`. weekly-review stays per-household (proactive cron, no user/scope). Added tasks'
   first `GoldenRoutingTest` (real-model routing: capture → task-capture, own vs shared next-actions).
-  **Tasks fully retrofitted (write 5a + read 5b).** NEXT = **slice 6 nutrition+docs** → 7 (deferred) memory
-  owner-tag reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  **Tasks fully retrofitted (write 5a + read 5b).** **Slice 6 nutrition — split write/read (shared
+  meal-plan/shopping surface only; food log stays personal). 6a (write) ✅** = the direct `BasketBreakdown`
+  routes the saved `basket` to the member's shared vs personal household via `SharingResolver` + new
+  `sharing/NutritionSharingPolicy` (grocery basket → shared by default, degrades to personal with no family
+  household); only the direct path routes (the IA-b bus fan-out keeps finance's household), food log stays
+  personal, mcp-nutrition tenant-agnostic (`BasketBreakdownTest` shared-route + degrade cases green). NEXT =
+  **6b (read)** = `MealPlanner` unions diet profiles + recent meals across personal ∪ shared on a
+  family-scoped request (default own) → then **slice 7 Documents** → 8 (deferred) memory owner-tag reconcile.
+  Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the

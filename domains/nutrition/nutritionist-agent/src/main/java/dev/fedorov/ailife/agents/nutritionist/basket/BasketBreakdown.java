@@ -24,6 +24,8 @@ import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;
 import dev.fedorov.ailife.contracts.nutrition.SaveBasketInput;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.llm.LlmClient;
+import dev.fedorov.ailife.sharing.SharingContext;
+import dev.fedorov.ailife.sharing.SharingResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -49,6 +51,12 @@ import java.util.UUID;
  * via {@code mcp-nutrition}'s {@code POST /internal/basket} (NU-f1), rendered to a verdict board
  * through the shared {@link DocRenderer} ({@code libs/doc-render}), stored in media-service, and
  * returned as a link. Any stage failing degrades to a friendly message.
+ *
+ * <p>ADR-0002 slice 6 (sharing write path): the saved basket is routed to the acting member's shared vs
+ * personal household by the shared {@link SharingResolver} + nutrition's {@code NutritionSharingPolicy} (a
+ * grocery basket defaults to the family's shared household, degrading to personal when there is no family
+ * household yet). Only the direct path routes; the bus fan-out below keeps finance's already-resolved
+ * household. The food log stays personal and never routes.
  *
  * <p>The automatic fan-out (a grocery receipt reaching finance <i>and</i> nutrition off the bus) is
  * the IA slice on top; this direct path lands first.
@@ -77,6 +85,7 @@ public class BasketBreakdown {
     private final DeliverablePublisher publisher;
     private final ProfileClient people;
     private final NotifierClient notifier;
+    private final SharingResolver sharing;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -89,6 +98,7 @@ public class BasketBreakdown {
                            DeliverablePublisher publisher,
                            ProfileClient people,
                            NotifierClient notifier,
+                           SharingResolver sharing,
                            SkillRegistry skills,
                            AgentManifest manifest,
                            ObjectMapper json) {
@@ -100,6 +110,7 @@ public class BasketBreakdown {
         this.publisher = publisher;
         this.people = people;
         this.notifier = notifier;
+        this.sharing = sharing;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -155,9 +166,21 @@ public class BasketBreakdown {
                     "Не нашёл продуктов в корзине. Пришлите фото чёткого чека или перечислите покупки.", model));
         }
         JsonNode analysis = draft.hasNonNull("analysis") ? draft.get("analysis") : null;
-        return saveAndRender(msg.householdId(), msg.userId(), source, receiptMediaId,
+        // ADR-0002 slice 6 (sharing write path): a grocery basket is a household-provisioning act, so it
+        // routes to the acting member's shared vs personal household deterministically (NutritionSharingPolicy
+        // default = shared, degrading to personal when there's no family household yet). The routing/fallback
+        // rules live once in libs/sharing; a profile hiccup degrades to the envelope household so a basket
+        // never fails to save on it. The food log stays personal and never routes here.
+        SharingContext ctx = new SharingContext(List.of(), false, "basket");
+        return sharing.resolveHousehold(msg.userId(), null, ctx, msg.householdId())
+                .onErrorResume(e -> {
+                    log.debug("basket household routing failed, using envelope household: {}", e.toString());
+                    return Mono.justOrEmpty(msg.householdId());
+                })
+                .switchIfEmpty(Mono.justOrEmpty(msg.householdId()))
+                .flatMap(household -> saveAndRender(household, msg.userId(), source, receiptMediaId,
                         text(draft, "merchant"), draft, items)
-                .map(link -> reply(summary(draft, analysis) + "\n\nРазбор корзины: " + link, model))
+                        .map(link -> reply(summary(draft, analysis) + "\n\nРазбор корзины: " + link, model)))
                 .onErrorResume(e -> {
                     log.warn("basket save/render failed: {}", e.toString());
                     return Mono.just(reply(summary(draft, analysis), model));

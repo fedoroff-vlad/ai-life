@@ -51,6 +51,7 @@ class BasketBreakdownTest {
     static MockWebServer llmGateway;
     static MockWebServer mediaService;
     static MockWebServer mcpFoodData;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
@@ -59,11 +60,13 @@ class BasketBreakdownTest {
         llmGateway = new MockWebServer();
         mediaService = new MockWebServer();
         mcpFoodData = new MockWebServer();
+        profileService = new MockWebServer();
         mcpNutrition.start();
         mediaProcessing.start();
         llmGateway.start();
         mediaService.start();
         mcpFoodData.start();
+        profileService.start();
         // FD-c: mcp-food-data answers any /internal/food-lookup with a matched product (a fixed
         // FoodFacts) so the basket-breakdown enrichment grounds the board in precise per-100g КБЖУ.
         mcpFoodData.setDispatcher(FOOD_LOOKUP_DISPATCHER);
@@ -76,12 +79,14 @@ class BasketBreakdownTest {
         llmGateway.shutdown();
         mediaService.shutdown();
         mcpFoodData.shutdown();
+        profileService.shutdown();
     }
 
     /** Drain any recorded requests so the static servers stay isolated across (unordered) tests. */
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpNutrition, mediaProcessing, llmGateway, mediaService, mcpFoodData)) {
+        for (MockWebServer s : List.of(mcpNutrition, mediaProcessing, llmGateway, mediaService, mcpFoodData,
+                profileService)) {
             while (s.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
                 // discard
             }
@@ -95,6 +100,7 @@ class BasketBreakdownTest {
         r.add("nutritionist-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.mcp-food-data-url", () -> "http://localhost:" + mcpFoodData.getPort());
+        r.add("nutritionist-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -122,7 +128,9 @@ class BasketBreakdownTest {
 
     @Test
     void basketPhotoIsCaptionedBrokenDownSavedAndReported() throws Exception {
-        UUID householdId = UUID.randomUUID();
+        UUID envelopeHh = UUID.randomUUID(); // the message arrived here — a grocery basket must be re-routed
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         String mediaId = UUID.randomUUID().toString();
         UUID storedId = UUID.randomUUID();
@@ -130,17 +138,20 @@ class BasketBreakdownTest {
         // GET /internal/diet-profile → a profile with a restriction (folded into the instruction).
         mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(
                 new dev.fedorov.ailife.contracts.nutrition.DietProfileDto(
-                        UUID.randomUUID(), householdId, userId, 2000, null, null, null,
+                        UUID.randomUUID(), envelopeHh, userId, 2000, null, null, null,
                         json.readTree("[\"no-nuts\"]"), null, "cutting", Instant.now()))));
         // caption extract+breakdown.
         mediaProcessing.enqueue(jsonResponse(json.writeValueAsString(new CaptionResult(DRAFT, "mock-vision"))));
+        // household-routing: the user's personal + one shared household (ADR-0002 slice 6 write path).
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
         // POST /internal/basket echo.
-        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(basketEcho(householdId, userId, mediaId))));
+        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(basketEcho(sharedHh, userId, mediaId))));
         // media-service stores the board.
         mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
-                storedId, householdId, userId, "file", "text/html", 4096, "sha", "nutritionist", Instant.now()))));
+                storedId, sharedHh, userId, "file", "text/html", 4096, "sha", "nutritionist", Instant.now()))));
 
-        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE, "разбери корзину",
+        var msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE, "разбери корзину",
                 List.of(new Attachment("image", "image/jpeg", mediaId, null)),
                 "telegram", "100", Instant.now());
 
@@ -162,11 +173,17 @@ class BasketBreakdownTest {
                 .contains("no-nuts")         // the folded diet profile
                 .contains("разбери корзину"); // the user note
 
-        // the basket was saved with the parsed items, source=receipt, the media id.
+        // the household-routing split was read for the acting user.
+        RecordedRequest routingReq = profileService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(routingReq.getPath()).contains("/household-routing").contains(userId.toString());
+
+        // the basket was saved with the parsed items, source=receipt, the media id — and under the SHARED
+        // household (a grocery basket → shared), not the envelope or personal one.
         RecordedRequest basketReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(basketReq.getPath()).isEqualTo("/internal/basket");
         JsonNode basketBody = json.readTree(basketReq.getBody().readUtf8());
         assertThat(basketBody.path("source").asString()).isEqualTo("receipt");
+        assertThat(basketBody.path("householdId").asString()).isEqualTo(sharedHh.toString());
         assertThat(basketBody.path("ownerId").asString()).isEqualTo(userId.toString());
         assertThat(basketBody.path("receiptMediaId").asString()).isEqualTo(mediaId);
         assertThat(basketBody.path("merchant").asString()).isEqualTo("Лента");
@@ -186,8 +203,9 @@ class BasketBreakdownTest {
     }
 
     @Test
-    void typedListWithoutProfileIsBrokenDownAndSaved() throws Exception {
-        UUID householdId = UUID.randomUUID();
+    void typedListWithoutSharedHouseholdDegradesToPersonal() throws Exception {
+        UUID envelopeHh = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID storedId = UUID.randomUUID();
 
@@ -196,12 +214,15 @@ class BasketBreakdownTest {
         // llm extract+breakdown.
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", DRAFT, "stop", new LlmUsage(80, 50, 130)))));
+        // household-routing: the member has no family household yet → the shared basket degrades to personal.
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[]}"));
         // POST /internal/basket echo.
-        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(basketEcho(householdId, userId, null))));
+        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(basketEcho(personalHh, userId, null))));
         mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
-                storedId, householdId, userId, "file", "text/html", 4096, "sha", "nutritionist", Instant.now()))));
+                storedId, personalHh, userId, "file", "text/html", 4096, "sha", "nutritionist", Instant.now()))));
 
-        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+        var msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
                 "вот список покупок: молоко, чипсы", List.of(), "telegram", "101", Instant.now());
 
         IntentResponse resp = post(msg);
@@ -215,11 +236,13 @@ class BasketBreakdownTest {
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("молоко, чипсы");
 
-        // the basket saved with source=manual (no media id).
+        // the basket saved with source=manual (no media id), under the PERSONAL household (no family
+        // household exists yet → the shared default degrades to personal, per the resolver).
         RecordedRequest basketReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(basketReq.getPath()).isEqualTo("/internal/basket");
         JsonNode basketBody = json.readTree(basketReq.getBody().readUtf8());
         assertThat(basketBody.path("source").asString()).isEqualTo("manual");
+        assertThat(basketBody.path("householdId").asString()).isEqualTo(personalHh.toString());
     }
 
     @Test

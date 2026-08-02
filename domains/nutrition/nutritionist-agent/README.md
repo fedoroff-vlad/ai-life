@@ -7,11 +7,13 @@ shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media
 (precise per-100g КБЖУ for the basket breakdown). Routes via the orchestrator (registered as
 `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (through FD-c)
+## Status (through ADR-0002 slice 6a)
 
 Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c) + **diet profiles** (NU-d) +
 the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct) + the **ration +
-shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-branch:
+shopping-list flow** (NU-g) + the **sharing write path** (ADR-0002 slice 6a — the direct basket
+breakdown routes the saved basket to the member's shared vs personal household). Remaining flows replace
+the fallback branch-by-branch:
 - **NU-c — food log. DONE.** A meal photo → `mcp-media-processing` caption extract, or a typed meal
   ("съел…", "на обед…", "запиши…") → one LLM extract, both via the `meal-logger` SKILL → write
   **write-immediately** to `mcp-nutrition`'s `/internal/meal` (attributed to the sender). `foodlog/FoodLogger`.
@@ -29,6 +31,13 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   **typed list** ("разбери продукты", "список покупок") → one LLM turn — both via the `basket-analyst`
   SKILL (with the diet profile folded in) → КБЖУ + good/watch/cut verdict → save via `/internal/basket`
   → HTML verdict board → link. `basket/BasketBreakdown`.
+- **ADR-0002 slice 6a — sharing write path. DONE.** The direct basket breakdown routes the saved basket
+  to the acting member's **shared vs personal** household via the shared `SharingResolver`
+  (`libs/sharing`) wired with `sharing/NutritionSharingPolicy` (a grocery basket is a household-
+  provisioning act → shared by default, degrading to personal when there's no family household yet). Only
+  the direct path routes; the IA-b bus fan-out keeps finance's already-resolved household, and the food
+  log stays personal and never routes. mcp-nutrition stays tenant-agnostic (writes the household it's
+  handed). A profile-service hiccup degrades to the envelope household so a basket never fails to save.
 - **FD-c — precise macros. DONE.** Before rendering, the basket breakdown grounds its numbers in real
   reference data: each item is looked up in the shared `mcp-food-data` capability (Open Food Facts) for
   per-100g КБЖУ via `http/FoodDataClient` → `POST /internal/food-lookup` (parallel, soft-failed per
@@ -102,7 +111,13 @@ shopping-list flow** (NU-g). Remaining flows replace the fallback branch-by-bran
   → one extraction+breakdown pass via the `basket-analyst` SKILL (diet profile folded in) → save via
   `/internal/basket` → render a good/watch/cut verdict board via `libs/doc-render` → store → link.
   `breakdownFromEvent` (IA-b) is the bus-fan-out variant: given the line items finance already
-  extracted, it runs the breakdown and **notifies the household** instead of replying.
+  extracted, it runs the breakdown and **notifies the household** instead of replying. **ADR-0002 slice
+  6a:** on the direct path it routes the saved basket through the injected `SharingResolver` before save.
+- `sharing/NutritionSharingPolicy` — nutrition's `DefaultSharingPolicy` (ADR-0002 slice 6): a grocery
+  basket (`itemKind == "basket"`) or one involving another member → shared, else private. The only
+  "what is shared here" rule nutrition owns; the routing mechanism lives in `libs/sharing`. `SharingResolver`
+  + `ProfileSharingClient` beans are wired in `config/OutboundHttpConfig` (over the shared
+  `profileServiceWebClient`), mirroring finance-agent.
 - `web/InternalBasketEventController` — `POST /internal/basket-event`, the IA-b consume entry.
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).
