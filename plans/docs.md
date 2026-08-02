@@ -79,6 +79,21 @@ wording**.
     `{kind:document, refId}` → the document row. Same E2E, now over the unified store. See
     [second-brain.md](second-brain.md) §SB-5.
 
+## Sharing — personal vs shared documents (ADR-0002 slice 7)
+Documents opt into the shared `libs/sharing` capability so a household paper lands where the whole family
+can find it while a personal paper stays private. The tenant boundary is the existing `docs.document`
+`household_id`; `ownerId` still records the sender.
+- **7a — write (DONE).** `DocArchiver` routes each archived document to the acting member's shared vs
+  personal `household_id` via the shared `SharingResolver` + a local `sharing/DocsSharingPolicy`
+  (warranty/contract → the family's shared household — a household asset; receipt/note/ID → private;
+  degrades to personal with no family household or on a profile hiccup). mcp-docs stays tenant-agnostic
+  (it stores whatever household it is handed). The note seed (SB-5) follows the resolved household.
+  Validated: `DocArchiverTest` (contract → shared, receipt → personal even with a shared household
+  available). Canonical example + recipe: [PATTERNS.md](PATTERNS.md) §"add sharing to a domain".
+- **7b — read (NEXT).** `doc-finder` search unions across the member's personal ∪ shared households on an
+  explicit "our documents / family" cue (default = own), mirroring finance/tasks/nutrition read helpers
+  (`ProfileSharingClient.households` → a per-household fan-out).
+
 ## Deferred
 - **PDF / multi-page documents.** `mcp-media-processing.ocr` decodes a single image via `ImageIO`;
   PDFs need a page-render step first. MVP = image documents; PDF support is a later

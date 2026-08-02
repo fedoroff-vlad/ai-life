@@ -229,7 +229,18 @@ shared and the *policy* local — the correct seam.
      routing is a deterministic keyword heuristic (not an LLM classifier), so no golden-routing test applies
      (unlike tasks 5b); the model-dependent extraction stays covered by `GoldenMealLogTest`. Validated:
      `MealPlannerTest` family-union case + full nutritionist suite green. **Nutrition fully retrofitted.**
-7. [ ] **Documents** (household vs personal docs) — the remaining domain of slice 6's original pairing.
+7. **Documents** (household vs personal docs) — the remaining domain of slice 6's original pairing.
+   Split write/read like calendar/finance/tasks/nutrition. Read default = own (the shared cut is on
+   explicit request).
+   - [x] **7a — write:** `docs-agent`'s `DocArchiver` routes an archived document to the acting member's
+     shared vs personal household via the shared `SharingResolver` wired with a new
+     `sharing/DocsSharingPolicy` (warranty/contract → shared — a household asset; receipt/note/ID →
+     private; degrades to personal with no family household). The `docType` extracted by `doc-archiver` is
+     the signal (carried on `SharingContext.itemKind`, the nutrition sibling of `NutritionSharingPolicy`).
+     mcp-docs stays tenant-agnostic; the SB-5 note seed follows the resolved household. Validated:
+     `DocArchiverTest` (contract → shared, receipt → personal even with a shared household present).
+   - [ ] **7b — read:** `doc-finder` unions personal ∪ shared documents on an explicit "our documents"
+     cue (default = own), via `ProfileSharingClient.households` + a per-household search fan-out.
 8. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
 
 ## Notes

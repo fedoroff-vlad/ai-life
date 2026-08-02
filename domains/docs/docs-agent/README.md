@@ -5,22 +5,27 @@ Personal **document-archive** specialist (port **8117**). Ingests a document pho
 `docs`; owns `mcp-docs`; binds the shared `mcp-media-processing` (OCR). Plan:
 [plans/docs.md](../../../plans/docs.md).
 
-## Status (SB-5)
+## Status (ADR-0002 slice 7a)
 
 Scaffold + the **ingest** and **search** flows, with **semantic recall** layered onto both. As of the
 second-brain **SB-5** (epic #257) the semantic seed is an authored **note** in the shared substrate, not
 a raw `memory.memories` row — docs-agent is the first consumer of the universal note-write seam
-(`MemoryClient.note`/`getNote` in `libs/agent-runtime`).
+(`MemoryClient.note`/`getNote` in `libs/agent-runtime`). As of **ADR-0002 slice 7a** the ingest write path
+routes each document to the member's **shared vs personal household** via the shared `libs/sharing`
+capability + a local `DocsSharingPolicy` (warranty/contract → shared, else private).
 
-- **Ingest (D-c, +SB-5 note seed)** — an inbound message with an `image` attachment → `doc-archiver`:
-  OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with the
-  `doc-archiver` SKILL extracts the metadata (doc_type / title / party / date / amount / currency / tags)
-  from the OCR text + the user's caption → archive via `mcp-docs` `POST /internal/documents`, storing the
+- **Ingest (D-c, +SB-5 note seed, +7a sharing)** — an inbound message with an `image` attachment →
+  `doc-archiver`: OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with
+  the `doc-archiver` SKILL extracts the metadata (doc_type / title / party / date / amount / currency /
+  tags) from the OCR text + the user's caption → **resolve the shared vs personal `household_id`** via the
+  shared `SharingResolver` + `DocsSharingPolicy` (a warranty/contract is a household asset → the family's
+  shared household; a receipt/note/ID stays private; degrades to personal with no family household or on a
+  profile hiccup) → archive via `mcp-docs` `POST /internal/documents` under that household, storing the
   full OCR text as the search corpus → **seed the document into the second-brain as a note**
   (`MemoryClient.note` → `POST /v1/notes`, `source=docs-agent`, `type=reference`, body = OCR text,
-  `frontmatter={kind:document, refId}`) so it lands in the one store every agent reads and memory-service
-  auto-seeds it into recall (SB-2) → confirm what was filed. The note seed soft-fails: the document is
-  already saved + text-searchable.
+  `frontmatter={kind:document, refId}`, seeded under the resolved household) so it lands in the one store
+  every agent reads and memory-service auto-seeds it into recall (SB-2) → confirm what was filed. The note
+  seed soft-fails: the document is already saved + text-searchable.
 - **Search (D-d, +SB-5 recall)** — a "find my X" cue → `doc-finder`: one llm-gateway turn with the
   `doc-finder` SKILL distils a search query + optional docType filter → **two searches in parallel** —
   `mcp-docs` `GET /internal/documents/search` (household-scoped trigram) **and** a memory-service
@@ -67,9 +72,15 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `http/OcrClient` — `POST /internal/ocr` → `OcrResult` (mirrors finance `CaptionClient`).
 - `http/DocumentClient` — `POST /internal/documents` → `DocumentDto` (mirrors `BriefingProfileClient`).
 - `archive/DocArchiver` — the ingest flow: OCR → LLM metadata extract (`doc-archiver` SKILL,
-  temperature=0) → `saveDocument` (stores the full OCR text) → second-brain note seed
-  (`MemoryClient.note`, `source=docs-agent`, body = OCR text, `frontmatter={kind:document, refId}`);
-  soft-fails per stage.
+  temperature=0) → **resolve shared vs personal `household_id`** (`SharingResolver` + `DocsSharingPolicy`,
+  ADR-0002 slice 7a; degrades to the envelope household on a profile hiccup) → `saveDocument` under that
+  household (stores the full OCR text) → second-brain note seed (`MemoryClient.note`, `source=docs-agent`,
+  body = OCR text, `frontmatter={kind:document, refId}`); soft-fails per stage.
+- `sharing/DocsSharingPolicy` — docs' `DefaultSharingPolicy` (ADR-0002 slice 7): the default privacy of a
+  document by `docType` — warranty/contract → shared (household asset), else private. The only "what is
+  shared here" rule docs owns; the routing mechanism lives in `libs/sharing`.
+- `config/OutboundHttpConfig` also wires the sharing beans (`ProfileSharingClient` over the shared
+  `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy`).
 - `find/DocFinder` — the search flow: LLM query distil (`doc-finder` SKILL, temperature=0) → parallel
   trigram `searchDocuments` + memory-service `recall` (SB-5; a `{kind:note, refId}` hit →
   `MemoryClient.getNote` → its `frontmatter` `{kind:document, refId}` → `DocumentClient.get`), merged +

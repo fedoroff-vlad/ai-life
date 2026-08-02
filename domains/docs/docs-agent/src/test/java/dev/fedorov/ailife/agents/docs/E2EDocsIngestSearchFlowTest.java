@@ -62,6 +62,7 @@ class E2EDocsIngestSearchFlowTest {
     static MockWebServer mcpMediaProcessing;
     static MockWebServer llmGateway;
     static MockWebServer memoryService;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
@@ -69,10 +70,12 @@ class E2EDocsIngestSearchFlowTest {
         mcpMediaProcessing = new MockWebServer();
         llmGateway = new MockWebServer();
         memoryService = new MockWebServer();
+        profileService = new MockWebServer();
         mcpDocs.start();
         mcpMediaProcessing.start();
         llmGateway.start();
         memoryService.start();
+        profileService.start();
     }
 
     @AfterAll
@@ -81,6 +84,7 @@ class E2EDocsIngestSearchFlowTest {
         mcpMediaProcessing.shutdown();
         llmGateway.shutdown();
         memoryService.shutdown();
+        profileService.shutdown();
     }
 
     @DynamicPropertySource
@@ -88,6 +92,7 @@ class E2EDocsIngestSearchFlowTest {
         r.add("docs-agent.mcp-docs-url", () -> "http://localhost:" + mcpDocs.getPort());
         r.add("docs-agent.mcp-media-processing-url", () -> "http://localhost:" + mcpMediaProcessing.getPort());
         r.add("docs-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
+        r.add("docs-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("docs-agent.public-media-base-url", () -> "https://media.example");
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
@@ -113,6 +118,11 @@ class E2EDocsIngestSearchFlowTest {
         DocumentDto archived = new DocumentDto(docId, householdId, userId, mediaId, "contract",
                 "Договор аренды", "ООО Ромашка", LocalDate.of(2026, 1, 15), null, null,
                 ocrText, null, Instant.now());
+        // household-routing (ADR-0002 slice 7a write path): a contract is a household asset → shared.
+        // The shared pick resolves back to householdId so the rest of the chain (save echo, note seed)
+        // stays on the one household this E2E threads through.
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + UUID.randomUUID()
+                + "\",\"sharedHouseholdIds\":[\"" + householdId + "\"]}"));
         mcpDocs.enqueue(jsonResponse(json.writeValueAsString(archived)));
         memoryService.enqueue(jsonResponse(json.writeValueAsString(
                 seededNote(noteId, householdId, userId, docId, ocrText))));   // the SB-5 note seed
@@ -128,6 +138,9 @@ class E2EDocsIngestSearchFlowTest {
 
         assertThat(mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/internal/ocr");
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
+        // The household-routing split was read for the acting user (ADR-0002 slice 7a).
+        RecordedRequest routingReq = profileService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(routingReq.getPath()).contains("/household-routing").contains(userId.toString());
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
 

@@ -54,8 +54,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   personal ∪ shared; default = own. `meal-planner` SKILL gained `payload.scope` + `context.householdProfiles`
   (array). Nutrition routing is keyword-deterministic (not an LLM classifier) → no golden-routing test
   applies (unlike tasks 5b); `GoldenMealLogTest` still covers extraction. `MealPlannerTest` family-union
-  case green. NEXT = **slice 7 Documents** (docs-agent, household vs personal) → 8 (deferred) memory
-  owner-tag reconcile. Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+  case green. **Slice 7 Documents — split write/read (read default = own).** **7a (write) ✅** =
+  `docs-agent`'s `DocArchiver` routes an archived document to the acting member's shared vs personal
+  household via `SharingResolver` + new `sharing/DocsSharingPolicy` (warranty/contract → shared household
+  asset; receipt/note/ID → private; degrades to personal with no family household). The `doc-archiver`
+  extract's `docType` is the signal (`SharingContext.itemKind`); mcp-docs stays tenant-agnostic; the SB-5
+  note seed follows the resolved household. `DocArchiverTest` (contract → shared, receipt → personal even
+  with a shared household present) green. NEXT = **slice 7b (read)** = `doc-finder` unions personal ∪
+  shared on an explicit "our documents" cue (default = own) → then 8 (deferred) memory owner-tag reconcile.
+  Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the
