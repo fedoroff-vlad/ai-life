@@ -30,7 +30,9 @@ import java.util.Set;
  *   <li>a typed message with an analysis cue ("разбор питания", "как я питаюсь") →
  *       {@link NutritionAnalyst#analyse} (gather meals + profile → synthesis → HTML board);</li>
  *   <li>a typed message with a ration cue ("составь рацион", "план питания", "закупиться в Ленте") →
- *       {@link MealPlanner#plan} (gather profiles + meals + store → multi-person ration + shopping list);</li>
+ *       {@link MealPlanner#plan} (gather profiles + meals + store → multi-person ration + shopping list);
+ *       a family cue ("на всю семью", "наш рацион") makes the read union across the personal ∪ shared
+ *       households (ADR-0002 slice 6b), else the own cut;</li>
  *   <li>a typed message with a basket cue ("разбери продукты", "корзина") →
  *       {@link BasketBreakdown#breakdownText} (typed list → КБЖУ + good/watch/cut → HTML report);</li>
  *   <li>a typed message with a food-log cue ("съел…", "на обед…", "запиши…") → {@link FoodLogger#logText}
@@ -65,6 +67,17 @@ public class IntentController {
             "что приготовить на неделю", "закупиться", "закупиться в", "закупка на", "что нам приготовить",
             "spisok pokupok na", "meal plan", "weekly menu", "make a ration", "ration", "stock up",
             "shopping plan", "what should we eat", "what to cook this week");
+
+    /**
+     * Family-scope cues (ADR-0002 slice 6b): when a ration request carries one of these, the ration reads
+     * across the member's personal ∪ shared households, not just their own. Absent → the default (own) cut,
+     * mirroring finance/tasks (shared is on explicit request, never by default).
+     */
+    private static final Set<String> FAMILY_CUES = Set.of(
+            "на всю семью", "на семью", "для семьи", "для всей семьи", "наш рацион", "наше меню",
+            "семейный рацион", "семейное меню", "семейный план", "нам всем", "на нас всех", "на всех нас",
+            "for the family", "for all of us", "family meal plan", "whole family", "our ration",
+            "our meal plan", "family ration");
 
     private static final Set<String> BASKET_CUES = Set.of(
             "продукт", "корзин", "закуп", "чек", "покупк", "список покупок", "разбери корзину",
@@ -109,7 +122,7 @@ public class IntentController {
             return nutritionAnalyst.analyse(message);
         }
         if (isMatch(message.text(), RATION_CUES)) {
-            return mealPlanner.plan(message);
+            return mealPlanner.plan(message, isMatch(message.text(), FAMILY_CUES));
         }
         if (isMatch(message.text(), BASKET_CUES)) {
             return basketBreakdown.breakdownText(message);

@@ -221,9 +221,14 @@ shared and the *policy* local — the correct seam.
      household; the food log stays personal. mcp-nutrition stays tenant-agnostic. Validated:
      `BasketBreakdownTest` (grocery basket → shared household; no-family → degrade to personal) + full
      nutritionist suite green.
-   - [ ] **6b — read:** `MealPlanner` (ration/shopping list) unions diet profiles + recent meals across the
-     member's personal ∪ shared households on a family-scoped request (`ProfileSharingClient.households`);
-     default = own. Mirrors finance's `SpendingReads` / tasks' `TaskReads`.
+   - [x] **6b — read:** `MealPlanner` reads through a new `read/MealReads` helper (sibling of finance's
+     `SpendingReads` / tasks' `TaskReads`): a family-scoped ration ("наш рацион", "на всю семью" — a
+     `FAMILY_CUES` keyword in `IntentController`, threaded as a `shared` flag) unions diet profiles + recent
+     meals across the member's personal ∪ shared households (`ProfileSharingClient.households`); default =
+     own. The `meal-planner` SKILL gained `payload.scope` + `context.householdProfiles` (array). Nutrition's
+     routing is a deterministic keyword heuristic (not an LLM classifier), so no golden-routing test applies
+     (unlike tasks 5b); the model-dependent extraction stays covered by `GoldenMealLogTest`. Validated:
+     `MealPlannerTest` family-union case + full nutritionist suite green. **Nutrition fully retrofitted.**
 7. [ ] **Documents** (household vs personal docs) — the remaining domain of slice 6's original pairing.
 8. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
 

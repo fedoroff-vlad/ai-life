@@ -56,6 +56,7 @@ class MealPlannerTest {
     static MockWebServer llmGateway;
     static MockWebServer mediaService;
     static MockWebServer orchestrator;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
@@ -64,11 +65,13 @@ class MealPlannerTest {
         llmGateway = new MockWebServer();
         mediaService = new MockWebServer();
         orchestrator = new MockWebServer();
+        profileService = new MockWebServer();
         mcpNutrition.start();
         mcpWeb.start();
         llmGateway.start();
         mediaService.start();
         orchestrator.start();
+        profileService.start();
     }
 
     @AfterAll
@@ -78,12 +81,14 @@ class MealPlannerTest {
         llmGateway.shutdown();
         mediaService.shutdown();
         orchestrator.shutdown();
+        profileService.shutdown();
     }
 
     /** Drain any recorded requests so the static servers stay isolated across (unordered) tests. */
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpNutrition, mcpWeb, llmGateway, mediaService, orchestrator)) {
+        for (MockWebServer s : List.of(mcpNutrition, mcpWeb, llmGateway, mediaService, orchestrator,
+                profileService)) {
             while (s.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
                 // discard
             }
@@ -97,6 +102,7 @@ class MealPlannerTest {
         r.add("nutritionist-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("nutritionist-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
+        r.add("nutritionist-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -205,6 +211,46 @@ class MealPlannerTest {
         assertThat(orchestrator.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/agents/invoke");
     }
 
+    @Test
+    void familyRationUnionsProfilesAndMealsAcrossHouseholds() throws Exception {
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID storedId = UUID.randomUUID();
+
+        mcpNutrition.setDispatcher(familyNutritionDispatcher(userId));
+        // profile-service resolves the member's household set: personal ∪ shared (ADR-0002 slice 6b read).
+        profileService.enqueue(jsonResponse("[\"" + personalHh + "\",\"" + sharedHh + "\"]"));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Семейный план на неделю.\nСписок покупок: ...", "stop",
+                new LlmUsage(180, 100, 280)))));
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                storedId, sharedHh, userId, "file", "text/html", 2048, "sha", "nutritionist",
+                Instant.now()))));
+        // chef declines → the recipes line is soft-failed out (keeps this test focused on the read cut).
+        orchestrator.enqueue(jsonResponse(json.writeValueAsString(AgentActionResult.error("no recipes"))));
+
+        var msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "составь рацион на всю семью на неделю", List.of(), "telegram", "122", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Рацион и список покупок").contains(storedId.toString());
+
+        // the household set was resolved for the acting user.
+        RecordedRequest households = profileService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(households.getPath()).contains("/households").contains(userId.toString());
+
+        // the read unioned across BOTH households: recent meals were read for each (owner-agnostic on the
+        // family cut), plus the household-default profile per household + the sender's own profile.
+        List<String> paths = drainPaths(mcpNutrition, 5);
+        assertThat(paths).anyMatch(p -> p.startsWith("/internal/meals") && p.contains("householdId=" + personalHh));
+        assertThat(paths).anyMatch(p -> p.startsWith("/internal/meals") && p.contains("householdId=" + sharedHh));
+        assertThat(paths).anyMatch(p -> p.startsWith("/internal/diet-profile") && p.contains("ownerId=" + userId));
+        assertThat(paths).filteredOn(p -> p.startsWith("/internal/diet-profile") && !p.contains("ownerId="))
+                .hasSize(2); // one household-default per household in the set
+    }
+
     /** Routes the parallel mcp-nutrition gather by path: self profile / household profile / meals. */
     private Dispatcher nutritionDispatcher(UUID householdId, UUID userId, boolean withMeals) {
         return new Dispatcher() {
@@ -232,6 +278,53 @@ class MealPlannerTest {
                 return new MockResponse().setResponseCode(404);
             }
         };
+    }
+
+    /**
+     * A household-agnostic mcp-nutrition stub for the family cut: answers a diet-profile / meals read for
+     * <b>any</b> household, echoing the {@code householdId} from the query, so the union across the personal
+     * ∪ shared set can be asserted from the recorded paths.
+     */
+    private Dispatcher familyNutritionDispatcher(UUID userId) {
+        return new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath() == null ? "" : request.getPath();
+                UUID hh = queryUuid(path, "householdId");
+                try {
+                    if (path.startsWith("/internal/diet-profile")) {
+                        boolean self = path.contains("ownerId=");
+                        return jsonResponse(json.writeValueAsString(new DietProfileDto(
+                                UUID.randomUUID(), hh, self ? userId : null, self ? 2000 : 1800,
+                                new BigDecimal("140"), null, null, json.readTree("[\"halal\"]"), null,
+                                self ? "cutting" : "family", Instant.now())));
+                    }
+                    if (path.startsWith("/internal/meals")) {
+                        return jsonResponse(json.writeValueAsString(List.of(
+                                new MealLogDto(UUID.randomUUID(), hh, userId, Instant.now(),
+                                        "text", "овсянка с бананом", null, 420, new BigDecimal("12"),
+                                        new BigDecimal("8"), new BigDecimal("70"), null, Instant.now()))));
+                    }
+                } catch (Exception e) {
+                    return new MockResponse().setResponseCode(500);
+                }
+                return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
+    /** Extract a UUID query param from a request path (null if absent/malformed). */
+    private static UUID queryUuid(String path, String name) {
+        int i = path.indexOf(name + "=");
+        if (i < 0) return null;
+        int start = i + name.length() + 1;
+        int end = start;
+        while (end < path.length() && path.charAt(end) != '&') end++;
+        try {
+            return UUID.fromString(path.substring(start, end));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** mcp-web availability search → one food.ru-style hit. */

@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
-import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
+import dev.fedorov.ailife.agents.nutritionist.read.MealReads;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agents.nutritionist.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
@@ -43,6 +43,12 @@ import java.util.Map;
  * multi-person ration + a grouped shopping list, which is rendered as an HTML board through the shared
  * {@link DocRenderer} seam, stored in media-service, and returned as a link.
  *
+ * <p>ADR-0002 slice 6b (sharing read path): the gather cut is chosen by {@code shared}. The default (own)
+ * reads the sender's own household; a family-scoped request ("наш рацион", "на всю семью") unions the diet
+ * profiles + recent meals across the member's personal ∪ shared households via {@link MealReads} (the
+ * nutrition sibling of finance's {@code SpendingReads} / tasks' {@code TaskReads}). The default stays own,
+ * mirroring finance/tasks — a shared cut is on explicit request, never by default.
+ *
  * <p>Per-step soft-fail (no profile/store just drops that constraint). The ad-hoc people (wife,
  * infant) are read by the LLM from the request text — they aren't stored as owner rows. The
  * {@code meal-planner} SKILL carries the infant/medical-safety caveat. Synthesis failure → a friendly
@@ -69,7 +75,7 @@ public class MealPlanner {
 
     private final Coordinator coordinator;
     private final DietProfileClient profiles;
-    private final MealReadClient meals;
+    private final MealReads mealReads;
     private final WebSearchClient web;
     private final DeliverablePublisher publisher;
     private final OrchestratorInvokeClient orchestrator;
@@ -79,7 +85,7 @@ public class MealPlanner {
 
     public MealPlanner(Coordinator coordinator,
                        DietProfileClient profiles,
-                       MealReadClient meals,
+                       MealReads mealReads,
                        WebSearchClient web,
                        DeliverablePublisher publisher,
                        OrchestratorInvokeClient orchestrator,
@@ -88,7 +94,7 @@ public class MealPlanner {
                        ObjectMapper json) {
         this.coordinator = coordinator;
         this.profiles = profiles;
-        this.meals = meals;
+        this.mealReads = mealReads;
         this.web = web;
         this.publisher = publisher;
         this.orchestrator = orchestrator;
@@ -97,41 +103,58 @@ public class MealPlanner {
         this.json = json;
     }
 
-    public Mono<IntentResponse> plan(NormalizedMessage msg) {
+    /**
+     * Plan a ration. {@code shared} (ADR-0002 slice 6b) selects the read cut: the default (own) reads the
+     * sender's own household — their diet profile + food log; a family-scoped request ("наш рацион", "на
+     * всю семью") unions the diet profiles + recent meals across the member's personal ∪ shared households
+     * via {@link MealReads}. The synthesis is otherwise identical; ad-hoc people (wife, infant) are still
+     * read by the LLM from the request text.
+     */
+    public Mono<IntentResponse> plan(NormalizedMessage msg, boolean shared) {
         String season = currentSeason();
 
-        Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
-        gather.put("profile", profiles.get(msg.householdId(), msg.userId())
-                .map(p -> json.valueToTree(p)));
-        gather.put("householdProfile", profiles.get(msg.householdId(), null)
-                .map(p -> json.valueToTree(p)));
-        gather.put("meals", meals.listMeals(msg.householdId(), msg.userId(), MEAL_LIMIT)
-                .filter(m -> !m.isEmpty())
-                .map(m -> json.valueToTree(m)));
-        String store = namedStore(msg.text());
-        if (store != null) {
-            gather.put("store", web.search(storeQuery(store, season), STORE_HITS)
-                    .map(r -> json.valueToTree(r)));
-        }
+        return mealReads.households(msg.householdId(), msg.userId(), shared)
+                .flatMap(households -> {
+                    Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
+                    // The sender's own diet profile (the requester's goals/restrictions) — always gathered.
+                    gather.put("profile", profiles.get(msg.householdId(), msg.userId())
+                            .map(p -> json.valueToTree(p)));
+                    // The household-default profile(s): one household on the own cut, the whole personal ∪
+                    // shared set on the family cut (covers members without their own row).
+                    gather.put("householdProfiles", mealReads.householdProfiles(households)
+                            .filter(l -> !l.isEmpty())
+                            .map(l -> json.valueToTree(l)));
+                    // Recent meals: the sender's own on the own cut; the whole family's (owner-agnostic)
+                    // across the set on the family cut.
+                    gather.put("meals", mealReads.mealsUnion(households, shared ? null : msg.userId(), MEAL_LIMIT)
+                            .filter(m -> !m.isEmpty())
+                            .map(m -> json.valueToTree(m)));
+                    String store = namedStore(msg.text());
+                    if (store != null) {
+                        gather.put("store", web.search(storeQuery(store, season), STORE_HITS)
+                                .map(r -> json.valueToTree(r)));
+                    }
 
-        ObjectNode payload = json.createObjectNode();
-        if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());
-        payload.put("season", season);
+                    ObjectNode payload = json.createObjectNode();
+                    if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());
+                    payload.put("season", season);
+                    payload.put("scope", shared ? "family" : "own");
 
-        return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
-                        payload,
-                        gather,
-                        LlmChannel.DEFAULT)
-                .flatMap(result -> store(msg, result.text())
-                        .flatMap(link -> recipesFor(msg, result.text())
-                                .map(recipes -> reply(DeliverablePublisher.summary(result.text(), "Составил рацион и список покупок.")
-                                        + "\n\nРацион и список покупок: " + link + recipes, result.llmModel())))
-                        .onErrorResume(e -> {
-                            log.warn("ration render/store failed: {}", e.toString());
-                            // Still hand back the textual plan if the page couldn't be stored.
-                            return Mono.just(reply(result.text(), result.llmModel()));
-                        }))
+                    return coordinator.coordinate(
+                                    List.of(manifest.body(), skillBody()),
+                                    payload,
+                                    gather,
+                                    LlmChannel.DEFAULT)
+                            .flatMap(result -> store(msg, result.text())
+                                    .flatMap(link -> recipesFor(msg, result.text())
+                                            .map(recipes -> reply(DeliverablePublisher.summary(result.text(), "Составил рацион и список покупок.")
+                                                    + "\n\nРацион и список покупок: " + link + recipes, result.llmModel())))
+                                    .onErrorResume(e -> {
+                                        log.warn("ration render/store failed: {}", e.toString());
+                                        // Still hand back the textual plan if the page couldn't be stored.
+                                        return Mono.just(reply(result.text(), result.llmModel()));
+                                    }));
+                })
                 .onErrorResume(e -> {
                     log.warn("meal planning failed: {}", e.toString());
                     return Mono.just(reply(

@@ -7,13 +7,14 @@ shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media
 (precise per-100g КБЖУ for the basket breakdown). Routes via the orchestrator (registered as
 `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (through ADR-0002 slice 6a)
+## Status (through ADR-0002 slice 6b — nutrition fully retrofitted for sharing)
 
 Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c) + **diet profiles** (NU-d) +
 the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct) + the **ration +
 shopping-list flow** (NU-g) + the **sharing write path** (ADR-0002 slice 6a — the direct basket
-breakdown routes the saved basket to the member's shared vs personal household). Remaining flows replace
-the fallback branch-by-branch:
+breakdown routes the saved basket to the member's shared vs personal household) + the **sharing read
+path** (slice 6b — a family-scoped ration unions diet profiles + recent meals across the member's
+personal ∪ shared households; default stays own). Remaining flows replace the fallback branch-by-branch:
 - **NU-c — food log. DONE.** A meal photo → `mcp-media-processing` caption extract, or a typed meal
   ("съел…", "на обед…", "запиши…") → one LLM extract, both via the `meal-logger` SKILL → write
   **write-immediately** to `mcp-nutrition`'s `/internal/meal` (attributed to the sender). `foodlog/FoodLogger`.
@@ -59,7 +60,10 @@ the fallback branch-by-branch:
   rendered it invokes the chef** (`recommend_recipes`) over the orchestrator hub
   (the shared `OrchestratorInvokeClient` → `/v1/agents/invoke`) and folds the returned recipe-card link into
   the reply (CH-b2, gift-recommender→finance shape) — soft-failed, so a chef outage just drops the
-  recipes line. `flow/MealPlanner`.
+  recipes line. `flow/MealPlanner`. **ADR-0002 slice 6b:** a **family cue** ("на всю семью", "наш
+  рацион") makes the gather union diet profiles + recent meals across the member's personal ∪ shared
+  households via `read/MealReads`; the default (own) reads just the sender's household. Mirrors finance's
+  `SpendingReads` / tasks' `TaskReads` (own by default, shared on explicit request).
 
 ## Endpoints
 
@@ -106,7 +110,13 @@ the fallback branch-by-branch:
 - `flow/MealPlanner` — the ration + shopping-list flow: gather the sender + household diet profiles
   + recent meals + (when a store is named) its availability via `mcp-web` on the shared `Coordinator`
   → one LLM synthesis via the `meal-planner` SKILL → render an HTML board via `libs/doc-render` →
-  store in media-service → reply with a link.
+  store in media-service → reply with a link. **ADR-0002 slice 6b:** takes a `shared` flag — a
+  family-scoped request reads through `read/MealReads` across the personal ∪ shared household set.
+- `read/MealReads` — nutrition's sharing-aware read (ADR-0002 slice 6b), sibling of finance's
+  `SpendingReads` / tasks' `TaskReads`: `households(envelope, userId, shared)` (own = envelope, shared =
+  personal ∪ shared via `ProfileSharingClient.households`, degrading to envelope) + `householdProfiles(set)`
+  (household-default profile per household) + `mealsUnion(set, ownerId, limit)` (recent meals unioned +
+  capped). mcp-nutrition stays tenant-agnostic; the member→set resolution lives here.
 - `basket/BasketBreakdown` — the basket-breakdown flow: a basket photo (caption) / typed list (LLM)
   → one extraction+breakdown pass via the `basket-analyst` SKILL (diet profile folded in) → save via
   `/internal/basket` → render a good/watch/cut verdict board via `libs/doc-render` → store → link.
