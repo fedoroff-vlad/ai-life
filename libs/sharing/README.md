@@ -1,12 +1,14 @@
 # libs/sharing
 
-**Status (2026-08-01):** engine shipped (ADR-0002 slice 2); **calendar fully wired as the reference impl** —
+**Status (2026-08-02):** engine shipped (ADR-0002 slice 2); **calendar fully wired as the reference impl** —
 write path (slice 3a, `calendar-agent`) + read path (slice 3b, `calendar-web`). **finance fully retrofitted
 (read 4a + write 4b):** the read side unions spending across the member's personal ∪ shared households on the
 shared-scope ("наши траты") cut — `FinancialAdvisor` (4a-i) + `MonthlyReporter`/`YearReporter` (4a-ii), all
 through the domain's `read/SpendingReads` helper over `ProfileSharingClient.households`; the write side
 (slice 4b) routes a chat-created account to a personal vs shared household via `SharingResolver` +
-`sharing/FinanceSharingPolicy` (`AccountManager` flow). tasks/nutrition/docs next.
+`sharing/FinanceSharingPolicy` (`AccountManager` flow). **tasks write path wired (slice 5a):** `tasks-agent`
+routes a chat-captured task to a personal vs shared household via `SharingResolver` + `sharing/TasksSharingPolicy`
+(`TaskCapturer` flow). tasks read (5b) + nutrition/docs next.
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -29,7 +31,10 @@ its former local `ProfileHouseholdsClient`). **finance** consumes both paths: th
 helper reads the union for the shared-scope analysis (`FinancialAdvisor`) and reports
 (`MonthlyReporter`/`YearReporter`); the write side (slice 4b) — the same `OutboundHttpConfig` declares the
 `SharingResolver` bean wired with `sharing/FinanceSharingPolicy`, and `AccountManager` routes a new account to a
-personal vs shared household through it.
+personal vs shared household through it. **tasks** consumes the write path (slice 5a): `tasks-agent`'s
+`OutboundHttpConfig` declares the `ProfileSharingClient` + `SharingResolver` beans (the resolver wired with
+`sharing/TasksSharingPolicy`), and the `TaskCapturer` flow routes a chat-captured task to a personal vs shared
+household through it (read path 5b next).
 
 ## Depends on
 `libs/contracts` (`SharingScope` in `contracts/common`, `HouseholdRoutingDto` in `contracts/profile`) +

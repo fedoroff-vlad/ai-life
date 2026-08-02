@@ -70,6 +70,23 @@ Deferred in STATUS.
   projects with no next action (the GTD weekly review).
 - `task-to-event` (hard-deadline item → calendar event via orchestrator) — **DONE (C1, see Calendar link below)**; (later) `delegation-tracker`.
 
+## Sharing — personal vs shared household (ADR-0002 slice 5)
+Tasks opt into the shared **sharing capability** (`libs/sharing`): a task is written to the member's
+**personal** household or the **shared** family household (its `household_id` = the visibility boundary).
+Mechanism is deterministic (a privacy boundary, never LLM-decided); only the default-when-unspecified is
+policy — `sharing/TasksSharingPolicy`: a household/shared-list task (chore, shared shopping, involves
+another member → shared) vs a personal todo (→ private).
+- **Write (5a, done):** the `task-capture` intent flow (`TaskCapturer`, sibling of finance's
+  `AccountManager`) plans `{title, note?, shared?}` from a plain-language capture, the shared
+  `SharingResolver` routes it to a concrete household, and mcp-tasks' `POST /internal/task`
+  (`AddTaskClient`) captures it to the inbox. This is the deterministic capture an LLM-driven `add_task`
+  tool call can't take — the classifier never sees the household id. mcp-tasks stays tenant-agnostic.
+- **Read (5b, next):** the read flows union across the member's personal ∪ shared households on an
+  explicit shared cut (default = own only, mirroring finance), via `ProfileSharingClient.households`.
+
+Note this is a different axis from `owner_id` (private-within-a-household): sharing picks *which
+household* the row lands in; `owner_id` scopes visibility *within* one household.
+
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers
 `mcp-scheduler.schedule_once(target=tasks, payload={taskId})`; scheduler wakes tasks-agent via

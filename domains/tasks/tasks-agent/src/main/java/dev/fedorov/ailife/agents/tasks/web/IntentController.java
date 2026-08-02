@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.tasks.web;
 
+import dev.fedorov.ailife.agents.tasks.capture.TaskCapturer;
 import dev.fedorov.ailife.agents.tasks.intent.InboxClarifier;
 import dev.fedorov.ailife.agents.tasks.intent.IntentRouter;
 import dev.fedorov.ailife.agents.tasks.intent.NextActionSuggester;
@@ -19,8 +20,9 @@ import reactor.core.publisher.Mono;
  * behaviour). When the router picks an intent skill the controller dispatches to that skill's flow
  * — today only {@code inbox-clarify} ({@link InboxClarifier}). The controller stays thin and wraps
  * the result in an {@link IntentResponse} (propagating the model id, preserving the orchestrator's
- * intent contract). Today the intent skills are {@code inbox-clarify} ({@link InboxClarifier}) and
- * {@code next-action-suggester} ({@link NextActionSuggester}).
+ * intent contract). Today the intent skills are {@code inbox-clarify} ({@link InboxClarifier}),
+ * {@code next-action-suggester} ({@link NextActionSuggester}) and {@code task-capture}
+ * ({@link TaskCapturer} — the sharing write path, ADR-0002 slice 5).
  */
 @RestController
 @RequestMapping("/agents/tasks")
@@ -30,13 +32,16 @@ public class IntentController {
     private final AgentManifest manifest;
     private final InboxClarifier inboxClarifier;
     private final NextActionSuggester nextActionSuggester;
+    private final TaskCapturer taskCapturer;
 
     public IntentController(IntentRouter router, AgentManifest manifest,
-                           InboxClarifier inboxClarifier, NextActionSuggester nextActionSuggester) {
+                           InboxClarifier inboxClarifier, NextActionSuggester nextActionSuggester,
+                           TaskCapturer taskCapturer) {
         this.router = router;
         this.manifest = manifest;
         this.inboxClarifier = inboxClarifier;
         this.nextActionSuggester = nextActionSuggester;
+        this.taskCapturer = taskCapturer;
     }
 
     @PostMapping("/intent")
@@ -48,6 +53,10 @@ public class IntentController {
                     }
                     if (NextActionSuggester.SKILL_NAME.equals(r.invokedSkill())) {
                         return nextActionSuggester.suggest(message);
+                    }
+                    if (TaskCapturer.SKILL_NAME.equals(r.invokedSkill())) {
+                        return taskCapturer.capture(message)
+                                .map(c -> new IntentResponse(manifest.name(), c.text(), c.model()));
                     }
                     return Mono.just(new IntentResponse(manifest.name(), r.text(), r.llmModel()));
                 });

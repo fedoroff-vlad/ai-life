@@ -493,6 +493,39 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
                 .expectStatus().isBadRequest();
     }
 
+    @Test
+    void internalTaskEndpointCapturesToInboxAnd400OnMissingTitle() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        org.springframework.test.web.reactive.server.WebTestClient client =
+                org.springframework.test.web.reactive.server.WebTestClient.bindToServer()
+                        .baseUrl("http://localhost:" + port).build();
+
+        TaskItemDto captured = client.post()
+                .uri("/internal/task")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new AddTaskInput(h, null, "купить молоко", null, "telegram"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TaskItemDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(captured).isNotNull();
+        assertThat(captured.status()).isEqualTo("inbox");
+        assertThat(captured.title()).isEqualTo("купить молоко");
+        assertThat(captured.source()).isEqualTo("telegram");
+        assertThat(captured.householdId()).isEqualTo(h);
+
+        // A missing required field → 400 (the tool's validation surfaces through the passthrough).
+        client.post()
+                .uri("/internal/task")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new AddTaskInput(h, null, null, null, null))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**

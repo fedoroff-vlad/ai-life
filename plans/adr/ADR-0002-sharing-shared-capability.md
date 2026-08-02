@@ -195,8 +195,19 @@ shared and the *policy* local — the correct seam.
      tenant-agnostic. Validated: unit `AccountManagerTest`/`IntentRouterTest` + mcp-finance controller test
      green; `GoldenRoutingTest` structure + behaviour green on the real model (the `account` route confirmed).
      **Finance is now fully retrofitted (read 4a + write 4b).**
-5. [ ] **Tasks** — `sharing/TasksSharingPolicy` (household-context/shared-list → shared) + route + union
-   read. Near-mechanical once the recipe is proven.
+5. **Tasks** — split write/read like calendar/finance. Read default = own (mirror finance): the shared
+   cut is on explicit request (`scope:"shared"`), not by default.
+   - [x] **5a — write:** `tasks-agent`'s `task-capture` flow (`TaskCapturer`, the sibling of finance's
+     `AccountManager`) plans a task from a plain-language capture and routes it to a personal vs shared
+     household via the shared `SharingResolver` wired with a new `sharing/TasksSharingPolicy`
+     (household/shared-list task — chore, shared shopping, involves another member → shared; personal
+     todo → private). Persisted via mcp-tasks' new `POST /internal/task` passthrough (`AddTaskClient`).
+     This is the deterministic capture an LLM-driven `add_task` tool call cannot take (the classifier
+     never sees the household id). mcp-tasks stays tenant-agnostic. Validated: `TaskCapturerTest`
+     (personal → personal hh, shared → shared hh, empty plan asks) + mcp-tasks controller test green.
+   - [ ] **5b — read:** union read — the read flows (`next-action-suggester`, weekly-review) read across
+     the member's personal ∪ shared households on the shared cut via `ProfileSharingClient.households`
+     (a `read/TaskReads` helper, the sibling of finance's `SpendingReads`); default stays own only.
 6. [ ] **Nutrition** (shared meal-plan/shopping surface only; food log stays personal) + **Documents**
    (household vs personal docs).
 7. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
