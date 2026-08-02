@@ -259,10 +259,10 @@ class CaptureServiceTest {
         ArgumentCaptor<JsonNode> pending = ArgumentCaptor.forClass(JsonNode.class);
         verify(conversation).lock(eq(household), eq(speaker), eq("telegram"), eq("notes"), pending.capture());
         JsonNode p = pending.getValue();
-        assertThat(p.path("flow").asText()).isEqualTo("ambient-approve");
-        assertThat(p.path("note").path("source").asText()).isEqualTo("ambient");
-        assertThat(p.path("note").path("personId").asText()).isEqualTo(mama.toString());
-        assertThat(p.path("note").path("bodyMd").asText()).contains("[[Мама]]");
+        assertThat(p.path("flow").asString()).isEqualTo("ambient-approve");
+        assertThat(p.path("note").path("source").asString()).isEqualTo("ambient");
+        assertThat(p.path("note").path("personId").asString()).isEqualTo(mama.toString());
+        assertThat(p.path("note").path("bodyMd").asString()).contains("[[Мама]]");
 
         ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
         verify(notifier).notify(eq(speaker), text.capture());

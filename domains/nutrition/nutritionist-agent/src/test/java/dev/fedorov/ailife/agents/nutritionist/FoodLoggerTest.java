@@ -101,8 +101,8 @@ class FoodLoggerTest {
         RecordedRequest captionReq = mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
         JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
-        assertThat(captionBody.path("mediaId").asText()).isEqualTo(mediaId);
-        assertThat(captionBody.path("instruction").asText())
+        assertThat(captionBody.path("mediaId").asString()).isEqualTo(mediaId);
+        assertThat(captionBody.path("instruction").asString())
                 .contains("strict JSON")   // the meal-logger SKILL.md prompt
                 .contains("это мой обед");  // the user's caption folded in as a hint
 
@@ -110,12 +110,12 @@ class FoodLoggerTest {
         RecordedRequest mealReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mealReq.getPath()).isEqualTo("/internal/meal");
         JsonNode mealBody = json.readTree(mealReq.getBody().readUtf8());
-        assertThat(mealBody.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(mealBody.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(mealBody.path("description").asText()).isEqualTo("куриный салат");
-        assertThat(mealBody.path("source").asText()).isEqualTo("photo");
+        assertThat(mealBody.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(mealBody.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(mealBody.path("description").asString()).isEqualTo("куриный салат");
+        assertThat(mealBody.path("source").asString()).isEqualTo("photo");
         assertThat(mealBody.path("kcal").asInt()).isEqualTo(350);
-        assertThat(mealBody.path("imageMediaId").asText()).isEqualTo(mediaId);
+        assertThat(mealBody.path("imageMediaId").asString()).isEqualTo(mediaId);
     }
 
     @Test
@@ -147,8 +147,8 @@ class FoodLoggerTest {
         // The meal was written with source=text.
         RecordedRequest mealReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         JsonNode mealBody = json.readTree(mealReq.getBody().readUtf8());
-        assertThat(mealBody.path("source").asText()).isEqualTo("text");
-        assertThat(mealBody.path("description").asText()).isEqualTo("овсянка с бананом");
+        assertThat(mealBody.path("source").asString()).isEqualTo("text");
+        assertThat(mealBody.path("description").asString()).isEqualTo("овсянка с бананом");
     }
 
     @Test

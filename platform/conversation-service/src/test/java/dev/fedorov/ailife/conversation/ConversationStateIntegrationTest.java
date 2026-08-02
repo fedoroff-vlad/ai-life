@@ -56,13 +56,13 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
         ConversationStateDto set = service.set(new SetConversationStateRequest(
                 householdId, user, "telegram", "finance", pending, 600L));
         assertThat(set.routeLock()).isEqualTo("finance");
-        assertThat(set.pendingAction().path("flow").asText()).isEqualTo("receipt-confirm");
+        assertThat(set.pendingAction().path("flow").asString()).isEqualTo("receipt-confirm");
         assertThat(set.expiresAt()).isAfter(java.time.Instant.now());
 
         assertThat(service.getActive(householdId, user, "telegram"))
                 .get().satisfies(s -> {
                     assertThat(s.routeLock()).isEqualTo("finance");
-                    assertThat(s.pendingAction().path("draftAmount").asText()).isEqualTo("-4.50");
+                    assertThat(s.pendingAction().path("draftAmount").asString()).isEqualTo("-4.50");
                 });
 
         // Upsert: a second set for the same key replaces (no duplicate row, new lock wins).

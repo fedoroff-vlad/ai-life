@@ -44,7 +44,7 @@ public class ActionController extends AgentActionController {
 
     private Mono<AgentActionResult> recommendRecipes(AgentActionRequest request) {
         JsonNode args = request.args();
-        String text = args != null && args.hasNonNull("request") ? args.get("request").asText() : null;
+        String text = args != null && args.hasNonNull("request") ? args.get("request").asString() : null;
         if (text == null || text.isBlank()) {
             return Mono.just(AgentActionResult.error("recommend_recipes requires args.request"));
         }

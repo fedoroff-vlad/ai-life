@@ -160,7 +160,7 @@ public class NoteRepository {
                 return List.of();
             }
             List<String> tags = new ArrayList<>(node.size());
-            node.forEach(n -> tags.add(n.asText()));
+            node.forEach(n -> tags.add(n.asString()));
             return tags;
         } catch (Exception e) {
             throw new RuntimeException("invalid tags json in note " + rowId, e);

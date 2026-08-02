@@ -88,7 +88,7 @@ class ActionControllerTest {
                 .expectBody(AgentActionResult.class)
                 .value(res -> {
                     assertThat(res.ok()).isTrue();
-                    assertThat(res.result().get("eventUid").asText()).isEqualTo("cal-uid-1");
+                    assertThat(res.result().get("eventUid").asString()).isEqualTo("cal-uid-1");
                 });
 
         RecordedRequest sent = mcpCaldav.takeRequest();
@@ -208,7 +208,7 @@ class ActionControllerTest {
                 .expectBody(AgentActionResult.class)
                 .value(res -> {
                     assertThat(res.ok()).isTrue();
-                    assertThat(res.result().get("eventUid").asText()).isEqualTo(expectedUid);
+                    assertThat(res.result().get("eventUid").asString()).isEqualTo(expectedUid);
                 });
     }
 

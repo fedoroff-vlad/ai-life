@@ -103,8 +103,8 @@ class WardrobeCataloguerTest {
         assertThat(captionReq.getMethod()).isEqualTo("POST");
         assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
         JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
-        assertThat(captionBody.path("mediaId").asText()).isEqualTo(mediaId);
-        assertThat(captionBody.path("instruction").asText())
+        assertThat(captionBody.path("mediaId").asString()).isEqualTo(mediaId);
+        assertThat(captionBody.path("instruction").asString())
                 .contains("strict JSON")             // the wardrobe-cataloguer SKILL.md prompt
                 .contains("это моё зимнее пальто");   // the user's caption folded in as a hint
 
@@ -113,10 +113,10 @@ class WardrobeCataloguerTest {
         assertThat(addReq.getMethod()).isEqualTo("POST");
         assertThat(addReq.getPath()).isEqualTo("/internal/item");
         JsonNode addBody = json.readTree(addReq.getBody().readUtf8());
-        assertThat(addBody.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(addBody.path("name").asText()).isEqualTo("navy wool coat");
-        assertThat(addBody.path("category").asText()).isEqualTo("outerwear");
-        assertThat(addBody.path("imageMediaId").asText()).isEqualTo(mediaId);
+        assertThat(addBody.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(addBody.path("name").asString()).isEqualTo("navy wool coat");
+        assertThat(addBody.path("category").asString()).isEqualTo("outerwear");
+        assertThat(addBody.path("imageMediaId").asString()).isEqualTo(mediaId);
     }
 
     @Test

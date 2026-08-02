@@ -172,18 +172,18 @@ public class AnthropicProvider implements LlmProvider {
         if (contentArr != null && contentArr.isArray()) {
             StringBuilder sb = new StringBuilder();
             for (JsonNode block : contentArr) {
-                if ("text".equals(block.path("type").asText())) {
-                    sb.append(block.path("text").asText());
+                if ("text".equals(block.path("type").asString())) {
+                    sb.append(block.path("text").asString());
                 }
             }
             content = sb.toString();
         }
-        String stopReason = json.path("stop_reason").asText("stop");
+        String stopReason = json.path("stop_reason").asString("stop");
         JsonNode usage = json.path("usage");
         int prompt = usage.path("input_tokens").asInt(0);
         int completion = usage.path("output_tokens").asInt(0);
         return new LlmChatResponse(
-                json.path("model").asText(model),
+                json.path("model").asString(model),
                 content,
                 stopReason,
                 new LlmUsage(prompt, completion, prompt + completion));
@@ -198,14 +198,14 @@ public class AnthropicProvider implements LlmProvider {
         if (dataLine == null || dataLine.isEmpty()) return null;
         try {
             JsonNode json = MAPPER.readTree(dataLine);
-            if (!"content_block_delta".equals(json.path("type").asText())) {
+            if (!"content_block_delta".equals(json.path("type").asString())) {
                 return null;
             }
             JsonNode delta = json.path("delta");
-            if (!"text_delta".equals(delta.path("type").asText())) {
+            if (!"text_delta".equals(delta.path("type").asString())) {
                 return null;
             }
-            return delta.path("text").asText("");
+            return delta.path("text").asString("");
         } catch (Exception e) {
             return null;
         }

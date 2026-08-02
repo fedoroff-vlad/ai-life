@@ -149,7 +149,7 @@ public class ReceiptParser {
             log.warn("receipt resume: bad pendingAction input: {}", e.toString());
             return Mono.just(reply("Не смог восстановить черновик чека. Пришлите фото заново.", null));
         }
-        String accountName = pending.path("accountName").asText("счёт");
+        String accountName = pending.path("accountName").asString("счёт");
         return transactions.add(input)
                 .map(saved -> reply(successText(saved.amount(), saved.currency(),
                         input.note(), accountName), null))
@@ -315,7 +315,7 @@ public class ReceiptParser {
     }
 
     private static String text(JsonNode node, String field) {
-        return node.hasNonNull(field) ? node.get(field).asText() : null;
+        return node.hasNonNull(field) ? node.get(field).asString() : null;
     }
 
     private static Instant parseTs(String date) {

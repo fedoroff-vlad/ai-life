@@ -69,7 +69,7 @@ class McpCreatorIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(created.id()).isNotNull();
         assertThat(created.niche()).isEqualTo("English for IT");
         assertThat(created.tone()).isEqualTo("friendly-expert");
-        assertThat(created.platforms().get(0).asText()).isEqualTo("youtube");
+        assertThat(created.platforms().get(0).asString()).isEqualTo("youtube");
         assertThat(created.guardrails().get("noClickbait").asBoolean()).isTrue();
 
         // Same (household, owner) → updates the same row.
@@ -259,7 +259,7 @@ class McpCreatorIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(draft.body()).isEqualTo("Body text");
         assertThat(draft.cta()).isEqualTo("Subscribe");
         assertThat(draft.status()).isEqualTo("kept");
-        assertThat(draft.hashtags().get(0).asText()).isEqualTo("#englishforit");
+        assertThat(draft.hashtags().get(0).asString()).isEqualTo("#englishforit");
         assertThat(draft.trendId()).isNotNull();
 
         // list all kinds, then scope to drafts.
@@ -310,7 +310,7 @@ class McpCreatorIntegrationTest extends AbstractPostgresIntegrationTest {
                 .returnResult().getResponseBody();
         assertThat(saved).isNotNull();
         assertThat(saved.niche()).isEqualTo("English for IT");
-        assertThat(saved.platforms().get(0).asText()).isEqualTo("youtube");
+        assertThat(saved.platforms().get(0).asString()).isEqualTo("youtube");
 
         // Second post for the same (household, owner) updates in place — still one row.
         client.post().uri("/internal/creator-profile")

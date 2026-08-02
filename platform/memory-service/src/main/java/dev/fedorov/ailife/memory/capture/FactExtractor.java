@@ -82,7 +82,7 @@ public class FactExtractor {
             JsonNode arr = json.readTree(cleaned).get("facts");
             if (arr != null && arr.isArray()) {
                 for (JsonNode f : arr) {
-                    String s = f.asText("").trim();
+                    String s = f.asString("").trim();
                     if (!s.isBlank()) {
                         facts.add(s);
                     }

@@ -134,7 +134,7 @@ class GoldenRoutingTest {
             }
             assertThat(node.hasNonNull("action"))
                     .as("missing 'action' for «%s»: %s", msg, raw).isTrue();
-            String action = node.get("action").asText();
+            String action = node.get("action").asString();
             boolean controlAction = ACTIONS.contains(action);
             boolean flattenedTool = TOOL_NAMES.contains(action);
             assertThat(controlAction || flattenedTool)
@@ -144,13 +144,13 @@ class GoldenRoutingTest {
                 assertThat(node.hasNonNull("name"))
                         .as("action=tool without 'name' for «%s»: %s", msg, raw).isTrue();
                 assertThat(TOOL_NAMES)
-                        .as("hallucinated tool '%s' for «%s»", node.get("name").asText(), msg)
-                        .contains(node.get("name").asText());
+                        .as("hallucinated tool '%s' for «%s»", node.get("name").asString(), msg)
+                        .contains(node.get("name").asString());
             }
             if ("skill".equals(action)) {
                 assertThat(SKILLS)
-                        .as("hallucinated skill '%s' for «%s»", node.path("name").asText(), msg)
-                        .contains(node.path("name").asText());
+                        .as("hallucinated skill '%s' for «%s»", node.path("name").asString(), msg)
+                        .contains(node.path("name").asString());
             }
         }
     }

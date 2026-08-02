@@ -78,7 +78,7 @@ class SpecialistBriefsTest {
 
         // "weather" is not on the roster (dropped); "Finance"/"finance" collapse to one canonical name.
         assertThat(node).isNotNull();
-        assertThat(node.get("finance").asText()).isEqualTo("Gifts budget has 15000 RUB left.");
+        assertThat(node.get("finance").asString()).isEqualTo("Gifts budget has 15000 RUB left.");
         assertThat(node.has("calendar")).isFalse();
 
         // The hub was asked exactly once, for finance's read-only brief carrying the question.
@@ -88,7 +88,7 @@ class SpecialistBriefsTest {
         assertThat(req.targetAgent()).isEqualTo("finance");
         assertThat(req.action()).isEqualTo("brief");
         assertThat(req.householdId()).isEqualTo(HOUSEHOLD);
-        assertThat(req.args().get("question").asText()).isEqualTo("gift budget?");
+        assertThat(req.args().get("question").asString()).isEqualTo("gift budget?");
     }
 
     @Test

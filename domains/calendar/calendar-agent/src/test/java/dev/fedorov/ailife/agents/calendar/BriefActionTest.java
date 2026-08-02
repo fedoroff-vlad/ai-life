@@ -90,8 +90,8 @@ class BriefActionTest {
                 .expectBody(AgentActionResult.class)
                 .value(res -> {
                     assertThat(res.ok()).isTrue();
-                    assertThat(res.result().get("agent").asText()).isEqualTo("calendar");
-                    assertThat(res.result().get("answer").asText())
+                    assertThat(res.result().get("agent").asString()).isEqualTo("calendar");
+                    assertThat(res.result().get("answer").asString())
                             .isEqualTo("На этой неделе — мамин день рождения 12 июля.");
                 });
 
@@ -99,8 +99,8 @@ class BriefActionTest {
         RecordedRequest recallReq = memory.takeRequest(2, TimeUnit.SECONDS);
         assertThat(recallReq.getPath()).isEqualTo("/v1/memories/recall");
         JsonNode recallBody = json.readTree(recallReq.getBody().readUtf8());
-        assertThat(recallBody.path("householdId").asText()).isEqualTo(household.toString());
-        assertThat(recallBody.path("query").asText()).contains("календаре");
+        assertThat(recallBody.path("householdId").asString()).isEqualTo(household.toString());
+        assertThat(recallBody.path("query").asString()).contains("календаре");
 
         // Hop 2: the FAST synthesis carried the recalled fact (grounding).
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);

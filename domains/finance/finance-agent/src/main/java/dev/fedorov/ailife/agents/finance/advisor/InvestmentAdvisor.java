@@ -98,7 +98,7 @@ public class InvestmentAdvisor {
 
     /** One quote as JSON; a failed quote is soft-failed by the Coordinator (drops out of context). */
     private Mono<JsonNode> quoteNode(String symbol) {
-        return marketData.quote(symbol).map(q -> (JsonNode) json.valueToTree(q));
+        return marketData.quote(symbol).map(q -> json.valueToTree(q));
     }
 
     private static List<String> normalize(List<String> symbols) {

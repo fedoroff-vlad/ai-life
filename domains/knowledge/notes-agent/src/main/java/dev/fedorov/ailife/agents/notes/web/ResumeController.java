@@ -32,7 +32,7 @@ public class ResumeController {
     @PostMapping("/resume")
     public Mono<IntentResponse> resume(@RequestBody ResumeRequest request) {
         String flow = request.pendingAction() == null ? null
-                : request.pendingAction().path("flow").asText(null);
+                : request.pendingAction().path("flow").asString(null);
         if (AmbientApprover.FLOW.equals(flow)) {
             return approver.resume(request);
         }

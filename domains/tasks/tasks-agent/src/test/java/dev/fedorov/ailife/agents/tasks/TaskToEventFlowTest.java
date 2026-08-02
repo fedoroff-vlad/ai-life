@@ -86,8 +86,8 @@ class TaskToEventFlowTest {
                 .expectBody(AgentActionResult.class)
                 .value(res -> {
                     assertThat(res.ok()).isTrue();
-                    assertThat(res.result().get("eventUid").asText()).isEqualTo("evt-9");
-                    assertThat(res.result().get("taskId").asText()).isEqualTo(taskId.toString());
+                    assertThat(res.result().get("eventUid").asString()).isEqualTo("evt-9");
+                    assertThat(res.result().get("taskId").asString()).isEqualTo(taskId.toString());
                 });
 
         RecordedRequest invoke = orchestrator.takeRequest();

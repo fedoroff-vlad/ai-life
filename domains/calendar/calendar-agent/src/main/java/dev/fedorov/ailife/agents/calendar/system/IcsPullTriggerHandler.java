@@ -52,9 +52,9 @@ public class IcsPullTriggerHandler implements SystemTriggerHandler {
     private static UUID extractSubscriptionId(JsonNode payload) {
         if (payload == null) return null;
         JsonNode node = payload.get("subscriptionId");
-        if (node == null || node.isNull() || node.asText().isBlank()) return null;
+        if (node == null || node.isNull() || node.asString().isBlank()) return null;
         try {
-            return UUID.fromString(node.asText());
+            return UUID.fromString(node.asString());
         } catch (IllegalArgumentException e) {
             return null;
         }

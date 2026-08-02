@@ -76,7 +76,7 @@ class SchedulerIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(created.id()).isNotNull();
         assertThat(created.cron()).isEqualTo("0 0 8 * * *");
         assertThat(created.nextRunTs()).isAfter(Instant.now());
-        assertThat(created.payload().get("personId").asText()).isEqualTo("maria");
+        assertThat(created.payload().get("personId").asString()).isEqualTo("maria");
     }
 
     @Test

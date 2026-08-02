@@ -115,8 +115,8 @@ class E2ECoordinateFlowTest {
         RecordedRequest recallReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(recallReq.getPath()).isEqualTo("/v1/memories/recall");
         JsonNode recallBody = json.readTree(recallReq.getBody().readUtf8());
-        assertThat(recallBody.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(recallBody.path("query").asText()).contains("спланировать неделю");
+        assertThat(recallBody.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(recallBody.path("query").asString()).contains("спланировать неделю");
         assertThat(recallBody.path("k").asInt()).isEqualTo(5);
 
         // Hop 2: the synthesis turn (skipping the FAST planning turn) carried the recalled context.

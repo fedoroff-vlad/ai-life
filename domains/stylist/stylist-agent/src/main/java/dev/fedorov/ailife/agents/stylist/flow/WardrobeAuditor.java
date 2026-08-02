@@ -84,7 +84,7 @@ public class WardrobeAuditor {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("wardrobe", Mono.just(json.valueToTree(items)));
         gather.put("profile", wardrobe.getProfile(msg.householdId(), msg.userId())
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
 
         ObjectNode payload = json.createObjectNode();
         if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());
@@ -133,7 +133,7 @@ public class WardrobeAuditor {
         JsonNode hero = audit.get("hero");
         if (hero != null && hero.isArray()) {
             for (JsonNode h : hero) {
-                String name = h.asText();
+                String name = h.asString();
                 if (name != null && !name.isBlank()) {
                     b.heroPiece(name, publisher.mediaUrl(photoByName.get(name.toLowerCase(Locale.ROOT))), null);
                 }
@@ -208,7 +208,7 @@ public class WardrobeAuditor {
     private static String text(JsonNode node, String field) {
         if (node == null) return null;
         JsonNode v = node.get(field);
-        return (v != null && !v.isNull()) ? v.asText() : null;
+        return (v != null && !v.isNull()) ? v.asString() : null;
     }
 
     private static boolean notBlank(String s) {

@@ -107,9 +107,9 @@ public class InboxClarifier {
         }
         StringBuilder sb = new StringBuilder("Предлагаю разобрать инбокс:\n");
         for (JsonNode p : proposals) {
-            String title = p.path("title").asText("(без названия)");
-            String status = p.path("status").asText("next");
-            String context = p.path("context").asText("");
+            String title = p.path("title").asString("(без названия)");
+            String status = p.path("status").asString("next");
+            String context = p.path("context").asString("");
             sb.append("• ").append(title).append(" → ").append(status);
             if (!context.isBlank()) sb.append(" ").append(context);
             sb.append('\n');
@@ -157,13 +157,13 @@ public class InboxClarifier {
     }
 
     private ClarifyTaskInput toClarifyInput(JsonNode p) {
-        UUID taskId = parseUuid(p.path("taskId").asText(null));
+        UUID taskId = parseUuid(p.path("taskId").asString(null));
         if (taskId == null) {
             return null;
         }
-        String status = p.path("status").asText(null);
-        String context = blankToNull(p.path("context").asText(null));
-        UUID projectId = parseUuid(p.path("projectId").asText(null));
+        String status = p.path("status").asString(null);
+        String context = blankToNull(p.path("context").asString(null));
+        UUID projectId = parseUuid(p.path("projectId").asString(null));
         return new ClarifyTaskInput(taskId, status, context, projectId, null, null, null);
     }
 

@@ -149,19 +149,19 @@ public class TriggerController {
         JsonNode categoryIdNode = payload.get("categoryId");
         JsonNode periodNode = payload.get("period");
         if (categoryIdNode == null || categoryIdNode.isNull()
-                || periodNode == null || periodNode.isNull() || periodNode.asText().isBlank()) {
+                || periodNode == null || periodNode.isNull() || periodNode.asString().isBlank()) {
             return Mono.just(req);
         }
         UUID categoryId;
         try {
-            categoryId = UUID.fromString(categoryIdNode.asText());
+            categoryId = UUID.fromString(categoryIdNode.asString());
         } catch (IllegalArgumentException e) {
             log.warn("budget.alert payload has malformed categoryId={} (schedule={}), skipping enrichment",
-                    categoryIdNode.asText(), req.scheduleId());
+                    categoryIdNode.asString(), req.scheduleId());
             return Mono.just(req);
         }
         if (req.householdId() == null) return Mono.just(req);
-        return budgetStatus.fetch(req.householdId(), categoryId, periodNode.asText())
+        return budgetStatus.fetch(req.householdId(), categoryId, periodNode.asString())
                 .map(opt -> opt.map(status -> withPayload(req, buildBudgetAlertPayload(status)))
                         .orElseGet(() -> withPayload(req, markStatus(payload, "no_active_budget"))))
                 .onErrorMap(EnrichmentFailedException::wrap);
@@ -180,15 +180,15 @@ public class TriggerController {
             return Mono.just(req); // already pre-computed
         }
         JsonNode recurringIdNode = payload.get("recurringId");
-        if (recurringIdNode == null || recurringIdNode.isNull() || recurringIdNode.asText().isBlank()) {
+        if (recurringIdNode == null || recurringIdNode.isNull() || recurringIdNode.asString().isBlank()) {
             return Mono.just(req);
         }
         UUID recurringId;
         try {
-            recurringId = UUID.fromString(recurringIdNode.asText());
+            recurringId = UUID.fromString(recurringIdNode.asString());
         } catch (IllegalArgumentException e) {
             log.warn("recurring.due payload has malformed recurringId={} (schedule={}), skipping enrichment",
-                    recurringIdNode.asText(), req.scheduleId());
+                    recurringIdNode.asString(), req.scheduleId());
             return Mono.just(req);
         }
         return recurring.fetch(recurringId)
@@ -210,15 +210,15 @@ public class TriggerController {
             return Mono.just(req); // already pre-computed
         }
         JsonNode txIdNode = payload.get("transactionId");
-        if (txIdNode == null || txIdNode.isNull() || txIdNode.asText().isBlank()) {
+        if (txIdNode == null || txIdNode.isNull() || txIdNode.asString().isBlank()) {
             return Mono.just(req);
         }
         UUID txId;
         try {
-            txId = UUID.fromString(txIdNode.asText());
+            txId = UUID.fromString(txIdNode.asString());
         } catch (IllegalArgumentException e) {
             log.warn("transaction.uncategorised payload has malformed transactionId={} (schedule={}), skipping enrichment",
-                    txIdNode.asText(), req.scheduleId());
+                    txIdNode.asString(), req.scheduleId());
             return Mono.just(req);
         }
         return transactions.fetch(txId)
@@ -287,14 +287,14 @@ public class TriggerController {
         if (!RECURRING_DUE_KIND.equals(kind) || req.payload() == null) return Mono.empty();
         JsonNode payload = req.payload();
         if (payload.hasNonNull("status")
-                && "no_active_recurring".equals(payload.get("status").asText())) {
+                && "no_active_recurring".equals(payload.get("status").asString())) {
             return Mono.empty();
         }
         JsonNode idNode = payload.get("recurringId");
-        if (idNode == null || idNode.isNull() || idNode.asText().isBlank()) return Mono.empty();
+        if (idNode == null || idNode.isNull() || idNode.asString().isBlank()) return Mono.empty();
         UUID recurringId;
         try {
-            recurringId = UUID.fromString(idNode.asText());
+            recurringId = UUID.fromString(idNode.asString());
         } catch (IllegalArgumentException e) {
             return Mono.empty();
         }
@@ -312,6 +312,7 @@ public class TriggerController {
     }
 
     private static final class EnrichmentFailedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         EnrichmentFailedException(Throwable cause) { super(cause); }
 
         static Throwable wrap(Throwable e) {
@@ -373,12 +374,12 @@ public class TriggerController {
     static String buildRecallQuery(String kind, JsonNode payload) {
         if (payload != null) {
             JsonNode cat = payload.get("categoryName");
-            if (cat != null && !cat.isNull() && !cat.asText().isBlank()) {
-                return kind + " for " + cat.asText();
+            if (cat != null && !cat.isNull() && !cat.asString().isBlank()) {
+                return kind + " for " + cat.asString();
             }
             JsonNode name = payload.get("name");
-            if (name != null && !name.isNull() && !name.asText().isBlank()) {
-                return kind + " for " + name.asText();
+            if (name != null && !name.isNull() && !name.asString().isBlank()) {
+                return kind + " for " + name.asString();
             }
         }
         return kind;

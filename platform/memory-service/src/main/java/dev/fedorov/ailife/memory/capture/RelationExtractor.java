@@ -90,9 +90,9 @@ public class RelationExtractor {
             JsonNode arr = json.readTree(cleaned).get("relations");
             if (arr != null && arr.isArray()) {
                 for (JsonNode r : arr) {
-                    String subject = r.path("subject").asText("").trim();
-                    String edge = r.path("edge").asText("").trim();
-                    String object = r.path("object").asText("").trim();
+                    String subject = r.path("subject").asString("").trim();
+                    String edge = r.path("edge").asString("").trim();
+                    String object = r.path("object").asString("").trim();
                     if (!subject.isBlank() && !edge.isBlank() && !object.isBlank()) {
                         relations.add(new ExtractedRelation(subject, edge, object));
                     }

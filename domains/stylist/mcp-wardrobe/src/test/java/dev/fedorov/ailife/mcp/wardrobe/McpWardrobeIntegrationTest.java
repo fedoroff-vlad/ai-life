@@ -138,7 +138,7 @@ class McpWardrobeIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(created.colourType()).isEqualTo("winter");
         assertThat(created.heightCm()).isEqualTo(180);
         assertThat(created.weightKg()).isEqualByComparingTo("75.50");
-        assertThat(created.suitableFabrics().get(0).asText()).isEqualTo("wool");
+        assertThat(created.suitableFabrics().get(0).asString()).isEqualTo("wool");
         assertThat(created.measurements().get("chest").asInt()).isEqualTo(100);
 
         // Same (household, owner) → updates the same row.

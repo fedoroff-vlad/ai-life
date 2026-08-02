@@ -124,7 +124,7 @@ public class NoteWriter {
         }
         List<String> tags = new ArrayList<>();
         for (JsonNode t : draft.get("tags")) {
-            String v = t.asText();
+            String v = t.asString();
             if (v != null && !v.isBlank()) {
                 tags.add(v.trim());
             }
@@ -166,7 +166,7 @@ public class NoteWriter {
 
     private static String text(JsonNode node, String field) {
         if (node == null || !node.hasNonNull(field)) return null;
-        String v = node.get(field).asText();
+        String v = node.get(field).asString();
         return v.isBlank() ? null : v;
     }
 

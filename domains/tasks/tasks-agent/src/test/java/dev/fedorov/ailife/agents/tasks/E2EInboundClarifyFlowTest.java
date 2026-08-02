@@ -109,8 +109,8 @@ class E2EInboundClarifyFlowTest {
         assertThat(response.text()).contains("купить молоко").contains("@errand").contains("Применить");
         // The confirm carries a pendingAction so the orchestrator locks the conversation to tasks.
         assertThat(response.pendingAction()).isNotNull();
-        assertThat(response.pendingAction().path("flow").asText()).isEqualTo("inbox-clarify-apply");
-        assertThat(response.pendingAction().path("proposals").get(0).path("taskId").asText())
+        assertThat(response.pendingAction().path("flow").asString()).isEqualTo("inbox-clarify-apply");
+        assertThat(response.pendingAction().path("proposals").get(0).path("taskId").asString())
                 .isEqualTo(milkId.toString());
 
         // Hop A: classifier turn carried the user's text.

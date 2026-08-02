@@ -126,7 +126,7 @@ class AnalyseMeTest {
         RecordedRequest captionReq = mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
         JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
-        assertThat(captionBody.path("instruction").asText())
+        assertThat(captionBody.path("instruction").asString())
                 .contains("strict JSON")
                 .contains("рост 180 вес 72");
 
@@ -135,8 +135,8 @@ class AnalyseMeTest {
         assertThat(profileReq.getMethod()).isEqualTo("POST");
         assertThat(profileReq.getPath()).isEqualTo("/internal/profile");
         JsonNode profileBody = json.readTree(profileReq.getBody().readUtf8());
-        assertThat(profileBody.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(profileBody.path("colourType").asText()).isEqualTo("winter");
+        assertThat(profileBody.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(profileBody.path("colourType").asString()).isEqualTo("winter");
         assertThat(profileBody.path("heightCm").asInt()).isEqualTo(180);
 
         // The HTML deliverable was uploaded to media-service as text/html.

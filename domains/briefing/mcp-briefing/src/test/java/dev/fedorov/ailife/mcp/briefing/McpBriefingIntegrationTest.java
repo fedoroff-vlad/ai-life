@@ -123,7 +123,7 @@ class McpBriefingIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(created.locationLabel()).isEqualTo("Москва");
         assertThat(created.latitude()).isEqualTo(55.75);
         assertThat(created.timezone()).isEqualTo("Europe/Moscow");
-        assertThat(created.interests().get(0).asText()).isEqualTo("AI");
+        assertThat(created.interests().get(0).asString()).isEqualTo("AI");
         assertThat(created.sections()).hasSize(4);
         assertThat(created.scheduleTime()).isEqualTo("08:00");
         assertThat(created.scheduleEnabled()).isTrue();
@@ -179,11 +179,11 @@ class McpBriefingIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(register.getMethod()).isEqualTo("POST");
         assertThat(register.getPath()).isEqualTo("/v1/schedules");
         var body = MAPPER.readTree(register.getBody().readUtf8());
-        assertThat(body.path("ownerAgent").asText()).isEqualTo("briefing");
-        assertThat(body.path("kind").asText()).isEqualTo("briefing.digest");
-        assertThat(body.path("cron").asText()).isEqualTo("0 0 5 * * *");
-        assertThat(body.path("householdId").asText()).isEqualTo(h.toString());
-        assertThat(body.path("payload").path("ownerId").asText()).isEqualTo(owner.toString());
+        assertThat(body.path("ownerAgent").asString()).isEqualTo("briefing");
+        assertThat(body.path("kind").asString()).isEqualTo("briefing.digest");
+        assertThat(body.path("cron").asString()).isEqualTo("0 0 5 * * *");
+        assertThat(body.path("householdId").asString()).isEqualTo(h.toString());
+        assertThat(body.path("payload").path("ownerId").asString()).isEqualTo(owner.toString());
 
         // Re-save disabled → deletes the stored schedule id, no fresh register.
         tools.setBriefingProfile(new SetBriefingProfileInput(
@@ -230,7 +230,7 @@ class McpBriefingIntegrationTest extends AbstractPostgresIntegrationTest {
                 .returnResult().getResponseBody();
         assertThat(saved).isNotNull();
         assertThat(saved.locationLabel()).isEqualTo("Москва");
-        assertThat(saved.interests().get(0).asText()).isEqualTo("AI");
+        assertThat(saved.interests().get(0).asString()).isEqualTo("AI");
 
         // Second post for the same (household, owner) updates in place — still one row.
         client.post().uri("/internal/briefing-profile")

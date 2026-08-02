@@ -102,11 +102,11 @@ public class NoteReconciler {
         }
         try {
             JsonNode node = json.readTree(cleaned);
-            ReconcileAction action = toAction(node.path("action").asText("").trim());
+            ReconcileAction action = toAction(node.path("action").asString("").trim());
             if (action == ReconcileAction.SKIP) {
                 return NoteReconciliation.skip();
             }
-            String body = node.path("body").asText("").trim();
+            String body = node.path("body").asString("").trim();
             // An enrich/supersede with no usable body would blank the note — fall back to skip instead.
             return body.isBlank() ? NoteReconciliation.skip() : new NoteReconciliation(action, body);
         } catch (Exception e) {

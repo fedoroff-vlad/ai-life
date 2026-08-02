@@ -62,7 +62,7 @@ class McpDocsIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(saved.mediaId()).isEqualTo("media-1");
         assertThat(saved.docType()).isEqualTo("receipt");
         assertThat(saved.amount()).isEqualByComparingTo("1234.56");
-        assertThat(saved.tags().get(0).asText()).isEqualTo("groceries");
+        assertThat(saved.tags().get(0).asString()).isEqualTo("groceries");
         assertThat(saved.createdAt()).isNotNull();
 
         // A second save of "the same" document is a distinct row (append-only).

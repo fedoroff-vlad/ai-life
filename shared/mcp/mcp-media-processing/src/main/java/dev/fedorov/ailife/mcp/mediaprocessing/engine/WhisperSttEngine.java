@@ -84,8 +84,8 @@ public class WhisperSttEngine implements SttEngine {
         }
         try {
             JsonNode root = json.readTree(response);
-            String text = root.path("text").asText("").strip();
-            String lang = root.hasNonNull("language") ? root.get("language").asText() : null;
+            String text = root.path("text").asString("").strip();
+            String lang = root.hasNonNull("language") ? root.get("language").asString() : null;
             Double duration = durationFromSegments(root);
             return new TranscriptResult(text, lang, duration);
         } catch (Exception e) {

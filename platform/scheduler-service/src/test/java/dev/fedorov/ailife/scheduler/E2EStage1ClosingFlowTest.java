@@ -101,7 +101,7 @@ class E2EStage1ClosingFlowTest extends AbstractPostgresIntegrationTest {
                             .post(RequestBody.create(
                                     rawBody, okhttp3.MediaType.get("application/json")))
                             .build();
-                    try (Response ignored = FORWARDER.newCall(forward).execute()) {
+                    try (var _ = FORWARDER.newCall(forward).execute()) {
                         // calendar-agent stub always 202s — see the per-test enqueue.
                     }
                     return new MockResponse().setResponseCode(202);
@@ -147,7 +147,7 @@ class E2EStage1ClosingFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(wakeBody.kind()).isEqualTo("birthday.greet");
         assertThat(wakeBody.scheduleId()).isEqualTo(due.id());
         assertThat(wakeBody.householdId()).isEqualTo(householdId);
-        assertThat(wakeBody.payload().path("personId").asText()).isEqualTo(personId.toString());
+        assertThat(wakeBody.payload().path("personId").asString()).isEqualTo(personId.toString());
 
         // Hop 2: orchestrator (forwarding dispatcher) → calendar-agent trigger
         RecordedRequest trigger = calendarAgent.takeRequest();
@@ -162,6 +162,6 @@ class E2EStage1ClosingFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(triggerBody.agent()).isEqualTo(wakeBody.agent());
         assertThat(triggerBody.kind()).isEqualTo(wakeBody.kind());
         JsonNode triggerPayload = triggerBody.payload();
-        assertThat(triggerPayload.path("personId").asText()).isEqualTo(personId.toString());
+        assertThat(triggerPayload.path("personId").asString()).isEqualTo(personId.toString());
     }
 }

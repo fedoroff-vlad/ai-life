@@ -92,7 +92,7 @@ class E2EStage2FinanceWakeFlowTest extends AbstractPostgresIntegrationTest {
                             .post(RequestBody.create(
                                     rawBody, okhttp3.MediaType.get("application/json")))
                             .build();
-                    try (Response ignored = FORWARDER.newCall(forward).execute()) {
+                    try (var _ = FORWARDER.newCall(forward).execute()) {
                         // finance-agent stub always 202s — see the per-test enqueue.
                     }
                     return new MockResponse().setResponseCode(202);
@@ -140,8 +140,8 @@ class E2EStage2FinanceWakeFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(wakeBody.kind()).isEqualTo("budget.alert");
         assertThat(wakeBody.scheduleId()).isEqualTo(due.id());
         assertThat(wakeBody.householdId()).isEqualTo(householdId);
-        assertThat(wakeBody.payload().path("categoryId").asText()).isEqualTo(categoryId.toString());
-        assertThat(wakeBody.payload().path("period").asText()).isEqualTo("month");
+        assertThat(wakeBody.payload().path("categoryId").asString()).isEqualTo(categoryId.toString());
+        assertThat(wakeBody.payload().path("period").asString()).isEqualTo("month");
 
         // Hop 2: orchestrator (forwarding) → finance-agent trigger endpoint
         RecordedRequest trigger = financeAgent.takeRequest();
@@ -153,7 +153,7 @@ class E2EStage2FinanceWakeFlowTest extends AbstractPostgresIntegrationTest {
         assertThat(triggerBody.householdId()).isEqualTo(householdId);
         assertThat(triggerBody.agent()).isEqualTo("finance");
         assertThat(triggerBody.kind()).isEqualTo("budget.alert");
-        assertThat(triggerBody.payload().path("categoryId").asText()).isEqualTo(categoryId.toString());
-        assertThat(triggerBody.payload().path("period").asText()).isEqualTo("month");
+        assertThat(triggerBody.payload().path("categoryId").asString()).isEqualTo(categoryId.toString());
+        assertThat(triggerBody.payload().path("period").asString()).isEqualTo("month");
     }
 }

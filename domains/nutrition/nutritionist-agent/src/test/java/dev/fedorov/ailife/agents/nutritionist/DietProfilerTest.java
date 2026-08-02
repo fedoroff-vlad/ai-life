@@ -96,10 +96,10 @@ class DietProfilerTest {
         RecordedRequest setReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(setReq.getPath()).isEqualTo("/internal/diet-profile");
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(body.path("ownerId").asText()).isEqualTo(userId.toString());
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
         assertThat(body.path("goalKcal").asInt()).isEqualTo(2000);
-        assertThat(body.path("restrictions").get(0).asText()).isEqualTo("no-nuts");
+        assertThat(body.path("restrictions").get(0).asString()).isEqualTo("no-nuts");
     }
 
     @Test
@@ -126,7 +126,7 @@ class DietProfilerTest {
         RecordedRequest setReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
         assertThat(body.has("ownerId")).isFalse();   // NON_NULL → absent
-        assertThat(body.path("restrictions").get(0).asText()).isEqualTo("halal");
+        assertThat(body.path("restrictions").get(0).asString()).isEqualTo("halal");
     }
 
     @Test

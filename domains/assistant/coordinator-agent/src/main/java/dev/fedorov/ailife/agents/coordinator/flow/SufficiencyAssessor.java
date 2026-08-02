@@ -86,7 +86,7 @@ public class SufficiencyAssessor {
             if (sufficient) {
                 return Assessment.complete();
             }
-            String missing = obj.path("missing").asText("").strip();
+            String missing = obj.path("missing").asString("").strip();
             return Assessment.needsMore(missing);
         } catch (Exception e) {
             log.warn("could not parse self-check reply '{}': {}", content, e.toString());

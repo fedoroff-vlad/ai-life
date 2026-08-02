@@ -89,7 +89,7 @@ class ActionControllerTest {
                     assertThat(res.ok()).isTrue();
                     assertThat(res.result().get("hasGiftBudget").asBoolean()).isTrue();
                     assertThat(res.result().get("amount").decimalValue()).isEqualByComparingTo("200.00");
-                    assertThat(res.result().get("currency").asText()).isEqualTo("EUR");
+                    assertThat(res.result().get("currency").asString()).isEqualTo("EUR");
                     assertThat(res.result().get("remaining").decimalValue()).isEqualByComparingTo("150.00");
                 });
 
@@ -122,9 +122,9 @@ class ActionControllerTest {
                     assertThat(res.ok()).isTrue();
                     assertThat(res.result().get("hasGiftBudget").asBoolean()).isTrue();
                     assertThat(res.result().get("amount").decimalValue()).isEqualByComparingTo("20000.00");
-                    assertThat(res.result().get("currency").asText()).isEqualTo("RUB");
-                    assertThat(res.result().get("relationship").asText()).isEqualTo("parent");
-                    assertThat(res.result().get("source").asText()).isEqualTo("rule");
+                    assertThat(res.result().get("currency").asString()).isEqualTo("RUB");
+                    assertThat(res.result().get("relationship").asString()).isEqualTo("parent");
+                    assertThat(res.result().get("source").asString()).isEqualTo("rule");
                     // No spend window on a preference rule.
                     assertThat(res.result().has("remaining")).isFalse();
                 });
@@ -158,7 +158,7 @@ class ActionControllerTest {
                     assertThat(res.ok()).isTrue();
                     assertThat(res.result().get("hasGiftBudget").asBoolean()).isTrue();
                     assertThat(res.result().get("amount").decimalValue()).isEqualByComparingTo("200.00");
-                    assertThat(res.result().get("source").asText()).isEqualTo("envelope");
+                    assertThat(res.result().get("source").asString()).isEqualTo("envelope");
                 });
 
         // First the rule read, then the envelope read.

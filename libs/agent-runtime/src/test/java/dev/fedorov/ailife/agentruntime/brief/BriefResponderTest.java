@@ -66,9 +66,9 @@ class BriefResponderTest {
 
         assertThat(res).isNotNull();
         assertThat(res.ok()).isTrue();
-        assertThat(res.result().get("agent").asText()).isEqualTo("finance");
-        assertThat(res.result().get("answer").asText()).isEqualTo("You spend most on groceries.");
-        assertThat(res.result().get("llmModel").asText()).isEqualTo("test-model");
+        assertThat(res.result().get("agent").asString()).isEqualTo("finance");
+        assertThat(res.result().get("answer").asString()).isEqualTo("You spend most on groceries.");
+        assertThat(res.result().get("llmModel").asString()).isEqualTo("test-model");
 
         LlmChatRequest sent = cap.getValue();
         assertThat(sent.channel()).isEqualTo(LlmChannel.FAST);   // cheap leg — DEFAULT is the coordinator's final synthesis

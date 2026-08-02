@@ -189,7 +189,7 @@ class RecipeFinderTest {
 
         assertThat(result).isNotNull();
         assertThat(result.ok()).isTrue();
-        assertThat(result.result().path("link").asText()).contains(storedId.toString());
+        assertThat(result.result().path("link").asString()).contains(storedId.toString());
 
         assertThat(mcpWeb.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/internal/search");
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");

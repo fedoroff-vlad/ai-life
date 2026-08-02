@@ -81,8 +81,8 @@ class InboxClarifierTest {
                     assertThat(r.text()).contains("Применить");
                     // The proposals are stashed for the resume turn.
                     assertThat(r.pendingAction()).isNotNull();
-                    assertThat(r.pendingAction().path("flow").asText()).isEqualTo("inbox-clarify-apply");
-                    assertThat(r.pendingAction().path("proposals").get(0).path("taskId").asText())
+                    assertThat(r.pendingAction().path("flow").asString()).isEqualTo("inbox-clarify-apply");
+                    assertThat(r.pendingAction().path("proposals").get(0).path("taskId").asString())
                             .isEqualTo(milkId.toString());
                 })
                 .verifyComplete();

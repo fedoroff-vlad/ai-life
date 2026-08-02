@@ -106,9 +106,9 @@ class E2ENotesCaptureRecallFlowTest {
         RecordedRequest saveReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/v1/notes");
         JsonNode saveBody = json.readTree(saveReq.getBody().readUtf8());
-        assertThat(saveBody.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(saveBody.path("title").asText()).isEqualTo(title);
-        assertThat(saveBody.path("source").asText()).isEqualTo("user");
+        assertThat(saveBody.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(saveBody.path("title").asString()).isEqualTo(title);
+        assertThat(saveBody.path("source").asString()).isEqualTo("user");
 
         // ---- Phase 2: recall — the note is recovered via the semantic path ---------------------
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(

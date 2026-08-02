@@ -66,7 +66,7 @@ class NoteSeedIntegrationTest extends AbstractPostgresIntegrationTest {
             public MockResponse dispatch(RecordedRequest req) {
                 try {
                     var node = json.readTree(req.getBody().readUtf8());
-                    String input = node.get("inputs").get(0).asText();
+                    String input = node.get("inputs").get(0).asString();
                     LlmEmbedResponse body = new LlmEmbedResponse(
                             "mock-embed", List.of(embeddingFor(input)), new LlmUsage(0, 0, 0));
                     return new MockResponse()
@@ -141,8 +141,8 @@ class NoteSeedIntegrationTest extends AbstractPostgresIntegrationTest {
         RecallMemoryHit top = hits.get(0);
         assertThat(top.memory().source()).isEqualTo("note");
         assertThat(top.memory().text()).isEqualTo(seed);
-        assertThat(top.memory().metadata().path("refId").asText()).isEqualTo(note.id().toString());
-        assertThat(top.memory().metadata().path("kind").asText()).isEqualTo("note");
+        assertThat(top.memory().metadata().path("refId").asString()).isEqualTo(note.id().toString());
+        assertThat(top.memory().metadata().path("kind").asString()).isEqualTo("note");
         assertThat(top.distance()).isLessThan(0.01);
     }
 

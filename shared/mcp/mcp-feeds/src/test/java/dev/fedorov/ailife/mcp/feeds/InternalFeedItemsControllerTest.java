@@ -92,8 +92,8 @@ class InternalFeedItemsControllerTest {
         assertThat(first.title()).isEqualTo("5 phrasal verbs for code reviews");
         assertThat(first.url()).isEqualTo("https://blog.example.com/phrasal-verbs");
         assertThat(first.summary()).isEqualTo("A short guide for IT pros.");
-        assertThat(first.metrics().get("author").asText()).isEqualTo("editor@example.com");
-        assertThat(first.metrics().get("publishedAt").asText()).startsWith("2025-06-03T09:00");
+        assertThat(first.metrics().get("author").asString()).isEqualTo("editor@example.com");
+        assertThat(first.metrics().get("publishedAt").asString()).startsWith("2025-06-03T09:00");
 
         RecordedRequest req = host.takeRequest();
         assertThat(req.getPath()).isEqualTo("/rss.xml");
@@ -130,7 +130,7 @@ class InternalFeedItemsControllerTest {
         assertThat(newest.title()).isEqualTo("Newest post about interviews");
         assertThat(newest.url()).isEqualTo("https://t.me/itenglish/11");
         assertThat(newest.summary()).isEqualTo("Newest post about interviews");
-        assertThat(newest.metrics().get("channel").asText()).isEqualTo("itenglish");
+        assertThat(newest.metrics().get("channel").asString()).isEqualTo("itenglish");
 
         RecordedRequest req = host.takeRequest();
         assertThat(req.getPath()).isEqualTo("/s/itenglish");

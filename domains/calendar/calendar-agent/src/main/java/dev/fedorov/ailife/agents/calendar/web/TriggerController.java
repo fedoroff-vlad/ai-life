@@ -145,12 +145,12 @@ public class TriggerController {
     private Mono<PersonDto> resolvePerson(JsonNode payload) {
         if (payload == null) return Mono.empty();
         JsonNode pid = payload.get("personId");
-        if (pid == null || pid.isNull() || pid.asText().isBlank()) return Mono.empty();
+        if (pid == null || pid.isNull() || pid.asString().isBlank()) return Mono.empty();
         UUID personId;
         try {
-            personId = UUID.fromString(pid.asText());
+            personId = UUID.fromString(pid.asString());
         } catch (IllegalArgumentException e) {
-            log.warn("payload.personId not a UUID: {}", pid.asText());
+            log.warn("payload.personId not a UUID: {}", pid.asString());
             return Mono.empty();
         }
         return profile.personById(personId)

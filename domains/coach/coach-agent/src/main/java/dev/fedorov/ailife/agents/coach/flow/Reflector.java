@@ -109,7 +109,7 @@ public class Reflector {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("subjectNotes", notes.subjectNotes(household, subject).map(this::compactNotes));
         gather.put("memories", memory.recall(household, subject, null, userText)
-                .map(hits -> (JsonNode) json.valueToTree(hits)));
+                .map(hits -> json.valueToTree(hits)));
         gather.put("recentSessions", store.recentSessions(household, subject, RECENT_SESSIONS_K)
                 .map(this::compactSessions));
 
@@ -252,7 +252,7 @@ public class Reflector {
 
     private static String text(JsonNode node, String field) {
         if (node == null || !node.hasNonNull(field)) return null;
-        String v = node.get(field).asText();
+        String v = node.get(field).asString();
         return v.isBlank() ? null : v;
     }
 

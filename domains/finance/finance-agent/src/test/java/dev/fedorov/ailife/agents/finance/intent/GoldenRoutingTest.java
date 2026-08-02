@@ -171,7 +171,7 @@ class GoldenRoutingTest {
             }
             assertThat(node.hasNonNull("action"))
                     .as("missing 'action' for «%s»: %s", msg, raw).isTrue();
-            String action = node.get("action").asText();
+            String action = node.get("action").asString();
             // The accepted contract: a control action, OR a flattened tool name (the two-level shape
             // {action:tool,name:X} collapsed to {action:X}) — the router tolerates both (see IntentRouter
             // format-drift handling). Either way the resolved action/tool must be a real, known value.
@@ -184,8 +184,8 @@ class GoldenRoutingTest {
                 assertThat(node.hasNonNull("name"))
                         .as("action=tool without 'name' for «%s»: %s", msg, raw).isTrue();
                 assertThat(TOOL_NAMES)
-                        .as("hallucinated tool '%s' for «%s»", node.get("name").asText(), msg)
-                        .contains(node.get("name").asText());
+                        .as("hallucinated tool '%s' for «%s»", node.get("name").asString(), msg)
+                        .contains(node.get("name").asString());
             }
         }
     }

@@ -216,6 +216,19 @@
                     <configuration>
                         <release>${maven.compiler.release}</release>
                         <parameters>true</parameters>
+                        <showWarnings>true</showWarnings>
+                        <!--
+                          -Xlint keeps compiler warnings visible so drift is caught early (#396).
+                          Two categories are excluded as not-ours-to-fix-cleanly:
+                          - this-escape: our web controllers register action handlers (this::method) from
+                            their constructor — a deliberate, benign pattern; refactoring it out is churn.
+                          - classfile: a dependency ships classes annotated with SuppressFBWarnings whose
+                            annotation type isn't on our compile classpath — pure third-party noise.
+                          No -Werror: a dependency upgrade's new deprecations should not break the build.
+                        -->
+                        <compilerArgs>
+                            <arg>-Xlint:all,-this-escape,-classfile</arg>
+                        </compilerArgs>
                     </configuration>
                 </plugin>
                 <plugin>

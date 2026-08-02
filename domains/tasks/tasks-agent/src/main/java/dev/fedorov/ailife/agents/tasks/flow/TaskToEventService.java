@@ -60,10 +60,10 @@ public class TaskToEventService {
                         return Mono.just(result); // propagate calendar's error verbatim
                     }
                     JsonNode uidNode = result.result() == null ? null : result.result().get("eventUid");
-                    if (uidNode == null || uidNode.asText().isBlank()) {
+                    if (uidNode == null || uidNode.asString().isBlank()) {
                         return Mono.just(AgentActionResult.error("calendar returned no eventUid"));
                     }
-                    String eventUid = uidNode.asText();
+                    String eventUid = uidNode.asString();
                     return linkEvent.link(new LinkTaskToEventInput(req.taskId(), eventUid))
                             .map(task -> AgentActionResult.ok(json.createObjectNode()
                                     .put("eventUid", eventUid)

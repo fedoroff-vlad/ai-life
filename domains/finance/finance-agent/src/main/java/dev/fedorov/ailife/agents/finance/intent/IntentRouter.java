@@ -108,7 +108,7 @@ public class IntentRouter {
         this.classifier = classifier;
         this.flows = Map.of(
                 "advice", (msg, node) -> advisor
-                        .advise(msg, "shared".equalsIgnoreCase(node.path("scope").asText("")))
+                        .advise(msg, "shared".equalsIgnoreCase(node.path("scope").asString("")))
                         .map(a -> new RouterResult(a.text(), "advice", a.model())),
                 "invest", (msg, node) -> investmentAdvisor.advise(msg, readSymbols(node))
                         .map(a -> new RouterResult(a.text(), "invest", a.model())),
@@ -116,8 +116,8 @@ public class IntentRouter {
                 // (default month) → the MonthlyReporter. Both are Coordinator-backed HTML deliverables, and
                 // both honour scope=shared → the family cut (personal ∪ shared households), else own only.
                 "report", (msg, node) -> {
-                    boolean shared = "shared".equalsIgnoreCase(node.path("scope").asText(""));
-                    return "year".equalsIgnoreCase(node.path("period").asText(""))
+                    boolean shared = "shared".equalsIgnoreCase(node.path("scope").asString(""));
+                    return "year".equalsIgnoreCase(node.path("period").asString(""))
                             ? yearReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()))
                             : monthlyReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()));
                 },
@@ -273,8 +273,8 @@ public class IntentRouter {
         }
         List<String> symbols = new ArrayList<>();
         for (JsonNode s : arr) {
-            if (s != null && s.isTextual() && !s.asText().isBlank()) {
-                symbols.add(s.asText());
+            if (s != null && s.isString() && !s.asString().isBlank()) {
+                symbols.add(s.asString());
             }
         }
         return symbols;

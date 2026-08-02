@@ -105,8 +105,8 @@ class CsvImportFlowTest {
         assertThat(importReq.getMethod()).isEqualTo("POST");
         assertThat(importReq.getPath()).isEqualTo("/internal/import");
         JsonNode body = json.readTree(importReq.getBody().readUtf8());
-        assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
+        assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
         assertThat(body.path("autoCreateAccounts").asBoolean()).isTrue();
-        assertThat(body.path("csvBase64").asText()).isNotBlank();
+        assertThat(body.path("csvBase64").asString()).isNotBlank();
     }
 }

@@ -44,7 +44,7 @@ public class UserController {
     @Transactional
     public ResponseEntity<UserDto> create(@Valid @RequestBody CreateUserRequest request) {
         if (!households.existsById(request.householdId())) {
-            return ResponseEntity.unprocessableEntity().build();
+            return ResponseEntity.unprocessableContent().build();
         }
         String locale = request.locale() != null ? request.locale() : "ru-RU";
         String role = request.role() != null ? request.role() : "member";

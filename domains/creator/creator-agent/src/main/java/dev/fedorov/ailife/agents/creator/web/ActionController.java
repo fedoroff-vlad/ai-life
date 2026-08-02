@@ -62,7 +62,7 @@ public class ActionController extends AgentActionController {
 
     private static String text(JsonNode args, String field) {
         if (args == null || !args.hasNonNull(field)) return null;
-        String s = args.get(field).asText().strip();
+        String s = args.get(field).asString().strip();
         return s.isEmpty() ? null : s;
     }
 }

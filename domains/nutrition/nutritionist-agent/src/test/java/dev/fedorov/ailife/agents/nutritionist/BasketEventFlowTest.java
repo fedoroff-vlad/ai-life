@@ -163,8 +163,8 @@ class BasketEventFlowTest {
         RecordedRequest basketReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(basketReq.getPath()).isEqualTo("/internal/basket");
         JsonNode basketBody = json.readTree(basketReq.getBody().readUtf8());
-        assertThat(basketBody.path("source").asText()).isEqualTo("receipt");
-        assertThat(basketBody.path("receiptMediaId").asText()).isEqualTo(receiptMediaId.toString());
+        assertThat(basketBody.path("source").asString()).isEqualTo("receipt");
+        assertThat(basketBody.path("receiptMediaId").asString()).isEqualTo(receiptMediaId.toString());
 
         // The verdict board was rendered + uploaded.
         RecordedRequest mediaReq = mediaService.takeRequest(2, TimeUnit.SECONDS);
@@ -177,8 +177,8 @@ class BasketEventFlowTest {
         RecordedRequest notifyReq = notifier.takeRequest(2, TimeUnit.SECONDS);
         assertThat(notifyReq.getPath()).isEqualTo("/v1/notify");
         JsonNode notifyBody = json.readTree(notifyReq.getBody().readUtf8());
-        assertThat(notifyBody.path("userId").asText()).isEqualTo(userId.toString());
-        assertThat(notifyBody.path("text").asText())
+        assertThat(notifyBody.path("userId").asString()).isEqualTo(userId.toString());
+        assertThat(notifyBody.path("text").asString())
                 .contains("Разбор корзины").contains(storedId.toString());
     }
 

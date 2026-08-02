@@ -145,6 +145,7 @@ public class TriggerController {
     }
 
     private static final class EnrichmentFailedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
         EnrichmentFailedException(Throwable cause) { super(cause); }
 
         static Throwable wrap(Throwable e) {

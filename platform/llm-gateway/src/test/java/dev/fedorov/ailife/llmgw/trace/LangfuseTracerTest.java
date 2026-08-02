@@ -87,25 +87,25 @@ class LangfuseTracerTest {
         assertThat(batch).hasSize(2);
 
         JsonNode trace = batch.get(0);
-        assertThat(trace.get("type").asText()).isEqualTo("trace-create");
-        assertThat(trace.path("body").path("name").asText()).isEqualTo("llm-gateway.chat");
-        assertThat(trace.path("body").path("metadata").path("channel").asText()).isEqualTo("fast");
+        assertThat(trace.get("type").asString()).isEqualTo("trace-create");
+        assertThat(trace.path("body").path("name").asString()).isEqualTo("llm-gateway.chat");
+        assertThat(trace.path("body").path("metadata").path("channel").asString()).isEqualTo("fast");
 
         JsonNode gen = batch.get(1);
-        assertThat(gen.get("type").asText()).isEqualTo("generation-create");
+        assertThat(gen.get("type").asString()).isEqualTo("generation-create");
         JsonNode genBody = gen.get("body");
-        assertThat(genBody.path("traceId").asText()).isEqualTo(trace.path("body").path("id").asText());
-        assertThat(genBody.path("type").asText()).isEqualTo("GENERATION");
-        assertThat(genBody.path("model").asText()).isEqualTo("claude-haiku-4-5");
-        assertThat(genBody.path("output").asText()).isEqualTo("здравствуйте");
+        assertThat(genBody.path("traceId").asString()).isEqualTo(trace.path("body").path("id").asString());
+        assertThat(genBody.path("type").asString()).isEqualTo("GENERATION");
+        assertThat(genBody.path("model").asString()).isEqualTo("claude-haiku-4-5");
+        assertThat(genBody.path("output").asString()).isEqualTo("здравствуйте");
         assertThat(genBody.path("usage").path("input").asInt()).isEqualTo(12);
         assertThat(genBody.path("usage").path("output").asInt()).isEqualTo(3);
         assertThat(genBody.path("usage").path("total").asInt()).isEqualTo(15);
-        assertThat(genBody.path("usage").path("unit").asText()).isEqualTo("TOKENS");
+        assertThat(genBody.path("usage").path("unit").asString()).isEqualTo("TOKENS");
         // input carries the chat turns role+content
         assertThat(genBody.path("input")).hasSize(2);
-        assertThat(genBody.path("input").get(0).path("role").asText()).isEqualTo("system");
-        assertThat(genBody.path("metadata").path("finishReason").asText()).isEqualTo("end_turn");
+        assertThat(genBody.path("input").get(0).path("role").asString()).isEqualTo("system");
+        assertThat(genBody.path("metadata").path("finishReason").asString()).isEqualTo("end_turn");
     }
 
     @Test
@@ -125,11 +125,11 @@ class LangfuseTracerTest {
 
         JsonNode batch = MAPPER.readTree(rq.getBody().readUtf8()).get("batch");
         assertThat(batch).hasSize(2);
-        assertThat(batch.get(0).path("body").path("name").asText()).isEqualTo("llm-gateway.chat.stream");
+        assertThat(batch.get(0).path("body").path("name").asString()).isEqualTo("llm-gateway.chat.stream");
 
         JsonNode genBody = batch.get(1).path("body");
-        assertThat(genBody.path("model").asText()).isEqualTo("qwen2.5:7b-instruct");
-        assertThat(genBody.path("output").asText()).isEqualTo("здрав-ствуй-те");
+        assertThat(genBody.path("model").asString()).isEqualTo("qwen2.5:7b-instruct");
+        assertThat(genBody.path("output").asString()).isEqualTo("здрав-ствуй-те");
         assertThat(genBody.path("metadata").path("streamed").asBoolean()).isTrue();
         // Streaming reports no token usage — the generation must omit the usage block.
         assertThat(genBody.has("usage")).isFalse();
@@ -152,15 +152,15 @@ class LangfuseTracerTest {
         RecordedRequest rq = server.takeRequest(2, TimeUnit.SECONDS);
         assertThat(rq).isNotNull();
         JsonNode batch = MAPPER.readTree(rq.getBody().readUtf8()).get("batch");
-        assertThat(batch.get(0).path("body").path("name").asText()).isEqualTo("llm-gateway.embed");
+        assertThat(batch.get(0).path("body").path("name").asString()).isEqualTo("llm-gateway.embed");
 
         JsonNode genBody = batch.get(1).path("body");
-        assertThat(genBody.path("model").asText()).isEqualTo("bge-m3");
-        assertThat(genBody.path("metadata").path("channel").asText()).isEqualTo("embedding");
+        assertThat(genBody.path("model").asString()).isEqualTo("bge-m3");
+        assertThat(genBody.path("metadata").path("channel").asString()).isEqualTo("embedding");
         assertThat(genBody.path("metadata").path("vectorCount").asInt()).isEqualTo(2);
         assertThat(genBody.path("metadata").path("dimensions").asInt()).isEqualTo(3);
         assertThat(genBody.path("input")).hasSize(2);
-        assertThat(genBody.path("input").get(0).asText()).isEqualTo("first");
+        assertThat(genBody.path("input").get(0).asString()).isEqualTo("first");
         assertThat(genBody.path("usage").path("input").asInt()).isEqualTo(8);
         assertThat(genBody.path("usage").path("total").asInt()).isEqualTo(8);
     }

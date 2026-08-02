@@ -86,7 +86,7 @@ class GoldenAdvisorRecipeTest {
             windows++;
             // (a) grounded in the ONE tool the recipe exposes — never an invented tool name.
             JsonNode tool = step.get("tool");
-            assertThat(tool != null && ONLY_TOOL.equals(tool.asText()))
+            assertThat(tool != null && ONLY_TOOL.equals(tool.asString()))
                     .as("plan step names a tool other than %s (invented tool):\n%s", ONLY_TOOL, content)
                     .isTrue();
             // (b) a recent window ends at "now" (toDaysAgo == 0).

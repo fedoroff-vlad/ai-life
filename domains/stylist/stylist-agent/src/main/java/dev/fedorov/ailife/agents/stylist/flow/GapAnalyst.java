@@ -77,7 +77,7 @@ public class GapAnalyst {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("wardrobe", Mono.just(json.valueToTree(items)));
         gather.put("profile", wardrobe.getProfile(msg.householdId(), msg.userId())
-                .map(p -> (JsonNode) json.valueToTree(p)));
+                .map(p -> json.valueToTree(p)));
 
         ObjectNode payload = json.createObjectNode();
         if (msg.text() != null && !msg.text().isBlank()) payload.put("request", msg.text());
@@ -133,7 +133,7 @@ public class GapAnalyst {
 
         List<String> focus = new ArrayList<>();
         for (JsonNode f : array(gap, "focusAreas")) {
-            if (notBlank(f.asText())) focus.add(f.asText());
+            if (notBlank(f.asString())) focus.add(f.asString());
         }
         if (!focus.isEmpty()) b.section("Фокус", List.of(String.join(" · ", focus)));
 
@@ -193,7 +193,7 @@ public class GapAnalyst {
     private static String text(JsonNode node, String field) {
         if (node == null) return null;
         JsonNode v = node.get(field);
-        return (v != null && !v.isNull()) ? v.asText() : null;
+        return (v != null && !v.isNull()) ? v.asString() : null;
     }
 
     private static boolean notBlank(String s) {

@@ -156,8 +156,8 @@ class BasketBreakdownTest {
         RecordedRequest captionReq = mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
         JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
-        assertThat(captionBody.path("mediaId").asText()).isEqualTo(mediaId);
-        assertThat(captionBody.path("instruction").asText())
+        assertThat(captionBody.path("mediaId").asString()).isEqualTo(mediaId);
+        assertThat(captionBody.path("instruction").asString())
                 .contains("strict JSON")     // the basket-analyst SKILL
                 .contains("no-nuts")         // the folded diet profile
                 .contains("разбери корзину"); // the user note
@@ -166,10 +166,10 @@ class BasketBreakdownTest {
         RecordedRequest basketReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(basketReq.getPath()).isEqualTo("/internal/basket");
         JsonNode basketBody = json.readTree(basketReq.getBody().readUtf8());
-        assertThat(basketBody.path("source").asText()).isEqualTo("receipt");
-        assertThat(basketBody.path("ownerId").asText()).isEqualTo(userId.toString());
-        assertThat(basketBody.path("receiptMediaId").asText()).isEqualTo(mediaId);
-        assertThat(basketBody.path("merchant").asText()).isEqualTo("Лента");
+        assertThat(basketBody.path("source").asString()).isEqualTo("receipt");
+        assertThat(basketBody.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(basketBody.path("receiptMediaId").asString()).isEqualTo(mediaId);
+        assertThat(basketBody.path("merchant").asString()).isEqualTo("Лента");
         assertThat(basketBody.path("items")).hasSize(2);
 
         // the verdict board was rendered + uploaded.
@@ -219,7 +219,7 @@ class BasketBreakdownTest {
         RecordedRequest basketReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(basketReq.getPath()).isEqualTo("/internal/basket");
         JsonNode basketBody = json.readTree(basketReq.getBody().readUtf8());
-        assertThat(basketBody.path("source").asText()).isEqualTo("manual");
+        assertThat(basketBody.path("source").asString()).isEqualTo("manual");
     }
 
     @Test

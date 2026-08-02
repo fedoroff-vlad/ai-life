@@ -116,10 +116,10 @@ class ReceiptFlowTest {
         assertThat(resp.text()).contains("Записать").contains("Starbucks").contains("Main card");
         // The confirm carries a pendingAction so the orchestrator locks the conversation to finance.
         assertThat(resp.pendingAction()).isNotNull();
-        assertThat(resp.pendingAction().path("flow").asText()).isEqualTo("receipt-confirm");
-        assertThat(resp.pendingAction().path("input").path("accountId").asText())
+        assertThat(resp.pendingAction().path("flow").asString()).isEqualTo("receipt-confirm");
+        assertThat(resp.pendingAction().path("input").path("accountId").asString())
                 .isEqualTo(accountId.toString());
-        assertThat(new BigDecimal(resp.pendingAction().path("input").path("amount").asText()))
+        assertThat(new BigDecimal(resp.pendingAction().path("input").path("amount").asString()))
                 .isEqualByComparingTo("-4.50");
 
         // The capability's caption passthrough was called with the media id + the SKILL instruction.
@@ -127,8 +127,8 @@ class ReceiptFlowTest {
         assertThat(captionReq.getMethod()).isEqualTo("POST");
         assertThat(captionReq.getPath()).isEqualTo("/internal/caption");
         JsonNode captionBody = json.readTree(captionReq.getBody().readUtf8());
-        assertThat(captionBody.path("mediaId").asText()).isEqualTo(mediaId);
-        assertThat(captionBody.path("instruction").asText())
+        assertThat(captionBody.path("mediaId").asString()).isEqualTo(mediaId);
+        assertThat(captionBody.path("instruction").asString())
                 .contains("strict JSON")            // the receipt-parser SKILL.md prompt
                 .contains("вот чек за кофе");        // the user's caption folded in as a hint
 
@@ -144,9 +144,9 @@ class ReceiptFlowTest {
         assertThat(observeReq.getMethod()).isEqualTo("POST");
         assertThat(observeReq.getPath()).isEqualTo("/v1/observations");
         JsonNode observeBody = json.readTree(observeReq.getBody().readUtf8());
-        assertThat(observeBody.path("text").asText())
+        assertThat(observeBody.path("text").asString())
                 .contains("вот чек за кофе").contains("Starbucks");
-        assertThat(observeBody.path("householdId").asText()).isEqualTo(householdId.toString());
+        assertThat(observeBody.path("householdId").asString()).isEqualTo(householdId.toString());
     }
 
     @Test
@@ -207,11 +207,11 @@ class ReceiptFlowTest {
             assertThat(basket.getPath()).isEqualTo("/internal/basket-captured");
             assertThat(basket.getMethod()).isEqualTo("POST");
             JsonNode body = json.readTree(basket.getBody().readUtf8());
-            assertThat(body.path("householdId").asText()).isEqualTo(householdId.toString());
-            assertThat(body.path("merchant").asText()).isEqualTo("Лента");
-            assertThat(body.path("receiptMediaId").asText()).isEqualTo(mediaId);
+            assertThat(body.path("householdId").asString()).isEqualTo(householdId.toString());
+            assertThat(body.path("merchant").asString()).isEqualTo("Лента");
+            assertThat(body.path("receiptMediaId").asString()).isEqualTo(mediaId);
             assertThat(body.path("items")).hasSize(2);
-            assertThat(body.path("items").get(0).path("name").asText()).isEqualTo("молоко");
+            assertThat(body.path("items").get(0).path("name").asString()).isEqualTo("молоко");
         } finally {
             // Restore the default queue dispatcher for the other (unordered) tests.
             mcpFinance.setDispatcher(new QueueDispatcher());
@@ -278,8 +278,8 @@ class ReceiptFlowTest {
         assertThat(addReq.getMethod()).isEqualTo("POST");
         assertThat(addReq.getPath()).isEqualTo("/internal/transaction");
         JsonNode addBody = json.readTree(addReq.getBody().readUtf8());
-        assertThat(new BigDecimal(addBody.path("amount").asText())).isEqualByComparingTo("-4.50");
-        assertThat(addBody.path("note").asText()).isEqualTo("Starbucks");
+        assertThat(new BigDecimal(addBody.path("amount").asString())).isEqualByComparingTo("-4.50");
+        assertThat(addBody.path("note").asString()).isEqualTo("Starbucks");
     }
 
     @Test

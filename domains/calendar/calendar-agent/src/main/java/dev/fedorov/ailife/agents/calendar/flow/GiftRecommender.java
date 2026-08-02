@@ -133,7 +133,7 @@ public class GiftRecommender {
                 ? "gift ideas for " + person.displayName()
                 : "gift ideas in household " + household;
         return memory.recall(household, null, personId, query)
-                .map(hits -> (JsonNode) json.valueToTree(hits));
+                .map(hits -> json.valueToTree(hits));
     }
 
     /** Graph relations; only emitted when there's at least one edge. */
@@ -142,7 +142,7 @@ public class GiftRecommender {
         return memory.personRelations(household, personId)
                 .flatMap(rel -> (rel.outgoing().isEmpty() && rel.incoming().isEmpty())
                         ? Mono.empty()
-                        : Mono.just((JsonNode) json.valueToTree(rel)));
+                        : Mono.just(json.valueToTree(rel)));
     }
 
     /**
@@ -164,7 +164,7 @@ public class GiftRecommender {
                 .map(this::personNoteView)
                 .collectList()
                 .filter(notes -> !notes.isEmpty())
-                .map(notes -> (JsonNode) json.valueToTree(notes));
+                .map(notes -> json.valueToTree(notes));
     }
 
     /** Trim a note to the fields the synthesis needs — title / type / tags / body. */

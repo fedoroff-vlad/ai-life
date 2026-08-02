@@ -77,9 +77,9 @@ class E2EInviteMintFlowTest {
         RecordedRequest mint = profile.takeRequest();
         assertThat(mint.getPath()).isEqualTo("/v1/invites");
         JsonNode body = json.readTree(mint.getBody().readUtf8());
-        assertThat(body.path("familyHouseholdId").asText()).isEqualTo(household.toString());
-        assertThat(body.path("inviterUserId").asText()).isEqualTo(ownerId.toString());
-        assertThat(body.path("relationship").asText()).isEqualTo("daughter");
+        assertThat(body.path("familyHouseholdId").asString()).isEqualTo(household.toString());
+        assertThat(body.path("inviterUserId").asString()).isEqualTo(ownerId.toString());
+        assertThat(body.path("relationship").asString()).isEqualTo("daughter");
     }
 
     private static MockResponse jsonBody(String body) {

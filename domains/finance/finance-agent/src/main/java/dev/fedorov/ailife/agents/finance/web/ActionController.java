@@ -113,7 +113,7 @@ public class ActionController extends AgentActionController {
         if (args == null) return null;
         JsonNode rel = args.get("relationship");
         if (rel == null || rel.isNull()) return null;
-        String s = rel.asText().trim();
+        String s = rel.asString().trim();
         return s.isEmpty() ? null : s;
     }
 }

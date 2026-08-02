@@ -162,11 +162,11 @@ public class CategoryManager {
         JsonNode arrayNode = node.isArray() ? node : node.path("categories");
         if (!arrayNode.isArray()) return out;
         for (JsonNode item : arrayNode) {
-            String name = item.path("name").asText("").trim();
+            String name = item.path("name").asString("").trim();
             if (name.isEmpty()) continue;
-            String kind = item.path("kind").asText("expense").trim().toLowerCase(Locale.ROOT);
+            String kind = item.path("kind").asString("expense").trim().toLowerCase(Locale.ROOT);
             if (!KINDS.contains(kind)) kind = "expense";
-            String parent = item.hasNonNull("parent") ? item.get("parent").asText().trim() : null;
+            String parent = item.hasNonNull("parent") ? item.get("parent").asString().trim() : null;
             if (parent != null && (parent.isEmpty() || parent.equalsIgnoreCase(name))) parent = null;
             out.add(new Planned(name, kind, parent));
             if (out.size() >= MAX_CATEGORIES) break;

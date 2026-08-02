@@ -135,12 +135,12 @@ class E2EDocsIngestSearchFlowTest {
         RecordedRequest seedReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(seedReq.getPath()).isEqualTo("/v1/notes");
         JsonNode seedBody = json.readTree(seedReq.getBody().readUtf8());
-        assertThat(seedBody.path("householdId").asText()).isEqualTo(householdId.toString());
-        assertThat(seedBody.path("source").asText()).isEqualTo("docs-agent");
-        assertThat(seedBody.path("title").asText()).isEqualTo("Договор аренды");
-        assertThat(seedBody.path("bodyMd").asText()).contains("ДОГОВОР АРЕНДЫ");
-        assertThat(seedBody.path("frontmatter").path("kind").asText()).isEqualTo("document");
-        assertThat(seedBody.path("frontmatter").path("refId").asText()).isEqualTo(docId.toString());
+        assertThat(seedBody.path("householdId").asString()).isEqualTo(householdId.toString());
+        assertThat(seedBody.path("source").asString()).isEqualTo("docs-agent");
+        assertThat(seedBody.path("title").asString()).isEqualTo("Договор аренды");
+        assertThat(seedBody.path("bodyMd").asString()).contains("ДОГОВОР АРЕНДЫ");
+        assertThat(seedBody.path("frontmatter").path("kind").asString()).isEqualTo("document");
+        assertThat(seedBody.path("frontmatter").path("refId").asString()).isEqualTo(docId.toString());
 
         // ---- Phase 2: search — recovered only via the semantic recall (trigram returns nothing) -----
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
