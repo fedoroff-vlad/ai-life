@@ -1,6 +1,6 @@
 -- Mirrors infra/liquibase/features/{001-core, 004-memory, 005-memory-relations, 007-bus,
--- 090-memory-note}.yml just enough to run memory-service integration tests. Kept minimal so drift
--- surfaces as a failing test.
+-- 090-memory-note, 092-memory-sharing-decision}.yml just enough to run memory-service integration
+-- tests. Kept minimal so drift surfaces as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -82,3 +82,16 @@ CREATE TABLE IF NOT EXISTS memory.note (
 
 CREATE INDEX IF NOT EXISTS ix_note_household ON memory.note (household_id);
 CREATE INDEX IF NOT EXISTS ix_note_person    ON memory.note (person_id);
+
+-- The learned-decision tally behind memory-driven default-sharing (ADR-0002 item 8, DS-1).
+CREATE TABLE IF NOT EXISTS memory.sharing_decision (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id  uuid NOT NULL REFERENCES core.households(id),
+    domain        varchar(32) NOT NULL,
+    signal_key    text        NOT NULL,
+    scope         varchar(16) NOT NULL,
+    count         integer     NOT NULL DEFAULT 1,
+    first_seen    timestamptz NOT NULL DEFAULT now(),
+    last_seen     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uq_sharing_decision_signal UNIQUE (household_id, domain, signal_key, scope)
+);

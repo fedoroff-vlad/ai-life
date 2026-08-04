@@ -50,6 +50,15 @@ leaves the note un-indexed/un-linked but never fails the write.
 - `PUT /v1/notes/{id}` — replace the mutable fields (title/type/tags/source/personId/bodyMd/frontmatter), bump `updated_at`. `NoteDto` (404 if absent).
 - `DELETE /v1/notes/{id}` — 204 / 404.
 
+### Sharing decisions (learned default-sharing, DS-1)
+The tally behind **memory-driven default-sharing** (ADR-0002 item 8): each resolved personal-vs-shared
+decision is recorded per `(household, domain, signal_key)`, and the learned default for a signal profile is a
+**deterministic majority vote** over those counts — never LLM inference, because sharing is a privacy boundary.
+The store is domain-agnostic: it tallies opaque `signalKey`s the caller (`libs/sharing`, DS-2) builds from the
+neutral `SharingContext`.
+- `POST /v1/sharing/decisions` — body [RecordSharingDecisionRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/sharing/RecordSharingDecisionRequest.java) (all fields required). Upsert-increments the `(householdId, domain, signalKey, scope)` tally. `204` on success.
+- `GET /v1/sharing/policy?householdId=<uuid>&domain=<d>&signalKey=<k>` — the learned default: [LearnedSharingPolicyResponse](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/sharing/LearnedSharingPolicyResponse.java) `{scope, confidence, total}` (`confidence` = winning/total, ties → `PRIVATE` at `0.5`; `total` = the sample size). `204` when the signal profile was never recorded → the caller falls back to its static per-domain policy.
+
 ### Relations (single-hop graph)
 - `POST /v1/relations` — body: [WriteRelationRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteRelationRequest.java) (`householdId`, `subjectType` + `subjectId`, `edge`, `objectType` + optional `objectId` + `objectLabel`, optional `confidence`, `source`, `metadata`). Returns `RelationDto`.
 - `DELETE /v1/relations/{id}` — 204 / 404.
@@ -103,12 +112,16 @@ leaves the note un-indexed/un-linked but never fails the write.
 - `service/NoteService` — notes CRUD; blank `type` → `fact`, null `source` → `user`, limit clamp (default 20, max 100); requires `householdId` + non-blank `title`. SB-2: `reseed` embeds `title`+`body` into `memory.memories` via `MemoryService.write` (`source=note`, `{kind,refId}`) on create/update and `forget` drops it on delete. SB-3: `reseedLinks` re-projects the body's `[[wiki-links]]` into `memory.relations` (note→note/person/label edges) on create/update, `forget` drops them, and `backlinks` reads the reverse — all best-effort, never fails the note write.
 - `MemoryRepository.deleteBySourceRef(source, refId)` / `MemoryService.forgetBySourceRef` — delete the recall seed a source row (a note) owns, by its `metadata.refId`; used to re-seed on update and clean up on delete.
 - `web/NoteController` — `/v1/notes` create/get/list/update/delete + `GET /{id}/backlinks` + `GET /resurface` (proactive-resurfacing candidate) + `GET /export` (SB-7 markdown-vault zip).
+- `domain/SharingDecisionRepository` — JdbcTemplate over `memory.sharing_decision` (ADR-0002 item 8, DS-1). `record` upsert-increments the tally; `counts` returns the per-scope counts for a signal profile. No JPA.
+- `service/SharingDecisionService` — records a resolved decision + computes the learned default as a deterministic majority vote (ties → `PRIVATE` at 0.5 confidence); empty when the signal profile is unseen.
+- `web/SharingController` — `POST /v1/sharing/decisions` (record) + `GET /v1/sharing/policy` (learned default, `204` when unseen).
 
 ## Schema
 - [004-memory.yml](../../infra/liquibase/features/004-memory.yml) — `memory.memories` with `vector(384) embedding` column and HNSW cosine index. Scope = `household_id` required + optional `user_id` and/or `person_id`. NULL `user_id` = household-shared memory; NULL `person_id` = not about a specific person. The recall query treats both NULL-as-broader-scope.
 - [091-memory-embed-768.yml](../../infra/liquibase/features/091-memory-embed-768.yml) — **context-gated** (`contexts: embed-768`) widen of `embedding` to `vector(768)` + HNSW rebuild, for a real 768-dim provider (nomic-embed-text). Runs only when `embed-768` is in the active filter (`LIQUIBASE_CONTEXTS=default,embed-768`); the mock/dev `default` filter keeps 384. Fresh-deploy-safe (empty table); pre-existing 384-dim rows must be re-embedded first (ALTER can't cast the width).
 - [005-memory-relations.yml](../../infra/liquibase/features/005-memory-relations.yml) — `memory.relations` (single-hop edges). `subject_type`/`subject_id` + `edge` + `object_type`/`object_id`/`object_label` (the label is always present even when `object_id` is null, so display works for free-text objects like "loose-leaf tea"). Indexes on `(household_id, subject_type, subject_id)` and `(household_id, object_type, object_id)`.
 - [090-memory-note.yml](../../infra/liquibase/features/090-memory-note.yml) — `memory.note` (second-brain SB-1): the authored notes tier. Scope `household_id` + nullable `owner_id`; `title`, `type` (default `fact`), `tags`/`frontmatter` jsonb, `source` (default `user`), nullable `person_id`, `body_md`, `created_at`/`updated_at`. Indexes on `household_id` and `person_id`. Test mirror kept in `src/test/resources/test-schema.sql`.
+- [092-memory-sharing-decision.yml](../../infra/liquibase/features/092-memory-sharing-decision.yml) — `memory.sharing_decision` (ADR-0002 item 8, DS-1): the learned-decision tally behind memory-driven default-sharing. `household_id` (FK) + `domain` + `signal_key` + `scope` + `count` + `first_seen`/`last_seen`, unique on `(household_id, domain, signal_key, scope)` (the upsert key, also serving the 3-column aggregate lookup as a prefix). Test mirror in `test-schema.sql`.
 
 ## Dim mismatch (the one gotcha)
 The column is `vector(384)` and the mock provider emits 384-dim. A real provider
