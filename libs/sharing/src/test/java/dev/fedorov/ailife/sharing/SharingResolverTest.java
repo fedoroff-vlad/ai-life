@@ -2,6 +2,7 @@ package dev.fedorov.ailife.sharing;
 
 import dev.fedorov.ailife.contracts.common.SharingScope;
 import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
+import dev.fedorov.ailife.contracts.sharing.LearnedSharingPolicyResponse;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -110,6 +112,53 @@ class SharingResolverTest {
     void noUserIdAndNoFallbackResolvesEmpty() {
         StepVerifier.create(resolver().resolveHousehold(
                         null, SharingScope.PRIVATE, SharingContext.ofCategories(List.of()), null))
+                .verifyComplete();
+    }
+
+    // --- Learning wired (ADR-0002 item 8) ---------------------------------------------------------
+
+    private final SharingLearningClient learning = mock(SharingLearningClient.class);
+
+    private SharingResolver learningResolver(DefaultSharingPolicy policy) {
+        return new SharingResolver(profile, policy, learning, "calendar");
+    }
+
+    @Test
+    void explicitChoiceIsRecordedKeyedByPersonalHousehold() {
+        routingReturns(List.of(family));
+        when(learning.record(any(), any(), any(), any())).thenReturn(Mono.empty());
+        SharingContext ctx = SharingContext.ofCategories(List.of("birthday"));
+
+        StepVerifier.create(learningResolver(occasionsShared)
+                        .resolveHousehold(user, SharingScope.SHARED, ctx, envelope))
+                .expectNext(family)
+                .verifyComplete();
+
+        // The learn signal is the owner's explicit choice, keyed by their personal (stable) household.
+        verify(learning).record(personal, "calendar", ctx.signalKey(), SharingScope.SHARED);
+    }
+
+    @Test
+    void nonExplicitItemIsNotRecorded() {
+        routingReturns(List.of(family));
+        StepVerifier.create(learningResolver(occasionsShared)
+                        .resolveHousehold(user, null, SharingContext.ofCategories(List.of("meeting")), envelope))
+                .expectNext(personal)
+                .verifyComplete();
+        verify(learning, never()).record(any(), any(), any(), any());
+    }
+
+    @Test
+    void learnedDefaultFlowsThroughTheResolverAndRoutes() {
+        routingReturns(List.of(family));
+        SharingContext ctx = SharingContext.ofCategories(List.of("meeting")); // static rule → PRIVATE → personal
+        // The owner has repeatedly shared this signal profile → the learned SHARED must route to family.
+        when(learning.policy(personal, "calendar", ctx.signalKey()))
+                .thenReturn(Mono.just(new LearnedSharingPolicyResponse(SharingScope.SHARED, 0.9, 5)));
+        DefaultSharingPolicy learned = new LearnedSharingPolicy(occasionsShared, learning, "calendar");
+
+        StepVerifier.create(learningResolver(learned).resolveHousehold(user, null, ctx, envelope))
+                .expectNext(family)
                 .verifyComplete();
     }
 

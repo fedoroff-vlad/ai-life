@@ -1,16 +1,14 @@
 # libs/sharing
 
-**Status (2026-08-02):** engine shipped (ADR-0002 slice 2); **calendar fully wired as the reference impl** —
-write path (slice 3a, `calendar-agent`) + read path (slice 3b, `calendar-web`). **finance fully retrofitted
-(read 4a + write 4b):** the read side unions spending across the member's personal ∪ shared households on the
-shared-scope ("наши траты") cut — `FinancialAdvisor` (4a-i) + `MonthlyReporter`/`YearReporter` (4a-ii), all
-through the domain's `read/SpendingReads` helper over `ProfileSharingClient.households`; the write side
-(slice 4b) routes a chat-created account to a personal vs shared household via `SharingResolver` +
-`sharing/FinanceSharingPolicy` (`AccountManager` flow). **tasks fully retrofitted (write 5a + read 5b):**
-the write side routes a chat-captured task to a personal vs shared household via `SharingResolver` +
-`sharing/TasksSharingPolicy` (`TaskCapturer` flow); the read side unions open next-actions across the
-member's personal ∪ shared households on the shared cut ("наши дела") through the domain's `read/TaskReads`
-helper over `ProfileSharingClient.households` (default own, mirroring finance). nutrition/docs next.
+**Status (2026-08-04):** engine shipped (ADR-0002 slice 2); **all opt-in domains retrofitted** — calendar
+(reference: write 3a `calendar-agent` + read 3b `calendar-web`), finance (4a/4b), tasks (5a/5b), nutrition
+(6a/6b), docs (7a/7b) — each splitting a write (route a create to personal vs shared household via
+`SharingResolver` + a `sharing/<Domain>SharingPolicy`) and a read (union own ∪ shared on an explicit family
+cut via `ProfileSharingClient.households`, default own). Per-domain detail: [ADR-0002](../../plans/adr/ADR-0002-sharing-shared-capability.md)
+§Action Items + [HISTORY](../../plans/HISTORY.md). **Item 8 — memory-driven default (DS-2 shipped, engine
+only, no domain wired):** the per-domain `DefaultSharingPolicy` default can now be *learned* from the owner's
+past explicit choices (`LearnedSharingPolicy` + `SharingLearningClient` over DS-1's `memory.sharing_decision`
+tally), behind the same seam; still deterministic (majority vote, never LLM). DS-3+ wire each domain.
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -45,15 +43,27 @@ union for the shared cut in `next-action-suggester` over `ProfileSharingClient.h
 
 ## Key classes
 - `SharingResolver` — the deterministic **write-path** engine. `resolveHousehold(userId, explicitScope,
-  ctx, fallbackHousehold) → Mono<UUID>`: explicit choice wins → else `policy.decide(ctx)` →
+  ctx, fallbackHousehold) → Mono<UUID>`: explicit choice wins → else `policy.decideAsync(ctx, personalHh)` →
   household-routing → pick personal / first-shared → fallbacks (no `userId` or profile-404 →
   `fallbackHousehold`; SHARED with no family → personal). The single home of the rule set formerly inline
-  in calendar-agent.
+  in calendar-agent. Item 8: a second constructor takes a `SharingLearningClient` + domain — then it records
+  the owner's **explicit** choice (keyed by their personal household) as the learn signal, best-effort; the
+  two-arg constructor leaves learning off (unchanged behaviour).
 - `DefaultSharingPolicy` — the **per-domain seam** (`@FunctionalInterface`): `SharingScope decide(ctx)`.
   Implemented once per domain in that domain's `sharing/` package. `privateByDefault()` is the safe stub.
+  Item 8: also a `default Mono<SharingScope> decideAsync(ctx, learningHousehold)` (wraps `decide`) — the async
+  form the resolver awaits so a learned policy can do an I/O read; static policies inherit the default unchanged.
 - `SharingContext` — the neutral signals a policy reads: `categories` (never null), `involvesHouseholdMember`,
-  `itemKind`. `ofCategories(...)` + `hasCategory(tag)` helpers. Evolving shared contract — add a field only
-  when a new domain genuinely needs one.
+  `itemKind`. `ofCategories(...)` + `hasCategory(tag)` helpers. `signalKey()` is the stable, low-cardinality
+  digest (sorted categories + `itemKind` + `involvesHouseholdMember`) the learned-decision tally is grouped by.
+  Evolving shared contract — add a field only when a new domain genuinely needs one.
+- `LearnedSharingPolicy` — **memory-driven default (item 8)**: a decorator over a domain's static policy that,
+  for an unscoped item, prefers what the owner has done before (a deterministic majority vote in DS-1's tally)
+  over the static rule — but only when the tally is deep (`total ≥ 3`) and decisive (`confidence ≥ 0.67`); else
+  it delegates to the static rule. Sync `decide` still returns the static rule.
+- `SharingLearningClient` — the thin read/write over memory-service's `/v1/sharing/*` tally (DS-1): `record`
+  (the resolver logs the owner's explicit choice) + `policy` (the decorator reads the learned default). Both
+  best-effort — learning never delays or fails a create. The consumer owns the memory-service-bound `WebClient`.
 - `ProfileSharingClient` — the one thin identity read, shared by every consumer:
   `householdRouting(userId)` (write split, empty on 4xx) + `households(userId)` (read union, empty list on
   any error). Collapses `agent-runtime`'s `ProfileClient.householdRouting` and calendar-web's

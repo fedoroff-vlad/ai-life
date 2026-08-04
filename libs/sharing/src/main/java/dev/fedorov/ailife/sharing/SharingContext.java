@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.sharing;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * The neutral signals a {@link DefaultSharingPolicy} reads to decide the default privacy of an item when
@@ -45,5 +47,23 @@ public record SharingContext(List<String> categories, boolean involvesHouseholdM
             }
         }
         return false;
+    }
+
+    /**
+     * A stable, low-cardinality digest of these signals — the key the learned-decision tally is grouped by
+     * (ADR-0002 item 8). Two contexts with the same normalised signals map to the same key, so the same kind
+     * of item accumulates one tally. Categories are trimmed, lower-cased, de-duped and <b>sorted</b> so order
+     * never splits the key. Deterministic and side-effect-free.
+     */
+    public String signalKey() {
+        List<String> cats = categories.stream()
+                .filter(Objects::nonNull)
+                .map(c -> c.trim().toLowerCase(Locale.ROOT))
+                .filter(c -> !c.isEmpty())
+                .distinct()
+                .sorted()
+                .toList();
+        String kind = itemKind == null ? "" : itemKind.trim().toLowerCase(Locale.ROOT);
+        return "cat=" + String.join(",", cats) + "|kind=" + kind + "|member=" + involvesHouseholdMember;
     }
 }
