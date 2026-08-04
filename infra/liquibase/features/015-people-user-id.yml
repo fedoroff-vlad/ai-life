@@ -1,0 +1,32 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 015-people-user-id
+      author: ai-life
+      comment: |
+        ADR-0001 item 6 — the optional person -> user link. A contact
+        (core.people) may become an operator (core.users) over time
+        ("the daughter grows up and starts using the bot"). Nullable FK:
+        most people never become users; prior notes/events about them keep
+        their existing scope, and the now-user gains a private space.
+        Indexed for the reverse lookup (find the contact record for a user).
+      changes:
+        - addColumn:
+            schemaName: core
+            tableName: people
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: true
+                    foreignKeyName: fk_people_user
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+
+        - sql:
+            sql: |
+              CREATE INDEX IF NOT EXISTS ix_people_user
+                ON core.people (user_id) WHERE user_id IS NOT NULL;
+            stripComments: false

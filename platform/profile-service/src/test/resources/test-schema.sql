@@ -51,6 +51,7 @@ CREATE INDEX IF NOT EXISTS ix_invite_family_household
 CREATE TABLE IF NOT EXISTS core.people (
     id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id         uuid NOT NULL REFERENCES core.households(id),
+    user_id              uuid REFERENCES core.users(id),
     display_name         varchar(128) NOT NULL,
     relationship         varchar(64),
     locale               varchar(16),
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS core.people (
     created_at           timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_people_household ON core.people (household_id);
+CREATE INDEX IF NOT EXISTS ix_people_user ON core.people (user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS ix_people_interests_gin
     ON core.people USING GIN (interests jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS ix_people_display_name_trgm

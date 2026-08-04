@@ -6,7 +6,9 @@ import dev.fedorov.ailife.contracts.profile.PersonDto;
 import dev.fedorov.ailife.profile.domain.HouseholdRepository;
 import dev.fedorov.ailife.profile.domain.Person;
 import dev.fedorov.ailife.profile.domain.PersonRepository;
+import dev.fedorov.ailife.profile.domain.UserRepository;
 import dev.fedorov.ailife.profile.web.dto.CreatePersonRequest;
+import dev.fedorov.ailife.profile.web.dto.LinkPersonUserRequest;
 import dev.fedorov.ailife.profile.web.dto.UpdatePersonRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,11 +33,14 @@ public class PeopleController {
 
     private final PersonRepository people;
     private final HouseholdRepository households;
+    private final UserRepository users;
     private final ObjectMapper json;
 
-    public PeopleController(PersonRepository people, HouseholdRepository households, ObjectMapper json) {
+    public PeopleController(PersonRepository people, HouseholdRepository households,
+                           UserRepository users, ObjectMapper json) {
         this.people = people;
         this.households = households;
+        this.users = users;
         this.json = json;
     }
 
@@ -89,10 +95,27 @@ public class PeopleController {
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Link a contact to the operator it became (ADR-0001 item 6) — e.g. a child who starts using the
+     * bot. Idempotent set (also unlink/re-link). 404 if the person is unknown; 422 if the {@code userId}
+     * references no existing user. The person's household and prior notes/events are left untouched.
+     */
+    @PutMapping("/{id}/user")
+    @Transactional
+    public ResponseEntity<PersonDto> linkUser(@PathVariable UUID id, @Valid @RequestBody LinkPersonUserRequest req) {
+        if (!users.existsById(req.userId())) {
+            return ResponseEntity.unprocessableContent().build();
+        }
+        return people.findById(id).map(p -> {
+            p.setUserId(req.userId());
+            return ResponseEntity.ok(toDto(p));
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     static PersonDto toDto(Person p) {
         return new PersonDto(
                 p.getId(), p.getHouseholdId(), p.getDisplayName(), p.getRelationship(),
                 p.getLocale(), p.getInterests(), p.getNotes(), p.getLeadDaysOverride(),
-                p.getCreatedAt());
+                p.getCreatedAt(), p.getUserId());
     }
 }

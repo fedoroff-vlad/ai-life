@@ -15,6 +15,7 @@ Schema `core`: users, household, sessions, conversations, people. Owned conceptu
 ```
 id                 uuid PK (gen_random_uuid)
 household_id       uuid NOT NULL FK → core.households
+user_id            uuid FK → core.users (NULL)   # ADR-0001 item 6: contact→operator link
 display_name       varchar(128) NOT NULL
 relationship       varchar(64)        # mother / friend / colleague / ...
 locale             varchar(16)        # for greeting language
@@ -26,6 +27,8 @@ created_at         timestamptz DEFAULT now()
 Indexes: `(household_id)`; GIN `interests` jsonb_path_ops; trgm `display_name` gin_trgm_ops (fuzzy "Маша" match).
 
 Person ↔ calendar event link: via `calendar.events_cache.person_id` (FK NULL) for now. No separate person_events table in calendar stage.
+
+Person → user link (ADR-0001 item 6): nullable `user_id`. A contact may **become** an operator ("the daughter grows up and starts using the bot"). Set via `PUT /v1/people/{id}/user` (422 if the user is unknown). Prior notes/events about the person keep their existing scope; the now-user gains a private space independently. Most people never become users, so the column stays null.
 
 ## Identity & membership (ADR-0001, Accepted 2026-07-31)
 `user → household` is **1:N**, not 1:1: each user owns a **personal household** and can be an approved

@@ -14,6 +14,7 @@ and serves as the source of truth for identity across the system.
 | GET    | `/v1/users/by-telegram/{telegram_user_id}` | reverse lookup for gateway     |
 | GET    | `/v1/users/{id}/households`             | the user's household set (memberships) |
 | GET    | `/v1/users/{id}/household-routing`      | tenant-routing split: personal vs shared households (ADR-0001 slice 4) |
+| PUT    | `/v1/people/{id}/user`                  | link a contact to the operator it became (ADR-0001 item 6) |
 | POST   | `/v1/invites`                           | owner mints a pre-authorized family invite (→ token) |
 | GET    | `/v1/invites/by-token/{token}`          | look up a pending invite         |
 | POST   | `/v1/invites/by-token/{token}/redeem`   | invitee redeems → joins the family household |
@@ -21,6 +22,7 @@ and serves as the source of truth for identity across the system.
 
 Validation errors → 400; missing household → 422; duplicate telegram_user_id → 409.
 Invite redeem: unknown token → 404, unknown invitee → 422, already redeemed/revoked → 409.
+Person→user link: unknown person → 404, unknown user → 422.
 
 ## Configuration (env vars)
 
@@ -51,14 +53,15 @@ applies a tiny test schema, and runs full Spring Boot context with REST calls.
 - `web/HouseholdController` — `/v1/households` CRUD.
 - `web/UserController` — `/v1/users`, `/by-telegram/{id}`, `/by-household/{id}`, `/{id}/households` (membership set), `/{id}/household-routing` (personal-vs-shared split for write-path tenant routing, ADR-0001 slice 4). Creating a user also inserts its self-membership.
 - `web/InviteController` — `/v1/invites` mint + `by-token/{token}` lookup + `redeem` (redeem inserts the invitee's `household_members` row into the family household). ADR-0001 invite-only onboarding; the Telegram `/start <token>` wiring is in gateway-telegram (slice 4b).
-- `web/PeopleController` — `/v1/people` POST/GET/by-household/PATCH (partial).
-- `web/dto/Create*Request`, `web/dto/UpdatePersonRequest` — request bodies. Response payloads use shared `*Dto` records from [libs/contracts](../../libs/contracts).
+- `web/PeopleController` — `/v1/people` POST/GET/by-household/PATCH (partial) + `PUT /{id}/user` (link a contact to the operator it became, ADR-0001 item 6 — 404 unknown person, 422 unknown user).
+- `web/dto/Create*Request`, `web/dto/UpdatePersonRequest`, `web/dto/LinkPersonUserRequest` — request bodies. Response payloads use shared `*Dto` records from [libs/contracts](../../libs/contracts).
 
 ## Schema
 [001-core.yml](../../infra/liquibase/features/001-core.yml) (households, users) +
 [003-people.yml](../../infra/liquibase/features/003-people.yml) (people + `pg_trgm` GIN indexes on `interests` and `display_name`) +
 [013-household-members.yml](../../infra/liquibase/features/013-household-members.yml) (M:N `core.household_members`, ADR-0001 — 1:N identity + backfill) +
-[014-household-invites.yml](../../infra/liquibase/features/014-household-invites.yml) (`core.household_invites` deep-link token store — invite-only onboarding).
+[014-household-invites.yml](../../infra/liquibase/features/014-household-invites.yml) (`core.household_invites` deep-link token store — invite-only onboarding) +
+[015-people-user-id.yml](../../infra/liquibase/features/015-people-user-id.yml) (nullable `core.people.user_id` — the optional contact→operator link, ADR-0001 item 6).
 
 ## Endpoint additions since the table above
 - `GET /v1/users/by-household/{id}` — added in PR10 (notifier fan-out).

@@ -300,4 +300,48 @@ class ProfileServiceIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(list).hasSize(1);
         assertThat(list[0].id()).isEqualTo(person.id());
     }
+
+    @Test
+    void linkPersonToUserWhenContactBecomesOperator() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        HouseholdDto h = http.postForObject(
+                "/v1/households", new CreateHouseholdRequest("link test"), HouseholdDto.class);
+
+        // A contact known to the household, and the operator account they grow into (ADR-0001 item 6).
+        PersonDto person = http.postForObject("/v1/people",
+                new CreatePersonRequest(h.id(), "Sofia", "daughter", "ru-RU", null, null, null),
+                PersonDto.class);
+        assertThat(person.userId()).isNull();
+        UserDto operator = http.postForObject("/v1/users",
+                new CreateUserRequest(h.id(), "Sofia", null, 9001L, null), UserDto.class);
+
+        PersonDto linked = http.exchange(
+                "/v1/people/" + person.id() + "/user", org.springframework.http.HttpMethod.PUT,
+                new org.springframework.http.HttpEntity<>(new dev.fedorov.ailife.profile.web.dto.LinkPersonUserRequest(operator.id())),
+                PersonDto.class).getBody();
+        assertThat(linked.userId()).isEqualTo(operator.id());
+        // The link survives a re-fetch and leaves the household untouched.
+        PersonDto refetched = http.getForObject("/v1/people/" + person.id(), PersonDto.class);
+        assertThat(refetched.userId()).isEqualTo(operator.id());
+        assertThat(refetched.householdId()).isEqualTo(h.id());
+    }
+
+    @Test
+    void linkPersonToUnknownUserIsUnprocessable() {
+        RestTemplate http = restBuilder.rootUri("http://localhost:" + port).build();
+        HouseholdDto h = http.postForObject(
+                "/v1/households", new CreateHouseholdRequest("bad link test"), HouseholdDto.class);
+        PersonDto person = http.postForObject("/v1/people",
+                new CreatePersonRequest(h.id(), "Ivan", "friend", "ru-RU", null, null, null),
+                PersonDto.class);
+
+        RestClientResponseException ex = catchThrowableOfType(
+                RestClientResponseException.class,
+                () -> http.exchange(
+                        "/v1/people/" + person.id() + "/user", org.springframework.http.HttpMethod.PUT,
+                        new org.springframework.http.HttpEntity<>(new dev.fedorov.ailife.profile.web.dto.LinkPersonUserRequest(java.util.UUID.randomUUID())),
+                        PersonDto.class));
+        assertThat(ex).isNotNull();
+        assertThat(ex.getStatusCode().value()).isEqualTo(422);
+    }
 }

@@ -161,7 +161,7 @@ class TriggerControllerTest {
 
         profileDispatcher.person = new PersonDto(
                 personId, householdId, "Maria", "sister", "ru-RU",
-                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now());
+                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now(), null);
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()),
                 new UserDto(wifeId, householdId, "Wife", "ru-RU", 2L, "admin", Instant.now()));
@@ -213,7 +213,7 @@ class TriggerControllerTest {
 
         profileDispatcher.person = new PersonDto(
                 personId, householdId, "Maria", "sister", "ru-RU",
-                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now());
+                json.createArrayNode().add("books"), "loves earl grey", null, Instant.now(), null);
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
 
@@ -260,7 +260,7 @@ class TriggerControllerTest {
         profileDispatcher.person = new PersonDto(
                 personId, householdId, "Maria", "sister", "ru-RU",
                 json.createArrayNode().add("hiking").add("books"),
-                "into trail running lately", null, Instant.now());
+                "into trail running lately", null, Instant.now(), null);
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
 
@@ -355,7 +355,7 @@ class TriggerControllerTest {
 
         profileDispatcher.person = new PersonDto(
                 personId, householdId, "Мама", "parent", "ru-RU",
-                json.createArrayNode(), null, null, Instant.now());
+                json.createArrayNode(), null, null, Instant.now(), null);
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
 
@@ -419,7 +419,7 @@ class TriggerControllerTest {
 
         profileDispatcher.person = new PersonDto(
                 personId, householdId, "Maria", "sister", "ru-RU",
-                json.createArrayNode().add("books"), "n/a", null, Instant.now());
+                json.createArrayNode().add("books"), "n/a", null, Instant.now(), null);
         profileDispatcher.householdMembers = List.of(
                 new UserDto(vladId, householdId, "Vlad", "ru-RU", 1L, "admin", Instant.now()));
 
