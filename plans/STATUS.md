@@ -11,12 +11,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   default-when-unspecified becomes data-driven), behind the existing seam. Design + slice sequence →
   [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Item 8. Owner-approved shape (2026-08-04):
   structured tally store on memory-service + a default `decideAsync` on the seam.
-  - **DS-1 — store** (memory-service `memory.sharing_decision` tally + `POST /v1/sharing/decisions` +
-    `GET /v1/sharing/policy` + `contracts/sharing`): **this PR.**
-  - **DS-2 — seam + `LearnedSharingPolicy`:** default `decideAsync` on the seam (domains untouched) +
-    the decorator in `libs/sharing` + record-on-resolve. **Next.**
-  - DS-3 calendar (reference) → DS-4… remaining domains → DS-N (deferred) confirm-on-ambiguity. See the ADR.
-  - DS-0 (design docs) shipped → [HISTORY.md](HISTORY.md).
+  - **DS-2 — seam + `LearnedSharingPolicy`** (default `decideAsync(ctx, learningHousehold)` on the seam +
+    `LearnedSharingPolicy` decorator + `SharingLearningClient` + record-on-explicit-choice in `SharingResolver`;
+    engine only, no domain wired): **this PR.**
+  - **DS-3 — calendar (reference):** wrap `CalendarSharingPolicy` in `LearnedSharingPolicy` + wire the
+    resolver's learning constructor in calendar-agent's `OutboundHttpConfig`. **Next.**
+  - DS-4… remaining domains → DS-N (deferred) confirm-on-ambiguity. See the ADR.
+  - DS-0 (design docs) + DS-1 (store) shipped → [HISTORY.md](HISTORY.md).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): sharing
   capability **ADR-0002** slices 2–7 (all opt-in domains retrofitted, rows 2026-08-01/02); identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover

@@ -257,11 +257,15 @@ shared and the *policy* local — the correct seam.
      (record) + `GET /v1/sharing/policy` (aggregate → learned default + confidence, `204` when unseen) +
      `contracts/sharing`. Deterministic majority (ties → `PRIVATE` at 0.5); no LLM. `SharingDecisionIntegrationTest`
      (5, Testcontainers). The store is domain-agnostic — it tallies opaque `signalKey`s built caller-side in DS-2.
-   - [ ] **DS-2 — seam + `LearnedSharingPolicy`:** add a default `Mono<SharingScope> decideAsync(ctx)` to
-     `DefaultSharingPolicy` (wraps the sync `decide` — domains untouched); `SharingResolver` awaits it and
-     records the resolved decision. `LearnedSharingPolicy` (in `libs/sharing`) decorates a domain's static
-     policy: query the store via a new `SharingLearningClient` → confidence ≥ threshold ⇒ learned scope, else
-     delegate to the static policy. Both reads/writes soft-fail (never sink the primary write).
+   - [x] **DS-2 — seam + `LearnedSharingPolicy`:** added a default `Mono<SharingScope> decideAsync(ctx,
+     learningHousehold)` to `DefaultSharingPolicy` (wraps the sync `decide` — the 5 static policies are
+     unchanged; the extra `learningHousehold` param is the per-member tally scope only the resolver knows).
+     `SharingResolver` awaits it, and on an **explicit** choice records the owner's decision (the ground-truth
+     learn signal) keyed by their **personal** household — best-effort, fire-and-forget. `LearnedSharingPolicy`
+     (in `libs/sharing`) decorates a domain's static policy: query the store via the new `SharingLearningClient`
+     → trust the learned scope only when `total ≥ 3` **and** `confidence ≥ 0.67`, else delegate to the static
+     rule. Both reads/writes soft-fail. No domain wired yet (DS-3). `LearnedSharingPolicyTest` (6) +
+     `SharingLearningClientTest` (5) + `SharingResolverTest` learning cases (3); 27 `libs/sharing` tests green.
    - [ ] **DS-3 — reference domain (calendar):** calendar-agent wraps `CalendarSharingPolicy` in
      `LearnedSharingPolicy` + wires decision recording. Behaviour unchanged with no history; learned after it
      accumulates. Calendar stays the canonical example.
@@ -298,15 +302,22 @@ memory.sharing_decision(household_id, domain, signal_key, scope, count, first_se
   winning_count / total for that key (204/empty when the key is unseen). The caller compares against a
   threshold; the store itself makes no policy call.
 
-**Seam (DS-2).** `DefaultSharingPolicy` gains a **default** method
-`Mono<SharingScope> decideAsync(SharingContext ctx)` whose default impl is `Mono.just(decide(ctx))`, so the
-five existing static policies compile unchanged. `SharingResolver.resolveHousehold` switches to await
-`decideAsync` (its only change) and, once it has resolved a concrete scope for a user with no explicit
-choice, fires a best-effort `record` into the store — the learn signal. A `LearnedSharingPolicy`
-decorator (constructed with the domain's static policy + a `SharingLearningClient` + the household) overrides
-`decideAsync`: it looks up the tally for the context's `signalKey`; on confidence ≥ threshold it returns the
-learned scope, otherwise it delegates to the wrapped static policy. No domain policy or the resolver's
-mechanism is rewritten — exactly the seam the Decision section promised.
+**Seam (DS-2, as built).** `DefaultSharingPolicy` gains a **default** method `Mono<SharingScope>
+decideAsync(SharingContext ctx, UUID learningHousehold)` whose default impl is `Mono.just(decide(ctx))`, so
+the five static policies compile unchanged. The second parameter is the acting member's **personal
+household** — the stable per-member key the tally is scoped by. It has to be a call-time argument (not baked
+into a bean, not in `SharingContext`) because it is per-request and only the resolver knows it, from the
+routing read; learning is inherently per-actor, whereas the sync `decide(ctx)` was deliberately actor-blind.
+`SharingResolver.resolveHousehold` awaits `decideAsync`, and on an **explicit** choice records that
+decision — the **owner's ground truth**, the signal worth learning — keyed by their personal household so
+SHARED and PRIVATE choices for the same signal profile land in one tally instead of being split across the
+households they route to. Recording is best-effort/fire-and-forget. A `LearnedSharingPolicy` decorator
+(constructed with the domain's static policy + a `SharingLearningClient` + the domain name) overrides
+`decideAsync`: it looks up the tally for `ctx.signalKey()` scoped to `learningHousehold` and returns the
+learned scope only when the tally is both deep (`total ≥ 3`) and decisive (`confidence ≥ 0.67`), else
+delegates to the wrapped static policy — so learning can only sharpen the default toward a demonstrated
+habit, never flip it on weak evidence. No domain policy or the resolver's household-pick mechanism is
+rewritten — exactly the seam the Decision section promised.
 
 **Wiring (DS-3+).** A domain opts into learning by wrapping its static policy bean in `LearnedSharingPolicy`
 when constructing its `SharingResolver` (a one-line change in the agent's `OutboundHttpConfig`) — mirroring
