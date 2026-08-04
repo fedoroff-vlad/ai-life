@@ -60,6 +60,11 @@ class ActionControllerTest {
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
         r.add("calendar-agent.mcp-caldav-url", () -> "http://localhost:" + mcpCaldav.getPort());
         r.add("calendar-agent.profile-service-url", () -> "http://localhost:" + profile.getPort());
+        // Item 8: the SharingResolver now consults/records the learned-decision tally on memory-service.
+        // These cases exercise the no-history path (static policy), so point it at a fast-fail address —
+        // the learned lookup soft-fails to empty (→ static default) and the explicit-choice record is
+        // swallowed, both without a real memory-service. Behaviour stays exactly as before item 8.
+        r.add("calendar-agent.memory-service-url", () -> "http://127.0.0.1:1");
     }
 
     @Autowired WebTestClient http;
