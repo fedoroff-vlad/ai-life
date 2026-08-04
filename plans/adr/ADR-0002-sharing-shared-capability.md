@@ -266,9 +266,14 @@ shared and the *policy* local — the correct seam.
      → trust the learned scope only when `total ≥ 3` **and** `confidence ≥ 0.67`, else delegate to the static
      rule. Both reads/writes soft-fail. No domain wired yet (DS-3). `LearnedSharingPolicyTest` (6) +
      `SharingLearningClientTest` (5) + `SharingResolverTest` learning cases (3); 27 `libs/sharing` tests green.
-   - [ ] **DS-3 — reference domain (calendar):** calendar-agent wraps `CalendarSharingPolicy` in
-     `LearnedSharingPolicy` + wires decision recording. Behaviour unchanged with no history; learned after it
-     accumulates. Calendar stays the canonical example.
+   - [x] **DS-3 — reference domain (calendar):** calendar-agent's `OutboundHttpConfig` wraps
+     `CalendarSharingPolicy` in `LearnedSharingPolicy` + constructs `SharingResolver` with the learning-enabled
+     constructor (a new `SharingLearningClient` bean over the shared `memoryServiceWebClient`), so unscoped
+     events default to the learned scope once the tally is deep + decisive, else the static occasion rule, and
+     explicit choices are recorded. Pure wiring — the routing/learning logic (unit-proven in `libs/sharing`,
+     incl. `SharingResolverTest.learnedDefaultFlowsThroughTheResolverAndRoutes`) is unchanged. The 7
+     `ActionControllerTest` cases stay green (no-history path = static default, memory pointed at a fast-fail
+     address). Calendar stays the canonical example.
    - [ ] **DS-4… — remaining opt-in domains** (finance / tasks / nutrition / docs), one per PR — each just
      wraps its existing static policy.
    - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals

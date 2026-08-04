@@ -2,7 +2,9 @@ package dev.fedorov.ailife.agents.calendar.config;
 
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
+import dev.fedorov.ailife.sharing.LearnedSharingPolicy;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingLearningClient;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -52,12 +54,31 @@ public class OutboundHttpConfig {
     }
 
     /**
-     * The write-path routing engine, wired with calendar's {@code CalendarSharingPolicy} (injected as the
-     * {@link DefaultSharingPolicy}). Replaces the tenant-routing logic formerly inline in the action controller.
+     * The learned-decision tally read/write (ADR-0002 item 8), over the shared {@code memoryServiceWebClient}
+     * (built by agent-runtime from {@code SharedClientProperties}) — the same client backing
+     * {@link dev.fedorov.ailife.agentruntime.http.MemoryClient}. Best-effort on both sides, so it never
+     * delays or fails an event create.
+     */
+    @Bean
+    public SharingLearningClient sharingLearningClient(
+            @Qualifier("memoryServiceWebClient") WebClient memoryServiceWebClient) {
+        return new SharingLearningClient(memoryServiceWebClient);
+    }
+
+    /**
+     * The write-path routing engine (ADR-0002). Calendar is the reference domain for the memory-driven
+     * default (item 8): its {@code CalendarSharingPolicy} (injected as the {@link DefaultSharingPolicy}) is
+     * wrapped in a {@link LearnedSharingPolicy}, so an unscoped event defaults to what the owner has
+     * repeatedly chosen for the same signal profile once the tally is deep + decisive, and to the static
+     * occasion rule otherwise. The resolver's learning-enabled constructor also records the owner's explicit
+     * choices as the learn signal. Both are best-effort; the routing/fallback mechanism is unchanged.
      */
     @Bean
     public SharingResolver sharingResolver(ProfileSharingClient profileSharingClient,
-                                           DefaultSharingPolicy defaultSharingPolicy) {
-        return new SharingResolver(profileSharingClient, defaultSharingPolicy);
+                                           DefaultSharingPolicy defaultSharingPolicy,
+                                           SharingLearningClient sharingLearningClient) {
+        DefaultSharingPolicy learned =
+                new LearnedSharingPolicy(defaultSharingPolicy, sharingLearningClient, "calendar");
+        return new SharingResolver(profileSharingClient, learned, sharingLearningClient, "calendar");
     }
 }
