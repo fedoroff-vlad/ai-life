@@ -248,7 +248,73 @@ shared and the *policy* local — the correct seam.
      no golden-routing test applies. `DocFinderTest` (own cut unchanged + family cue unions a personal +
      shared-household doc) green. **Documents fully retrofitted → all opt-in domains done; only the
      deferred item 8 remains.**
-8. [ ] **(deferred)** reconcile memory/second-brain's owner-tag model onto the sharing primitive.
+8. **Memory-driven default-sharing** — graduate the `DefaultSharingPolicy` default from a static
+   per-domain rule to one that **learns the owner's past choices** (ADR-0001 item 7). Design +
+   slice sequence in **[§Item 8 design](#item-8--memory-driven-default-sharing-design)** below.
+   - [ ] **DS-0 — docs (this section):** record the design + slice sequence in this ADR + flip STATUS
+     to the in-flight track. *(docs)*
+   - [ ] **DS-1 — store:** memory-service `memory.sharing_decision` tally table + `POST /v1/sharing/decisions`
+     (record) + `GET /v1/sharing/policy` (aggregate → learned default + confidence) + `contracts/sharing`.
+     Deterministic majority; no LLM.
+   - [ ] **DS-2 — seam + `LearnedSharingPolicy`:** add a default `Mono<SharingScope> decideAsync(ctx)` to
+     `DefaultSharingPolicy` (wraps the sync `decide` — domains untouched); `SharingResolver` awaits it and
+     records the resolved decision. `LearnedSharingPolicy` (in `libs/sharing`) decorates a domain's static
+     policy: query the store via a new `SharingLearningClient` → confidence ≥ threshold ⇒ learned scope, else
+     delegate to the static policy. Both reads/writes soft-fail (never sink the primary write).
+   - [ ] **DS-3 — reference domain (calendar):** calendar-agent wraps `CalendarSharingPolicy` in
+     `LearnedSharingPolicy` + wires decision recording. Behaviour unchanged with no history; learned after it
+     accumulates. Calendar stays the canonical example.
+   - [ ] **DS-4… — remaining opt-in domains** (finance / tasks / nutrition / docs), one per PR — each just
+     wraps its existing static policy.
+   - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals
+     are ambiguous, ask the owner once (via conversation pending-action) and learn the reply. Needs the
+     conversation-state confirm loop; sequenced last.
+   - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this
+     primitive — orthogonal to the learned default; note when a consumer needs it.
+
+## Item 8 — memory-driven default-sharing (design)
+
+**Goal.** Today each domain's `DefaultSharingPolicy` plugs a *static* deterministic rule (calendar:
+occasion → shared; finance: joint-account → shared; …). Item 8 makes the *default-when-unspecified* learn
+the owner's actual past choices, so the system stops guessing from a hand-written rule and starts matching
+what the owner has repeatedly done — **confirming only when it genuinely can't tell**.
+
+**Invariant kept.** The *mechanism* stays deterministic — the household pick, the fallbacks, and the
+privacy boundary in `SharingResolver` never change. "Learning" here is a **deterministic majority vote over
+a structured tally**, not probabilistic/LLM inference: a privacy boundary must be predictable and auditable.
+Only *which scope the unspecified default resolves to* becomes data-driven, and only behind the existing
+`DefaultSharingPolicy` seam.
+
+**Store (DS-1).** A structured tally on memory-service, not the fuzzy recall tier:
+
+```
+memory.sharing_decision(household_id, domain, signal_key, scope, count, first_seen, last_seen)
+  signal_key = a stable, low-cardinality digest of SharingContext (sorted categories + itemKind +
+               involvesHouseholdMember) — the same shape always maps to the same key.
+```
+- `POST /v1/sharing/decisions {householdId, domain, signalKey, scope}` — upsert-increment the tally.
+- `GET /v1/sharing/policy?householdId&domain&signalKey` → `{scope, confidence}` where confidence =
+  winning_count / total for that key (204/empty when the key is unseen). The caller compares against a
+  threshold; the store itself makes no policy call.
+
+**Seam (DS-2).** `DefaultSharingPolicy` gains a **default** method
+`Mono<SharingScope> decideAsync(SharingContext ctx)` whose default impl is `Mono.just(decide(ctx))`, so the
+five existing static policies compile unchanged. `SharingResolver.resolveHousehold` switches to await
+`decideAsync` (its only change) and, once it has resolved a concrete scope for a user with no explicit
+choice, fires a best-effort `record` into the store — the learn signal. A `LearnedSharingPolicy`
+decorator (constructed with the domain's static policy + a `SharingLearningClient` + the household) overrides
+`decideAsync`: it looks up the tally for the context's `signalKey`; on confidence ≥ threshold it returns the
+learned scope, otherwise it delegates to the wrapped static policy. No domain policy or the resolver's
+mechanism is rewritten — exactly the seam the Decision section promised.
+
+**Wiring (DS-3+).** A domain opts into learning by wrapping its static policy bean in `LearnedSharingPolicy`
+when constructing its `SharingResolver` (a one-line change in the agent's `OutboundHttpConfig`) — mirroring
+how each domain already wires the resolver. calendar is retrofitted first as the reference.
+
+**Confirm-on-ambiguity (DS-N, deferred).** The full ADR-0001 item-7 vision ("confirm only on ambiguity")
+needs a user round-trip: no confident tally + a genuinely split signal ⇒ ask once via conversation
+pending-action, then record the reply (which immediately improves the tally). This depends on the
+conversation-state confirm loop and is sequenced last, after the learn/infer core proves out.
 
 ## Notes
 
