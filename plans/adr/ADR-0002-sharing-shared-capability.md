@@ -251,11 +251,12 @@ shared and the *policy* local — the correct seam.
 8. **Memory-driven default-sharing** — graduate the `DefaultSharingPolicy` default from a static
    per-domain rule to one that **learns the owner's past choices** (ADR-0001 item 7). Design +
    slice sequence in **[§Item 8 design](#item-8--memory-driven-default-sharing-design)** below.
-   - [ ] **DS-0 — docs (this section):** record the design + slice sequence in this ADR + flip STATUS
+   - [x] **DS-0 — docs (this section):** record the design + slice sequence in this ADR + flip STATUS
      to the in-flight track. *(docs)*
-   - [ ] **DS-1 — store:** memory-service `memory.sharing_decision` tally table + `POST /v1/sharing/decisions`
-     (record) + `GET /v1/sharing/policy` (aggregate → learned default + confidence) + `contracts/sharing`.
-     Deterministic majority; no LLM.
+   - [x] **DS-1 — store:** memory-service `memory.sharing_decision` tally table + `POST /v1/sharing/decisions`
+     (record) + `GET /v1/sharing/policy` (aggregate → learned default + confidence, `204` when unseen) +
+     `contracts/sharing`. Deterministic majority (ties → `PRIVATE` at 0.5); no LLM. `SharingDecisionIntegrationTest`
+     (5, Testcontainers). The store is domain-agnostic — it tallies opaque `signalKey`s built caller-side in DS-2.
    - [ ] **DS-2 — seam + `LearnedSharingPolicy`:** add a default `Mono<SharingScope> decideAsync(ctx)` to
      `DefaultSharingPolicy` (wraps the sync `decide` — domains untouched); `SharingResolver` awaits it and
      records the resolved decision. `LearnedSharingPolicy` (in `libs/sharing`) decorates a domain's static

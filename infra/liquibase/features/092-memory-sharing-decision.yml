@@ -1,0 +1,82 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 092-memory-sharing-decision
+      author: ai-life
+      comment: |
+        The learned-decision tally behind memory-driven default-sharing (ADR-0002
+        item 8, slice DS-1). Lives in the existing `memory` schema alongside
+        `memories`/`relations`/`note` — we EVOLVE memory-service, we do NOT stand up a
+        second store.
+
+        Each row is a durable count of how often, in one household, an item with a given
+        signal profile (`signal_key`, a stable digest of the neutral SharingContext,
+        computed caller-side in DS-2) resolved to a given `scope` for a given `domain`.
+        The aggregate (`GET /v1/sharing/policy`) is a deterministic majority vote over
+        these counts — the "learning" is a tally, never LLM inference, because the
+        sharing mechanism is a privacy boundary. The store itself is domain-agnostic and
+        holds the `signal_key` opaquely.
+
+        Unique on (household_id, domain, signal_key, scope) so a record is an
+        upsert-increment; that unique index also serves the 3-column aggregate lookup as
+        a prefix, so no extra index is needed.
+      changes:
+        - createTable:
+            schemaName: memory
+            tableName: sharing_decision
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_sharing_decision_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: domain
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: signal_key
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: scope
+                  type: varchar(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: count
+                  type: integer
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+              - column:
+                  name: first_seen
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_seen
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            schemaName: memory
+            tableName: sharing_decision
+            constraintName: uq_sharing_decision_signal
+            columnNames: household_id, domain, signal_key, scope
