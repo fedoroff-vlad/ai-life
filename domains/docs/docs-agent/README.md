@@ -5,14 +5,16 @@ Personal **document-archive** specialist (port **8117**). Ingests a document pho
 `docs`; owns `mcp-docs`; binds the shared `mcp-media-processing` (OCR). Plan:
 [plans/docs.md](../../../plans/docs.md).
 
-## Status (ADR-0002 slice 7a)
+## Status (ADR-0002 slice 7 — fully retrofitted)
 
 Scaffold + the **ingest** and **search** flows, with **semantic recall** layered onto both. As of the
 second-brain **SB-5** (epic #257) the semantic seed is an authored **note** in the shared substrate, not
 a raw `memory.memories` row — docs-agent is the first consumer of the universal note-write seam
-(`MemoryClient.note`/`getNote` in `libs/agent-runtime`). As of **ADR-0002 slice 7a** the ingest write path
-routes each document to the member's **shared vs personal household** via the shared `libs/sharing`
-capability + a local `DocsSharingPolicy` (warranty/contract → shared, else private).
+(`MemoryClient.note`/`getNote` in `libs/agent-runtime`). As of **ADR-0002 slice 7** documents are fully
+retrofitted onto the shared `libs/sharing` capability — **7a (write)** routes each archived document to the
+member's shared vs personal household via a local `DocsSharingPolicy` (warranty/contract → shared, else
+private); **7b (read)** widens "find my X" to the member's personal ∪ shared households on an explicit
+"наши документы" cue (default = own).
 
 - **Ingest (D-c, +SB-5 note seed, +7a sharing)** — an inbound message with an `image` attachment →
   `doc-archiver`: OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with
@@ -26,14 +28,17 @@ capability + a local `DocsSharingPolicy` (warranty/contract → shared, else pri
   `frontmatter={kind:document, refId}`, seeded under the resolved household) so it lands in the one store
   every agent reads and memory-service auto-seeds it into recall (SB-2) → confirm what was filed. The note
   seed soft-fails: the document is already saved + text-searchable.
-- **Search (D-d, +SB-5 recall)** — a "find my X" cue → `doc-finder`: one llm-gateway turn with the
-  `doc-finder` SKILL distils a search query + optional docType filter → **two searches in parallel** —
-  `mcp-docs` `GET /internal/documents/search` (household-scoped trigram) **and** a memory-service
-  semantic recall over the second-brain: a `{kind:note, refId}` recall hit is fetched
-  (`MemoryClient.getNote` → `GET /v1/notes/{id}`) and its `frontmatter` `{kind:document, refId}`
-  back-pointer resolves to the document row (`GET /internal/documents/{id}`) — merged + de-duplicated →
-  the reply lists the hits (title / type / date / party) each with an open link to the stored blob. Each
-  source soft-fails independently.
+- **Search (D-d, +SB-5 recall, +7b sharing)** — a "find my X" cue → `doc-finder`: one llm-gateway turn
+  with the `doc-finder` SKILL distils a search query + optional docType filter → **resolve the household
+  set** (default = own; an explicit "наши документы"/family cue widens to the member's personal ∪ shared
+  households via `ProfileSharingClient.households`) → **two searches in parallel, each unioned across the
+  set** — `mcp-docs` `GET /internal/documents/search` (trigram, one call per household) **and** a
+  memory-service semantic recall over the second-brain (one recall per household): a `{kind:note, refId}`
+  recall hit is fetched (`MemoryClient.getNote` → `GET /v1/notes/{id}`) and its `frontmatter`
+  `{kind:document, refId}` back-pointer resolves to the document row (`GET /internal/documents/{id}`) —
+  merged + de-duplicated → the reply lists the hits (title / type / date / party) each with an open link
+  to the stored blob. Each source soft-fails independently; the own cut is a single household (identical
+  to the pre-sharing search).
 
 Otherwise a message falls through to a chat fallback. Every stage soft-fails to a friendly reply.
 
@@ -81,10 +86,15 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   shared here" rule docs owns; the routing mechanism lives in `libs/sharing`.
 - `config/OutboundHttpConfig` also wires the sharing beans (`ProfileSharingClient` over the shared
   `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy`).
-- `find/DocFinder` — the search flow: LLM query distil (`doc-finder` SKILL, temperature=0) → parallel
-  trigram `searchDocuments` + memory-service `recall` (SB-5; a `{kind:note, refId}` hit →
-  `MemoryClient.getNote` → its `frontmatter` `{kind:document, refId}` → `DocumentClient.get`), merged +
-  de-duplicated → a hit list with open links; each source soft-fails independently.
+- `find/DocFinder` — the search flow: LLM query distil (`doc-finder` SKILL, temperature=0) → resolve the
+  household set via `read/DocReads` (ADR-0002 slice 7b) → parallel trigram `searchDocuments` +
+  memory-service `recall` (SB-5; a `{kind:note, refId}` hit → `MemoryClient.getNote` → its `frontmatter`
+  `{kind:document, refId}` → `DocumentClient.get`), each unioned across the set, merged + de-duplicated →
+  a hit list with open links; each source soft-fails independently.
+- `read/DocReads` — the sharing-aware read helper (ADR-0002 slice 7b, sibling of finance `SpendingReads`
+  / tasks `TaskReads` / nutrition `MealReads`): `households(envelope, userId, shared)` resolves the set
+  (own = envelope; shared = personal ∪ shared via `ProfileSharingClient.households`, degrading to envelope)
+  + `searchUnion(...)` fans the trigram search across the set.
 - `chat/DocsChat` — the open-question fallback (AGENT.md system prompt).
-- `web/IntentController` — image attachment → archive, "find my X" cue → search, else chat;
-  `web/ManifestController`.
+- `web/IntentController` — image attachment → archive, "find my X" cue → search (a `FAMILY_CUES` match
+  widens to personal ∪ shared), else chat; `web/ManifestController`.

@@ -5,64 +5,19 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Sharing-as-a-capability epic — IN FLIGHT ([adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md),
-  Accepted 2026-08-01).** Generalise ADR-0001's calendar tenant-routing into a reusable cross-domain
-  capability so finance/tasks/nutrition/docs get "own vs shared" without copy-paste. Design (owner-approved):
-  a shared leaf module **`libs/sharing`** (`SharingResolver` write-engine + `DefaultSharingPolicy`
-  extension point + `SharingContext` + `ProfileSharingClient`) taken by **all** agents *and* read-only web
-  services; `SharingScope` → `contracts/common`; each domain plugs a same-named **`sharing/`** package with
-  its `<Domain>SharingPolicy`. **Mechanism deterministic (privacy boundary, never LLM-decided); only the
-  default-when-unspecified is policy, later memory-driven via the same seam.** **Slices 1–2 ✅** (1 = accept
-  ADR + docs; 2 = the `libs/sharing` engine — `SharingResolver` + `DefaultSharingPolicy` seam +
-  `SharingContext` + `ProfileSharingClient`, `SharingScope` lifted to `contracts/common`, 13 tests, no
-  domain wired yet → [HISTORY](HISTORY.md) row 2026-08-01). Slice 3 (retrofit calendar as the reference)
-  **split write/read** (>5 files): **slice 3a ✅** = calendar-agent write path onto `SharingResolver` +
-  new `sharing/CalendarSharingPolicy`, inline routing deleted, behaviour unchanged (7 ActionControllerTest
-  cases green). **Slice 3b ✅** = calendar-web read path onto `libs/sharing`'s
-  `ProfileSharingClient.households` (via `config/SharingConfig`; local `ProfileHouseholdsClient` retired,
-  7 calendar-web tests green). **Calendar is now fully retrofitted — the capability's reference impl (both
-  paths).** **Slice 4 = finance — DONE (read 4a + write 4b).** Scoping decided (owner, 2026-08-01):
-  **account-level** (the mcp-finance cross-household guard forces txn.household = account.household, so the
-  account is the boundary), **report cut = own/personal by default, shared on explicit request** ("наши
-  траты"). **4a (read) ✅** = `FinancialAdvisor` (4a-i) + `MonthlyReporter`/`YearReporter` (4a-ii) union
-  personal ∪ shared via the shared `read/SpendingReads` helper on `scope:"shared"`; default stays personal;
-  mcp-finance untouched. **4b (write) ✅** = the finance sharing write path — a chat-driven `AccountManager`
-  seam (owner-chosen: sibling of `CategoryManager`; mcp-finance `POST /internal/account` + `AccountClient.upsert`
-  + `account` classifier action + `account-manager` SKILL) routes a new account through the shared
-  `SharingResolver` wired with a new `sharing/FinanceSharingPolicy` (joint → shared household, personal →
-  the member's own; the account is the boundary). mcp-finance stays tenant-agnostic. **Finance fully
-  retrofitted.** **Slice 5 tasks — split write/read (read default = own, mirror finance).** **5a (write)
-  ✅** = the `task-capture` flow (`TaskCapturer`, sibling of finance's `AccountManager`) routes a
-  chat-captured task to a personal vs shared household via `SharingResolver` + new
-  `sharing/TasksSharingPolicy`; persisted via mcp-tasks' new `POST /internal/task` passthrough. The
-  deterministic capture an LLM-driven `add_task` tool call can't take (classifier never sees the household
-  id). **5b (read) ✅** = `next-action-suggester` reads through a new `read/TaskReads` helper (sibling of
-  finance's `SpendingReads`): default = own (envelope household), and on an explicit `scope:"shared"` cut
-  ("наши дела") it unions across the member's personal ∪ shared households via
-  `ProfileSharingClient.households`; the router threads `scope` onto `RouterResult.shared` → controller →
-  `suggest(msg, shared)`. weekly-review stays per-household (proactive cron, no user/scope). Added tasks'
-  first `GoldenRoutingTest` (real-model routing: capture → task-capture, own vs shared next-actions).
-  **Tasks fully retrofitted (write 5a + read 5b).** **Slice 6 nutrition — split write/read, DONE (nutrition
-  fully retrofitted; shared meal-plan/shopping surface only, food log stays personal). 6a (write) ✅** =
-  the direct `BasketBreakdown` routes the saved `basket` to the member's shared vs personal household via
-  `SharingResolver` + new `sharing/NutritionSharingPolicy` (grocery basket → shared by default, degrades to
-  personal with no family household); only the direct path routes (the IA-b bus fan-out keeps finance's
-  household), food log stays personal, mcp-nutrition tenant-agnostic (`BasketBreakdownTest` shared-route +
-  degrade). **6b (read) ✅** = `MealPlanner` reads through a new `read/MealReads` helper (sibling of
-  finance `SpendingReads` / tasks `TaskReads`): a family-scoped ration ("наш рацион"/"на всю семью" — a
-  `FAMILY_CUES` keyword in `IntentController` → `shared` flag) unions diet profiles + recent meals across
-  personal ∪ shared; default = own. `meal-planner` SKILL gained `payload.scope` + `context.householdProfiles`
-  (array). Nutrition routing is keyword-deterministic (not an LLM classifier) → no golden-routing test
-  applies (unlike tasks 5b); `GoldenMealLogTest` still covers extraction. `MealPlannerTest` family-union
-  case green. **Slice 7 Documents — split write/read (read default = own).** **7a (write) ✅** =
-  `docs-agent`'s `DocArchiver` routes an archived document to the acting member's shared vs personal
-  household via `SharingResolver` + new `sharing/DocsSharingPolicy` (warranty/contract → shared household
-  asset; receipt/note/ID → private; degrades to personal with no family household). The `doc-archiver`
-  extract's `docType` is the signal (`SharingContext.itemKind`); mcp-docs stays tenant-agnostic; the SB-5
-  note seed follows the resolved household. `DocArchiverTest` (contract → shared, receipt → personal even
-  with a shared household present) green. NEXT = **slice 7b (read)** = `doc-finder` unions personal ∪
-  shared on an explicit "our documents" cue (default = own) → then 8 (deferred) memory owner-tag reconcile.
-  Detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items.
+- **Sharing-as-a-capability epic (ADR-0002) — COMPLETE** (2026-08-02, [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md),
+  Accepted 2026-08-01). Generalised ADR-0001's calendar tenant-routing into a reusable cross-domain
+  capability: the light leaf **`libs/sharing`** (deterministic `SharingResolver` write-engine +
+  per-domain `DefaultSharingPolicy` seam + `SharingContext` + `ProfileSharingClient`), `SharingScope` in
+  `contracts/common`, each domain a same-named **`sharing/`** policy + a `read/*Reads` union helper.
+  **All opt-in domains retrofitted** — calendar (reference, slices 3a/3b), finance (4a/4b), tasks (5a/5b),
+  nutrition (6a/6b), docs (7a/7b) — each split write (route to shared vs personal household) + read (union
+  personal ∪ shared on an explicit family cut, default = own). Mechanism deterministic (privacy boundary,
+  never LLM-decided); only the default-when-unspecified is policy, later memory-driven via the same seam.
+  **Deferred by design: item 8** — reconcile memory/second-brain's owner-tag model onto the primitive
+  (when the default-policy graduates to memory-driven, ADR-0001 item 7, it plugs into the same seam).
+  Slice-by-slice detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items +
+  [HISTORY.md](HISTORY.md) (rows 2026-08-01/02).
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
   (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
   Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the

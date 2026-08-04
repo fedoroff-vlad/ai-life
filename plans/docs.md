@@ -90,9 +90,16 @@ can find it while a personal paper stays private. The tenant boundary is the exi
   (it stores whatever household it is handed). The note seed (SB-5) follows the resolved household.
   Validated: `DocArchiverTest` (contract → shared, receipt → personal even with a shared household
   available). Canonical example + recipe: [PATTERNS.md](PATTERNS.md) §"add sharing to a domain".
-- **7b — read (NEXT).** `doc-finder` search unions across the member's personal ∪ shared households on an
-  explicit "our documents / family" cue (default = own), mirroring finance/tasks/nutrition read helpers
-  (`ProfileSharingClient.households` → a per-household fan-out).
+- **7b — read (DONE).** `doc-finder` unions the search across the member's personal ∪ shared households on
+  an explicit "наши документы"/family cue (default = own). A new `read/DocReads` helper (sibling of finance
+  `SpendingReads` / tasks `TaskReads` / nutrition `MealReads`) resolves the household set via
+  `ProfileSharingClient.households` and fans the trigram search across it; the semantic-recall source fans
+  out over the same set (matching where each document's note was seeded in 7a). The own cut is a single
+  household (identical to the pre-sharing search). The family/own scope is a deterministic keyword match
+  (`FAMILY_CUES` in `IntentController`, the module's existing cue style) — a read-breadth choice, never a
+  privacy write boundary — so, like nutrition 6b, no golden-routing test applies. Validated:
+  `DocFinderTest` (own cut unchanged + a family cue unions a personal + a shared-household document).
+  **Documents fully retrofitted (write 7a + read 7b).**
 
 ## Deferred
 - **PDF / multi-page documents.** `mcp-media-processing.ocr` decodes a single image via `ImageIO`;
