@@ -274,8 +274,16 @@ shared and the *policy* local — the correct seam.
      incl. `SharingResolverTest.learnedDefaultFlowsThroughTheResolverAndRoutes`) is unchanged. The 7
      `ActionControllerTest` cases stay green (no-history path = static default, memory pointed at a fast-fail
      address). Calendar stays the canonical example.
-   - [ ] **DS-4… — remaining opt-in domains** (finance / tasks / nutrition / docs), one per PR — each just
-     wraps its existing static policy.
+   - **DS-4 — remaining opt-in domains**, one per PR — each just wraps its existing static policy the same
+     way calendar did (a `SharingLearningClient` bean over the shared `memoryServiceWebClient` + wrap the
+     policy in `LearnedSharingPolicy` + the resolver's learning-enabled constructor; point any context test
+     that invokes the resolver at a fast-fail memory URL):
+     - [x] **finance** — `finance-agent` `OutboundHttpConfig` wraps `FinanceSharingPolicy`; `AccountManager`'s
+       account routing now defaults to the learned scope once the tally is deep + decisive, else the static
+       joint-account rule. `AccountManagerTest` (3) + full finance-agent suite (72) green.
+     - [ ] **tasks** — wrap `TasksSharingPolicy` in `tasks-agent`.
+     - [ ] **nutrition** — wrap `NutritionSharingPolicy` in `nutritionist-agent`.
+     - [ ] **docs** — wrap `DocsSharingPolicy` in `docs-agent`.
    - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals
      are ambiguous, ask the owner once (via conversation pending-action) and learn the reply. Needs the
      conversation-state confirm loop; sequenced last.
