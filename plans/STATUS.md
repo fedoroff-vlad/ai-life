@@ -5,27 +5,21 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Sharing-as-a-capability epic (ADR-0002) — COMPLETE** (2026-08-02, [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md),
-  Accepted 2026-08-01). Generalised ADR-0001's calendar tenant-routing into a reusable cross-domain
-  capability: the light leaf **`libs/sharing`** (deterministic `SharingResolver` write-engine +
-  per-domain `DefaultSharingPolicy` seam + `SharingContext` + `ProfileSharingClient`), `SharingScope` in
-  `contracts/common`, each domain a same-named **`sharing/`** policy + a `read/*Reads` union helper.
-  **All opt-in domains retrofitted** — calendar (reference, slices 3a/3b), finance (4a/4b), tasks (5a/5b),
-  nutrition (6a/6b), docs (7a/7b) — each split write (route to shared vs personal household) + read (union
-  personal ∪ shared on an explicit family cut, default = own). Mechanism deterministic (privacy boundary,
-  never LLM-decided); only the default-when-unspecified is policy, later memory-driven via the same seam.
-  **Deferred by design: item 8** — reconcile memory/second-brain's owner-tag model onto the primitive
-  (when the default-policy graduates to memory-driven, ADR-0001 item 7, it plugs into the same seam).
-  Slice-by-slice detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items +
-  [HISTORY.md](HISTORY.md) (rows 2026-08-01/02).
-- The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
-  (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295); the
-  optional **item 6 (`people.user_id` contact→operator link)** landed 2026-08-04. Only item 7
-  (default-sharing learn/confirm inference — now the `DefaultSharingPolicy` seam of ADR-0002) remains
-  deferred by design. Detail → [HISTORY.md](HISTORY.md) (rows 2026-08-01/04).
-- **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
-  closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
-  [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).
+- **Memory-driven default-sharing (ADR-0002 item 8 / ADR-0001 item 7) — IN FLIGHT.** Graduate the
+  per-domain `DefaultSharingPolicy` default from a static rule to one that **learns the owner's past
+  choices** (deterministic majority over a structured tally — the mechanism stays deterministic; only the
+  default-when-unspecified becomes data-driven), behind the existing seam. Design + slice sequence →
+  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Item 8. Owner-approved shape (2026-08-04):
+  structured tally store on memory-service + a default `decideAsync` on the seam.
+  - **DS-0 — docs** (design in the ADR + this STATUS flip): **this PR.**
+  - **DS-1 — store:** memory-service `memory.sharing_decision` tally + record/aggregate endpoints +
+    `contracts/sharing`. **Next.**
+  - DS-2 seam + `LearnedSharingPolicy` → DS-3 calendar (reference) → DS-4… remaining domains →
+    DS-N (deferred) confirm-on-ambiguity. See the ADR for each.
+- **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): sharing
+  capability **ADR-0002** slices 2–7 (all opt-in domains retrofitted, rows 2026-08-01/02); identity
+  **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
+  #369 stays open, see `## Next`).
 
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
