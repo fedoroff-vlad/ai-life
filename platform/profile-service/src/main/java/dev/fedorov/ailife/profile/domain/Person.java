@@ -22,6 +22,10 @@ public class Person {
     @Column(name = "household_id", nullable = false)
     private UUID householdId;
 
+    /** Optional link to the operator this contact became (ADR-0001 item 6). Null for ordinary contacts. */
+    @Column(name = "user_id")
+    private UUID userId;
+
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
@@ -67,6 +71,7 @@ public class Person {
 
     public UUID getId() { return id; }
     public UUID getHouseholdId() { return householdId; }
+    public UUID getUserId() { return userId; }
     public String getDisplayName() { return displayName; }
     public String getRelationship() { return relationship; }
     public String getLocale() { return locale; }
@@ -81,4 +86,5 @@ public class Person {
     public void setInterests(JsonNode interests) { this.interests = interests; }
     public void setNotes(String notes) { this.notes = notes; }
     public void setLeadDaysOverride(JsonNode leadDaysOverride) { this.leadDaysOverride = leadDaysOverride; }
+    public void setUserId(UUID userId) { this.userId = userId; }
 }

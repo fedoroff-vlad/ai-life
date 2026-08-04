@@ -2,7 +2,8 @@
 
 **Status:** Accepted (2026-07-31 — Option B; implementation plan owner-approved). **Implementation epic
 COMPLETE 2026-08-01** — slices 1–5 shipped (invite onboarding + calendar per-item routing + per-member
-ICS feed / #295); action items 6 (`people.user_id`) and 7 (default-sharing inference) remain deferred.
+ICS feed / #295); item 6 (`people.user_id` link) landed 2026-08-04; item 7 (default-sharing inference)
+remains deferred (own tracking issue).
 **Date:** 2026-07-31
 **Deciders:** repo owner (holder/admin)
 **Drives:** #295 (per-person ICS feed content filtering) — the concrete use-case that surfaced this gap.
@@ -203,7 +204,7 @@ an event scope column) is proportionate and lands in independent slices.
    `GET /v1/users/{id}/households` and reads that union, so the ICS feed serves own + shared only
    (slice 5b, PR#386). Owner-less feeds keep serving their single household; a profile failure falls
    back to the feed's own household. mcp-caldav stays tenant-agnostic.
-6. [ ] **(deferred) `people.user_id` link** — when the "contact becomes a user" path is first needed.
+6. [x] **`people.user_id` link** — nullable FK ([015-people-user-id.yml](../../infra/liquibase/features/015-people-user-id.yml)) + `PUT /v1/people/{id}/user` (404 unknown person, 422 unknown user). A contact becomes an operator; its household + prior notes/events are left untouched, the now-user gains its own private space. *(2026-08-04)*
 7. [ ] **(deferred) default-sharing inference** — the learn/confirm policy (own tracking issue).
 
 ## Notes

@@ -18,6 +18,8 @@
     <include file="features/013-household-members.yml" relativeToChangelogFile="true"/>
     <!-- 014 invite-only onboarding (ADR-0001): core.household_invites deep-link token store. -->
     <include file="features/014-household-invites.yml" relativeToChangelogFile="true"/>
+    <!-- 015 optional person -> user link (ADR-0001 item 6): nullable core.people.user_id. -->
+    <include file="features/015-people-user-id.yml" relativeToChangelogFile="true"/>
     <include file="features/004-memory.yml" relativeToChangelogFile="true"/>
     <include file="features/005-memory-relations.yml" relativeToChangelogFile="true"/>
     <include file="features/007-bus.yml" relativeToChangelogFile="true"/>

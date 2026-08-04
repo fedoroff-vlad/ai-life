@@ -19,9 +19,10 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   Slice-by-slice detail → [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Action Items +
   [HISTORY.md](HISTORY.md) (rows 2026-08-01/02).
 - The **Identity & membership epic (ADR-0001)** is **COMPLETE** (2026-08-01) — slices 1–5 shipped
-  (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295).
-  Deferred by design: items 6 (`people.user_id`) and 7 (default-sharing learn/confirm inference — now the
-  `DefaultSharingPolicy` seam of ADR-0002). Detail → [HISTORY.md](HISTORY.md) (rows 2026-08-01).
+  (invite-only onboarding + per-item calendar tenant routing + per-member ICS feed, closing #295); the
+  optional **item 6 (`people.user_id` contact→operator link)** landed 2026-08-04. Only item 7
+  (default-sharing learn/confirm inference — now the `DefaultSharingPolicy` seam of ADR-0002) remains
+  deferred by design. Detail → [HISTORY.md](HISTORY.md) (rows 2026-08-01/04).
 - **skills-vs-flows track — DONE** (shared `SkillClassifier` #358 + Bucket 2 validate-only pilot #360, both
   closed 2026-07-30). Only open thread = the Mac-gated production cutover #369 (see `## Next`). Detail →
   [HISTORY.md](HISTORY.md) + [skills-vs-flows.md](skills-vs-flows.md).
