@@ -85,7 +85,13 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   document by `docType` — warranty/contract → shared (household asset), else private. The only "what is
   shared here" rule docs owns; the routing mechanism lives in `libs/sharing`.
 - `config/OutboundHttpConfig` also wires the sharing beans (`ProfileSharingClient` over the shared
-  `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy`).
+  `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy`). **Memory-driven default (item 8,
+  DS-4):** `DocsSharingPolicy` is wrapped in `libs/sharing`'s `LearnedSharingPolicy` and the resolver uses
+  its learning-enabled constructor (+ a `SharingLearningClient` bean over the shared
+  `memoryServiceWebClient`), so a document with no explicit household/personal signal defaults to the
+  owner's learned choice for the same signal profile once the tally is deep + decisive, else the static
+  doc-type rule; explicit choices are recorded. Both best-effort — routing mechanism unchanged. Mirrors
+  calendar / finance / tasks / nutrition.
 - `find/DocFinder` — the search flow: LLM query distil (`doc-finder` SKILL, temperature=0) → resolve the
   household set via `read/DocReads` (ADR-0002 slice 7b) → parallel trigram `searchDocuments` +
   memory-service `recall` (SB-5; a `{kind:note, refId}` hit → `MemoryClient.getNote` → its `frontmatter`

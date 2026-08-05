@@ -123,6 +123,10 @@ class E2EDocsIngestSearchFlowTest {
         // stays on the one household this E2E threads through.
         profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + UUID.randomUUID()
                 + "\",\"sharedHouseholdIds\":[\"" + householdId + "\"]}"));
+        // Item 8 (DS-4 docs): the resolver's learned-default lookup (GET /v1/sharing/policy) runs right after
+        // the household-routing read. 204 = this signal profile is unseen → delegate to the static DocsSharingPolicy
+        // (contract → shared), so the chain still routes to householdId. Learning-enabled but no history yet.
+        memoryService.enqueue(new MockResponse().setResponseCode(204));
         mcpDocs.enqueue(jsonResponse(json.writeValueAsString(archived)));
         memoryService.enqueue(jsonResponse(json.writeValueAsString(
                 seededNote(noteId, householdId, userId, docId, ocrText))));   // the SB-5 note seed
@@ -144,6 +148,9 @@ class E2EDocsIngestSearchFlowTest {
         RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
 
+        // The resolver's learned-default lookup fired first (Item 8, DS-4 docs), then the note seed.
+        RecordedRequest policyReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(policyReq.getPath()).startsWith("/v1/sharing/policy");
         // The OCR text was seeded as an authored NOTE, its frontmatter carrying the {kind, refId} back-pointer.
         RecordedRequest seedReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(seedReq.getPath()).isEqualTo("/v1/notes");

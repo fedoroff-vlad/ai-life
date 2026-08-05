@@ -11,12 +11,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   default-when-unspecified becomes data-driven), behind the existing seam. Design + slice sequence →
   [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Item 8. Owner-approved shape (2026-08-04):
   structured tally store on memory-service + a default `decideAsync` on the seam.
-  - **DS-4 nutrition** (nutritionist-agent `OutboundHttpConfig` wraps `NutritionSharingPolicy` in
-    `LearnedSharingPolicy` + learning-enabled `SharingResolver` + `SharingLearningClient` bean;
-    `BasketBreakdown` routing; pure wiring): **this PR.**
-  - **DS-4 remaining** — docs, one PR — just wraps its static policy the same way. **Next.**
-  - DS-N (deferred) confirm-on-ambiguity. See the ADR.
-  - DS-0 (design) + DS-1 (store) + DS-2 (engine) + DS-3 (calendar) + DS-4 finance + DS-4 tasks shipped → [HISTORY.md](HISTORY.md).
+  - **DS-4 docs** (docs-agent `OutboundHttpConfig` wraps `DocsSharingPolicy` in `LearnedSharingPolicy`
+    + learning-enabled `SharingResolver` + `SharingLearningClient` bean; `DocArchiver` routing; pure wiring):
+    **this PR — the last opt-in domain; DS-4 complete after merge.**
+  - DS-N (deferred) confirm-on-ambiguity — needs the conversation-state confirm loop; sequenced last. See the ADR.
+  - DS-0 (design) + DS-1 (store) + DS-2 (engine) + DS-3 (calendar) + DS-4 finance/tasks/nutrition shipped → [HISTORY.md](HISTORY.md).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): sharing
   capability **ADR-0002** slices 2–7 (all opt-in domains retrofitted, rows 2026-08-01/02); identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover

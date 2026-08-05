@@ -274,10 +274,10 @@ shared and the *policy* local — the correct seam.
      incl. `SharingResolverTest.learnedDefaultFlowsThroughTheResolverAndRoutes`) is unchanged. The 7
      `ActionControllerTest` cases stay green (no-history path = static default, memory pointed at a fast-fail
      address). Calendar stays the canonical example.
-   - **DS-4 — remaining opt-in domains**, one per PR — each just wraps its existing static policy the same
-     way calendar did (a `SharingLearningClient` bean over the shared `memoryServiceWebClient` + wrap the
-     policy in `LearnedSharingPolicy` + the resolver's learning-enabled constructor; point any context test
-     that invokes the resolver at a fast-fail memory URL):
+   - [x] **DS-4 — remaining opt-in domains** (finance, tasks, nutrition, docs — all wired), one per PR —
+     each just wraps its existing static policy the same way calendar did (a `SharingLearningClient` bean
+     over the shared `memoryServiceWebClient` + wrap the policy in `LearnedSharingPolicy` + the resolver's
+     learning-enabled constructor; point any context test that invokes the resolver at a fast-fail memory URL):
      - [x] **finance** — `finance-agent` `OutboundHttpConfig` wraps `FinanceSharingPolicy`; `AccountManager`'s
        account routing now defaults to the learned scope once the tally is deep + decisive, else the static
        joint-account rule. `AccountManagerTest` (3) + full finance-agent suite (72) green.
@@ -288,7 +288,10 @@ shared and the *policy* local — the correct seam.
        `BasketBreakdown`'s basket routing now defaults to the learned scope once the tally is deep +
        decisive, else the static grocery-basket rule. `BasketBreakdownTest` (fast-fail memory URL) + full
        nutritionist suite green.
-     - [ ] **docs** — wrap `DocsSharingPolicy` in `docs-agent`.
+     - [x] **docs** — `docs-agent` `OutboundHttpConfig` wraps `DocsSharingPolicy`; `DocArchiver`'s archive
+       routing now defaults to the learned scope once the tally is deep + decisive, else the static doc-type
+       rule. `DocArchiverTest` (fast-fail memory URL) + full docs-agent suite green. **All opt-in domains
+       wired — DS-4 complete.**
    - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals
      are ambiguous, ask the owner once (via conversation pending-action) and learn the reply. Needs the
      conversation-state confirm loop; sequenced last.
