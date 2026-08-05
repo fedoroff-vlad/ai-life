@@ -14,7 +14,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   - **DS-4 docs** (docs-agent `OutboundHttpConfig` wraps `DocsSharingPolicy` in `LearnedSharingPolicy`
     + learning-enabled `SharingResolver` + `SharingLearningClient` bean; `DocArchiver` routing; pure wiring):
     **this PR — the last opt-in domain; DS-4 complete after merge.**
-  - DS-N (deferred) confirm-on-ambiguity — needs the conversation-state confirm loop; sequenced last. See the ADR.
+  - DS-N confirm-on-ambiguity — **design recorded** (DS-N-0, [ADR §DS-N design](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)); **NOT blocked** (the conversation-state confirm loop it reuses is already built + in use). Deferred by choice — largest, cross-cutting item 8 slice. Next build step if picked up = DS-N-1 (engine + calendar reference), then reassess before retrofitting domains.
   - DS-0 (design) + DS-1 (store) + DS-2 (engine) + DS-3 (calendar) + DS-4 finance/tasks/nutrition shipped → [HISTORY.md](HISTORY.md).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): sharing
   capability **ADR-0002** slices 2–7 (all opt-in domains retrofitted, rows 2026-08-01/02); identity
