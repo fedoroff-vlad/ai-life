@@ -102,6 +102,11 @@ class BasketBreakdownTest {
         r.add("nutritionist-agent.mcp-food-data-url", () -> "http://localhost:" + mcpFoodData.getPort());
         r.add("nutritionist-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        // Item 8: the SharingResolver now consults/records the learned-decision tally on memory-service.
+        // This test exercises the no-history path (static policy), so point it at a fast-fail address — the
+        // learned lookup soft-fails to empty (→ static default) and any record is swallowed. Behaviour is
+        // exactly as before item 8.
+        r.add("nutritionist-agent.memory-service-url", () -> "http://127.0.0.1:1");
     }
 
     /** Every food-lookup → a matched product with macros + a Nutri-Score (the FD-c facts section). */
