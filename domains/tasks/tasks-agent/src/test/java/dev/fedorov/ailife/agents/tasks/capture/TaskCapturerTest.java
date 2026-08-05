@@ -60,6 +60,11 @@ class TaskCapturerTest {
         r.add("tasks-agent.mcp-tasks-url", () -> "http://localhost:" + mcpTasks.getPort());
         r.add("tasks-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        // Item 8: the SharingResolver now consults/records the learned-decision tally on memory-service.
+        // These cases exercise the no-history path (static policy), so point it at a fast-fail address — the
+        // learned lookup soft-fails to empty (→ static default) and any record is swallowed. Behaviour is
+        // exactly as before item 8.
+        r.add("tasks-agent.memory-service-url", () -> "http://127.0.0.1:1");
     }
 
     @Autowired TaskCapturer capturer;
