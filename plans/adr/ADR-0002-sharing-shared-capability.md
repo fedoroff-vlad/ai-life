@@ -292,9 +292,20 @@ shared and the *policy* local — the correct seam.
        routing now defaults to the learned scope once the tally is deep + decisive, else the static doc-type
        rule. `DocArchiverTest` (fast-fail memory URL) + full docs-agent suite green. **All opt-in domains
        wired — DS-4 complete.**
-   - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals
-     are ambiguous, ask the owner once (via conversation pending-action) and learn the reply. Needs the
-     conversation-state confirm loop; sequenced last.
+   - **DS-N — confirm-on-ambiguity** (**not** hardware/infra-blocked — the conversation-state confirm loop it
+     reuses is already built and in use by tasks-agent `inbox-clarify` / notes-agent `ambient-approve` /
+     memory-service AC-4; it is *sequenced last* only because it is the largest, cross-cutting item 8 slice, not
+     because a dependency is missing). Design + sub-slices in **[§DS-N design](#ds-n--confirm-on-ambiguity-design)**
+     below. When neither the tally nor the static rule is confident, defer the write, ask the owner once
+     ("«X» — личное или общее?") via a conversation pending-action, and finish + learn from the reply.
+     - [x] **DS-N-0 — design (this section):** record the resolver-contract change (a third `needsConfirm`
+       outcome), the abstain seam on `DefaultSharingPolicy`, the confirm→resume→learn shape, and the sub-slices.
+       *(docs)*
+     - [ ] **DS-N-1 — engine + reference domain (calendar):** add the abstain signal + `SharingResolution`
+       sealed outcome to `libs/sharing` (default = always confident, so the 5 static policies are unchanged),
+       and wire calendar end-to-end (defer → lock → `/resume` → finish + record). Confirm→resume→learn test.
+     - [ ] **DS-N-2…N — retrofit finance / tasks / nutrition / docs**, one per PR: each makes its policy abstain
+       on its genuinely-ambiguous case + defers/resumes in its write flow.
    - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this
      primitive — orthogonal to the learned default; note when a consumer needs it.
 
@@ -344,10 +355,81 @@ rewritten — exactly the seam the Decision section promised.
 when constructing its `SharingResolver` (a one-line change in the agent's `OutboundHttpConfig`) — mirroring
 how each domain already wires the resolver. calendar is retrofitted first as the reference.
 
-**Confirm-on-ambiguity (DS-N, deferred).** The full ADR-0001 item-7 vision ("confirm only on ambiguity")
-needs a user round-trip: no confident tally + a genuinely split signal ⇒ ask once via conversation
-pending-action, then record the reply (which immediately improves the tally). This depends on the
-conversation-state confirm loop and is sequenced last, after the learn/infer core proves out.
+**Confirm-on-ambiguity (DS-N, deferred — the learn/infer/*confirm* loop).** DS-4 closed the learn+infer
+half: on a non-explicit item the resolver returns the learned scope when the tally is deep + decisive, else
+the static rule — but it always returns *something silently*. DS-N adds the third branch: when the system
+genuinely can't tell, **ask once instead of guessing**, and record the reply (which immediately improves the
+tally). It is **not** blocked — see [§DS-N design](#ds-n--confirm-on-ambiguity-design).
+
+## DS-N — confirm-on-ambiguity (design)
+
+**Not blocked, just larger.** The confirm loop DS-N needs is the same `core.conversation_state` route-lock +
+pending-action already shipped and in production use (tasks-agent `inbox-clarify`, notes-agent
+`ambient-approve`, memory-service AC-4's out-of-band "заметил: … — записать?"). DS-N is sequenced last
+because it is a **cross-cutting** slice (it changes the resolver's contract and threads a defer→resume through
+every domain's write flow), not because a dependency is missing.
+
+**Invariant kept (again).** The *mechanism* stays deterministic. DS-N only decides *when to stop guessing and
+ask*; the household pick and the privacy boundary are unchanged. The reply the owner gives is an **explicit**
+choice — it flows through the exact record-on-explicit path DS-2 already built, so a confirmed answer both
+finishes the current write and sharpens the tally for next time.
+
+**1. What "ambiguous" means (the trigger).** The non-explicit path is ambiguous when **both** halves are
+unsure:
+- the **tally** is not confident — `LearnedSharingPolicy` would fall through (total < `MIN_SAMPLES` **or**
+  confidence < `MIN_CONFIDENCE`), **and**
+- the **static policy itself** is unsure for this context — e.g. a doc with an untyped/unknown `docType`, a
+  task with no household-context signal, an account with no joint/personal cue. A policy that *is* sure (a
+  clear "contract", an obvious joint account) never asks — it just routes, exactly as today.
+
+The second half needs the seam to express "I'm not sure" rather than always returning a scope (see §2).
+
+**2. Seam change — an abstain signal on `DefaultSharingPolicy`.** Today `decideAsync` returns
+`Mono<SharingScope>` — it must always answer. DS-N lets a policy *abstain*. Minimal, backward-compatible
+shape: `decideAsync` may complete **empty** (`Mono.empty()`) to mean "abstain — I can't confidently default
+this". The current default impl (`Mono.just(decide(ctx))`) still always answers, so the 5 static policies stay
+unchanged unless a domain **opts in** by overriding to abstain on its genuinely-ambiguous case.
+`LearnedSharingPolicy` abstains only when the tally is unconfident *and* the wrapped static policy abstains
+(so a confident static rule still wins on a cold tally — no regression from DS-4).
+
+**3. Resolver contract — a third outcome.** `resolveHousehold` returns `Mono<UUID>` (a resolved household),
+which has no way to say "ask first". DS-N introduces a sealed `SharingResolution`:
+`Resolved(UUID household)` | `NeedsConfirm(SharingContext ctx, UUID personalHousehold, UUID fallbackHousehold)`.
+A new `resolve(userId, explicitScope, ctx, fallback) → Mono<SharingResolution>` returns it; the existing
+`resolveHousehold(...) → Mono<UUID>` is kept for callers that don't want to ask (it collapses `NeedsConfirm`
+to the fallback/static pick), so **no existing caller is forced to change** — a domain opts into asking by
+switching to `resolve(...)`.
+
+**4. Confirm → resume → learn (per domain, reuses conversation-service).** On `NeedsConfirm` the write flow
+does **not** write:
+1. it stashes the in-progress item (draft) + the `SharingContext` + `personalHousehold` in a `pendingAction`,
+   `PUT`s a `core.conversation_state` lock (`routeLock=<agent>`), and replies "«X» — это личное или общее?"
+   (quick-reply / buttons, per [[feedback_ask_approval_via_popup]]);
+2. the orchestrator sees the lock and routes the owner's next message straight to the agent's `/resume`
+   (no re-classification — the primitive already does this);
+3. `/resume` parses личное/общее → an explicit `SharingScope`, finishes the deferred write under the picked
+   household, and — because the reply is an *explicit* choice — records it to the tally via the DS-2
+   record-on-explicit path. It then `DELETE`s the lock. A forgotten confirm ages out by TTL (30 min) and the
+   next message classifies normally.
+
+This is structurally identical to the `inbox-clarify` confirm the tasks-agent already runs.
+
+**5. Sub-slices (each own PR, ≤5 files where possible).**
+- **DS-N-0 (this design).** *(docs)*
+- **DS-N-1 — engine + calendar reference.** `SharingResolution` + the abstain seam in `libs/sharing`
+  (default always-confident → static policies untouched) + calendar wired end-to-end (`ActionController`
+  defers on `NeedsConfirm`, sets the lock, gains a `/resume`). Unit + one confirm→resume→learn test. Calendar
+  stays the canonical example.
+- **DS-N-2…N — retrofit finance / tasks / nutrition / docs**, one per PR: each overrides its policy to abstain
+  on its genuinely-ambiguous case and defers/resumes in its write flow (`AccountManager` / `TaskCapturer` /
+  `BasketBreakdown` / `DocArchiver`).
+
+**6. Cost / benefit — build DS-N-1, then reassess.** DS-N is the most expensive item 8 slice for the marginal
+benefit: DS-4's shipped behaviour (learn when confident, else a sane static default) is already reasonable.
+DS-N's specific value is avoiding a **silent wrong** on a *privacy boundary* — a private doc quietly shared
+with the spouse, or a joint expense hidden from them — by asking instead of guessing. Recommendation: build
+**DS-N-1** (engine + calendar reference) and let the confirm prove out on one domain, then decide from real use
+whether the full retrofit (DS-N-2…N) earns its keep before spending it. Do **not** batch all domains up front.
 
 ## Notes
 
