@@ -281,7 +281,9 @@ shared and the *policy* local — the correct seam.
      - [x] **finance** — `finance-agent` `OutboundHttpConfig` wraps `FinanceSharingPolicy`; `AccountManager`'s
        account routing now defaults to the learned scope once the tally is deep + decisive, else the static
        joint-account rule. `AccountManagerTest` (3) + full finance-agent suite (72) green.
-     - [ ] **tasks** — wrap `TasksSharingPolicy` in `tasks-agent`.
+     - [x] **tasks** — `tasks-agent` `OutboundHttpConfig` wraps `TasksSharingPolicy`; `TaskCapturer`'s
+       capture routing now defaults to the learned scope once the tally is deep + decisive, else the static
+       household-task rule. `TaskCapturerTest` (3, fast-fail memory URL) + full tasks-agent suite green.
      - [ ] **nutrition** — wrap `NutritionSharingPolicy` in `nutritionist-agent`.
      - [ ] **docs** — wrap `DocsSharingPolicy` in `docs-agent`.
    - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals

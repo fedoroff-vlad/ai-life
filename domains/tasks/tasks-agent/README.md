@@ -77,6 +77,12 @@ in dev/degraded environments.
 - `sharing/TasksSharingPolicy` — tasks' `DefaultSharingPolicy`: a household/shared-list task (chore,
   shared shopping, involves another member) defaults to the shared household, a personal todo to
   private. The only "what is shared here" logic tasks owns; the routing mechanism lives in `libs/sharing`.
+  **Memory-driven default (item 8, DS-4):** `config/OutboundHttpConfig` wraps `TasksSharingPolicy` in
+  `libs/sharing`'s `LearnedSharingPolicy` and builds the `SharingResolver` with its learning-enabled
+  constructor (+ a `SharingLearningClient` bean over the shared `memoryServiceWebClient`), so a captured
+  task with no explicit household/personal signal defaults to the owner's learned choice for the same
+  signal profile once the tally is deep + decisive, else the static household-task rule; explicit choices
+  are recorded. Both best-effort — routing mechanism unchanged. Mirrors calendar / finance.
 - `http/AddTaskClient` — `POST /internal/task` passthrough (capture under a resolved household).
 - `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
   (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
