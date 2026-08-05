@@ -4,7 +4,9 @@ import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
+import dev.fedorov.ailife.sharing.LearnedSharingPolicy;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingLearningClient;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -84,14 +86,32 @@ public class OutboundHttpConfig {
     }
 
     /**
+     * The learned-decision tally read/write (ADR-0002 item 8), over the shared {@code memoryServiceWebClient}
+     * (built by agent-runtime from {@code SharedClientProperties}). Best-effort — never delays or fails a
+     * basket breakdown; mirrors calendar-agent / finance-agent / tasks-agent wiring.
+     */
+    @Bean
+    public SharingLearningClient sharingLearningClient(
+            @Qualifier("memoryServiceWebClient") WebClient memoryServiceWebClient) {
+        return new SharingLearningClient(memoryServiceWebClient);
+    }
+
+    /**
      * The sharing capability's <b>write-path</b> engine (ADR-0002 slice 6), wired with nutrition's
      * {@code NutritionSharingPolicy} (injected as the {@link DefaultSharingPolicy}). {@code BasketBreakdown}
      * routes a saved grocery basket against the acting user's household-routing split to a concrete
-     * personal/shared {@code household_id}; mirrors finance-agent's wiring.
+     * personal/shared {@code household_id}. Item 8: the static policy is wrapped in a
+     * {@link LearnedSharingPolicy} and the resolver uses its learning-enabled constructor, so a basket with
+     * no explicit household/personal signal defaults to what the owner has repeatedly chosen for the same
+     * signal profile once the tally is deep + decisive, and to the static grocery-basket rule otherwise;
+     * explicit choices are recorded. Both best-effort; the routing mechanism is unchanged. Mirrors finance.
      */
     @Bean
     public SharingResolver sharingResolver(ProfileSharingClient profileSharingClient,
-                                           DefaultSharingPolicy defaultSharingPolicy) {
-        return new SharingResolver(profileSharingClient, defaultSharingPolicy);
+                                           DefaultSharingPolicy defaultSharingPolicy,
+                                           SharingLearningClient sharingLearningClient) {
+        DefaultSharingPolicy learned =
+                new LearnedSharingPolicy(defaultSharingPolicy, sharingLearningClient, "nutrition");
+        return new SharingResolver(profileSharingClient, learned, sharingLearningClient, "nutrition");
     }
 }

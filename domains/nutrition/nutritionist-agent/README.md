@@ -127,7 +127,13 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
   basket (`itemKind == "basket"`) or one involving another member → shared, else private. The only
   "what is shared here" rule nutrition owns; the routing mechanism lives in `libs/sharing`. `SharingResolver`
   + `ProfileSharingClient` beans are wired in `config/OutboundHttpConfig` (over the shared
-  `profileServiceWebClient`), mirroring finance-agent.
+  `profileServiceWebClient`), mirroring finance-agent. **Memory-driven default (item 8, DS-4):**
+  `config/OutboundHttpConfig` wraps `NutritionSharingPolicy` in `libs/sharing`'s `LearnedSharingPolicy` and
+  builds the `SharingResolver` with its learning-enabled constructor (+ a `SharingLearningClient` bean over
+  the shared `memoryServiceWebClient`), so a basket with no explicit household/personal signal defaults to
+  the owner's learned choice for the same signal profile once the tally is deep + decisive, else the static
+  grocery-basket rule; explicit choices are recorded. Both best-effort — routing mechanism unchanged.
+  Mirrors calendar / finance / tasks.
 - `web/InternalBasketEventController` — `POST /internal/basket-event`, the IA-b consume entry.
 - `http/CaptionClient` — `POST /internal/caption` on mcp-media-processing (vision).
 - `http/MealClient` — `POST /internal/meal` on mcp-nutrition (write meal).

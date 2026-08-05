@@ -284,7 +284,10 @@ shared and the *policy* local — the correct seam.
      - [x] **tasks** — `tasks-agent` `OutboundHttpConfig` wraps `TasksSharingPolicy`; `TaskCapturer`'s
        capture routing now defaults to the learned scope once the tally is deep + decisive, else the static
        household-task rule. `TaskCapturerTest` (3, fast-fail memory URL) + full tasks-agent suite green.
-     - [ ] **nutrition** — wrap `NutritionSharingPolicy` in `nutritionist-agent`.
+     - [x] **nutrition** — `nutritionist-agent` `OutboundHttpConfig` wraps `NutritionSharingPolicy`;
+       `BasketBreakdown`'s basket routing now defaults to the learned scope once the tally is deep +
+       decisive, else the static grocery-basket rule. `BasketBreakdownTest` (fast-fail memory URL) + full
+       nutritionist suite green.
      - [ ] **docs** — wrap `DocsSharingPolicy` in `docs-agent`.
    - [ ] **DS-N (deferred) — confirm-on-ambiguity:** when the store has no confident answer and the signals
      are ambiguous, ask the owner once (via conversation pending-action) and learn the reply. Needs the
