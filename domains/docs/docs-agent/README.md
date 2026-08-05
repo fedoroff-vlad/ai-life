@@ -5,7 +5,7 @@ Personal **document-archive** specialist (port **8117**). Ingests a document pho
 `docs`; owns `mcp-docs`; binds the shared `mcp-media-processing` (OCR). Plan:
 [plans/docs.md](../../../plans/docs.md).
 
-## Status (ADR-0002 slice 7 — fully retrofitted)
+## Status (ADR-0002 slice 7 + item 8 DS-4 — fully retrofitted, learned default wired)
 
 Scaffold + the **ingest** and **search** flows, with **semantic recall** layered onto both. As of the
 second-brain **SB-5** (epic #257) the semantic seed is an authored **note** in the shared substrate, not

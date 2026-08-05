@@ -5,19 +5,19 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Memory-driven default-sharing (ADR-0002 item 8 / ADR-0001 item 7) — IN FLIGHT.** Graduate the
-  per-domain `DefaultSharingPolicy` default from a static rule to one that **learns the owner's past
-  choices** (deterministic majority over a structured tally — the mechanism stays deterministic; only the
-  default-when-unspecified becomes data-driven), behind the existing seam. Design + slice sequence →
-  [adr/ADR-0002](adr/ADR-0002-sharing-shared-capability.md) §Item 8. Owner-approved shape (2026-08-04):
-  structured tally store on memory-service + a default `decideAsync` on the seam.
-  - **DS-4 docs** (docs-agent `OutboundHttpConfig` wraps `DocsSharingPolicy` in `LearnedSharingPolicy`
-    + learning-enabled `SharingResolver` + `SharingLearningClient` bean; `DocArchiver` routing; pure wiring):
-    **this PR — the last opt-in domain; DS-4 complete after merge.**
-  - DS-N confirm-on-ambiguity — **design recorded** (DS-N-0, [ADR §DS-N design](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)); **NOT blocked** (the conversation-state confirm loop it reuses is already built + in use). Deferred by choice — largest, cross-cutting item 8 slice. Next build step if picked up = DS-N-1 (engine + calendar reference), then reassess before retrofitting domains.
-  - DS-0 (design) + DS-1 (store) + DS-2 (engine) + DS-3 (calendar) + DS-4 finance/tasks/nutrition shipped → [HISTORY.md](HISTORY.md).
-- **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): sharing
-  capability **ADR-0002** slices 2–7 (all opt-in domains retrofitted, rows 2026-08-01/02); identity
+- **No in-flight slice.** The sharing-capability epic closed (2026-08-05); pick the next item from `## Next`
+  (owner priority) — the near-term backlog is otherwise Mac/model-gated.
+- **Sharing capability (ADR-0002) — COMPLETE except the deferred DS-N.** Slices 2–7 retrofitted all opt-in
+  domains (calendar reference + finance + tasks + nutrition + docs, write & read), and **item 8
+  (memory-driven default, DS-0…DS-4)** graduated the per-domain default from a static rule to a learned one
+  (`LearnedSharingPolicy` over a `memory.sharing_decision` tally, deterministic majority — never LLM) behind
+  the same seam; every opt-in agent is wired. Detail → [HISTORY.md](HISTORY.md) + [ADR-0002](adr/ADR-0002-sharing-shared-capability.md).
+  - **Only open thread: DS-N (confirm-on-ambiguity)** — **design recorded** (DS-N-0,
+    [ADR §DS-N design](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)); **NOT
+    blocked** (the conversation-state confirm loop it reuses is already built + in use), deferred by choice as
+    the largest, cross-cutting slice. Next build step if picked up = DS-N-1 (engine + calendar reference), then
+    reassess before retrofitting domains.
+- **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
   #369 stays open, see `## Next`).
 

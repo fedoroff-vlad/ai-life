@@ -1,14 +1,18 @@
 # libs/sharing
 
-**Status (2026-08-04):** engine shipped (ADR-0002 slice 2); **all opt-in domains retrofitted** — calendar
+**Status (2026-08-05):** engine shipped (ADR-0002 slice 2); **all opt-in domains retrofitted** — calendar
 (reference: write 3a `calendar-agent` + read 3b `calendar-web`), finance (4a/4b), tasks (5a/5b), nutrition
 (6a/6b), docs (7a/7b) — each splitting a write (route a create to personal vs shared household via
 `SharingResolver` + a `sharing/<Domain>SharingPolicy`) and a read (union own ∪ shared on an explicit family
 cut via `ProfileSharingClient.households`, default own). Per-domain detail: [ADR-0002](../../plans/adr/ADR-0002-sharing-shared-capability.md)
-§Action Items + [HISTORY](../../plans/HISTORY.md). **Item 8 — memory-driven default (DS-2 shipped, engine
-only, no domain wired):** the per-domain `DefaultSharingPolicy` default can now be *learned* from the owner's
-past explicit choices (`LearnedSharingPolicy` + `SharingLearningClient` over DS-1's `memory.sharing_decision`
-tally), behind the same seam; still deterministic (majority vote, never LLM). DS-3+ wire each domain.
+§Action Items + [HISTORY](../../plans/HISTORY.md). **Item 8 — memory-driven default: DS-0…DS-4 COMPLETE
+(2026-08-05).** The per-domain `DefaultSharingPolicy` default is now *learned* from the owner's past explicit
+choices (`LearnedSharingPolicy` + `SharingLearningClient` over DS-1's `memory.sharing_decision` tally), behind
+the same seam; still deterministic (majority vote, never LLM). **Every opt-in agent** (calendar DS-3, finance/
+tasks/nutrition/docs DS-4) now wraps its static policy in `LearnedSharingPolicy` + builds `SharingResolver`
+with the learning-enabled constructor (a `SharingLearningClient` bean over its shared `memoryServiceWebClient`)
+— one-line-per-domain wiring in each `OutboundHttpConfig`. Only **DS-N** (confirm-on-ambiguity) remains,
+designed & deferred → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -35,7 +39,16 @@ personal vs shared household through it. **tasks** consumes both paths: the writ
 `tasks-agent`'s `OutboundHttpConfig` declares the `ProfileSharingClient` + `SharingResolver` beans (the
 resolver wired with `sharing/TasksSharingPolicy`), and the `TaskCapturer` flow routes a chat-captured task to
 a personal vs shared household through it; the read path (slice 5b) — its `read/TaskReads` helper reads the
-union for the shared cut in `next-action-suggester` over `ProfileSharingClient.households`.
+union for the shared cut in `next-action-suggester` over `ProfileSharingClient.households`. **nutrition**
+consumes both paths: write (slice 6a) — `nutritionist-agent`'s `OutboundHttpConfig` wires `SharingResolver`
+with `sharing/NutritionSharingPolicy`, and `BasketBreakdown` routes a saved grocery basket through it; read
+(slice 6b) — its `read/MealReads` helper unions across households for a family-scoped ration. **docs** consumes
+both paths: write (slice 7a) — `docs-agent`'s `OutboundHttpConfig` wires `SharingResolver` with
+`sharing/DocsSharingPolicy`, and `DocArchiver` routes an archived document through it; read (slice 7b) — its
+`read/DocReads` helper unions the search across households on a family cue. **Item 8:** every one of these
+agents additionally wraps its static policy in `LearnedSharingPolicy` and builds `SharingResolver` with the
+learning-enabled constructor (a `SharingLearningClient` bean over its `memoryServiceWebClient`), so the
+unspecified default is the owner's learned choice once the tally is deep + decisive.
 
 ## Depends on
 `libs/contracts` (`SharingScope` in `contracts/common`, `HouseholdRoutingDto` in `contracts/profile`) +
