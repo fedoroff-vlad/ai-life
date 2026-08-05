@@ -7,7 +7,7 @@ shopping lists. Owns the `mcp-nutrition` domain-MCP; binds the shared `mcp-media
 (precise per-100g КБЖУ for the basket breakdown). Routes via the orchestrator (registered as
 `nutritionist`). See [plans/nutrition.md](../../../plans/nutrition.md).
 
-## Status (through ADR-0002 slice 6b — nutrition fully retrofitted for sharing)
+## Status (through ADR-0002 slice 6b + item 8 DS-4 — nutrition fully retrofitted for sharing, learned default wired)
 
 Manifest endpoint + chat fallback (NU-b) + the **food-log flow** (NU-c) + **diet profiles** (NU-d) +
 the **nutrition-analysis board** (NU-e) + the **basket breakdown** (NU-f, direct) + the **ration +

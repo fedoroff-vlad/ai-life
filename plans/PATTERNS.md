@@ -194,7 +194,10 @@ Canonical example: **calendar** (`calendar-agent` write path + `calendar-web` re
 implementation of [ADR-0002](adr/ADR-0002-sharing-shared-capability.md). The mechanism lives once in
 `libs/sharing`; a domain adds only its **policy** + wiring. **The routing mechanism is deterministic — a
 privacy boundary, never LLM-decided.** Only the *default-when-unspecified* is judgement, and it plugs into
-the `DefaultSharingPolicy` seam (a static rule today; a memory-driven one later — same interface).
+the `DefaultSharingPolicy` seam — a static per-domain rule, wrapped since item 8 (DS-0…DS-4, shipped) in a
+`LearnedSharingPolicy` that prefers the owner's learned choice (a deterministic majority over a
+`memory.sharing_decision` tally) when the tally is deep + decisive, else the static rule — **same interface**,
+still deterministic.
 
 Prereq: the domain's rows carry `household_id` (they already do — it is the visibility boundary), and the
 create-input can carry a `SharingScope` (`contracts/common`).
@@ -207,6 +210,12 @@ create-input can carry a `SharingScope` (`contracts/common`).
      `resolveHousehold(userId, input.sharing(), ctx, envelopeHousehold)` and write the returned
      `household_id`. Do **not** re-implement the personal/family pick or the fallbacks — they are in
      `SharingResolver`.
+   - **Learned default (item 8, standard wiring):** in the agent's `OutboundHttpConfig`, add a
+     `SharingLearningClient` bean over the shared `memoryServiceWebClient`, wrap the static policy in
+     `new LearnedSharingPolicy(policy, learning, "<domain>")`, and build the resolver with its learning-enabled
+     4-arg constructor. Point any context test that boots the resolver at a fast-fail memory URL
+     (`<agent>.memory-service-url=http://127.0.0.1:1`) so the no-history path falls back to the static rule.
+     finance/tasks/nutrition/docs are the examples (calendar is the reference).
    - Add a `SharingScope sharing` field (+ a `withHouseholdId` copy) to the domain's create-input contract.
 2. **Read path (the union).** Wherever the domain reads "own + shared":
    - resolve the member's household set via `libs/sharing` `ProfileSharingClient.households(userId)`
