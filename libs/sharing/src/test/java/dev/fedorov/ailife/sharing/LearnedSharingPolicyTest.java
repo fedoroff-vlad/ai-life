@@ -7,6 +7,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,5 +84,46 @@ class LearnedSharingPolicyTest {
     void syncDecideAlwaysReturnsTheStaticRule() {
         assertThat(policy.decide(SharingContext.ofCategories(List.of("birthday")))).isEqualTo(SharingScope.SHARED);
         assertThat(policy.decide(meeting)).isEqualTo(SharingScope.PRIVATE);
+    }
+
+    // --- DS-N: an abstaining delegate propagates through the learned wrapper ----------------------
+
+    /** A DS-N delegate that abstains (empty {@code maybeDecide}) — its sync {@code decide} stays concrete. */
+    private final DefaultSharingPolicy abstains = new DefaultSharingPolicy() {
+        @Override
+        public SharingScope decide(SharingContext ctx) {
+            return SharingScope.PRIVATE;
+        }
+
+        @Override
+        public Optional<SharingScope> maybeDecide(SharingContext ctx) {
+            return Optional.empty();
+        }
+    };
+
+    private final LearnedSharingPolicy abstainingPolicy = new LearnedSharingPolicy(abstains, learning, "calendar");
+
+    @Test
+    void abstainingDelegateWithUnconfidentTallyAbstains() {
+        when(learning.policy(eq(household), eq("calendar"), eq(meeting.signalKey())))
+                .thenReturn(Mono.empty()); // unseen tally → fall to the delegate, which abstains
+        StepVerifier.create(abstainingPolicy.decideAsync(meeting, household))
+                .verifyComplete(); // empty completion = abstain → the resolver will ask
+    }
+
+    @Test
+    void confidentTallyOverridesAnAbstainingDelegate() {
+        // Even when the static rule abstains, a deep + decisive tally answers — no need to ask.
+        when(learning.policy(eq(household), eq("calendar"), eq(meeting.signalKey())))
+                .thenReturn(Mono.just(new LearnedSharingPolicyResponse(SharingScope.SHARED, 0.9, 5)));
+        StepVerifier.create(abstainingPolicy.decideAsync(meeting, household))
+                .expectNext(SharingScope.SHARED)
+                .verifyComplete();
+    }
+
+    @Test
+    void abstainingDelegateWithNoHouseholdAbstains() {
+        StepVerifier.create(abstainingPolicy.decideAsync(meeting, null))
+                .verifyComplete(); // no tally to consult → the delegate's abstain propagates
     }
 }

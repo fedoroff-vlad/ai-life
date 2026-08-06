@@ -5,18 +5,19 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **No in-flight slice.** The sharing-capability epic closed (2026-08-05); pick the next item from `## Next`
-  (owner priority) — the near-term backlog is otherwise Mac/model-gated.
-- **Sharing capability (ADR-0002) — COMPLETE except the deferred DS-N.** Slices 2–7 retrofitted all opt-in
+- **Sharing capability (ADR-0002) — item 8 DS-N in progress; everything else COMPLETE.** Slices 2–7 retrofitted all opt-in
   domains (calendar reference + finance + tasks + nutrition + docs, write & read), and **item 8
   (memory-driven default, DS-0…DS-4)** graduated the per-domain default from a static rule to a learned one
   (`LearnedSharingPolicy` over a `memory.sharing_decision` tally, deterministic majority — never LLM) behind
   the same seam; every opt-in agent is wired. Detail → [HISTORY.md](HISTORY.md) + [ADR-0002](adr/ADR-0002-sharing-shared-capability.md).
-  - **Only open thread: DS-N (confirm-on-ambiguity)** — **design recorded** (DS-N-0,
-    [ADR §DS-N design](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)); **NOT
-    blocked** (the conversation-state confirm loop it reuses is already built + in use), deferred by choice as
-    the largest, cross-cutting slice. Next build step if picked up = DS-N-1 (engine + calendar reference), then
-    reassess before retrofitting domains.
+  - **DS-N (confirm-on-ambiguity) — IN PROGRESS.** Design [ADR §DS-N](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)
+    (not blocked — the conversation-state confirm loop it reuses is already built + in use).
+    - **DS-N-1a engine ✅** (this session): abstain seam (`DefaultSharingPolicy.maybeDecide`) + `SharingResolution`
+      (`Resolved`/`NeedsConfirm`) + `SharingResolver.resolve(...)`/`confirm(...)` in `libs/sharing`; no domain
+      wired (`resolveHousehold` collapses `NeedsConfirm` to fallback → existing callers unchanged). 36 tests.
+    - **DS-N-1b calendar reference — NEXT:** `ActionController` `resolve`→defer→conversation-state lock→`/resume`
+      →`confirm` (finish + learn); `CalendarSharingPolicy.maybeDecide` abstains on its ambiguous case.
+    - DS-N-2…N (retrofit finance/tasks/nutrition/docs) after 1b proves out — reassess before batching.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
   #369 stays open, see `## Next`).
