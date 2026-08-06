@@ -301,9 +301,18 @@ shared and the *policy* local — the correct seam.
      - [x] **DS-N-0 — design (this section):** record the resolver-contract change (a third `needsConfirm`
        outcome), the abstain seam on `DefaultSharingPolicy`, the confirm→resume→learn shape, and the sub-slices.
        *(docs)*
-     - [ ] **DS-N-1 — engine + reference domain (calendar):** add the abstain signal + `SharingResolution`
-       sealed outcome to `libs/sharing` (default = always confident, so the 5 static policies are unchanged),
-       and wire calendar end-to-end (defer → lock → `/resume` → finish + record). Confirm→resume→learn test.
+     - [x] **DS-N-1a — engine (`libs/sharing`, no domain wired):** the abstain seam (`DefaultSharingPolicy.
+       maybeDecide` may be empty → `decideAsync` completes empty; the default stays always-confident, so the 5
+       static policies are unchanged) + a `SharingResolution` sealed outcome (`Resolved` / `NeedsConfirm`) +
+       `SharingResolver.resolve(...)` (ask-aware) / `confirm(...)` (finish + record the reply).
+       `resolveHousehold(...)` now delegates to `resolve` and collapses `NeedsConfirm` to the fallback, so every
+       existing caller is unchanged (full reactor compiles; calendar `ActionControllerTest` + finance
+       `AccountManagerTest` green). `LearnedSharingPolicy` propagates the wrapped policy's abstain on a
+       tally-miss. 36 `libs/sharing` tests (9 new: NeedsConfirm/confirm/collapse + abstain propagation).
+     - [ ] **DS-N-1b — reference domain (calendar):** wire calendar end-to-end — `ActionController` calls
+       `resolve`, defers on `NeedsConfirm` (stash draft + routing in a `pendingAction`, `PUT` the
+       conversation-state lock, ask "личное или общее?"), and a `/resume` calls `confirm` to finish + learn.
+       Confirm→resume→learn test. `CalendarSharingPolicy` overrides `maybeDecide` to abstain on its ambiguous case.
      - [ ] **DS-N-2…N — retrofit finance / tasks / nutrition / docs**, one per PR: each makes its policy abstain
        on its genuinely-ambiguous case + defers/resumes in its write flow.
    - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this

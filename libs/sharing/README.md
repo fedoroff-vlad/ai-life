@@ -11,8 +11,13 @@ choices (`LearnedSharingPolicy` + `SharingLearningClient` over DS-1's `memory.sh
 the same seam; still deterministic (majority vote, never LLM). **Every opt-in agent** (calendar DS-3, finance/
 tasks/nutrition/docs DS-4) now wraps its static policy in `LearnedSharingPolicy` + builds `SharingResolver`
 with the learning-enabled constructor (a `SharingLearningClient` bean over its shared `memoryServiceWebClient`)
-— one-line-per-domain wiring in each `OutboundHttpConfig`. Only **DS-N** (confirm-on-ambiguity) remains,
-designed & deferred → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
+— one-line-per-domain wiring in each `OutboundHttpConfig`. **DS-N (confirm-on-ambiguity) — DS-N-1a engine
+shipped:** the abstain seam (`DefaultSharingPolicy.maybeDecide` may be empty) + a `SharingResolution` outcome
+(`Resolved` / `NeedsConfirm`) + `SharingResolver.resolve(...)` / `confirm(...)`, so a caller can defer + ask
+when the default is genuinely ambiguous (tally unconfident **and** policy abstains). No domain asks yet —
+`resolveHousehold` collapses `NeedsConfirm` to the fallback, so existing callers are unchanged. Next:
+**DS-N-1b** wires calendar end-to-end (defer → conversation-state lock → `/resume` → finish + learn).
+Design → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -61,11 +66,20 @@ unspecified default is the owner's learned choice once the tally is deep + decis
   `fallbackHousehold`; SHARED with no family → personal). The single home of the rule set formerly inline
   in calendar-agent. Item 8: a second constructor takes a `SharingLearningClient` + domain — then it records
   the owner's **explicit** choice (keyed by their personal household) as the learn signal, best-effort; the
-  two-arg constructor leaves learning off (unchanged behaviour).
+  two-arg constructor leaves learning off (unchanged behaviour). **DS-N:** `resolve(...) →
+  Mono<SharingResolution>` is the ask-aware form (`Resolved` normally, `NeedsConfirm` when the default is
+  ambiguous); `confirm(needsConfirm, chosen) → UUID` finishes a deferred write (records the reply + picks the
+  household). `resolveHousehold(...)` now delegates to `resolve` and collapses `NeedsConfirm` to the fallback,
+  so callers that never ask are unchanged.
+- `SharingResolution` — **DS-N** sealed outcome of `resolve`: `Resolved(household)` or
+  `NeedsConfirm(routing, ctx, fallbackHousehold)` (carries what a resume needs to finish + learn).
 - `DefaultSharingPolicy` — the **per-domain seam** (`@FunctionalInterface`): `SharingScope decide(ctx)`.
   Implemented once per domain in that domain's `sharing/` package. `privateByDefault()` is the safe stub.
   Item 8: also a `default Mono<SharingScope> decideAsync(ctx, learningHousehold)` (wraps `decide`) — the async
   form the resolver awaits so a learned policy can do an I/O read; static policies inherit the default unchanged.
+  **DS-N:** a `default Optional<SharingScope> maybeDecide(ctx)` (the abstain seam) — `decideAsync` wraps it, so
+  a domain opts into asking by overriding `maybeDecide` to return empty on its ambiguous case; `decide` still
+  returns a concrete safe fallback for sync callers.
 - `SharingContext` — the neutral signals a policy reads: `categories` (never null), `involvesHouseholdMember`,
   `itemKind`. `ofCategories(...)` + `hasCategory(tag)` helpers. `signalKey()` is the stable, low-cardinality
   digest (sorted categories + `itemKind` + `involvesHouseholdMember`) the learned-decision tally is grouped by.

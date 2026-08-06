@@ -8,6 +8,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -160,6 +161,89 @@ class SharingResolverTest {
         StepVerifier.create(learningResolver(learned).resolveHousehold(user, null, ctx, envelope))
                 .expectNext(family)
                 .verifyComplete();
+    }
+
+    // --- DS-N confirm-on-ambiguity (ADR-0002 item 8) ---------------------------------------------
+
+    /** A DS-N policy: confident SHARED for "birthday", but abstains on the "ambiguous" signal. */
+    private static final DefaultSharingPolicy abstainsOnAmbiguous = new DefaultSharingPolicy() {
+        @Override
+        public SharingScope decide(SharingContext ctx) {
+            return ctx.hasCategory("birthday") ? SharingScope.SHARED : SharingScope.PRIVATE;
+        }
+
+        @Override
+        public Optional<SharingScope> maybeDecide(SharingContext ctx) {
+            return ctx.hasCategory("ambiguous") ? Optional.empty() : Optional.of(decide(ctx));
+        }
+    };
+
+    @Test
+    void ambiguousDefaultResolvesToNeedsConfirm() {
+        routingReturns(List.of(family));
+        SharingContext ctx = SharingContext.ofCategories(List.of("ambiguous"));
+        StepVerifier.create(new SharingResolver(profile, abstainsOnAmbiguous).resolve(user, null, ctx, envelope))
+                .assertNext(res -> {
+                    assertThat(res).isInstanceOf(SharingResolution.NeedsConfirm.class);
+                    var nc = (SharingResolution.NeedsConfirm) res;
+                    assertThat(nc.routing().personalHouseholdId()).isEqualTo(personal);
+                    assertThat(nc.ctx()).isEqualTo(ctx);
+                    assertThat(nc.fallbackHousehold()).isEqualTo(envelope);
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void confidentDefaultResolvesWithoutAsking() {
+        routingReturns(List.of(family));
+        StepVerifier.create(new SharingResolver(profile, abstainsOnAmbiguous)
+                        .resolve(user, null, SharingContext.ofCategories(List.of("meeting")), envelope))
+                .assertNext(res -> assertThat(res).isEqualTo(new SharingResolution.Resolved(personal)))
+                .verifyComplete();
+    }
+
+    @Test
+    void explicitChoiceResolvesEvenWhenPolicyWouldAbstain() {
+        routingReturns(List.of(family));
+        StepVerifier.create(new SharingResolver(profile, abstainsOnAmbiguous)
+                        .resolve(user, SharingScope.SHARED, SharingContext.ofCategories(List.of("ambiguous")), envelope))
+                .assertNext(res -> assertThat(res).isEqualTo(new SharingResolution.Resolved(family)))
+                .verifyComplete();
+    }
+
+    @Test
+    void unresolvableUserResolvesToFallback_neverAsks() {
+        when(profile.householdRouting(user)).thenReturn(Mono.empty()); // profile-404 → no member to key a tally by
+        StepVerifier.create(new SharingResolver(profile, abstainsOnAmbiguous)
+                        .resolve(user, null, SharingContext.ofCategories(List.of("ambiguous")), envelope))
+                .assertNext(res -> assertThat(res).isEqualTo(new SharingResolution.Resolved(envelope)))
+                .verifyComplete();
+    }
+
+    @Test
+    void resolveHouseholdCollapsesNeedsConfirmToFallback() {
+        routingReturns(List.of(family));
+        StepVerifier.create(new SharingResolver(profile, abstainsOnAmbiguous)
+                        .resolveHousehold(user, null, SharingContext.ofCategories(List.of("ambiguous")), envelope))
+                .expectNext(envelope)
+                .verifyComplete();
+    }
+
+    @Test
+    void confirmRecordsTheReplyAndPicksTheHousehold() {
+        when(learning.record(any(), any(), any(), any())).thenReturn(Mono.empty());
+        SharingContext ctx = SharingContext.ofCategories(List.of("ambiguous"));
+        var needsConfirm = new SharingResolution.NeedsConfirm(
+                new HouseholdRoutingDto(personal, List.of(family)), ctx, envelope);
+        SharingResolver resolver = learningResolver(abstainsOnAmbiguous);
+
+        // The owner answers "общее" → the household is the family one, and the reply is learned.
+        assertThat(resolver.confirm(needsConfirm, SharingScope.SHARED)).isEqualTo(family);
+        verify(learning).record(personal, "calendar", ctx.signalKey(), SharingScope.SHARED);
+
+        // "личное" → personal.
+        assertThat(resolver.confirm(needsConfirm, SharingScope.PRIVATE)).isEqualTo(personal);
+        verify(learning).record(personal, "calendar", ctx.signalKey(), SharingScope.PRIVATE);
     }
 
     @Test

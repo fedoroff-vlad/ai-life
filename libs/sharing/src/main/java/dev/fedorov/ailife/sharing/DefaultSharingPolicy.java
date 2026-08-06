@@ -3,6 +3,7 @@ package dev.fedorov.ailife.sharing;
 import dev.fedorov.ailife.contracts.common.SharingScope;
 import reactor.core.publisher.Mono;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -33,15 +34,29 @@ public interface DefaultSharingPolicy {
     SharingScope decide(SharingContext ctx);
 
     /**
-     * The async form the resolver awaits (ADR-0002 item 8). Defaults to the sync {@link #decide} so a static
-     * policy needs no change; {@link LearnedSharingPolicy} overrides it to read the learned default.
+     * The <b>abstain-aware</b> default (ADR-0002 item 8, DS-N): the scope for an unspecified item, or
+     * {@link Optional#empty()} when the policy genuinely can't tell and would rather the caller <i>ask</i>
+     * than default silently. The default implementation is always confident (wraps {@link #decide}), so every
+     * existing static policy is unchanged; a DS-N domain overrides this to abstain on its ambiguous case
+     * (e.g. docs: an untyped document; tasks: no household-context signal). {@link #decide} must still return
+     * a concrete safe fallback for sync callers that never ask.
+     */
+    default Optional<SharingScope> maybeDecide(SharingContext ctx) {
+        return Optional.of(decide(ctx));
+    }
+
+    /**
+     * The async form the resolver awaits (ADR-0002 item 8). Empty completion means <b>abstain</b> (DS-N) —
+     * the resolver turns that into a {@link SharingResolution.NeedsConfirm}. Defaults to
+     * {@link #maybeDecide}, so a static policy needs no change; {@link LearnedSharingPolicy} overrides it to
+     * prefer the learned default and fall back to the wrapped policy's async form (which may itself abstain).
      *
      * @param ctx               the neutral item signals
      * @param learningHousehold the acting member's personal household (the tally scope), or {@code null} on
      *                          the pre-membership path — ignored by static policies
      */
     default Mono<SharingScope> decideAsync(SharingContext ctx, UUID learningHousehold) {
-        return Mono.just(decide(ctx));
+        return Mono.justOrEmpty(maybeDecide(ctx));
     }
 
     /** A policy that defaults everything to private — the safe fallback for a domain with no rule yet. */

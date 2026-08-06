@@ -47,18 +47,20 @@ public class LearnedSharingPolicy implements DefaultSharingPolicy {
     }
 
     /**
-     * The learned default when the tally is deep + decisive enough; the static rule otherwise. With no
-     * {@code learningHousehold} (pre-membership path) there is nothing to key a tally by → the static rule.
+     * The learned default when the tally is deep + decisive enough; otherwise the wrapped policy's async
+     * decision — which is the static rule for an ordinary policy, but <b>may itself abstain</b> (DS-N) so the
+     * confirm path can trigger. With no {@code learningHousehold} (pre-membership path) there is nothing to
+     * key a tally by → straight to the wrapped policy.
      */
     @Override
     public Mono<SharingScope> decideAsync(SharingContext ctx, UUID learningHousehold) {
         if (learningHousehold == null) {
-            return Mono.just(delegate.decide(ctx));
+            return delegate.decideAsync(ctx, learningHousehold);
         }
         return learning.policy(learningHousehold, domain, ctx.signalKey())
                 .filter(LearnedSharingPolicy::trustworthy)
                 .map(LearnedSharingPolicyResponse::scope)
-                .defaultIfEmpty(delegate.decide(ctx));
+                .switchIfEmpty(Mono.defer(() -> delegate.decideAsync(ctx, learningHousehold)));
     }
 
     private static boolean trustworthy(LearnedSharingPolicyResponse learned) {

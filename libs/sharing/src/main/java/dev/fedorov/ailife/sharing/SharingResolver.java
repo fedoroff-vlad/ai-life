@@ -35,6 +35,14 @@ import java.util.UUID;
  * compared, not split across the households they land in), best-effort. For a non-explicit item it awaits the
  * policy's async form, letting a {@link LearnedSharingPolicy} read that tally. Without learning wired (the
  * two-arg constructor) the resolver behaves exactly as before.
+ *
+ * <p><b>Confirm-on-ambiguity (ADR-0002 item 8, DS-N).</b> {@link #resolveHousehold} always yields a
+ * household. {@link #resolve} instead yields a {@link SharingResolution}: normally {@code Resolved}, but a
+ * {@code NeedsConfirm} when the default is genuinely ambiguous — the learned tally is not confident <i>and</i>
+ * the domain policy abstains ({@link DefaultSharingPolicy#maybeDecide} / an empty {@code decideAsync}). A
+ * caller that wants to ask uses {@code resolve}, defers the write on {@code NeedsConfirm}, and calls
+ * {@link #confirm} with the owner's reply to finish + learn; a caller that never asks stays on
+ * {@code resolveHousehold}, which collapses {@code NeedsConfirm} to the fallback.
  */
 public class SharingResolver {
 
@@ -75,27 +83,50 @@ public class SharingResolver {
      */
     public Mono<UUID> resolveHousehold(UUID userId, SharingScope explicitScope, SharingContext ctx,
                                        UUID fallbackHousehold) {
-        if (userId == null) {
-            return Mono.justOrEmpty(fallbackHousehold);
-        }
-        return profile.householdRouting(userId)
-                .flatMap(routing -> resolveScope(routing, explicitScope, ctx)
-                        .flatMap(scope -> Mono.justOrEmpty(pickHousehold(routing, scope))))
-                .switchIfEmpty(Mono.justOrEmpty(fallbackHousehold));
+        return resolve(userId, explicitScope, ctx, fallbackHousehold)
+                .mapNotNull(res -> switch (res) {
+                    case SharingResolution.Resolved r -> r.household();
+                    // Callers that don't ask degrade an ambiguous default to the envelope household — the same
+                    // fallback the engine already uses when a user can't be resolved. Unreachable unless the
+                    // domain's policy abstains (DS-N); an asking caller uses resolve(...) instead.
+                    case SharingResolution.NeedsConfirm nc -> nc.fallbackHousehold();
+                });
     }
 
     /**
-     * The scope to route by: an explicit choice wins (and is recorded as the learn signal); otherwise the
-     * policy's async default, which a {@link LearnedSharingPolicy} may answer from the tally. The routing read
-     * has already resolved, so the member's personal household is available to key learning by.
+     * Resolve a create to either a concrete household ({@link SharingResolution.Resolved}) or, when the
+     * default is genuinely ambiguous (the policy abstains — DS-N), a {@link SharingResolution.NeedsConfirm}
+     * the caller can defer + ask on. An explicit choice always resolves (and is recorded); the no-{@code
+     * userId} / profile-404 fallbacks resolve to {@code fallbackHousehold} (never ask — there is no member to
+     * key a tally by).
      */
-    private Mono<SharingScope> resolveScope(HouseholdRoutingDto routing, SharingScope explicitScope,
-                                            SharingContext ctx) {
-        if (explicitScope != null) {
-            recordDecision(routing.personalHouseholdId(), ctx, explicitScope);
-            return Mono.just(explicitScope);
+    public Mono<SharingResolution> resolve(UUID userId, SharingScope explicitScope, SharingContext ctx,
+                                           UUID fallbackHousehold) {
+        if (userId == null) {
+            return Mono.just(new SharingResolution.Resolved(fallbackHousehold));
         }
-        return policy.decideAsync(ctx, routing.personalHouseholdId());
+        return profile.householdRouting(userId)
+                .<SharingResolution>flatMap(routing -> {
+                    if (explicitScope != null) {
+                        recordDecision(routing.personalHouseholdId(), ctx, explicitScope);
+                        return Mono.just(new SharingResolution.Resolved(pickHousehold(routing, explicitScope)));
+                    }
+                    return policy.decideAsync(ctx, routing.personalHouseholdId())
+                            .<SharingResolution>map(scope ->
+                                    new SharingResolution.Resolved(pickHousehold(routing, scope)))
+                            .defaultIfEmpty(new SharingResolution.NeedsConfirm(routing, ctx, fallbackHousehold));
+                })
+                .switchIfEmpty(Mono.just(new SharingResolution.Resolved(fallbackHousehold)));
+    }
+
+    /**
+     * Finish a deferred write once the owner has answered the confirm (DS-N): record their now-explicit choice
+     * as the learn signal (keyed by their personal household, so the next similar item can default without
+     * asking) and pick the concrete household. Same record + pick the resolver runs on the explicit path.
+     */
+    public UUID confirm(SharingResolution.NeedsConfirm needsConfirm, SharingScope chosen) {
+        recordDecision(needsConfirm.routing().personalHouseholdId(), needsConfirm.ctx(), chosen);
+        return pickHousehold(needsConfirm.routing(), chosen);
     }
 
     /**
