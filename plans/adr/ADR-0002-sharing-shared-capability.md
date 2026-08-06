@@ -309,12 +309,24 @@ shared and the *policy* local — the correct seam.
        existing caller is unchanged (full reactor compiles; calendar `ActionControllerTest` + finance
        `AccountManagerTest` green). `LearnedSharingPolicy` propagates the wrapped policy's abstain on a
        tally-miss. 36 `libs/sharing` tests (9 new: NeedsConfirm/confirm/collapse + abstain propagation).
-     - [ ] **DS-N-1b — reference domain (calendar):** wire calendar end-to-end — `ActionController` calls
-       `resolve`, defers on `NeedsConfirm` (stash draft + routing in a `pendingAction`, `PUT` the
-       conversation-state lock, ask "личное или общее?"), and a `/resume` calls `confirm` to finish + learn.
-       Confirm→resume→learn test. `CalendarSharingPolicy` overrides `maybeDecide` to abstain on its ambiguous case.
-     - [ ] **DS-N-2…N — retrofit finance / tasks / nutrition / docs**, one per PR: each makes its policy abstain
-       on its genuinely-ambiguous case + defers/resumes in its write flow.
+     - [x] **DS-N-1b — reusable confirm plumbing (`libs/sharing`, no domain wired):** `SharingConfirm` —
+       `pendingAction(nc, stash)` + `question(label)` build the conversation-state ask ("личное или общее?"),
+       and `resume(pending, reply, finish)` parses the scope, calls `SharingResolver.confirm` (record + pick),
+       and hands the household to a per-domain `Finish` callback (an unclear reply re-asks, keeping the lock).
+       So the confirm loop is written once; every sharing domain reuses it and supplies only ambiguity
+       detection (`maybeDecide`) + the `Finish` write. `SharingConfirmTest` (5: round-trip / shared / private /
+       re-ask / cue-parse). *(Owner asked to template the tasks-agent pattern rather than copy it per domain.)*
+     - [ ] **DS-N-1c — reference domain (tasks):** wire tasks-agent as the first `SharingConfirm` consumer —
+       `TaskCapturer` calls `resolve`, on `NeedsConfirm` asks via `SharingConfirm`, and `ResumeController`
+       dispatches the `sharing-confirm` flow to `SharingConfirm.resume` with a `finishCapture` that captures the
+       task into the confirmed household. `TasksSharingPolicy.maybeDecide` abstains when the LLM gave no
+       shared/personal signal (an "unscoped" capture). Confirm→resume→learn test. **Not calendar** — calendar's
+       sharing write path is the inter-agent `create_event` action (no user in the loop to ask); tasks has a
+       genuine user-facing capture (`TaskCapturer`) and already runs the route-lock/resume pattern
+       (`inbox-clarify`), so it is the natural reference.
+     - [ ] **DS-N-2…N — retrofit finance / nutrition / docs**, one per PR: each makes its policy abstain on its
+       genuinely-ambiguous case + reuses `SharingConfirm` in its write flow (a `Finish` callback + a
+       `ResumeController` dispatch line) — thin, like DS-4.
    - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this
      primitive — orthogonal to the learned default; note when a consumer needs it.
 
@@ -425,20 +437,28 @@ This is structurally identical to the `inbox-clarify` confirm the tasks-agent al
 
 **5. Sub-slices (each own PR, ≤5 files where possible).**
 - **DS-N-0 (this design).** *(docs)*
-- **DS-N-1 — engine + calendar reference.** `SharingResolution` + the abstain seam in `libs/sharing`
-  (default always-confident → static policies untouched) + calendar wired end-to-end (`ActionController`
-  defers on `NeedsConfirm`, sets the lock, gains a `/resume`). Unit + one confirm→resume→learn test. Calendar
-  stays the canonical example.
-- **DS-N-2…N — retrofit finance / tasks / nutrition / docs**, one per PR: each overrides its policy to abstain
-  on its genuinely-ambiguous case and defers/resumes in its write flow (`AccountManager` / `TaskCapturer` /
-  `BasketBreakdown` / `DocArchiver`).
+- **DS-N-1a — engine.** `SharingResolution` + the abstain seam (`maybeDecide`) + `resolve`/`confirm` in
+  `libs/sharing` (default always-confident → static policies untouched). No domain wired. *(shipped)*
+- **DS-N-1b — reusable confirm plumbing.** `SharingConfirm` in `libs/sharing` — the pending-action envelope +
+  ask + `resume` (parse scope → `confirm` → per-domain `Finish`), so the confirm loop is written **once** and
+  every sharing domain reuses it (the owner's ask: template the tasks-agent pattern, don't copy it per
+  domain). No domain wired. *(shipped)*
+- **DS-N-1c — reference domain (tasks).** Wire tasks-agent as the first `SharingConfirm` consumer:
+  `TaskCapturer` asks on `NeedsConfirm`, `ResumeController` dispatches `sharing-confirm` → finish-capture,
+  `TasksSharingPolicy.maybeDecide` abstains on an unscoped capture. Confirm→resume→learn test. **Tasks, not
+  calendar** — calendar's sharing write path is inter-agent (`create_event`, no user to ask); tasks has a
+  user-facing capture and already runs the route-lock/resume pattern.
+- **DS-N-2…N — retrofit finance / nutrition / docs**, one per PR: each overrides its policy to abstain on its
+  genuinely-ambiguous case and reuses `SharingConfirm` in its write flow (`AccountManager` / `BasketBreakdown`
+  / `DocArchiver`) — a `Finish` callback + a `ResumeController` line, thin like DS-4.
 
-**6. Cost / benefit — build DS-N-1, then reassess.** DS-N is the most expensive item 8 slice for the marginal
-benefit: DS-4's shipped behaviour (learn when confident, else a sane static default) is already reasonable.
-DS-N's specific value is avoiding a **silent wrong** on a *privacy boundary* — a private doc quietly shared
-with the spouse, or a joint expense hidden from them — by asking instead of guessing. Recommendation: build
-**DS-N-1** (engine + calendar reference) and let the confirm prove out on one domain, then decide from real use
-whether the full retrofit (DS-N-2…N) earns its keep before spending it. Do **not** batch all domains up front.
+**6. Cost / benefit — build the tasks reference (DS-N-1c), then reassess.** DS-N is the most expensive item 8
+slice for the marginal benefit: DS-4's shipped behaviour (learn when confident, else a sane static default) is
+already reasonable. DS-N's specific value is avoiding a **silent wrong** on a *privacy boundary* — a private
+doc quietly shared with the spouse, or a joint expense hidden from them — by asking instead of guessing.
+Recommendation: build the shared engine + plumbing (1a/1b) + the tasks reference (1c) and let the confirm
+prove out on one domain, then decide from real use whether the full retrofit (DS-N-2…N) earns its keep before
+spending it. Do **not** batch all domains up front.
 
 ## Notes
 

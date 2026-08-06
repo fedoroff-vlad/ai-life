@@ -12,12 +12,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   the same seam; every opt-in agent is wired. Detail → [HISTORY.md](HISTORY.md) + [ADR-0002](adr/ADR-0002-sharing-shared-capability.md).
   - **DS-N (confirm-on-ambiguity) — IN PROGRESS.** Design [ADR §DS-N](adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design)
     (not blocked — the conversation-state confirm loop it reuses is already built + in use).
-    - **DS-N-1a engine ✅** (this session): abstain seam (`DefaultSharingPolicy.maybeDecide`) + `SharingResolution`
+    - **DS-N-1a engine ✅** abstain seam (`DefaultSharingPolicy.maybeDecide`) + `SharingResolution`
       (`Resolved`/`NeedsConfirm`) + `SharingResolver.resolve(...)`/`confirm(...)` in `libs/sharing`; no domain
-      wired (`resolveHousehold` collapses `NeedsConfirm` to fallback → existing callers unchanged). 36 tests.
-    - **DS-N-1b calendar reference — NEXT:** `ActionController` `resolve`→defer→conversation-state lock→`/resume`
-      →`confirm` (finish + learn); `CalendarSharingPolicy.maybeDecide` abstains on its ambiguous case.
-    - DS-N-2…N (retrofit finance/tasks/nutrition/docs) after 1b proves out — reassess before batching.
+      wired (`resolveHousehold` collapses `NeedsConfirm` to fallback → existing callers unchanged).
+    - **DS-N-1b confirm plumbing ✅** `libs/sharing`'s `SharingConfirm` — the reusable ask + `resume` (parse
+      scope → `confirm` → per-domain `Finish`), so the confirm loop is written once (owner: template, don't
+      copy per domain). No domain wired. 41 libs/sharing tests.
+    - **DS-N-1c tasks reference — NEXT:** `TaskCapturer` asks on `NeedsConfirm` via `SharingConfirm`,
+      `ResumeController` dispatches `sharing-confirm`→finish-capture, `TasksSharingPolicy.maybeDecide` abstains
+      on an unscoped capture. (**tasks, not calendar** — calendar's sharing write is inter-agent, no user to ask.)
+    - DS-N-2…N (retrofit finance/nutrition/docs) after 1c proves out — reassess before batching.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
   #369 stays open, see `## Next`).
