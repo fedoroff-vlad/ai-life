@@ -56,7 +56,8 @@ public class IntentController {
                     }
                     if (TaskCapturer.SKILL_NAME.equals(r.invokedSkill())) {
                         return taskCapturer.capture(message)
-                                .map(c -> new IntentResponse(manifest.name(), c.text(), c.model()));
+                                .map(c -> new IntentResponse(
+                                        manifest.name(), c.text(), c.model(), c.pendingAction()));
                     }
                     return Mono.just(new IntentResponse(manifest.name(), r.text(), r.llmModel()));
                 });

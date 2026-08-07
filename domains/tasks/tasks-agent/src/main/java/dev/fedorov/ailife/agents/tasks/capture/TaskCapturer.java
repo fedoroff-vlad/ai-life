@@ -11,9 +11,13 @@ import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.agents.tasks.sharing.TasksSharingPolicy;
+import dev.fedorov.ailife.contracts.common.SharingScope;
 import dev.fedorov.ailife.contracts.tasks.AddTaskInput;
 import dev.fedorov.ailife.llm.LlmClient;
+import dev.fedorov.ailife.sharing.SharingConfirm;
 import dev.fedorov.ailife.sharing.SharingContext;
+import dev.fedorov.ailife.sharing.SharingResolution;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +61,7 @@ public class TaskCapturer {
     private final LlmClient llm;
     private final AddTaskClient tasks;
     private final SharingResolver sharing;
+    private final SharingConfirm sharingConfirm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
@@ -64,12 +69,14 @@ public class TaskCapturer {
     public TaskCapturer(LlmClient llm,
                         AddTaskClient tasks,
                         SharingResolver sharing,
+                        SharingConfirm sharingConfirm,
                         SkillRegistry skills,
                         AgentManifest manifest,
                         ObjectMapper json) {
         this.llm = llm;
         this.tasks = tasks;
         this.sharing = sharing;
+        this.sharingConfirm = sharingConfirm;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -105,16 +112,50 @@ public class TaskCapturer {
                 return Mono.just(new CaptureResult(
                         "Не понял, что записать. Скажите, например: «напомни купить молоко».", model));
             }
-            // The task is routed to the personal or the shared household by the resolver + policy; the
-            // LLM's "shared" read (a chore / shared list / involves another member) is the only signal.
-            // No explicit scope is threaded — tasks' default policy reads the context.
-            SharingContext ctx = new SharingContext(List.of(), plan.shared(), "task");
-            return sharing.resolveHousehold(userId, null, ctx, envelopeHousehold)
-                    .switchIfEmpty(Mono.error(new IllegalStateException("no resolvable household")))
-                    .flatMap(household -> tasks.add(new AddTaskInput(
-                            household, null, plan.title(), plan.note(), SOURCE))
-                            .map(dto -> new CaptureResult(summary(dto.title(), plan.shared()), model)));
+            // The task is routed to the personal or the shared household by the resolver + policy. The LLM's
+            // "shared" read is the signal when it could tell; when it couldn't (no scope signal at all) the
+            // context carries the UNSCOPED kind so the policy abstains (item 8, DS-N) and the resolver asks.
+            String kind = plan.scopeKnown() ? "task" : TasksSharingPolicy.UNSCOPED_KIND;
+            SharingContext ctx = new SharingContext(List.of(), plan.shared(), kind);
+            return sharing.resolve(userId, null, ctx, envelopeHousehold).flatMap(res -> switch (res) {
+                case SharingResolution.Resolved r when r.household() != null ->
+                        captureInto(r.household(), plan.title(), plan.note(), plan.shared(), model);
+                case SharingResolution.Resolved ignored ->
+                        Mono.just(new CaptureResult("Не понял, к какому хозяйству отнести задачу.", model));
+                // Genuinely ambiguous → defer + ask "личное или общее?" (SharingConfirm owns the plumbing).
+                case SharingResolution.NeedsConfirm nc -> Mono.just(askScope(nc, plan, model));
+            });
         });
+    }
+
+    /** Capture a task under a resolved household and confirm; {@code shared} only shapes the reply text. */
+    private Mono<CaptureResult> captureInto(UUID household, String title, String note, boolean shared, String model) {
+        return tasks.add(new AddTaskInput(household, null, title, note, SOURCE))
+                .map(dto -> new CaptureResult(summary(dto.title(), shared), model));
+    }
+
+    /** Build the deferred "личное или общее?" ask, stashing the plan so {@link #finishCapture} can capture it. */
+    private CaptureResult askScope(SharingResolution.NeedsConfirm nc, Planned plan, String model) {
+        ObjectNode stash = json.createObjectNode();
+        stash.put("title", plan.title());
+        if (plan.note() != null) {
+            stash.put("note", plan.note());
+        }
+        return new CaptureResult(
+                sharingConfirm.question("«" + plan.title() + "»"), model,
+                sharingConfirm.pendingAction(nc, stash));
+    }
+
+    /**
+     * The {@link SharingConfirm.Finish} callback (hit from the tasks {@code ResumeController}): the owner
+     * answered личное/общее, the resolver already picked + recorded the household — now capture the stashed
+     * task into it. Returns the confirmation text; {@code chosen} only shapes whether we say "в общий список".
+     */
+    public Mono<String> finishCapture(UUID household, SharingScope chosen, JsonNode stash) {
+        String title = stash == null ? "" : stash.path("title").asString("");
+        String note = (stash != null && stash.hasNonNull("note")) ? stash.get("note").asString() : null;
+        return tasks.add(new AddTaskInput(household, null, title, note, SOURCE))
+                .map(dto -> summary(dto.title(), chosen == SharingScope.SHARED));
     }
 
     /** Parse the single-task LLM plan; null when no task was described. */
@@ -139,8 +180,11 @@ public class TaskCapturer {
             return null;
         }
         String note = node.hasNonNull("note") ? node.get("note").asString().trim() : null;
+        // Tri-state: the LLM sets `shared` true/false when it can tell, and omits it (or null) when the
+        // capture gives no personal/shared signal — which is the DS-N "ask" trigger (scopeKnown=false).
+        boolean scopeKnown = node.hasNonNull("shared");
         boolean shared = node.path("shared").asBoolean(false);
-        return new Planned(title, (note == null || note.isEmpty()) ? null : note, shared);
+        return new Planned(title, (note == null || note.isEmpty()) ? null : note, shared, scopeKnown);
     }
 
     private String summary(String title, boolean shared) {
@@ -156,11 +200,21 @@ public class TaskCapturer {
                         "task-capture SKILL.md not loaded — check skills-classpath"));
     }
 
-    /** One planned task: title, optional note, and whether it belongs on the shared household list. */
-    private record Planned(String title, String note, boolean shared) {
+    /**
+     * One planned task: title, optional note, whether it belongs on the shared household list, and whether the
+     * LLM could tell at all ({@code scopeKnown} false ⇒ ambiguous ⇒ ask, item 8 DS-N).
+     */
+    private record Planned(String title, String note, boolean shared, boolean scopeKnown) {
     }
 
-    /** The chat reply (a short confirmation) plus the model that produced the plan. */
-    public record CaptureResult(String text, String model) {
+    /**
+     * The chat reply (a short confirmation) plus the model that produced the plan, and an optional
+     * {@code pendingAction} — non-null when the capture was deferred to ask "личное или общее?" (DS-N), which
+     * {@code IntentController} threads into the {@code IntentResponse} so the orchestrator locks the conversation.
+     */
+    public record CaptureResult(String text, String model, JsonNode pendingAction) {
+        public CaptureResult(String text, String model) {
+            this(text, model, null);
+        }
     }
 }

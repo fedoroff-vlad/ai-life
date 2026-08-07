@@ -316,13 +316,15 @@ shared and the *policy* local — the correct seam.
        So the confirm loop is written once; every sharing domain reuses it and supplies only ambiguity
        detection (`maybeDecide`) + the `Finish` write. `SharingConfirmTest` (5: round-trip / shared / private /
        re-ask / cue-parse). *(Owner asked to template the tasks-agent pattern rather than copy it per domain.)*
-     - [ ] **DS-N-1c — reference domain (tasks):** wire tasks-agent as the first `SharingConfirm` consumer —
-       `TaskCapturer` calls `resolve`, on `NeedsConfirm` asks via `SharingConfirm`, and `ResumeController`
-       dispatches the `sharing-confirm` flow to `SharingConfirm.resume` with a `finishCapture` that captures the
-       task into the confirmed household. `TasksSharingPolicy.maybeDecide` abstains when the LLM gave no
-       shared/personal signal (an "unscoped" capture). Confirm→resume→learn test. **Not calendar** — calendar's
-       sharing write path is the inter-agent `create_event` action (no user in the loop to ask); tasks has a
-       genuine user-facing capture (`TaskCapturer`) and already runs the route-lock/resume pattern
+     - [x] **DS-N-1c — reference domain (tasks):** tasks-agent is the first `SharingConfirm` consumer —
+       `TaskCapturer` calls `resolve`; on `NeedsConfirm` (LLM omitted `shared` → `SharingContext` kind
+       `task-unscoped` → `TasksSharingPolicy.maybeDecide` abstains) it defers and asks "«…» — это личное или
+       общее?" via `SharingConfirm` (a `pendingAction` on the `IntentResponse` → orchestrator locks);
+       `ResumeController` dispatches the `sharing-confirm` flow to `SharingConfirm.resume` with
+       `TaskCapturer::finishCapture`, which captures the stashed task into the chosen household and records the
+       answer as the learn signal. `TaskCapturerTest` +2 (ask defers + resume captures into the chosen hh); full
+       tasks-agent suite 49 green. **Not calendar** — calendar's sharing write is the inter-agent
+       `create_event` action (no user to ask); tasks has a user-facing capture + already runs route-lock/resume
        (`inbox-clarify`), so it is the natural reference.
      - [ ] **DS-N-2…N — retrofit finance / nutrition / docs**, one per PR: each makes its policy abstain on its
        genuinely-ambiguous case + reuses `SharingConfirm` in its write flow (a `Finish` callback + a

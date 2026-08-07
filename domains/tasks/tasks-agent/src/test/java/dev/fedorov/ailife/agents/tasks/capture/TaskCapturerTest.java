@@ -68,6 +68,7 @@ class TaskCapturerTest {
     }
 
     @Autowired TaskCapturer capturer;
+    @Autowired dev.fedorov.ailife.sharing.SharingConfirm sharingConfirm;
     @Autowired ObjectMapper json;
 
     @Test
@@ -156,6 +157,59 @@ class TaskCapturerTest {
         assertThat(result.text()).contains("Не понял");
         // No task captured — mcp-tasks was never called.
         assertThat(mcpTasks.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void ambiguousCaptureAsksInsteadOfCapturing() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+
+        // Plan with NO `shared` field → the LLM couldn't tell → DS-N ambiguity → the agent must ask.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"title\":\"забронировать столик\"}", "stop", new LlmUsage(20, 15, 35)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+
+        var msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "забронировать столик", List.of(), "telegram", "amb-1", Instant.now());
+
+        TaskCapturer.CaptureResult result = capturer.capture(msg).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text()).contains("личное или общее").contains("забронировать столик");
+        // It deferred: a pendingAction is returned (→ orchestrator locks), and NOTHING was captured yet.
+        assertThat(result.pendingAction()).isNotNull();
+        assertThat(result.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
+        assertThat(mcpTasks.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void resumeAfterAnswerCapturesIntoTheChosenHousehold() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+
+        // 1) Ambiguous capture → ask (pendingAction carries the routing the resume needs).
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"title\":\"вынести мусор\"}", "stop", new LlmUsage(20, 15, 35)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+        var msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "вынести мусор", List.of(), "telegram", "amb-2", Instant.now());
+        TaskCapturer.CaptureResult asked = capturer.capture(msg).block();
+        assertThat(asked).isNotNull();
+        assertThat(asked.pendingAction()).isNotNull();
+
+        // 2) The owner answers «это общее» → the resolver picks the shared household + the task is captured.
+        mcpTasks.enqueue(jsonResponse(json.writeValueAsString(inboxItem(sharedHh, "вынести мусор"))));
+        String reply = sharingConfirm.resume(asked.pendingAction(), "это общее",
+                capturer::finishCapture).block().text();
+
+        assertThat(reply).contains("общий список").contains("вынести мусор");
+        RecordedRequest post = mcpTasks.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post.getPath()).isEqualTo("/internal/task");
+        assertThat(post.getBody().readUtf8()).contains(sharedHh.toString()).doesNotContain(personalHh.toString());
     }
 
     private static TaskItemDto inboxItem(UUID household, String title) {
