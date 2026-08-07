@@ -1,6 +1,6 @@
 # libs/sharing
 
-**Status (2026-08-05):** engine shipped (ADR-0002 slice 2); **all opt-in domains retrofitted** — calendar
+**Status (2026-08-07):** engine shipped (ADR-0002 slice 2); **all opt-in domains retrofitted** — calendar
 (reference: write 3a `calendar-agent` + read 3b `calendar-web`), finance (4a/4b), tasks (5a/5b), nutrition
 (6a/6b), docs (7a/7b) — each splitting a write (route a create to personal vs shared household via
 `SharingResolver` + a `sharing/<Domain>SharingPolicy`) and a read (union own ∪ shared on an explicit family
@@ -18,10 +18,12 @@ when the default is genuinely ambiguous (tally unconfident **and** policy abstai
 confirm plumbing:** `SharingConfirm` turns a `NeedsConfirm` into the conversation-state pending-action
 envelope + the "личное или общее?" ask, and on the reply parses the scope, calls `SharingResolver.confirm`
 (record + pick), and hands the household to a per-domain `Finish` callback — so every sharing domain reuses
-one confirm loop (the DS-N-2…N wiring is thin). Consumers so far: **tasks** (DS-N-1c reference —
-`TaskCapturer`/`finishCapture`) and **finance** (DS-N-2 — `AccountManager`/`finishAccount` on an unscoped
-account); nutrition + docs are the remaining DS-N-3/4 retrofits. A domain that never switches from
-`resolveHousehold` (which collapses `NeedsConfirm` to the fallback) is unchanged. Design →
+one confirm loop (each retrofit is thin). **DS-N complete (2026-08-07):** consumers = **tasks** (DS-N-1c
+reference — `TaskCapturer`/`finishCapture`), **finance** (DS-N-2 — `AccountManager`/`finishAccount` on an
+unscoped account), and **docs** (DS-N-4 — `DocArchiver`/`finishArchive` on an untyped document, docs' first
+`/resume`). **calendar** (inter-agent write, no user to ask) and **nutrition** (basket is deterministically
+shared — no ambiguous case) opt out by design. A domain that never switches from `resolveHousehold` (which
+collapses `NeedsConfirm` to the fallback) is unchanged. Design →
 [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every

@@ -332,9 +332,22 @@ shared and the *policy* local — the correct seam.
        `IntentController`); `ResumeController` dispatches `sharing-confirm` → `AccountManager::finishAccount`
        (create into the chosen household + learn). `AccountManagerTest` +2 (ask defers + resume creates into the
        chosen hh); finance-agent 74 green.
-     - [ ] **DS-N-3…N — retrofit nutrition / docs**, one per PR: each makes its policy abstain on its
-       genuinely-ambiguous case + reuses `SharingConfirm` in its write flow (a `Finish` callback + a
-       `ResumeController` dispatch line) — thin, like DS-4 / finance.
+     - [x] **DS-N-4 — docs:** `DocsSharingPolicy.maybeDecide` abstains on the `other`/blank/unreadable
+       `docType` (warranty/contract → SHARED, receipt/note → PRIVATE stay confident); `DocArchiver` switches to
+       `SharingResolver.resolve` and, on `NeedsConfirm`, defers the archive + asks "«…» — личное или общее?" via
+       `SharingConfirm`, stashing the OCR corpus + metadata draft so the resume re-files without re-OCR/re-extract.
+       Docs gained its **first `/resume` surface** (`web/ResumeController` → `DocArchiver::finishArchive`, which
+       persists into the chosen household + seeds the SB-5 note + learns). `DocArchiverTest` +2 (ask defers +
+       resume archives into the chosen hh); docs-agent 12 green (2 golden skipped).
+     - [~] **DS-N-3 — nutrition: N/A (no genuinely-ambiguous case).** `NutritionSharingPolicy` is
+       *deterministically confident* — a grocery basket is a household-provisioning act (always SHARED, degrading
+       to personal with no family household) and the food log is inherently personal and never routes; the write
+       path carries no user-supplied scope signal to be unsure about. Per this ADR's own invariant ("a policy
+       that **is** sure never asks — it just routes"), forcing an abstain would invent an ambiguity that does not
+       exist and add a needless question. So nutrition keeps its confident static/learned default (DS-4) and is
+       **intentionally not** retrofitted with a confirm. (Owner-decided 2026-08-07.) **DS-N complete:** finance +
+       docs asks where the default is genuinely ambiguous; tasks is the reference; calendar (inter-agent write,
+       no user to ask) and nutrition (no ambiguous case) opt out by design.
    - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this
      primitive — orthogonal to the learned default; note when a consumer needs it.
 
@@ -456,17 +469,22 @@ This is structurally identical to the `inbox-clarify` confirm the tasks-agent al
   `TasksSharingPolicy.maybeDecide` abstains on an unscoped capture. Confirm→resume→learn test. **Tasks, not
   calendar** — calendar's sharing write path is inter-agent (`create_event`, no user to ask); tasks has a
   user-facing capture and already runs the route-lock/resume pattern.
-- **DS-N-2…N — retrofit finance / nutrition / docs**, one per PR: each overrides its policy to abstain on its
-  genuinely-ambiguous case and reuses `SharingConfirm` in its write flow (`AccountManager` / `BasketBreakdown`
-  / `DocArchiver`) — a `Finish` callback + a `ResumeController` line, thin like DS-4.
+- **DS-N-2 — finance** *(shipped)*: `AccountManager` asks on an unscoped account (LLM omits `joint`).
+- **DS-N-4 — docs** *(shipped)*: `DocArchiver` asks on an `other`/unreadable `docType`; docs gained its first
+  `/resume` surface.
+- **DS-N-3 — nutrition: N/A by design** — `NutritionSharingPolicy` is deterministically confident (a grocery
+  basket is always a household act, the food log is always personal), so there is no genuinely-ambiguous case
+  to confirm; forcing one would violate the "a confident policy never asks" invariant. Opted out
+  (owner-decided 2026-08-07), like calendar (inter-agent write, no user to ask).
 
-**6. Cost / benefit — build the tasks reference (DS-N-1c), then reassess.** DS-N is the most expensive item 8
-slice for the marginal benefit: DS-4's shipped behaviour (learn when confident, else a sane static default) is
-already reasonable. DS-N's specific value is avoiding a **silent wrong** on a *privacy boundary* — a private
-doc quietly shared with the spouse, or a joint expense hidden from them — by asking instead of guessing.
-Recommendation: build the shared engine + plumbing (1a/1b) + the tasks reference (1c) and let the confirm
-prove out on one domain, then decide from real use whether the full retrofit (DS-N-2…N) earns its keep before
-spending it. Do **not** batch all domains up front.
+**6. Cost / benefit — outcome.** DS-N is the most expensive item 8 slice for the marginal benefit: DS-4's
+shipped behaviour (learn when confident, else a sane static default) is already reasonable. DS-N's specific
+value is avoiding a **silent wrong** on a *privacy boundary* — a private doc quietly shared with the spouse, or
+a joint expense hidden from them — by asking instead of guessing. **Resolution (2026-08-07):** the owner chose
+to finish the template across every domain that *has* an ambiguous case rather than stop at the tasks
+reference. That is finance (unscoped account) + docs (untyped document) + the tasks reference; calendar and
+nutrition opt out because they have no user-facing ambiguous write. The confirm loop lives once in
+`SharingConfirm`, so each retrofit was thin (a `maybeDecide` abstain + a `Finish` + a `ResumeController` line).
 
 ## Notes
 
