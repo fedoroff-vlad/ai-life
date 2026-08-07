@@ -123,8 +123,10 @@ public class IntentRouter {
                 },
                 "category", (msg, node) -> categoryManager.manage(msg)
                         .map(r -> new RouterResult(r.text(), "category", r.model())),
+                // The account flow may defer + ask "личное или общее?" (item 8, DS-N): thread its
+                // pendingAction through so the orchestrator locks the conversation to finance /resume.
                 "account", (msg, node) -> accountManager.create(msg)
-                        .map(r -> new RouterResult(r.text(), "account", r.model())));
+                        .map(r -> new RouterResult(r.text(), "account", r.model(), r.pendingAction())));
     }
 
     public Mono<RouterResult> route(NormalizedMessage msg) {
@@ -292,8 +294,17 @@ public class IntentRouter {
      *   <li>{@code llmModel} — model id from the LLM round-trip (the routing
      *   turn). Preserves the pre-PR35 {@code IntentResponse.llmModel} contract
      *   the orchestrator's intent tests already assert on.</li>
+     *   <li>{@code pendingAction} — non-null only when a flow deferred to ask a
+     *   confirmation (item 8, DS-N — the {@code account} flow's "личное или
+     *   общее?"); {@link IntentController} threads it into the {@code
+     *   IntentResponse} so the orchestrator route-locks the conversation. Null
+     *   for every other outcome.</li>
      * </ul>
      */
-    public record RouterResult(String text, String invokedTool, String llmModel) {
+    public record RouterResult(String text, String invokedTool, String llmModel, JsonNode pendingAction) {
+        /** Back-compat for the common "no pending action" outcome (tool / chat / non-deferring flows). */
+        public RouterResult(String text, String invokedTool, String llmModel) {
+            this(text, invokedTool, llmModel, null);
+        }
     }
 }

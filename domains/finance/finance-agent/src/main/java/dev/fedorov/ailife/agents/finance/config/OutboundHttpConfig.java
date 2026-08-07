@@ -1,10 +1,12 @@
 package dev.fedorov.ailife.agents.finance.config;
 
+import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
 import dev.fedorov.ailife.sharing.LearnedSharingPolicy;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingConfirm;
 import dev.fedorov.ailife.sharing.SharingLearningClient;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -106,5 +108,16 @@ public class OutboundHttpConfig {
         DefaultSharingPolicy learned =
                 new LearnedSharingPolicy(defaultSharingPolicy, sharingLearningClient, "finance");
         return new SharingResolver(profileSharingClient, learned, sharingLearningClient, "finance");
+    }
+
+    /**
+     * The reusable confirm-on-ambiguity plumbing (ADR-0002 item 8, DS-N): when {@code AccountManager} can't
+     * classify an account and the resolver returns {@code NeedsConfirm}, {@link SharingConfirm} builds the
+     * "личное или общее?" ask and, on the reply, drives {@code SharingResolver.confirm} + the create finish.
+     * Written once in {@code libs/sharing}; mirrors tasks-agent's wiring.
+     */
+    @Bean
+    public SharingConfirm sharingConfirm(SharingResolver sharingResolver, ObjectMapper json) {
+        return new SharingConfirm(sharingResolver, json);
     }
 }

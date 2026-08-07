@@ -70,6 +70,7 @@ class AccountManagerTest {
     }
 
     @Autowired AccountManager manager;
+    @Autowired dev.fedorov.ailife.sharing.SharingConfirm sharingConfirm;
     @Autowired ObjectMapper json;
 
     @Test
@@ -164,6 +165,67 @@ class AccountManagerTest {
         assertThat(result.text()).contains("валюте").contains("Наличные");
         // No account created — mcp-finance was never called.
         assertThat(mcpFinance.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void ambiguousAccountAsksInsteadOfCreating() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+
+        // Plan with NO `joint` field → the LLM couldn't tell → DS-N ambiguity → the agent must ask.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large",
+                "{\"name\":\"Резерв\",\"type\":\"deposit\",\"currency\":\"RUB\"}",
+                "stop", new LlmUsage(20, 15, 35)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+
+        var msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "заведи вклад Резерв в рублях", List.of(), "telegram", "amb-1", Instant.now());
+
+        AccountManager.AccountResult result = manager.create(msg).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text()).contains("личное или общее").contains("Резерв");
+        // It deferred: a pendingAction is returned (→ orchestrator locks), and NOTHING was created yet.
+        assertThat(result.pendingAction()).isNotNull();
+        assertThat(result.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
+        assertThat(mcpFinance.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void resumeAfterAnswerCreatesIntoTheChosenHousehold() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+
+        // 1) Ambiguous create → ask (pendingAction carries the routing the resume needs).
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large",
+                "{\"name\":\"Общий\",\"type\":\"deposit\",\"currency\":\"EUR\"}",
+                "stop", new LlmUsage(20, 15, 35)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+        var msg = new NormalizedMessage(userId, personalHh, MessageScope.PRIVATE,
+                "заведи вклад Общий в евро", List.of(), "telegram", "amb-2", Instant.now());
+        AccountManager.AccountResult asked = manager.create(msg).block();
+        assertThat(asked).isNotNull();
+        assertThat(asked.pendingAction()).isNotNull();
+
+        // 2) The owner answers «общий» → the resolver picks the shared household + the account is created.
+        mcpFinance.enqueue(jsonResponse(json.writeValueAsString(new FinAccountDto(
+                UUID.randomUUID(), sharedHh, null, "Общий", "deposit", "EUR",
+                BigDecimal.ZERO, false, Instant.now()))));
+        String reply = sharingConfirm.resume(asked.pendingAction(), "общий",
+                manager::finishAccount).block().text();
+
+        assertThat(reply).contains("Общий");
+        RecordedRequest post = mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(post.getPath()).isEqualTo("/internal/account");
+        String body = post.getBody().readUtf8();
+        assertThat(body).contains(sharedHh.toString()).doesNotContain(personalHh.toString())
+                .contains("Общий").contains("EUR");
     }
 
     private static MockResponse jsonResponse(String body) {
