@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.test;
 
+import org.junit.jupiter.api.Tag;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -23,7 +24,15 @@ import java.sql.DriverManager;
  *   1. extend this class (remove @Testcontainers + @Container from the subclass)
  *   2. call applySchema("test-schema.sql") in a @BeforeAll (schema is idempotent — IF NOT EXISTS)
  *   3. keep module-specific @DynamicPropertySource entries; datasource is wired here
+ *
+ * <p><b>Tagged {@code "it"}</b> so the fast/slow test split can route it: a plain {@code mvn test}
+ * (surefire, {@code <excludedGroups>it</excludedGroups>}) never loads container tests, so no
+ * Testcontainers spin up; {@code mvn verify} runs them under failsafe ({@code <groups>it</groups>}).
+ * The tag is inherited by every subclass, so extending this base is the only thing a container test
+ * must do to land in the slow lane. (A standalone container test that does <i>not</i> extend this base
+ * — e.g. {@code EventBusIntegrationTest} — must carry {@code @Tag("it")} itself.)
  */
+@Tag("it")
 public abstract class AbstractPostgresIntegrationTest {
 
     static final PostgreSQLContainer<?> POSTGRES;

@@ -248,5 +248,52 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <!--
+          fast/slow test split (migration-25-boot4.md §Build/CI performance, lever 2).
+          Container integration tests are tagged "it" (libs/test-support/AbstractPostgresIntegrationTest
+          + the standalone EventBusIntegrationTest). Declared here in <build><plugins> so every module
+          inherits the split; no module overrides surefire/failsafe.
+            - surefire (`test` phase, fast dev loop): runs everything EXCEPT the "it" group, so a plain
+              `mvn test` spins NO Testcontainers.
+            - failsafe (`integration-test`/`verify` phases): runs ONLY the "it" group. `mvn verify` (and
+              CI) therefore still runs the full suite. Failsafe's default include globs (*IT) don't match
+              our *IntegrationTest / E2E*Test names, so we widen <includes> and select by tag instead.
+          Golden/slow tests self-gate on their own env vars (@EnabledIf), so they need no group here.
+        -->
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>it</excludedGroups>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <groups>it</groups>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <!--
+                      Boot-repackaged modules replace target/<artifact>.jar with the fat jar (app classes
+                      under BOOT-INF/classes). Failsafe runs after `package`, so pin it to the loose
+                      classes dir; otherwise it loads the fat jar and app classes vanish
+                      (NoClassDefFoundError). Harmless for lib modules (same as their default).
+                    -->
+                    <classesDirectory>${project.build.outputDirectory}</classesDirectory>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>

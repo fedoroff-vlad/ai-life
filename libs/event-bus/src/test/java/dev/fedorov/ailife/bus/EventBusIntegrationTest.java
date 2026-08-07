@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.bus;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -18,6 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+// Standalone Testcontainers test (manages its own PG, does not extend AbstractPostgresIntegrationTest),
+// so it carries @Tag("it") directly to land in the failsafe slow lane. See migration-25-boot4.md §fast/slow split.
+@Tag("it")
 @Testcontainers
 class EventBusIntegrationTest {
 

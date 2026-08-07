@@ -118,9 +118,18 @@ dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
      order-independently and `-T2` is safe on PRs too (the owner wanted *PRs* faster, not just main).
      `-T2` fits the 2-vCPU/7 GB runner (2 isolated PG ≈ 300 MB); a paid bigger runner would allow `-T4`.
      OOM headroom proven empirically by the flip PRs going green (owner declined a paid runner for now).
-2. **fast/slow test split (surefire unit vs failsafe IT).** Today *all* ITs (`*IntegrationTest`) run under
-   surefire in the `test` phase; failsafe sits unused in `pluginManagement`. A split lets the fast dev
-   loop skip container ITs entirely (big for iteration) — marginal for the *full* `verify` total. Medium.
+2. **fast/slow test split (surefire unit vs failsafe IT). ✅ DONE 2026-08-07.** Previously *all* ITs ran
+   under surefire in the `test` phase; failsafe sat unused in `pluginManagement`. Now the split routes by a
+   JUnit **`@Tag("it")`** on the container base (`libs/test-support/AbstractPostgresIntegrationTest`,
+   inherited by every subclass — ~27 tests incl. the container-backed `E2E*Test`s) + the one standalone
+   `EventBusIntegrationTest`. Root pom `<build><plugins>`: surefire `<excludedGroups>it</excludedGroups>`
+   (fast `mvn test` spins **no** Testcontainers), failsafe binds `integration-test`+`verify` with
+   `<groups>it</groups>` and a widened `<includes>**/*Test.java</include>` (default `*IT` globs don't match
+   our `*IntegrationTest` names). **Gotcha fixed:** Boot-repackaged modules replace `target/<art>.jar` with
+   the fat jar (app classes under `BOOT-INF/classes`); failsafe runs after `package`, so it must be pinned
+   to `<classesDirectory>${project.build.outputDirectory}</classesDirectory>` or the app classes vanish
+   (`NoClassDefFoundError`). CI unchanged — both paths already run `verify`, so full coverage is preserved;
+   the win is purely the local inner loop. Golden/slow tests self-gate on their own env vars, untouched.
 3. **Build hygiene surfaced by the scan (zero perf, removes migration cruft — do first, it's free):**
    - Duplicate `spring-boot-webtestclient` dependency in **14 module poms** → 14 build warnings
      ("duplicate declaration … future Maven versions might no longer support building such malformed
