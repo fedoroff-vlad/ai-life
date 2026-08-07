@@ -304,6 +304,32 @@ GOLDEN_LLM=true GOLDEN_LLM_GATEWAY_URL=http://localhost:8081 \
 > surface's own contract (routing token vs JSON shape vs grounded free-text), so only the plumbing is
 > shared, never the assertions.
 
+### Self-contained real-model E2E (`@Tag("slow")`, #297)
+
+The golden tests above point at an **externally-started** Ollama + gateway (`scripts/golden.sh`). One
+opt-in test goes further and owns its whole stack: `e2e.RealOllamaChatSlowE2ETest`
+boots a **Testcontainers `OllamaContainer`**, pulls the model, and wires the gateway's real Spring
+context at it — so the **real `OpenAiCompatibleProvider` parse path** runs against a live completion
+(Ollama's model echo, real token accounting, the `choices[0].message.content`/`finish_reason` shape,
+and the SSE `delta.content` stream). Those are the regression classes the `MockProvider` fakes and the
+per-seam mocks miss (JSON-shape drift, real usage numbers, stream framing).
+
+It is gated so **CI never pays for it**: `@Tag("slow")` + `@EnabledIfEnvironmentVariable(SLOW_LLM_E2E)`
+mean a normal `mvn test` (CI, var unset) **skips the whole class** before Testcontainers touches Docker
+— no image pull, no model download. Run it deliberately:
+
+```sh
+SLOW_LLM_E2E=true mvn -pl platform/llm-gateway -Dtest=RealOllamaChatSlowE2ETest test
+# stronger local model / a pinned Ollama image (both optional, env-overridable):
+SLOW_LLM_E2E=true SLOW_LLM_E2E_MODEL=qwen3:8b SLOW_LLM_E2E_IMAGE=ollama/ollama:0.5.4 \
+  mvn -pl platform/llm-gateway -Dtest=RealOllamaChatSlowE2ETest test
+```
+
+Defaults to a small instruction-tuned model (`qwen2.5:1.5b`) so a first CPU run is bearable; assertions
+are **structural, not textual** (a non-empty completion + a parseable JSON object when asked), so they
+hold across models. Needs a Docker daemon (same requirement as the Testcontainers PG tests); a real
+green run on a CPU-only box is slow — it is the same hardware class as the golden lane.
+
 ### `openai:`-tier profile — validate against a strong hosted model (#359)
 
 The same runner has a second profile, `GOLDEN_PROFILE=openai`, that points the gateway at an
