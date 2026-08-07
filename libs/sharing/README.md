@@ -14,10 +14,13 @@ with the learning-enabled constructor (a `SharingLearningClient` bean over its s
 — one-line-per-domain wiring in each `OutboundHttpConfig`. **DS-N (confirm-on-ambiguity) — DS-N-1a engine
 shipped:** the abstain seam (`DefaultSharingPolicy.maybeDecide` may be empty) + a `SharingResolution` outcome
 (`Resolved` / `NeedsConfirm`) + `SharingResolver.resolve(...)` / `confirm(...)`, so a caller can defer + ask
-when the default is genuinely ambiguous (tally unconfident **and** policy abstains). No domain asks yet —
-`resolveHousehold` collapses `NeedsConfirm` to the fallback, so existing callers are unchanged. Next:
-**DS-N-1b** wires calendar end-to-end (defer → conversation-state lock → `/resume` → finish + learn).
-Design → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
+when the default is genuinely ambiguous (tally unconfident **and** policy abstains). **DS-N-1b — reusable
+confirm plumbing:** `SharingConfirm` turns a `NeedsConfirm` into the conversation-state pending-action
+envelope + the "личное или общее?" ask, and on the reply parses the scope, calls `SharingResolver.confirm`
+(record + pick), and hands the household to a per-domain `Finish` callback — so every sharing domain reuses
+one confirm loop (the DS-N-2…N wiring is thin). No domain asks yet — `resolveHousehold` collapses
+`NeedsConfirm` to the fallback, so existing callers are unchanged. Next: **DS-N-1c** wires tasks as the first
+consumer. Design → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).
@@ -73,6 +76,12 @@ unspecified default is the owner's learned choice once the tally is deep + decis
   so callers that never ask are unchanged.
 - `SharingResolution` — **DS-N** sealed outcome of `resolve`: `Resolved(household)` or
   `NeedsConfirm(routing, ctx, fallbackHousehold)` (carries what a resume needs to finish + learn).
+- `SharingConfirm` — **DS-N** reusable confirm plumbing over `resolve`/`confirm`: `pendingAction(nc, stash)`
+  + `question(label)` build the ask (conversation-state envelope + "личное или общее?"); `resume(pending,
+  reply, finish)` parses the scope, calls `SharingResolver.confirm`, and invokes a per-domain `Finish`
+  callback with the resolved household (an unclear reply re-asks, keeping the lock). Every sharing domain
+  reuses it — only ambiguity detection (`maybeDecide`) + the `Finish` write stay per-domain. Needs the
+  agent's `ObjectMapper` (serialises the pending-action).
 - `DefaultSharingPolicy` — the **per-domain seam** (`@FunctionalInterface`): `SharingScope decide(ctx)`.
   Implemented once per domain in that domain's `sharing/` package. `privateByDefault()` is the safe stub.
   Item 8: also a `default Mono<SharingScope> decideAsync(ctx, learningHousehold)` (wraps `decide`) — the async
