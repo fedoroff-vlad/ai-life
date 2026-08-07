@@ -5,7 +5,7 @@ Personal **document-archive** specialist (port **8117**). Ingests a document pho
 `docs`; owns `mcp-docs`; binds the shared `mcp-media-processing` (OCR). Plan:
 [plans/docs.md](../../../plans/docs.md).
 
-## Status (ADR-0002 slice 7 + item 8 DS-4 — fully retrofitted, learned default wired)
+## Status (ADR-0002 slice 7 + item 8 DS-4 + DS-N confirm-on-ambiguity — fully retrofitted, learned default wired)
 
 Scaffold + the **ingest** and **search** flows, with **semantic recall** layered onto both. As of the
 second-brain **SB-5** (epic #257) the semantic seed is an authored **note** in the shared substrate, not
@@ -77,15 +77,25 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `http/OcrClient` — `POST /internal/ocr` → `OcrResult` (mirrors finance `CaptionClient`).
 - `http/DocumentClient` — `POST /internal/documents` → `DocumentDto` (mirrors `BriefingProfileClient`).
 - `archive/DocArchiver` — the ingest flow: OCR → LLM metadata extract (`doc-archiver` SKILL,
-  temperature=0) → **resolve shared vs personal `household_id`** (`SharingResolver` + `DocsSharingPolicy`,
+  temperature=0) → **resolve shared vs personal `household_id`** (`SharingResolver.resolve` + `DocsSharingPolicy`,
   ADR-0002 slice 7a; degrades to the envelope household on a profile hiccup) → `saveDocument` under that
   household (stores the full OCR text) → second-brain note seed (`MemoryClient.note`, `source=docs-agent`,
-  body = OCR text, `frontmatter={kind:document, refId}`); soft-fails per stage.
+  body = OCR text, `frontmatter={kind:document, refId}`); soft-fails per stage. The save+note persist lives in
+  one `persist(...)` helper shared with the resume path. **Confirm-on-ambiguity (item 8, DS-N):** when the type
+  is `other`/unreadable the policy abstains → `resolve` returns `NeedsConfirm` → the archive is deferred (not
+  saved) and the agent asks "«…» — личное или общее?" via the shared `SharingConfirm`, stashing the OCR corpus +
+  metadata draft; `finishArchive` (from `ResumeController`) files it into the chosen household on the reply +
+  learns.
+- `web/ResumeController` — `POST /agents/docs/resume` (docs' **first** resume surface, added by DS-N). Hit by
+  the orchestrator when the user replies to the route-locked docs confirm; dispatches `sharing-confirm` →
+  `SharingConfirm.resume` with `DocArchiver::finishArchive`. A null `pendingAction` clears the lock.
 - `sharing/DocsSharingPolicy` — docs' `DefaultSharingPolicy` (ADR-0002 slice 7): the default privacy of a
-  document by `docType` — warranty/contract → shared (household asset), else private. The only "what is
-  shared here" rule docs owns; the routing mechanism lives in `libs/sharing`.
+  document by `docType` — warranty/contract → shared (household asset), receipt/note → private. The only "what
+  is shared here" rule docs owns; the routing mechanism lives in `libs/sharing`. **DS-N:** `maybeDecide` abstains
+  on `other`/blank/unreadable so the resolver asks instead of silently filing a privacy boundary.
 - `config/OutboundHttpConfig` also wires the sharing beans (`ProfileSharingClient` over the shared
-  `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy`). **Memory-driven default (item 8,
+  `profileServiceWebClient` + `SharingResolver` with `DocsSharingPolicy` + the DS-N `SharingConfirm` over the
+  resolver + `ObjectMapper`). **Memory-driven default (item 8,
   DS-4):** `DocsSharingPolicy` is wrapped in `libs/sharing`'s `LearnedSharingPolicy` and the resolver uses
   its learning-enabled constructor (+ a `SharingLearningClient` bean over the shared
   `memoryServiceWebClient`), so a document with no explicit household/personal signal defaults to the

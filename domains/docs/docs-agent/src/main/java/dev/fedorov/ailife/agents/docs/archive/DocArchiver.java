@@ -16,9 +16,12 @@ import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
+import dev.fedorov.ailife.contracts.common.SharingScope;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.llm.LlmClient;
+import dev.fedorov.ailife.sharing.SharingConfirm;
 import dev.fedorov.ailife.sharing.SharingContext;
+import dev.fedorov.ailife.sharing.SharingResolution;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,18 +65,20 @@ public class DocArchiver {
     private final MemoryClient memory;
     private final LlmClient llm;
     private final SharingResolver sharing;
+    private final SharingConfirm sharingConfirm;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public DocArchiver(OcrClient ocr, DocumentClient documents, MemoryClient memory, LlmClient llm,
-                       SharingResolver sharing, SkillRegistry skills, AgentManifest manifest,
-                       ObjectMapper json) {
+                       SharingResolver sharing, SharingConfirm sharingConfirm, SkillRegistry skills,
+                       AgentManifest manifest, ObjectMapper json) {
         this.ocr = ocr;
         this.documents = documents;
         this.memory = memory;
         this.llm = llm;
         this.sharing = sharing;
+        this.sharingConfirm = sharingConfirm;
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
@@ -103,38 +108,89 @@ public class DocArchiver {
             // family household degrades to personal). The routing/fallback rules live once in libs/sharing;
             // any profile hiccup degrades to the envelope household so a document never fails to save on it.
             SharingContext ctx = new SharingContext(List.of(), false, text(draft, "docType"));
-            return resolveHousehold(msg, ctx).flatMap(household -> {
-                SaveDocumentInput input = buildInput(household, msg, mediaId, ocrText, draft);
-                return documents.save(input)
-                    // SB-5: seed the archived document into the second-brain as an authored note
-                    // (memory-service /v1/notes) rather than a raw memory row. The note auto-seeds recall
-                    // (SB-2) so doc-finder still surfaces it by meaning, but it now lands in the ONE store
-                    // every agent reads. Soft-fails internally — the document is already saved +
-                    // text-searchable, so a memory-service outage is harmless.
-                    .flatMap(saved -> memory
-                            .note(buildNote(saved, ocrText))
-                            .thenReturn(reply(successText(saved.docType(), saved.title()), r.model())))
+            return sharing.resolve(msg.userId(), null, ctx, msg.householdId())
+                    // A routing hiccup must never lose a document → degrade to the envelope household.
                     .onErrorResume(e -> {
-                        log.warn("save_document failed for media {}: {}", mediaId, e.toString());
-                        return Mono.just(reply("Не смог сохранить документ в архив. Попробуйте позже.", null));
+                        log.debug("document household routing failed, using envelope household: {}", e.toString());
+                        return Mono.just(new SharingResolution.Resolved(msg.householdId()));
+                    })
+                    .flatMap(res -> switch (res) {
+                        case SharingResolution.Resolved rr ->
+                                persist(rr.household() != null ? rr.household() : msg.householdId(),
+                                        msg.userId(), mediaId, ocrText, draft)
+                                        .map(saved -> reply(successText(saved.docType(), saved.title()), r.model()))
+                                        .onErrorResume(e -> {
+                                            log.warn("save_document failed for media {}: {}", mediaId, e.toString());
+                                            return Mono.just(reply(
+                                                    "Не смог сохранить документ в архив. Попробуйте позже.", null));
+                                        });
+                        // Genuinely ambiguous doc type (other/unreadable) → defer + ask "личное или общее?"
+                        // instead of silently filing a privacy boundary (item 8, DS-N).
+                        case SharingResolution.NeedsConfirm nc ->
+                                Mono.just(askScope(nc, msg.userId(), mediaId, ocrText, draft, r.model()));
                     });
-            });
         });
     }
 
     /**
-     * Resolve the household to archive the document into (ADR-0002 slice 7). The
-     * {@link SharingResolver} applies {@code DocsSharingPolicy} against the acting member's household-routing
-     * split; any profile failure degrades to the envelope household so a document is never lost to a routing
-     * hiccup, and an absent routing (unknown user) falls back the same way.
+     * Save the document + seed its second-brain note, returning the saved row. Shared by the resolved archive
+     * path and the DS-N {@link #finishArchive} resume path so the persist logic lives once.
+     *
+     * <p>SB-5: seed the archived document into the second-brain as an authored note (memory-service
+     * {@code /v1/notes}) rather than a raw memory row. The note auto-seeds recall (SB-2) so doc-finder still
+     * surfaces it by meaning, but it lands in the ONE store every agent reads. Soft-fails internally — the
+     * document is already saved + text-searchable, so a memory-service outage is harmless.
      */
-    private Mono<UUID> resolveHousehold(NormalizedMessage msg, SharingContext ctx) {
-        return sharing.resolveHousehold(msg.userId(), null, ctx, msg.householdId())
+    private Mono<DocumentDto> persist(UUID household, UUID ownerId, String mediaId, String ocrText, JsonNode draft) {
+        SaveDocumentInput input = buildInput(household, ownerId, mediaId, ocrText, draft);
+        return documents.save(input)
+                .flatMap(saved -> memory.note(buildNote(saved, ocrText)).thenReturn(saved));
+    }
+
+    /**
+     * Build the deferred "личное или общее?" ask (item 8, DS-N), stashing everything {@link #finishArchive}
+     * needs to file the document once the owner answers — the sender, the blob id, the OCR corpus, and the
+     * extracted metadata draft — so the confirm neither re-OCRs nor re-extracts.
+     */
+    private IntentResponse askScope(SharingResolution.NeedsConfirm nc, UUID ownerId, String mediaId,
+                                    String ocrText, JsonNode draft, String model) {
+        ObjectNode stash = json.createObjectNode();
+        if (ownerId != null) stash.put("ownerId", ownerId.toString());
+        if (mediaId != null) stash.put("mediaId", mediaId);
+        if (ocrText != null) stash.put("ocrText", ocrText);
+        if (draft != null) stash.set("draft", draft);
+        String label = docLabelForAsk(draft);
+        return new IntentResponse(manifest.name(), sharingConfirm.question(label), model,
+                sharingConfirm.pendingAction(nc, stash));
+    }
+
+    /**
+     * The {@link SharingConfirm.Finish} callback (hit from the docs {@code ResumeController}): the owner
+     * answered личное/общее, the resolver already picked + recorded the household — now file the stashed
+     * document into it (+ seed its note). Returns the confirmation text.
+     */
+    public Mono<String> finishArchive(UUID household, SharingScope chosen, JsonNode stash) {
+        UUID ownerId = stash != null && stash.hasNonNull("ownerId")
+                ? UUID.fromString(stash.get("ownerId").asString()) : null;
+        String mediaId = stash != null ? text(stash, "mediaId") : null;
+        String ocrText = stash != null ? text(stash, "ocrText") : null;
+        JsonNode draft = stash != null ? stash.get("draft") : null;
+        return persist(household, ownerId, mediaId, ocrText, draft)
+                .map(saved -> successText(saved.docType(), saved.title()))
                 .onErrorResume(e -> {
-                    log.debug("document household routing failed, using envelope household: {}", e.toString());
-                    return Mono.justOrEmpty(msg.householdId());
-                })
-                .switchIfEmpty(Mono.justOrEmpty(msg.householdId()));
+                    log.warn("save_document (resume) failed for media {}: {}", mediaId, e.toString());
+                    return Mono.just("Не смог сохранить документ в архив. Попробуйте позже.");
+                });
+    }
+
+    /** The label the DS-N ask names the document by: its extracted title, else the doc-type label, else generic. */
+    private static String docLabelForAsk(JsonNode draft) {
+        String title = text(draft, "title");
+        if (title != null && !title.isBlank()) {
+            return "«" + title + "»";
+        }
+        String label = docTypeLabel(text(draft, "docType"));
+        return label != null ? "«" + label + "»" : "этот документ";
     }
 
     /**
@@ -191,11 +247,11 @@ public class DocArchiver {
         return fm;
     }
 
-    private SaveDocumentInput buildInput(UUID householdId, NormalizedMessage msg, String mediaId,
+    private SaveDocumentInput buildInput(UUID householdId, UUID ownerId, String mediaId,
                                          String ocrText, JsonNode draft) {
         return new SaveDocumentInput(
                 householdId,                        // resolved shared vs personal household (ADR-0002 slice 7)
-                msg.userId(),                       // archived under the sender; search is household-scoped
+                ownerId,                            // archived under the sender; search is household-scoped
                 mediaId,
                 text(draft, "docType"),
                 text(draft, "title"),

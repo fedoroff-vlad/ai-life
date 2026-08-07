@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agents.docs.http.DocumentClient;
 import dev.fedorov.ailife.agents.docs.http.OcrClient;
 import dev.fedorov.ailife.agents.docs.sharing.DocsSharingPolicy;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
+import dev.fedorov.ailife.sharing.SharingConfirm;
 import dev.fedorov.ailife.sharing.SharingResolver;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
@@ -62,8 +63,9 @@ class GoldenDocArchiverTest {
     // to the envelope household; the real DocsSharingPolicy still runs (ADR-0002 slice 7).
     private final ProfileSharingClient profileSharing = mock(ProfileSharingClient.class);
     private final SharingResolver sharing = new SharingResolver(profileSharing, new DocsSharingPolicy());
-    private final DocArchiver archiver =
-            new DocArchiver(ocr, documents, memory, GoldenLlm.client(), sharing, skills, manifest, json);
+    private final SharingConfirm sharingConfirm = new SharingConfirm(sharing, json);
+    private final DocArchiver archiver = new DocArchiver(
+            ocr, documents, memory, GoldenLlm.client(), sharing, sharingConfirm, skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real archiver prompt and a concrete document's OCR text,

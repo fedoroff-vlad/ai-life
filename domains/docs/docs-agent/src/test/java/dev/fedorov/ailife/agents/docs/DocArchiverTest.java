@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -209,9 +210,97 @@ class DocArchiverTest {
         assertThat(mcpDocs.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
+    @Test
+    void ambiguousDocTypeAsksInsteadOfArchiving() throws Exception {
+        UUID envelopeHh = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
+                new OcrResult("какая-то бумага без явного типа", "ru", 0.5))));
+        // docType "other" → the LLM couldn't tell → DS-N ambiguity → the agent must ask, not file.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"docType\":\"other\",\"title\":\"Непонятная бумага\"}",
+                "stop", new LlmUsage(80, 20, 100)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
+                "сохрани это", List.of(new Attachment("image", "image/jpeg", "media-amb", null)),
+                "telegram", "83", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("личное или общее").contains("Непонятная бумага");
+        // It deferred: a pendingAction is returned (→ orchestrator locks), and NOTHING was archived.
+        assertThat(resp.pendingAction()).isNotNull();
+        assertThat(resp.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
+        assertThat(mcpDocs.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+        // Drain this test's recorded requests so the shared static MockWebServers stay clean for other tests.
+        mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        profileService.takeRequest(2, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void resumeAfterAnswerArchivesIntoTheChosenHousehold() throws Exception {
+        UUID envelopeHh = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID sharedHh = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // 1) Ambiguous doc → ask (pendingAction stashes the OCR corpus + draft + routing the resume needs).
+        mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
+                new OcrResult("важная бумага", "ru", 0.5))));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"docType\":\"other\",\"title\":\"Важная бумага\"}",
+                "stop", new LlmUsage(80, 20, 100)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
+        NormalizedMessage msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
+                "сохрани", List.of(new Attachment("image", "image/jpeg", "media-amb2", null)),
+                "telegram", "84", Instant.now());
+        IntentResponse asked = post(msg);
+        assertThat(asked).isNotNull();
+        assertThat(asked.pendingAction()).isNotNull();
+        // Drain the ask phase's recorded requests (OCR + extract + routing) off the shared static servers.
+        mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        profileService.takeRequest(2, TimeUnit.SECONDS);
+
+        // 2) The owner answers «общее» → the resolver picks the shared household + the document is archived
+        //    (no re-OCR / re-extract — the ask stashed the corpus + draft).
+        mcpDocs.enqueue(jsonResponse(json.writeValueAsString(new DocumentDto(
+                UUID.randomUUID(), sharedHh, userId, "media-amb2", "other", "Важная бумага",
+                null, null, null, null, "важная бумага", null, Instant.now()))));
+        NormalizedMessage reply = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
+                "общее", List.of(), "telegram", "85", Instant.now());
+
+        IntentResponse resp = postResume(new ResumeRequest(reply, asked.pendingAction()));
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Заархивировал").contains("Важная бумага");
+
+        RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
+        JsonNode body = json.readTree(saveReq.getBody().readUtf8());
+        // «общее» → the SHARED household, and the stashed OCR corpus survived to the write.
+        assertThat(body.path("householdId").asString()).isEqualTo(sharedHh.toString());
+        assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
+        assertThat(body.path("mediaId").asString()).isEqualTo("media-amb2");
+        assertThat(body.path("ocrText").asString()).contains("важная бумага");
+    }
+
     private IntentResponse post(NormalizedMessage msg) {
         return http.post().uri("/agents/docs/intent")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    private IntentResponse postResume(ResumeRequest request) {
+        return http.post().uri("/agents/docs/resume")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(request)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
     }
