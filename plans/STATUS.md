@@ -22,9 +22,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
       `shared` → `task-unscoped` → `TasksSharingPolicy.maybeDecide` abstains → ask "личное или общее?");
       `ResumeController` dispatches `sharing-confirm`→`finishCapture` (capture into the chosen hh + learn).
       `TaskCapturerTest` +2; tasks-agent 49 green. (**tasks, not calendar** — calendar's write is inter-agent.)
-    - **DS-N-2…N (retrofit finance/nutrition/docs) — NEXT if picked up.** Each: `policy.maybeDecide` abstains
-      + reuse `SharingConfirm` (a `Finish` + a `ResumeController` line), thin like DS-4. Owner to decide from
-      real use whether the full retrofit earns its keep (per ADR §6) before batching.
+    - **DS-N-2 finance ✅** `FinanceSharingPolicy.maybeDecide` abstains on an unscoped account (LLM omits
+      `joint` → `account-unscoped`); `AccountManager` calls `resolve` → on `NeedsConfirm` asks "личное или
+      общее?" via `SharingConfirm` (pendingAction threaded through `RouterResult`/`IntentController`);
+      `ResumeController` dispatches `sharing-confirm`→`finishAccount`. `AccountManagerTest` +2; finance-agent
+      74 green.
+    - **DS-N-3 nutrition + DS-N-4 docs — NEXT** (owner: finish the template across all domains). Each:
+      `policy.maybeDecide` abstains on its ambiguous case + reuse `SharingConfirm` (a `Finish` + a
+      `ResumeController` line + thread pendingAction to the response), thin like DS-4 / finance.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
   #369 stays open, see `## Next`).

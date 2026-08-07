@@ -66,7 +66,9 @@ public class IntentController {
             return csvImporter.importCsv(message, file.get().storageUri());
         }
         return router.route(message)
-                .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel()));
+                // pendingAction is non-null only when a flow deferred to ask (item 8, DS-N — the account
+                // flow's "личное или общее?"); it locks the conversation to finance /resume.
+                .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel(), r.pendingAction()));
     }
 
     private static Optional<Attachment> attachment(NormalizedMessage message, String kind) {

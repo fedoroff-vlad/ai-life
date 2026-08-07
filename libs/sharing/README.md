@@ -18,9 +18,11 @@ when the default is genuinely ambiguous (tally unconfident **and** policy abstai
 confirm plumbing:** `SharingConfirm` turns a `NeedsConfirm` into the conversation-state pending-action
 envelope + the "личное или общее?" ask, and on the reply parses the scope, calls `SharingResolver.confirm`
 (record + pick), and hands the household to a per-domain `Finish` callback — so every sharing domain reuses
-one confirm loop (the DS-N-2…N wiring is thin). No domain asks yet — `resolveHousehold` collapses
-`NeedsConfirm` to the fallback, so existing callers are unchanged. Next: **DS-N-1c** wires tasks as the first
-consumer. Design → [ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
+one confirm loop (the DS-N-2…N wiring is thin). Consumers so far: **tasks** (DS-N-1c reference —
+`TaskCapturer`/`finishCapture`) and **finance** (DS-N-2 — `AccountManager`/`finishAccount` on an unscoped
+account); nutrition + docs are the remaining DS-N-3/4 retrofits. A domain that never switches from
+`resolveHousehold` (which collapses `NeedsConfirm` to the fallback) is unchanged. Design →
+[ADR §DS-N](../../plans/adr/ADR-0002-sharing-shared-capability.md#ds-n--confirm-on-ambiguity-design).
 
 The reusable **personal-vs-shared privacy capability**. One engine + N thin per-domain policies, so every
 domain gets "own vs shared" without copy-paste (the silent-drift failure ADR-0002 exists to stop).

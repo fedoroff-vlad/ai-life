@@ -24,6 +24,6 @@ Rules:
 - `type` MUST be exactly one of `card`, `cash`, `deposit`, `credit`. Infer it: a card / банковская карта → `card`; наличные / cash → `cash`; вклад / депозит / savings → `deposit`; кредитка / credit card / кредит → `credit`. Default to `card` when unsure.
 - `currency` — the ISO-4217 code the user named ("в рублях" → `RUB`, "в евро" → `EUR`, "в долларах" → `USD`). If the user did **not** name a currency, **omit the field** — do not guess; the agent will ask.
 - `openingBalance` — the starting balance as a number, only if the user gave one ("на карте 5000" → `5000`). Omit when unspecified.
-- `joint` — `true` **only** when the account is explicitly shared / joint / family ("общий счёт", "совместный", "для семьи", "наш"); otherwise `false`. This is what makes the account land in the shared household instead of the user's personal one — so set it deliberately, and default to `false` when the user did not clearly say it is shared.
+- `joint` — `true` when the account is clearly shared / joint / family ("общий счёт", "совместный", "для семьи", "наш"); `false` when it is clearly personal (a personal card / cash / "моя карта"). **Omit the field entirely when you genuinely cannot tell** from the wording — do not guess `false`. This is what routes the account to the shared vs personal household; when you omit it, the agent asks the user "личное или общее?" rather than guessing, so leave it out on real ambiguity instead of defaulting.
 - If the request does not describe an account to create, reply `{}`.
 - Never invent an account the user did not ask for.

@@ -326,9 +326,15 @@ shared and the *policy* local — the correct seam.
        tasks-agent suite 49 green. **Not calendar** — calendar's sharing write is the inter-agent
        `create_event` action (no user to ask); tasks has a user-facing capture + already runs route-lock/resume
        (`inbox-clarify`), so it is the natural reference.
-     - [ ] **DS-N-2…N — retrofit finance / nutrition / docs**, one per PR: each makes its policy abstain on its
+     - [x] **DS-N-2 — finance:** `FinanceSharingPolicy.maybeDecide` abstains on `UNSCOPED_KIND` (the LLM omits
+       `joint`); `AccountManager` switches to `SharingResolver.resolve` and, on `NeedsConfirm`, defers + asks
+       "«…» — личное или общее?" via `SharingConfirm` (the `pendingAction` threaded through `RouterResult` →
+       `IntentController`); `ResumeController` dispatches `sharing-confirm` → `AccountManager::finishAccount`
+       (create into the chosen household + learn). `AccountManagerTest` +2 (ask defers + resume creates into the
+       chosen hh); finance-agent 74 green.
+     - [ ] **DS-N-3…N — retrofit nutrition / docs**, one per PR: each makes its policy abstain on its
        genuinely-ambiguous case + reuses `SharingConfirm` in its write flow (a `Finish` callback + a
-       `ResumeController` dispatch line) — thin, like DS-4.
+       `ResumeController` dispatch line) — thin, like DS-4 / finance.
    - [ ] **(still deferred, separate)** reconcile memory/second-brain's older owner-tag model onto this
      primitive — orthogonal to the learned default; note when a consumer needs it.
 
