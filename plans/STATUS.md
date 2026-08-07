@@ -18,10 +18,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
     - **DS-N-1b confirm plumbing ✅** `libs/sharing`'s `SharingConfirm` — the reusable ask + `resume` (parse
       scope → `confirm` → per-domain `Finish`), so the confirm loop is written once (owner: template, don't
       copy per domain). No domain wired. 41 libs/sharing tests.
-    - **DS-N-1c tasks reference — NEXT:** `TaskCapturer` asks on `NeedsConfirm` via `SharingConfirm`,
-      `ResumeController` dispatches `sharing-confirm`→finish-capture, `TasksSharingPolicy.maybeDecide` abstains
-      on an unscoped capture. (**tasks, not calendar** — calendar's sharing write is inter-agent, no user to ask.)
-    - DS-N-2…N (retrofit finance/nutrition/docs) after 1c proves out — reassess before batching.
+    - **DS-N-1c tasks reference ✅** `TaskCapturer` asks on `NeedsConfirm` via `SharingConfirm` (LLM omits
+      `shared` → `task-unscoped` → `TasksSharingPolicy.maybeDecide` abstains → ask "личное или общее?");
+      `ResumeController` dispatches `sharing-confirm`→`finishCapture` (capture into the chosen hh + learn).
+      `TaskCapturerTest` +2; tasks-agent 49 green. (**tasks, not calendar** — calendar's write is inter-agent.)
+    - **DS-N-2…N (retrofit finance/nutrition/docs) — NEXT if picked up.** Each: `policy.maybeDecide` abstains
+      + reuse `SharingConfirm` (a `Finish` + a `ResumeController` line), thin like DS-4. Owner to decide from
+      real use whether the full retrofit earns its keep (per ADR §6) before batching.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open): identity
   **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated cutover
   #369 stays open, see `## Next`).

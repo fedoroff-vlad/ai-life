@@ -47,8 +47,10 @@ in dev/degraded environments.
 - `web/TriggerController` — `POST /agents/tasks/triggers/{kind}`; resolves a skill from the
   `SkillRegistry`, enriches, runs it, fans out to the household (unknown kinds 404).
 - `web/ResumeController` — `POST /agents/tasks/resume`; hit when the user replies to an open tasks
-  question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`; today only
-  `inbox-clarify-apply` → `InboxClarifier.resume`.
+  question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`: `inbox-clarify-apply`
+  → `InboxClarifier.resume`, or `sharing-confirm` → `libs/sharing`'s `SharingConfirm.resume` with
+  `TaskCapturer::finishCapture` (ADR-0002 item 8 DS-N — finish a deferred capture into the household the
+  owner just chose).
 - `intent/IntentRouter` (on the shared `SkillClassifier` since #358 Bucket 1 slice 3) — single LLM
   classifier turn → tool / intent-skill / chat. Delegates prompt-build + strict-JSON parse to
   `SkillClassifier` (`libs/agent-runtime`); the agent keeps its own LLM round-trip, the `ToolSpec`s it
@@ -74,6 +76,12 @@ in dev/degraded environments.
   `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
   (`POST /internal/task`) captures it to the inbox. The deterministic capture an LLM-driven `add_task`
   tool call can't take (the classifier never sees the household id). Mirrors finance's `AccountManager`.
+  **Confirm-on-ambiguity (item 8, DS-N — tasks is the reference consumer):** when the LLM omits `shared`
+  (it genuinely can't tell), the context is marked `task-unscoped`, `TasksSharingPolicy.maybeDecide`
+  abstains, and `SharingResolver.resolve` returns `NeedsConfirm` → `TaskCapturer` defers and asks "«…» —
+  это личное или общее?" via `libs/sharing`'s `SharingConfirm` (returning a `pendingAction` so the
+  orchestrator locks). The reply routes to `ResumeController` → `SharingConfirm.resume` → `finishCapture`,
+  which captures the stashed task into the chosen household and records the answer as the learn signal.
 - `sharing/TasksSharingPolicy` — tasks' `DefaultSharingPolicy`: a household/shared-list task (chore,
   shared shopping, involves another member) defaults to the shared household, a personal todo to
   private. The only "what is shared here" logic tasks owns; the routing mechanism lives in `libs/sharing`.

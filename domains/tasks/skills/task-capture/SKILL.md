@@ -27,10 +27,12 @@ Rules:
   врачу", "buy flights"). Strip filler like "напомни"/"не забыть"/"add" — keep the action itself. Required.
 - `note` — any extra detail worth keeping (a phone number, a deadline hint, a where/why). Omit the field
   when the user gave none — do not invent one.
-- `shared` — `true` **only** when the task clearly belongs on the **household / shared list**: a chore, a
-  shared shopping item, or a task that involves another household member ("это общее", "общий список",
-  "для семьи", "нам нужно", "купить домой", household errands). Otherwise `false` (a personal todo). This
-  is what makes the task land in the shared household instead of the user's personal one — so set it
-  deliberately, and default to `false` when the user did not clearly signal it is shared.
+- `shared` — set `true` when the task clearly belongs on the **household / shared list**: a chore, a shared
+  shopping item, or a task that involves another household member ("это общее", "общий список", "для семьи",
+  "нам нужно", "купить домой", household errands). Set `false` when it is clearly a **personal** todo (a
+  private errand, a personal appointment, something only the user does). **Omit the field entirely when you
+  genuinely cannot tell** from the wording — do not guess `false`. This is what routes the task to the shared
+  vs personal household; when you omit it, the agent asks the user "личное или общее?" rather than guessing,
+  so leave it out on real ambiguity instead of defaulting.
 - If the request does not describe a task to capture, reply `{}`.
 - Never invent a task the user did not ask for.
