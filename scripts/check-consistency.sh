@@ -83,6 +83,23 @@ else
   fi
 fi
 
+# ── Check 4: plans/INDEX.md stays a statusless map — no dates / completion emoji ───────
+# INDEX is the "what a file covers / when to read it" map; progress status belongs in exactly
+# one place each — STATUS.md (in-flight), roadmap.md (stages/epics), or the ADR header.
+# Restating status in INDEX is a top drift source (e.g. an epic marked COMPLETE here while the
+# ADR moved on — the drift caught 2026-08-08). We forbid the two UNAMBIGUOUS status smells:
+# ISO dates and ✅/❌/🚧 completion emoji — every past drift instance carried one. Word tokens
+# (DONE/shipped/COMPLETE) are deliberately NOT grepped: they occur legitimately as scope
+# ("shipped work lives in HISTORY") or in the header rule text — the header rule + review cover
+# those. Scans only INDEX.md, so zero false positives elsewhere.
+echo "check 4: plans/INDEX.md carries no dates / completion emoji (statusless map)"
+index_smells="$(grep -nE '20[0-9]{2}-[0-9]{2}-[0-9]{2}|✅|❌|🚧' plans/INDEX.md 2>/dev/null || true)"
+if [ -n "$index_smells" ]; then
+  err "plans/INDEX.md contains status/date markers — it must stay a statusless map:"
+  echo "$index_smells" | sed 's/^/        /' >&2
+  err "→ move the status to STATUS.md / roadmap.md / the ADR header; leave only scope + 'read when' here"
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

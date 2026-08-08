@@ -94,3 +94,22 @@ couplings:
       - CLAUDE.md (Reusable dev-workflow skills block)
       - .skills/change-map.yaml
     notes: The tools/agent-skills pointer + index must exist and match across docs.
+
+  - id: epic-status
+    trigger: Changed an epic's / stage's progress status (started, shipped a slice, closed it)
+    ssot: >
+      the ADR header (for ADR-backed epics) OR the roadmap.md bullet; plus STATUS.md while in flight.
+      Pick ONE and make the others link to it — do not restate the status word in more than one place.
+    must_update:
+      - plans/STATUS.md            # while in flight (move to HISTORY.md on close)
+      - plans/roadmap.md           # the epic/stage bullet
+      - plans/adr/ADR-*.md         # header + Action Items, if ADR-backed
+      - README.md                  # ONLY if it carries an epic-status line — prefer a pointer, not a restatement
+    must_not_update:
+      - plans/INDEX.md             # statusless map by rule — enforced by check-consistency.sh check 4
+    notes: >
+      This is the drift that bit us 2026-08-08: DS-N shipped but 4 derivative docs still said
+      "deferred". The fix is fewer restatements, not more edits — one source of truth per epic
+      status, everything else links. The mechanizable half (INDEX must stay statusless) is
+      enforced by check-consistency.sh check 4; the rest is judgement — keep README/roadmap
+      pointing at the ADR header rather than duplicating its status.

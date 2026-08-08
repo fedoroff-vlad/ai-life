@@ -58,6 +58,7 @@ touch the left, update the right **and** re-run the lint locally:
 - **New env var / port / endpoint / MCP tool** → the module `README.md` (contract) + `.env.example` + any consumer's README (`§who-uses-me`). This overlaps the README-upkeep rule below.
 - **New cross-service wire contract (`libs/contracts`)** → both sides' code + an `E2E…Test` (see Test strategy).
 - **The `/v1/model-profile` contract** (LC-4, `llm-gateway`) → its test (the evict-before-load ordering *is* the contract) · `llm-gateway/README.md` · `infra/.env{,.mac}.example` + the compose env block · `plans/lifecycle.md` · **and the caller, which lives in another repo** (`../coding-agent`'s `lifecycle.py`). Nothing here can see that half, so it drifts silently — record the counterpart chore in that repo's STATUS.
+- **An epic's / stage's progress status** (started · shipped a slice · closed) → keep **one** source of truth (the ADR header for ADR-backed epics, else the `roadmap.md` bullet; `STATUS.md` while in flight) and make everything else **link, not restate**. `plans/INDEX.md` is a **statusless map** — scope + "read when" only, never a status word or date (enforced: `check-consistency.sh` check 4 rejects dates / ✅❌ in INDEX). This is the drift that bit us 2026-08-08 (DS-N shipped, 4 derivative docs still said "deferred"); the fix is fewer restatements, not more edits.
 
 Extend the lint whenever a new coupling is mechanically checkable (a stale ref that a grep can catch) — that's how the "automat" grows instead of relying on memory.
 
