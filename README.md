@@ -72,11 +72,16 @@ the matching `start` script (details: [`infra/README.md`](infra/README.md)).
 
 ## Build
 ```sh
+mvn -T4 test             # FAST loop: unit/slice tests only — container ITs skipped, NO Docker needed
 mvn -T4 verify           # full build + tests, parallel (Testcontainers spins up PG etc.); ~2x vs serial
 mvn -T1C -DskipTests install   # fast local compile (respects the module DAG)
 ```
-Run with Testcontainers **reuse OFF** (the default) — `-T` needs an isolated container per module;
-reuse + parallel corrupt each other's DB. See [`plans/migration-25-boot4.md`](plans/migration-25-boot4.md) §Build/CI performance.
+Tests are split fast/slow: `mvn test` runs unit/slice tests under surefire (no Testcontainers, no Docker);
+container integration tests (tagged `it` — everything extending `libs/test-support`'s
+`AbstractPostgresIntegrationTest`) run under **failsafe** in the `integration-test`/`verify` phases, so
+only `verify` (and CI) pays for them. Run `verify` with Testcontainers **reuse OFF** (the default) — `-T`
+needs an isolated container per module; reuse + parallel corrupt each other's DB.
+See [`plans/migration-25-boot4.md`](plans/migration-25-boot4.md) §Build/CI performance.
 
 ## Plan & docs
 New here? Read [`docs/REFERENCE.md`](docs/REFERENCE.md) first — a two-lens overview (developer, then
