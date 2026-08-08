@@ -1,7 +1,9 @@
 # ADR-0002: Sharing (personal vs shared) as a reusable cross-domain capability
 
 **Status:** Accepted (2026-08-01 — Option B; owner-approved: `libs/sharing` shared module + per-module
-`sharing/` policy; deterministic mechanism, extensible default-policy seam)
+`sharing/` policy; deterministic mechanism, extensible default-policy seam). **Implementation COMPLETE
+2026-08-07** — slices 1–7 (all opt-in domains, write & read) + item 8 (memory-driven default, DS-0…DS-4) +
+DS-N (confirm-on-ambiguity). Only the separate memory owner-tag reconciliation stays deferred (orthogonal).
 **Date:** 2026-08-01
 **Deciders:** repo owner (holder/admin)
 **Builds on:** [ADR-0001](ADR-0001-identity-membership-scope.md) (multi-tenant workspace identity —
@@ -397,11 +399,12 @@ rewritten — exactly the seam the Decision section promised.
 when constructing its `SharingResolver` (a one-line change in the agent's `OutboundHttpConfig`) — mirroring
 how each domain already wires the resolver. calendar is retrofitted first as the reference.
 
-**Confirm-on-ambiguity (DS-N, deferred — the learn/infer/*confirm* loop).** DS-4 closed the learn+infer
-half: on a non-explicit item the resolver returns the learned scope when the tally is deep + decisive, else
-the static rule — but it always returns *something silently*. DS-N adds the third branch: when the system
-genuinely can't tell, **ask once instead of guessing**, and record the reply (which immediately improves the
-tally). It is **not** blocked — see [§DS-N design](#ds-n--confirm-on-ambiguity-design).
+**Confirm-on-ambiguity (DS-N — ✅ shipped 2026-08-07, epic complete — the learn/infer/*confirm* loop).** DS-4
+closed the learn+infer half: on a non-explicit item the resolver returns the learned scope when the tally is
+deep + decisive, else the static rule — but it always returned *something silently*. DS-N added the third
+branch: when the system genuinely can't tell, **ask once instead of guessing**, and record the reply (which
+immediately improves the tally). Shipped across tasks/finance/docs (calendar + nutrition opt out by design) —
+see [§DS-N design](#ds-n--confirm-on-ambiguity-design) for the sub-slices.
 
 ## DS-N — confirm-on-ambiguity (design)
 
