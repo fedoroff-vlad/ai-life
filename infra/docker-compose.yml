@@ -116,6 +116,58 @@ services:
     volumes:
       - ./backups:/backups
 
+  # ---------- off-site backup replication (opt-in `offsite` profile) ----------
+  # The postgres-backup sidecar above only writes LOCAL dumps — a lost disk loses them.
+  # rclone-offsite pushes those gzipped dumps OFF the box so a single-machine failure isn't a
+  # single point of data loss. It sits on its OWN `offsite` profile (like the calendar `tunnel`
+  # profile) — NOT `hot` — because it needs a secret (the rclone remote creds) the plain hot
+  # bring-up must not require:
+  #   docker compose -f docker-compose.yml --profile hot --profile offsite up -d
+  #
+  # TWO backends, selected by the BACKUP_OFFSITE_REMOTES flag (space-separated list of rclone
+  # remote names defined in infra/secrets/rclone.conf). Both are just rclone remotes:
+  #   - `yadisk`    — Yandex Disk (rclone `yandex` backend, OAuth)
+  #   - `tailscale` — a second host over Tailscale (rclone `sftp` backend to its tailnet name/IP;
+  #                   reached via the Docker host, which is itself a tailnet node — no TS sidecar)
+  # One name = replicate to that target; several = replicate to each (belt-and-braces). rclone is
+  # backend-agnostic, so adding S3/B2/Drive later is just another remote in that file — no compose
+  # change. rclone.conf is mounted read-WRITE so rclone can persist a refreshed OAuth token.
+  # Set the remotes up once (from infra/, needs a browser for the Yandex OAuth step):
+  #   docker run --rm -it -v "$PWD/secrets:/config" -e RCLONE_CONFIG=/config/rclone.conf \
+  #     rclone/rclone config     # n) new remote -> name=yadisk storage=yandex ; and/or name=tailscale storage=sftp
+  rclone-offsite:
+    image: rclone/rclone:1.68
+    container_name: ai-life-rclone-offsite
+    restart: unless-stopped
+    profiles: ["offsite"]
+    environment:
+      RCLONE_CONFIG: /config/rclone.conf
+      BACKUP_OFFSITE_REMOTES: ${BACKUP_OFFSITE_REMOTES:-yadisk}
+      BACKUP_OFFSITE_PATH: ${BACKUP_OFFSITE_PATH:-ai-life-backups}
+      BACKUP_OFFSITE_INTERVAL: ${BACKUP_OFFSITE_INTERVAL:-86400}
+    volumes:
+      - ./backups:/backups:ro
+      # read-write: rclone rewrites the config here when it refreshes the OAuth token.
+      - ${BACKUP_OFFSITE_SECRETS_DIR:-./secrets}:/config
+    # No host cron: an in-container loop mirrors /backups to each remote on a fixed interval
+    # (default daily). rclone sync copies whole gzipped files idempotently, so racing the daily
+    # dump — or a remote being briefly unreachable — is harmless (retried next cycle).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[offsite] loop start interval=${BACKUP_OFFSITE_INTERVAL}s remotes='${BACKUP_OFFSITE_REMOTES}' path=${BACKUP_OFFSITE_PATH}"
+        while true; do
+          for remote in ${BACKUP_OFFSITE_REMOTES}; do
+            echo "[offsite] $(date -u +%FT%TZ) sync -> ${remote}:${BACKUP_OFFSITE_PATH}"
+            if rclone sync /backups "${remote}:${BACKUP_OFFSITE_PATH}" --stats=0 --stats-one-line; then
+              echo "[offsite] $(date -u +%FT%TZ) ${remote} ok"
+            else
+              echo "[offsite] $(date -u +%FT%TZ) ${remote} FAILED (rc=$?), retry next cycle"
+            fi
+          done
+          sleep "${BACKUP_OFFSITE_INTERVAL}"
+        done
+
   radicale:
     profiles: ["hot"]
     image: tomsquest/docker-radicale:latest

@@ -21,7 +21,8 @@ hot/cold split. A bare `up` (no `--profile`) starts **nothing**; you must pass a
 
 Until LC-3's supervisor auto-starts cold services on the request that needs them, start them by name
 (e.g. `mcp-money-pro-import` before a Money Pro import). `calendar-web` + `tailscale-calendar` sit on a
-separate `tunnel` profile (`--profile tunnel`).
+separate `tunnel` profile (`--profile tunnel`); off-site backup replication (`rclone-offsite` →
+Yandex Disk) sits on a separate `offsite` profile (`--profile offsite`, see §Database backups).
 
 Both files share `.env` and the same Postgres volume — they don't conflict, but
 don't run them at the same time either (port collisions on 5432 / 5232).
@@ -139,8 +140,53 @@ gunzip -c infra/backups/last/ailife-latest.sql.gz \
   | docker exec -i ai-life-postgres psql -U ailife -d ailife
 ```
 
-Backups are **local only** — a lost disk loses them. Off-site replication (a second host over
-Tailscale, or a cloud bucket) is a deliberate follow-up, tracked in `plans/STATUS.md`.
+### Off-site replication (opt-in `offsite` profile)
+
+Local dumps alone are a single point of failure — a lost disk loses them. The **`offsite` profile**
+adds one OSS sidecar, `rclone-offsite`, that pushes the gzipped dumps in `infra/backups/` off the box
+so a single-machine failure isn't total data loss.
+
+**Two backends, selected by a flag** (`BACKUP_OFFSITE_REMOTES` — a space-separated list of rclone
+remote names in `infra/secrets/rclone.conf`):
+
+| remote name | backend | what it needs |
+|---|---|---|
+| `yadisk` | Yandex Disk (rclone `yandex`, OAuth) | a Yandex account (a 1 TB Disk is plenty); no extra host |
+| `tailscale` | second host over Tailscale (rclone `sftp`) | a second machine on your tailnet + an SSH key |
+
+One name = replicate to that target; several = replicate to **each** (belt-and-braces), e.g.
+`BACKUP_OFFSITE_REMOTES="yadisk tailscale"`. rclone is backend-agnostic — adding S3/B2/Drive later is
+just another remote in that file, **no compose change**. `rclone-offsite` runs
+[`rclone`](https://rclone.org) `sync` of `/backups` → `<remote>:<path>` for each remote on a fixed
+interval (default daily, `BACKUP_OFFSITE_INTERVAL`). `rclone.conf` is mounted **read-write** so rclone
+can persist a refreshed OAuth token. There's **no Tailscale sidecar** — the `sftp` remote reaches the
+tailnet peer through the Docker host, which is itself a tailnet node.
+
+It's a **separate profile** (not `hot`) because it needs a secret (the rclone remote creds) the plain
+hot bring-up must not require. Enable it once configured:
+
+```sh
+docker compose -f docker-compose.yml --profile hot --profile offsite up -d
+```
+
+**Setup (one-time).** Create the remote(s) — run from `infra/`; the Yandex step opens a browser:
+
+```sh
+docker run --rm -it -v "$PWD/secrets:/config" -e RCLONE_CONFIG=/config/rclone.conf rclone/rclone config
+```
+
+- **Yandex Disk** — `n` → name **`yadisk`** → storage **`yandex`** → leave client_id/secret blank →
+  `y` auto-config → log into Yandex in the browser → done.
+- **Tailscale host** — `n` → name **`tailscale`** → storage **`sftp`** → `host` = the peer's tailnet
+  name/IP, `user` = the SSH user, `key_file` = `/config/tailscale_key` (drop the private key in
+  `infra/secrets/tailscale_key`; add the matching public key to the peer's `authorized_keys`).
+
+Both write to `infra/secrets/rclone.conf` (gitignored). Set `BACKUP_OFFSITE_REMOTES` in `.env` to the
+name(s) you configured, then bring the profile up.
+
+**Force a sync now** (e.g. to verify wiring): `docker restart ai-life-rclone-offsite` then
+`docker logs -f ai-life-rclone-offsite` — each cycle logs `sync -> <remote>` / `<remote> ok` /
+`<remote> FAILED`. Files land in `<remote>:/ai-life-backups/` (mirrors `last/ daily/ weekly/`).
 
 ## Services and default ports
 
