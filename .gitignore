@@ -56,7 +56,7 @@ docker-data/
 infra/backups/*
 !infra/backups/.gitkeep
 
-# ---- Off-site replication secrets (rclone SSH key, known_hosts) — keep dir, ignore contents ----
+# ---- Off-site replication secrets (rclone.conf + any SSH key) — keep dir, ignore contents ----
 infra/secrets/*
 !infra/secrets/.gitkeep
 

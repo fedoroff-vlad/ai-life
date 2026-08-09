@@ -104,8 +104,8 @@ follows a workload profile.
   coach) + capability MCPs market-data, image-gen, weather, youtube/reddit/feeds, chart-render,
   ics-import, money-pro-import, food-data + grafana.
 - **`profiles: ["tunnel"]`** (opt-in, 2): calendar-web + tailscale-calendar (shared-calendar web UI).
-- **`profiles: ["offsite"]`** (opt-in, 2): tailscale-backup + rclone-offsite (off-site DB-dump
-  replication to a second host over Tailscale/SFTP — see infra/README.md §Database backups).
+- **`profiles: ["offsite"]`** (opt-in, 1): rclone-offsite (off-site DB-dump replication to Yandex
+  Disk and/or a Tailscale host, `BACKUP_OFFSITE_REMOTES` flag — see infra/README.md §Database backups).
 - Boot the always-on system: `docker compose --profile hot up -d`. **A bare `up` starts nothing** (every
   service is profiled) — pass `--profile hot` (and add `--profile cold` for a full smoke), or a service
   name. Start scripts (`scripts/start-{mac,win}.*`) now pass `--profile hot`.
