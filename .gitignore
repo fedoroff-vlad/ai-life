@@ -56,6 +56,10 @@ docker-data/
 infra/backups/*
 !infra/backups/.gitkeep
 
+# ---- Off-site replication secrets (rclone SSH key, known_hosts) — keep dir, ignore contents ----
+infra/secrets/*
+!infra/secrets/.gitkeep
+
 # ---- Ad-hoc captured outputs (mvn/test/CI logs the user/agent wrote out by hand) ----
 # Convention: capture to logs/<descriptive>.log instead of dropping files in repo root.
 # See CLAUDE.md §"Test strategy" + logs/README.md for the rationale.

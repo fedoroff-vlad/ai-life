@@ -21,7 +21,8 @@ hot/cold split. A bare `up` (no `--profile`) starts **nothing**; you must pass a
 
 Until LC-3's supervisor auto-starts cold services on the request that needs them, start them by name
 (e.g. `mcp-money-pro-import` before a Money Pro import). `calendar-web` + `tailscale-calendar` sit on a
-separate `tunnel` profile (`--profile tunnel`).
+separate `tunnel` profile (`--profile tunnel`); off-site backup replication (`tailscale-backup` +
+`rclone-offsite`) sits on a separate `offsite` profile (`--profile offsite`, see §Database backups).
 
 Both files share `.env` and the same Postgres volume — they don't conflict, but
 don't run them at the same time either (port collisions on 5432 / 5232).
@@ -139,8 +140,35 @@ gunzip -c infra/backups/last/ailife-latest.sql.gz \
   | docker exec -i ai-life-postgres psql -U ailife -d ailife
 ```
 
-Backups are **local only** — a lost disk loses them. Off-site replication (a second host over
-Tailscale, or a cloud bucket) is a deliberate follow-up, tracked in `plans/STATUS.md`.
+### Off-site replication (opt-in `offsite` profile)
+
+Local dumps alone are a single point of failure — a lost disk loses them. The **`offsite` profile**
+adds two OSS sidecars that push the gzipped dumps in `infra/backups/` to a **second host over
+Tailscale** (SFTP), so a single-machine failure isn't total data loss:
+
+- `tailscale-backup` — joins the tailnet (its own node; needs `TS_AUTHKEY_BACKUP`).
+- `rclone-offsite` — [`rclone`](https://rclone.org) `sync` of `/backups` → `offsite:<path>` on a fixed
+  interval (default daily, `BACKUP_OFFSITE_INTERVAL`), sharing the sidecar's network namespace so it
+  reaches the tailnet peer transparently. The remote is defined purely via `RCLONE_CONFIG_OFFSITE_*`
+  env (config-as-data, no `rclone.conf`); switching to a cloud bucket later is a config change only.
+
+It's a **separate profile** (not `hot`) because it needs secrets the plain hot bring-up must not
+require. Enable it once configured:
+
+```sh
+docker compose -f docker-compose.yml --profile hot --profile offsite up -d
+```
+
+**Setup (one-time):**
+1. Fill `TS_AUTHKEY_BACKUP` + `BACKUP_OFFSITE_*` in `.env` (see `.env.example`).
+2. Put the SSH private key for the second host at `infra/secrets/offsite_key` (dir is gitignored,
+   bind-mounted read-only to `/keys`). Optionally add `infra/secrets/known_hosts` and set
+   `BACKUP_OFFSITE_KNOWN_HOSTS=/keys/known_hosts` to enforce host-key verification (host keys aren't
+   verified by default — acceptable over the already-encrypted tailnet).
+3. Ensure `BACKUP_OFFSITE_PATH` exists and is writable by `BACKUP_OFFSITE_USER` on the second host.
+
+**Force a sync now** (e.g. to verify wiring): `docker restart ai-life-rclone-offsite` then
+`docker logs -f ai-life-rclone-offsite` — each cycle logs `sync start` / `sync ok` / `sync FAILED`.
 
 ## Services and default ports
 
