@@ -46,6 +46,7 @@
     <include file="features/091-memory-embed-768.yml" relativeToChangelogFile="true"/>
     <include file="features/092-memory-sharing-decision.yml" relativeToChangelogFile="true"/>
     <include file="features/100-coach.yml" relativeToChangelogFile="true"/>
+    <include file="features/110-travel.yml" relativeToChangelogFile="true"/>
 
     <!-- Future inclusions (added in subsequent PRs):
     <include file="features/006-audit.yml"  relativeToChangelogFile="true"/>

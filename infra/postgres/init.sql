@@ -20,5 +20,6 @@ CREATE SCHEMA IF NOT EXISTS nutrition;
 CREATE SCHEMA IF NOT EXISTS creator;
 CREATE SCHEMA IF NOT EXISTS briefing;
 CREATE SCHEMA IF NOT EXISTS docs;
+CREATE SCHEMA IF NOT EXISTS travel;
 
 -- Schemas are populated by Liquibase changelogs (infra/liquibase/features/*).

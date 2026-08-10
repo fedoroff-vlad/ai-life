@@ -1,0 +1,91 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 110-travel
+      author: ai-life
+      comment: |
+        Travel domain opener: source-of-truth table for mcp-travel
+        (plans/travel.md, TR-b). One table — travel_profile (one per person's
+        vacation-planning preferences).
+
+        travel_profile is keyed (household_id, owner_id) so a person has at most
+        one profile (null owner = household default) — mirrors briefing_profile /
+        creator_profile / diet_profile. home_base is a stated preference (label +
+        geocoded lat/lon), not device GPS. rest_types (preferred vacation kinds:
+        beach|active|family|couple|city|ski|wellness) and child_ages are jsonb
+        arrays; companions is solo|couple|family; budget_amount/budget_currency are
+        a soft budget hint (the live check comes from the finance brief). No trip
+        persistence — MVP plans are stateless deliverables.
+      changes:
+        - createTable:
+            schemaName: travel
+            tableName: travel_profile
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_travel_profile_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_travel_profile_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: home_base_label
+                  type: text
+              - column:
+                  name: home_base_latitude
+                  type: double precision
+              - column:
+                  name: home_base_longitude
+                  type: double precision
+              - column:
+                  name: rest_types
+                  type: jsonb
+              - column:
+                  name: companions
+                  type: varchar(16)
+              - column:
+                  name: child_ages
+                  type: jsonb
+              - column:
+                  name: budget_amount
+                  type: numeric(14,2)
+              - column:
+                  name: budget_currency
+                  type: varchar(8)
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: travel
+            tableName: travel_profile
+            indexName: ux_travel_profile_household_owner
+            unique: true
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: owner_id
