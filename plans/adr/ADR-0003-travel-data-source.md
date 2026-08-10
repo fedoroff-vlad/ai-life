@@ -109,8 +109,9 @@ fallback**, and revisited on its own merits for the video/social capability.
    record stays this ADR + travel.md. *(docs — the travel-spec PR)*
 2. [ ] **Planner MVP** — travel.md TR-a…TR-e, one PR each. No external dependency.
 3. [ ] **(follow-on, owner-confirmed)** `mcp-travel-search` capability-MCP over Travelpayouts — gated on
-   the owner obtaining a key + accepting T&C; bind it in travel-agent and wire flight/hotel/tour search
-   into `trip-planner`. `mcp-browser` only if Travelpayouts is insufficient.
+   the owner obtaining a key + accepting T&C; bind it in travel-agent and wire flight/hotel search into
+   `trip-planner`. Detailed WHEN/THEN plan: [travel.md](../travel.md) **§TR-f** (TR-f1 capability + TR-f2
+   wiring; tours + no-API sources → `mcp-browser`, TR-f3). `mcp-browser` only if Travelpayouts is insufficient.
 
 ## Notes
 Third ADR in the repo. It introduces **no new shared contract or layer** — it records a scope + source +

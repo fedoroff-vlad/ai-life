@@ -148,10 +148,70 @@ soft-fails to the text-only reply. Same board seam as briefing/finance. **Closes
   - WHEN doc-render/media-store fails
   - THEN the owner still gets the text plan and no error surfaces (asserted by `TripComposerTest`)
 
-## Deferred (follow-ons, not the MVP)
-- **Live flight/hotel/tour search + pricing** — the ADR-0003 source decision; behind a capability-MCP
-  (`mcp-travel-search` over Travelpayouts, or `mcp-browser` for no-API sources). Needs an owner-confirmed
-  key + T&C acceptance.
+## Follow-on — TR-f: live search over Travelpayouts (post-MVP, owner-key-gated)
+The concrete plan for live flight/hotel/tour **pricing** — the ADR-0003 point-3 follow-on. **Gated, not
+started:** it needs (a) ADR-0003 accepted and (b) the owner to obtain a free **Travelpayouts** token +
+marker and accept its T&C (a "confirm before doing" action — keys never committed, they live in
+`.env` from `.env.example`). Until then the planner MVP (TR-a…TR-e) runs without it. Source stays behind
+a **capability-MCP** so it can be swapped for `mcp-browser` without touching the agent; the agent still
+**never books or pays** — results are ranked options + provider **deep links** (affiliate marker) the
+owner opens to buy.
+
+### TR-f1 — `mcp-travel-search` capability-MCP over Travelpayouts
+`shared/mcp/mcp-travel-search` (next free port). Schema-less shared capability behind a swappable
+`TravelSearchSource` (Travelpayouts default): `resolve_place(query) → {name, iataCity/hotelLocationId}`
+(city → code via Travelpayouts data/autocomplete), `search_flights(origin, destination, departDate,
+returnDate?, adults) → FlightOffer[]` (Aviasales prices) and `search_hotels(location, checkIn, checkOut,
+guests) → HotelOffer[]` (Hotellook prices); `/internal/*` passthroughs. Read-only; each offer carries a
+`deepLink` with the marker. Key via `TRAVELPAYOUTS_TOKEN` + `TRAVELPAYOUTS_MARKER` env; **no key →
+degrade** (tools return empty + an "unconfigured" flag, never a 500). Change-propagation for a new
+capability-MCP: `infra/docker-compose*.yml` · root `README.md` · module `README.md` · `plans/architecture.md`
+· `plans/INDEX.md` · `.env.example` (the two keys + port) · a golden test. (Tours: Travelpayouts has no
+clean tour API → **deferred** to TR-f3 / `mcp-browser`; MVP-search is flights + hotels.)
+- **Scenario: cheapest flight with transfers**
+  - WHEN `search_flights(MOW, AYT, 2026-09-12, adults=2)` is called with a valid key
+  - THEN it returns offers each with `{price, transfers, airline, dates, deepLink}` sorted by price
+    (asserted by `TravelpayoutsSourceTest`, MockWebServer against a recorded Aviasales response)
+- **Scenario: hotel search**
+  - WHEN `search_hotels(location, checkIn, checkOut, guests)` is called
+  - THEN it returns `{name, price, stars, deepLink}` offers (asserted by `TravelpayoutsSourceTest`)
+- **Scenario: no key configured → degrade, not fail**
+  - WHEN `TRAVELPAYOUTS_TOKEN` is unset and a search tool is called
+  - THEN it returns empty + `unconfigured=true` (not an error) so callers soft-degrade (asserted by
+    `TravelSearchControllerTest`) — this keeps CI/tests green with no key
+- **Scenario: upstream down → soft-fail**
+  - WHEN Travelpayouts is unreachable
+  - THEN the tool returns empty, not a 500 (asserted by `TravelpayoutsSourceTest`)
+
+### TR-f2 — bind in travel-agent + wire live options into `trip-planner`
+travel-agent binds `mcp-travel-search`; the `trip-planner` gather gains a live-options step when the
+owner asks for concrete tickets/hotels ("найди билеты", "подбери отель"): resolve places → search
+flights/hotels for the chosen dates → **rank by min transfers then price**, filter to the finance-`brief`
+budget → fold ranked options + deep links into the `trip-composer` synthesis and the HTML board. When
+`mcp-travel-search` reports `unconfigured`/empty, the planner **degrades to the MVP plan** (route + season
++ budget, no live options) and tells the owner live search isn't set up. `mcp-travel-search` README gains
+travel-agent in §who-uses-me.
+- **Scenario: min-transfers preference honoured**
+  - WHEN the owner asks for tickets and several offers exist
+  - THEN the top pick minimises transfers before price, within the finance-`brief` budget (asserted by
+    `TripComposerTest` live-options case)
+- **Scenario: options carry buy links, agent does not book (the hard boundary)**
+  - WHEN live flight/hotel options are presented
+  - THEN each is a provider `deepLink` and the agent performs **no** reservation or payment (asserted by
+    `TripComposerTest`: reply/board carry deep links; no outbound booking/payment call is made)
+- **Scenario: over-budget flagged, not hidden**
+  - WHEN the cheapest option exceeds the finance-`brief` budget
+  - THEN the plan still shows it, flagged "над бюджетом" (asserted by `TripComposerTest`)
+- **Scenario: search unconfigured → graceful MVP fallback**
+  - WHEN `mcp-travel-search` returns `unconfigured`
+  - THEN the owner gets the planner MVP result + a note that live search needs a Travelpayouts key
+    (asserted by `TripComposerTest`)
+- **Golden:** `GoldenTripComposerTest` gains a live-options fixture asserting structure (offers listed,
+  links present, no price claimed without a source) — not wording.
+
+## Deferred (further out)
+- **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
+  (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).
 - **Booking hand-off** — deep links to the provider's own checkout only; the agent never transacts (a
   permanent boundary, not a deferred feature).
 - **Saved trips / itinerary history** — a `travel.trip` store, once plans need to persist/compare.
