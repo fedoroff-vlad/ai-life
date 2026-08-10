@@ -15,12 +15,17 @@ from existing domains/capabilities on the shared `Coordinator`, then one LLM syn
 ## Doctrine (no new layer)
 Everything in the MVP reuses an existing pattern — flag nothing new:
 - **Gather → synthesize** on `libs/agent-runtime` `Coordinator` (same shape as briefing/creator), fanned
-  out to budget + dates + season sources. Per-source soft-fail is built in.
+  out to budget + dates + season + qualitative-research sources. Per-source soft-fail is built in.
 - **"По данным финансиста"** = the read-only **`brief`** cross-agent query ([stage4.md](stage4.md)) —
   travel-agent is a `brief` **caller** (like `coordinator-agent`), reading the finance budget/spending
   snapshot and the calendar free-dates snapshot. It never touches `finance.*` / `calendar.*` directly.
 - **Season** = `mcp-weather` — already built (forecast + geocode over Open-Meteo, free/no-key); the MVP
   adds a schema-less **`climate`** tool (monthly normals) as the season substrate.
+- **Qualitative research** = `mcp-web` (SearXNG search + `fetch_url`) for destination ideas, season
+  reviews, and general deal roundups — the same cheap-first, free/keyless source briefing uses for news;
+  soft-fail. This is **information** (articles, recommendations), **not** live pricing/availability — the
+  latter needs a real provider source (ADR-0003) that `mcp-web` cannot replace (JS-rendered aggregators
+  yield only boilerplate via jsoup — the repo's own live finding, roadmap §Evaluated tools).
 - **Deliverable** = `libs/doc-render` HTML board → media-service blob → link, with a climate-by-month
   chart via `mcp-chart-render`. Both already used by briefing/finance.
 - **Personalization** = a `travel_profile` keyed `(household, owner)` — the same pattern as
@@ -82,8 +87,9 @@ personalization store — no trip persistence yet (MVP plans are stateless deliv
   - THEN it returns 204/empty (caller falls back to household default) (asserted by `McpTravelIntegrationTest`)
 
 ### TR-c — `travel-agent` scaffold + `travel-profiler` skill
-`domains/travel/travel-agent` (next free port). Binds `mcp-travel` + `mcp-weather`; registered in
-orchestrator as `travel`. A preferences cue → `travel-profiler` extract → home_base city → geocode
+`domains/travel/travel-agent` (next free port). Binds `mcp-travel` + `mcp-weather` + `mcp-web`; registered
+in orchestrator as `travel` (binding `mcp-web` from a new agent updates its §who-uses-me — bump
+`shared/mcp/mcp-web/README.md` in the TR-c PR). A preferences cue → `travel-profiler` extract → home_base city → geocode
 (`mcp-weather /internal/geocode`, soft-fail) → upsert via `/internal/travel-profile`. Chat fallback for
 non-config messages. Mirrors `briefing-agent` (BR-c2).
 - **Scenario: profile config**
@@ -100,8 +106,9 @@ non-config messages. Mirrors `briefing-agent` (BR-c2).
 ### TR-d — `trip-planner` flow (gather → synthesize)
 A plan-a-trip cue → resolve the profile (self → household-default → empty-profile default) → gather in
 parallel on the `Coordinator`: **budget** via the finance `brief`, **free dates** via the calendar
-`brief`, **season fit** via `mcp-weather /internal/climate` for the candidate destination(s) → one
-`trip-composer` synthesis → a reply with the route, season verdict, and a budget check. Per-source
+`brief`, **season fit** via `mcp-weather /internal/climate` for the candidate destination(s), and
+**destination ideas / season reviews** via `mcp-web /internal/search` → one `trip-composer` synthesis →
+a reply with the route, season verdict, and a budget check, grounded in the web-source links. Per-source
 soft-fail; budget/dates absent → the plan still returns using `budget_hint` and the stated dates.
 **Booking boundary (ADR-0003):** the plan proposes options and provenance links only — it MUST NOT book,
 reserve, or pay.
@@ -116,6 +123,13 @@ reserve, or pay.
 - **Scenario: finance brief unavailable → soft-fail**
   - WHEN the finance `brief` call fails
   - THEN the plan still returns, using `budget_hint`, and notes the budget is unverified (asserted by `TripComposerTest`)
+- **Scenario: web-grounded ideas (info, not pricing)**
+  - WHEN the owner asks for a destination suggestion and `mcp-web` returns articles
+  - THEN the plan proposes destinations grounded in those links and does **not** present any figure as a
+    live bookable price (asserted by `TripComposerTest`: web links cited; no price claimed as live)
+- **Scenario: web search unavailable → soft-fail**
+  - WHEN `mcp-web` is unreachable
+  - THEN the plan still returns from budget/dates/season alone (asserted by `TripComposerTest`)
 - **Scenario: no booking (the hard boundary)**
   - WHEN the plan reaches a bookable option (flight/hotel/tour)
   - THEN the agent outputs a link only and performs no reservation or payment (asserted by `TripComposerTest`:
