@@ -15,6 +15,13 @@ public class McpWeatherProperties {
     private String geocodeUrl = "https://geocoding-api.open-meteo.com";
 
     /**
+     * Open-Meteo Archive base URL — where {@code climate} reads historical daily data
+     * ({@code /v1/archive?...}) to aggregate into monthly normals. A separate host from the forecast
+     * and geocoding APIs (all free, no key).
+     */
+    private String climateUrl = "https://archive-api.open-meteo.com";
+
+    /**
      * Which forecast source to wire: {@code open-meteo} (default, free, no key). Behind the
      * {@code WeatherSource} interface so a keyed provider can replace it later via env with no
      * caller change (mirrors mcp-market-data's source selector).
@@ -25,6 +32,8 @@ public class McpWeatherProperties {
     public void setOpenMeteoUrl(String openMeteoUrl) { this.openMeteoUrl = openMeteoUrl; }
     public String getGeocodeUrl() { return geocodeUrl; }
     public void setGeocodeUrl(String geocodeUrl) { this.geocodeUrl = geocodeUrl; }
+    public String getClimateUrl() { return climateUrl; }
+    public void setClimateUrl(String climateUrl) { this.climateUrl = climateUrl; }
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
 }
