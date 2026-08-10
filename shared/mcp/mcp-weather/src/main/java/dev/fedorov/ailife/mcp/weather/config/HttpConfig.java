@@ -25,4 +25,13 @@ public class HttpConfig {
                 .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-weather 0.0.1")
                 .build();
     }
+
+    /** Reads historical daily data for the monthly normals via Open-Meteo Archive ({@code /v1/archive?...}). */
+    @Bean
+    public WebClient climateWebClient(McpWeatherProperties props, WebClient.Builder builder) {
+        return builder.clone()
+                .baseUrl(props.getClimateUrl())
+                .defaultHeader(HttpHeaders.USER_AGENT, "ai-life/mcp-weather 0.0.1")
+                .build();
+    }
 }

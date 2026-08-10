@@ -11,7 +11,10 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   + source + the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` +
   `mcp-weather` `climate` + `mcp-web` → itinerary + HTML board; per-owner `travel_profile`); live
   flight/hotel/tour pricing = the **§TR-f** follow-on behind a capability-MCP (Travelpayouts pref /
-  `mcp-browser` fallback), still owner-key-gated. **Next slice: TR-a** (`climate` tool in `mcp-weather`). Also landed this session: the repo-wide **WHEN/THEN acceptance-criteria**
+  `mcp-browser` fallback), still owner-key-gated. **TR-a shipped** (`climate` tool in `mcp-weather` —
+  monthly normals over Open-Meteo Archive, `/internal/climate`, soft-fail; → [HISTORY](HISTORY.md) +
+  [mcp-weather README](../shared/mcp/mcp-weather/README.md)). **Next slice: TR-b** (`mcp-travel` +
+  `travel` schema/profile). Also landed this session: the repo-wide **WHEN/THEN acceptance-criteria**
   convention (CLAUDE.md §Spec each slice + PATTERNS.md recipe, PR #430).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains

@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.mcp.weather.tools;
 
+import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import dev.fedorov.ailife.mcp.weather.engine.WeatherSource;
@@ -44,5 +45,18 @@ public class WeatherMcpTools {
             return new GeoLocation(null, null, null, null, null);
         }
         return source.geocode(name, language).block();
+    }
+
+    @Tool(description = """
+            Get the monthly climate normals for one location — the typical weather by month, the
+            substrate for judging whether a destination fits a given month. Pass latitude and longitude
+            in decimal degrees (resolve a place name with `geocode` first) and an optional month (1–12)
+            to get just that month. Returns, per calendar month, the average daily-mean temperature in
+            °C and the average monthly precipitation total in mm, over a recent multi-year reference
+            period. The months list is empty when the source has no data. This is read-only climatology
+            DATA — deciding the season fit for a trip is your job.
+            """)
+    public ClimateNormals climate(double latitude, double longitude, Integer month) {
+        return source.climate(latitude, longitude, month).block();
     }
 }

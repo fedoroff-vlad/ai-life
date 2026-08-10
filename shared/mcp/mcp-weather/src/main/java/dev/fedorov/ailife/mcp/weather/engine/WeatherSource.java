@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.mcp.weather.engine;
 
+import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import reactor.core.publisher.Mono;
@@ -21,4 +22,13 @@ public interface WeatherSource {
      * fields when the source finds no match (not an error).
      */
     Mono<GeoLocation> geocode(String name, String language);
+
+    /**
+     * Monthly climate normals (average daily-mean temperature + average monthly precipitation total)
+     * for a location over a fixed recent reference period. {@code month} is an optional 1–12 filter:
+     * when set only that month is returned, otherwise all twelve (ordered Jan→Dec). Unlike
+     * {@link #forecast}/{@link #geocode}, a transport failure does <b>not</b> propagate — it maps to
+     * an empty {@link ClimateNormals} (empty {@code months}) so callers degrade rather than see a 500.
+     */
+    Mono<ClimateNormals> climate(double latitude, double longitude, Integer month);
 }
