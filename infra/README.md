@@ -239,6 +239,7 @@ name(s) you configured, then bring the profile up.
 | mcp-chart-render     | 8120 | Chart-render capability-MCP (data → PNG via Java2D → media-service; `render_chart`) |
 | mcp-coach            | 8121 | Coach domain-MCP (subject-scoped coaching record: profile/values/observations/hypotheses/actions/sessions/intake) |
 | coach-agent          | 8122 | Self-understanding coach (#289): safety gate → Reflect over the sender's own notes; binds memory-service + mcp-coach `/internal` |
+| mcp-travel           | 8123 | Travel domain-MCP (per-owner travel preferences: home base / rest types / companions / budget hint) |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

@@ -178,7 +178,8 @@ GIN index).
 | `080-089` | docs | `docs.*` (document archive + metadata) |
 | `090-099` | memory / cross-cutting | `memory.note` (second-brain authored notes; `090-memory-note.yml`) |
 | `100-109` | coach | `coach.*` (profile, intake, values, observations, hypotheses, actions, sessions) — #289 |
-| `110-119` | _next domain_ (reserved) | — |
+| `110-119` | travel | `travel.*` (travel_profile) — #190 |
+| `120-129` | _next domain_ (reserved) | — |
 
 Rules:
 - **Pick the lowest free slot inside your range** — don't leave gaps unless you

@@ -1084,6 +1084,32 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-travel:
+    profiles: ["cold"]
+    image: ai-life/mcp-travel:local
+    container_name: ai-life-mcp-travel
+    build:
+      context: ..
+      dockerfile: domains/travel/mcp-travel/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      MCP_TRAVEL_PORT: 8123
+      MCP_TRAVEL_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_TRAVEL_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_TRAVEL_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8123/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-docs:
     profiles: ["cold"]
     image: ai-life/mcp-docs:local
