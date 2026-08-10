@@ -5,6 +5,29 @@ layout when scaffolding something new. Each recipe is a checklist + a pointer to
 canonical example. If the canonical example has drifted from the recipe, fix the
 recipe — it is the source of truth for "how we do this here".
 
+## Recipe: spec a slice (WHEN/THEN acceptance criteria)
+Before coding a slice, write its acceptance criteria as **WHEN/THEN scenarios** in the domain plan
+(`plans/<domain>.md`), under the slice heading. One `Scenario:` per observable behaviour. These are the
+spec the slice is judged against and the seed for its golden/E2E tests — see [`CLAUDE.md`](../CLAUDE.md)
+§Spec each slice. Rule of thumb: if a scenario can't become a failing test, it isn't a criterion.
+
+Template:
+
+```
+### TR-a — <slice name>
+**Requirement:** the agent SHALL <capability>.
+
+- **Scenario: <name>**
+  - WHEN <trigger / input state>
+  - THEN <observable outcome> (asserted by <golden | E2E | unit> test)
+- **Scenario: <edge / negative case>**
+  - WHEN <condition>
+  - THEN <fallback / refusal / clarify>
+```
+
+Keep them at plan altitude (behaviour, not implementation). Outbound/side-effectful behaviour (send,
+book, pay) MUST have a scenario asserting it **stops for user confirm** — that is a criterion, not a detail.
+
 ## Recipe: add a new domain-MCP (`domains/<domain>/mcp-<name>`)
 Canonical example: [mcp-ics-import](../domains/calendar/mcp-ics-import) (Stage-1 closer of the
 pattern; mcp-caldav is older and slightly less aligned). For a schema-less shared tool, see

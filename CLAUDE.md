@@ -77,6 +77,16 @@ Extend the lint whenever a new coupling is mechanically checkable (a stale ref t
 - Genuinely ambiguous? Ask ONE question. Don't explore options.
 - New layer / pattern / architectural concept → flag it BEFORE coding; don't invent silently.
 
+## Spec each slice — WHEN/THEN acceptance criteria (before code)
+Before writing a slice, state its acceptance criteria as **WHEN/THEN scenarios** in the domain plan
+(`plans/<domain>.md`) — one short `Scenario:` per observable behaviour, not prose. They are the spec the
+slice is judged against and the seed for its **golden/E2E** tests (a scenario that can't fail as a test
+isn't a criterion). Keep them at the plan/domain-plan altitude — SSOT is still the plan file; STATUS/README
+**link**, don't restate. Template: [`plans/PATTERNS.md`](plans/PATTERNS.md) §Recipe: spec a slice.
+This is the one habit borrowed from spec-driven kits (OpenSpec's WHEN/THEN); the tool itself is **not**
+adopted — a parallel `openspec/` tree would be a second source of truth beside `plans/` (drift + a Node
+dep in a Java monorepo), and `plans/` + ADR + `check-consistency.sh` already cover the rest of that cycle.
+
 ## Test strategy — don't burn cycles
 - **Fast/slow split (surefire vs failsafe).** `mvn test` runs unit/slice tests only — **no Testcontainers, no Docker**; container integration tests are tagged `it` (everything extending `libs/test-support`'s `AbstractPostgresIntegrationTest`, plus the standalone `EventBusIntegrationTest`) and run under **failsafe** in the `integration-test`/`verify` phases. So the fast dev loop (`mvn test` / `-Dtest=Class`) never pays for containers; `mvn verify` (and CI, which runs `verify` on both paths) runs the full suite. A new container test needs nothing but to extend the base — the `@Tag("it")` is inherited. **Boot-repackaged modules:** failsafe is pinned to `classesDirectory=${project.build.outputDirectory}` in the root pom so it uses loose classes, not the fat jar (else `NoClassDefFoundError`).
 - While iterating, run ONLY the relevant test class (`mvn -Dtest=ClassName test`), never the full suite.
