@@ -1,8 +1,8 @@
 # ADR-0003: Travel-agent data source — planner-first, capability-MCP boundary, agent never books
 
-**Status:** Proposed (2026-08-10 — authored in the travel-spec PR for owner review. The *planner-first
-MVP* scope is owner-chosen; the *live-pricing source pick* stays a follow-on gated on an owner-confirmed
-key.)
+**Status:** Accepted (2026-08-10 — owner-approved). Planner-first MVP (travel.md TR-a…TR-e) is **unblocked
+and is the active track**; the live-pricing follow-on (travel.md **§TR-f**, Travelpayouts) stays gated on an
+owner-obtained key + accepted T&C. The "agent never books or pays" boundary is a permanent invariant.
 **Date:** 2026-08-10
 **Deciders:** repo owner (holder/admin)
 **Relates to:** [travel.md](../travel.md) (the domain plan this decision unblocks), the deferred
@@ -104,9 +104,9 @@ fallback**, and revisited on its own merits for the video/social capability.
   travel and the video/social follow-on both bind it.
 
 ## Action Items
-1. [ ] **Accept/adjust this ADR** (owner). On acceptance, no `architecture.md` §Locked-decisions change is
-   needed (this introduces no new cross-cutting primitive — it reuses the capability-MCP doctrine); the
-   record stays this ADR + travel.md. *(docs — the travel-spec PR)*
+1. [x] **Accept this ADR** (owner, 2026-08-10). No `architecture.md` §Locked-decisions change needed
+   (this introduces no new cross-cutting primitive — it reuses the capability-MCP doctrine); the record
+   stays this ADR + travel.md. *(docs — the travel-spec PR)*
 2. [ ] **Planner MVP** — travel.md TR-a…TR-e, one PR each. No external dependency.
 3. [ ] **(follow-on, owner-confirmed)** `mcp-travel-search` capability-MCP over Travelpayouts — gated on
    the owner obtaining a key + accepting T&C; bind it in travel-agent and wire flight/hotel search into

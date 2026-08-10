@@ -7,12 +7,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 ## Now
 - **travel-agent ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190)) — spec landed, MVP queued.**
   Owner picked travel as the next agent (2026-08-10). Spec written **WHEN/THEN-first**: plan
-  [travel.md](travel.md) + **[ADR-0003](adr/ADR-0003-travel-data-source.md)** (Proposed — scope + source +
-  the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` + `mcp-weather`
-  `climate` → itinerary + HTML board; per-owner `travel_profile`); live flight/hotel/tour pricing deferred
-  behind a capability-MCP (Travelpayouts pref / `mcp-browser` fallback), owner-key-gated. **Next slice: TR-a**
-  (`climate` tool in `mcp-weather`). MVP is **not** blocked; only the deferred live-pricing follow-on waits on
-  ADR-0003 acceptance + a key. Also landed this session: the repo-wide **WHEN/THEN acceptance-criteria**
+  [travel.md](travel.md) + **[ADR-0003](adr/ADR-0003-travel-data-source.md)** (**Accepted 2026-08-10** — scope
+  + source + the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` +
+  `mcp-weather` `climate` + `mcp-web` → itinerary + HTML board; per-owner `travel_profile`); live
+  flight/hotel/tour pricing = the **§TR-f** follow-on behind a capability-MCP (Travelpayouts pref /
+  `mcp-browser` fallback), still owner-key-gated. **Next slice: TR-a** (`climate` tool in `mcp-weather`). Also landed this session: the repo-wide **WHEN/THEN acceptance-criteria**
   convention (CLAUDE.md §Spec each slice + PATTERNS.md recipe, PR #430).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
