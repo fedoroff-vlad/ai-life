@@ -5,8 +5,15 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **No feature slice in flight.** The **sharing capability (ADR-0002) epic is COMPLETE** as of 2026-08-07 —
-  pick the next item from `## Next` / Backlog. See below for what just closed.
+- **travel-agent ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190)) — spec landed, MVP queued.**
+  Owner picked travel as the next agent (2026-08-10). Spec written **WHEN/THEN-first**: plan
+  [travel.md](travel.md) + **[ADR-0003](adr/ADR-0003-travel-data-source.md)** (Proposed — scope + source +
+  the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` + `mcp-weather`
+  `climate` → itinerary + HTML board; per-owner `travel_profile`); live flight/hotel/tour pricing deferred
+  behind a capability-MCP (Travelpayouts pref / `mcp-browser` fallback), owner-key-gated. **Next slice: TR-a**
+  (`climate` tool in `mcp-weather`). MVP is **not** blocked; only the deferred live-pricing follow-on waits on
+  ADR-0003 acceptance + a key. Also landed this session: the repo-wide **WHEN/THEN acceptance-criteria**
+  convention (CLAUDE.md §Spec each slice + PATTERNS.md recipe, PR #430).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
     (calendar/finance/tasks/nutrition/docs, write & read); item 8 memory-driven default (DS-0…DS-4,
@@ -34,7 +41,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+1. **travel MVP slices ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190), [travel.md](travel.md)):**
+   TR-a `climate` tool in `mcp-weather` → TR-b `mcp-travel` + `travel` schema/profile → TR-c `travel-agent`
+   + `travel-profiler` → TR-d `trip-planner` flow → TR-e HTML board (closer). Each its own PR, ≤5 files,
+   WHEN/THEN criteria in the plan.
+2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 
