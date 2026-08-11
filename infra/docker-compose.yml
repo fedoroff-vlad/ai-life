@@ -524,6 +524,7 @@ services:
       NOTES_AGENT_URL: http://notes-agent:8118
       COORDINATOR_AGENT_URL: http://coordinator-agent:8119
       COACH_AGENT_URL: http://coach-agent:8122
+      TRAVEL_AGENT_URL: http://travel-agent:8124
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1552,6 +1553,48 @@ services:
       BRIEFING_AGENT_MEMORY_RECALL_K: ${BRIEFING_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8115/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  travel-agent:
+    profiles: ["cold"]
+    image: ai-life/travel-agent:local
+    container_name: ai-life-travel-agent
+    build:
+      context: ..
+      dockerfile: domains/travel/travel-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-travel:
+        condition: service_healthy
+      mcp-weather:
+        condition: service_healthy
+      mcp-web:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      TRAVEL_AGENT_PORT: 8124
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_TRAVEL_URL: http://mcp-travel:8123
+      MCP_WEATHER_URL: http://mcp-weather:8113
+      MCP_WEB_URL: http://mcp-web:8098
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      TRAVEL_AGENT_MCP_CLIENT_ENABLED: ${TRAVEL_AGENT_MCP_CLIENT_ENABLED:-true}
+      TRAVEL_AGENT_MEMORY_RECALL_K: ${TRAVEL_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8124/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
