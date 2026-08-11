@@ -53,7 +53,7 @@ class GoldenRoutingTest {
     /** The eight registered domain agents (mirrors each agent's AGENT.md frontmatter). */
     private static final Set<String> KNOWN_AGENTS = Set.of(
             "echo", "calendar", "finance", "tasks", "researcher",
-            "stylist", "nutritionist", "chef", "creator");
+            "stylist", "nutritionist", "chef", "creator", "travel");
 
     private final MemoryClient memory = mock(MemoryClient.class);
     private final LlmClient llm = GoldenLlm.client();
@@ -80,6 +80,7 @@ class GoldenRoutingTest {
         assertRoutesTo("Запиши мой обед — курица с рисом", "nutritionist");
         assertRoutesTo("Дай рецепт курицы с рисом", "chef");
         assertRoutesTo("Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов", "creator");
+        assertRoutesTo("Хочу на море в сентябре тысяч на 200, спланируй поездку", "travel");
     }
 
     /**
@@ -181,6 +182,11 @@ class GoldenRoutingTest {
                 "What's trending in \"English for IT\" this week? Give me a few ideas.",
                 "Draft me a YouTube short about git rebase for juniors",
                 "My niche is English for IT, audience junior devs, friendly tone"));
+        m.put("travel", manifest("travel",
+                "On-demand vacation planner. Designs a trip from a stated wish (destination + season fit + a budget check against real finance data) and keeps per-person travel preferences (home base, rest types, companions, budget hint). Use for \"plan me a trip / where should we go on holiday / set up my travel preferences / a beach trip in September / where's warm in October\". Never books or pays — proposes options and links only.",
+                "Хочу на море в сентябре тысяч на 200",
+                "Где тепло в октябре для спокойного семейного отдыха?",
+                "Мы семья с ребёнком, любим пляж, летаем из Москвы"));
         return m;
     }
 

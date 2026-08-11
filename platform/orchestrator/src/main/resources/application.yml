@@ -40,6 +40,8 @@ orchestrator:
       base-url: ${COORDINATOR_AGENT_URL:http://coordinator-agent:8119}
     - name: coach
       base-url: ${COACH_AGENT_URL:http://coach-agent:8122}
+    - name: travel
+      base-url: ${TRAVEL_AGENT_URL:http://travel-agent:8124}
   conversation:
     enabled: ${ORCHESTRATOR_CONVERSATION_ENABLED:true}
     url: ${CONVERSATION_SERVICE_URL:http://conversation-service:8089}

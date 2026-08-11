@@ -11,14 +11,17 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   + source + the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` +
   `mcp-weather` `climate` + `mcp-web` → itinerary + HTML board; per-owner `travel_profile`); live
   flight/hotel/tour pricing = the **§TR-f** follow-on behind a capability-MCP (Travelpayouts pref /
-  `mcp-browser` fallback), still owner-key-gated. **TR-a + TR-b shipped:** TR-a = `climate` tool in
-  `mcp-weather` (monthly normals over Open-Meteo Archive, soft-fail); TR-b = **`mcp-travel`** domain-MCP
-  (port 8123, `travel.travel_profile` keyed `(household, owner)` — home_base/rest_types/companions/
-  budget_hint; `set`/`get` tools + `/internal/travel-profile` upsert/resolve, 204 on unseen owner) →
-  [HISTORY](HISTORY.md) + [mcp-travel README](../domains/travel/mcp-travel/README.md). **Next slice:
-  TR-c** (`travel-agent` scaffold + `travel-profiler` skill; binds `mcp-travel` + `mcp-weather` +
-  `mcp-web`, registered in orchestrator as `travel`). Also landed earlier: the repo-wide **WHEN/THEN
-  acceptance-criteria** convention (CLAUDE.md §Spec each slice + PATTERNS.md recipe, PR #430).
+  `mcp-browser` fallback), still owner-key-gated. **TR-a + TR-b + TR-c shipped:** TR-a = `climate` tool
+  in `mcp-weather` (monthly normals over Open-Meteo Archive, soft-fail); TR-b = **`mcp-travel`**
+  domain-MCP (port 8123, `travel.travel_profile`); TR-c = **`travel-agent`** (port 8124) scaffold +
+  **`travel-profiler`** skill — a preferences cue → LLM extract (vocabulary-filtered) → geocode home_base
+  → upsert; binds `mcp-travel`+`mcp-weather`+`mcp-web`, registered in orchestrator as `travel`; goldens
+  (`GoldenTravelProfileTest` + orchestrator `travel` routing case) green vs real qwen3:8b →
+  [HISTORY](HISTORY.md) + [travel-agent README](../domains/travel/travel-agent/README.md). **Next slice:
+  TR-d** (`trip-planner` gather→synthesize flow: finance/calendar `brief` + `climate` + `mcp-web` → one
+  `trip-composer` synthesis; the plan-a-trip cue currently falls through to the chat fallback). Also
+  landed earlier: the repo-wide **WHEN/THEN acceptance-criteria** convention (CLAUDE.md §Spec each slice
+  + PATTERNS.md recipe, PR #430).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
     (calendar/finance/tasks/nutrition/docs, write & read); item 8 memory-driven default (DS-0…DS-4,
