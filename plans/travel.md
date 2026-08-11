@@ -214,6 +214,16 @@ travel-agent in §who-uses-me.
   (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).
 - **Booking hand-off** — deep links to the provider's own checkout only; the agent never transacts (a
   permanent boundary, not a deferred feature).
-- **Saved trips / itinerary history** — a `travel.trip` store, once plans need to persist/compare.
+- **Saved trips / itinerary history** — a `travel.trip` store, once plans need to persist/compare. The
+  natural first consumer of the route-import idea below.
 - **Proactive "season is opening for your favourite destination" wake** — travel is reactive in the MVP.
 - **Multi-destination route optimisation** (min-transfers across legs) — waits on live flight data.
+
+### Ideas borrowed from [liketrek/TREK](https://github.com/liketrek/TREK) (a self-hosted planner app; idea-only, AGPL — no code reuse)
+TREK is a planner *app* that exposes itself as an MCP server for external agents; we build the agent, so
+we take concepts, not code. It also validates our defaults (Open-Meteo keyless weather, OSM places, MCP
+as the data seam).
+- **Route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436)**; pairs with the `travel.trip` store above.
+- **Per-member trip budget & expense splitting** over the travel↔finance `brief` seam + identity (ADR-0001) / sharing (ADR-0002) — **[#437](https://github.com/fedoroff-vlad/ai-life/issues/437)**.
+- **Packing-list templates** seeded by rest type + climate + companions — **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438)**; could ride the TR-e board.
+- (Reservation tracking / PDF export are already covered by our TR-f live-search follow-on and the TR-e HTML board respectively.)
