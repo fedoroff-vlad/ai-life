@@ -1588,6 +1588,9 @@ services:
       MCP_TRAVEL_URL: http://mcp-travel:8123
       MCP_WEATHER_URL: http://mcp-weather:8113
       MCP_WEB_URL: http://mcp-web:8098
+      # Hub for the TR-d planner's finance/calendar `brief` calls. No depends_on: the orchestrator
+      # scrapes agent manifests at startup, so an agent must not block on it (would be a cycle).
+      ORCHESTRATOR_URL: http://orchestrator:8083
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087

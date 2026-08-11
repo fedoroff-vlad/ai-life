@@ -11,15 +11,18 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   + source + the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` +
   `mcp-weather` `climate` + `mcp-web` → itinerary + HTML board; per-owner `travel_profile`); live
   flight/hotel/tour pricing = the **§TR-f** follow-on behind a capability-MCP (Travelpayouts pref /
-  `mcp-browser` fallback), still owner-key-gated. **TR-a + TR-b + TR-c shipped:** TR-a = `climate` tool
+  `mcp-browser` fallback), still owner-key-gated. **TR-a + TR-b + TR-c + TR-d shipped:** TR-a = `climate` tool
   in `mcp-weather` (monthly normals over Open-Meteo Archive, soft-fail); TR-b = **`mcp-travel`**
   domain-MCP (port 8123, `travel.travel_profile`); TR-c = **`travel-agent`** (port 8124) scaffold +
   **`travel-profiler`** skill — a preferences cue → LLM extract (vocabulary-filtered) → geocode home_base
   → upsert; binds `mcp-travel`+`mcp-weather`+`mcp-web`, registered in orchestrator as `travel`; goldens
   (`GoldenTravelProfileTest` + orchestrator `travel` routing case) green vs real qwen3:8b →
-  [HISTORY](HISTORY.md) + [travel-agent README](../domains/travel/travel-agent/README.md). **Next slice:
-  TR-d** (`trip-planner` gather→synthesize flow: finance/calendar `brief` + `climate` + `mcp-web` → one
-  `trip-composer` synthesis; the plan-a-trip cue currently falls through to the chat fallback). Also
+  [HISTORY](HISTORY.md) + [travel-agent README](../domains/travel/travel-agent/README.md). **TR-d shipped:**
+  the `trip-planner` `gather→synthesize` flow (`flow/TripComposer`) — plan-a-trip cue → profile resolve →
+  FAST scope extract → parallel gather (finance/calendar `brief` via the orchestrator hub + `climate` +
+  `mcp-web` search) → one `trip-composer` synthesis; per-source soft-fail + booking boundary (options +
+  links only). `TripComposerTest` (4) + opt-in `GoldenTripComposerTest`. **Next slice: TR-e** (HTML travel
+  board via `doc-render`/`DeliverablePublisher` + a climate-by-month chart — closes the travel MVP #190). Also
   landed earlier: the repo-wide **WHEN/THEN acceptance-criteria** convention (CLAUDE.md §Spec each slice
   + PATTERNS.md recipe, PR #430).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
@@ -50,9 +53,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **travel MVP slices ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190), [travel.md](travel.md)):**
-   TR-a `climate` tool in `mcp-weather` → TR-b `mcp-travel` + `travel` schema/profile → TR-c `travel-agent`
-   + `travel-profiler` → TR-d `trip-planner` flow → TR-e HTML board (closer). Each its own PR, ≤5 files,
-   WHEN/THEN criteria in the plan.
+   TR-a…TR-d shipped (see `## Now`); **only TR-e HTML board (closer) remains** — `trip-composer` synthesis →
+   `doc-render` board + climate-by-month chart via `DeliverablePublisher`, link appended to the reply.
+   Its own PR, WHEN/THEN criteria in the plan.
 2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_

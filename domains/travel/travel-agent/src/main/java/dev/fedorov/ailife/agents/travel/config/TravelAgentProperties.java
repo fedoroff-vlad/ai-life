@@ -8,8 +8,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * travel domain-MCP); {@code mcpWeatherUrl} is the shared weather+geocoding capability the profiler
  * (TR-c) calls over its {@code /internal/*} passthroughs (geocode now; the {@code climate} season
  * substrate in TR-d); {@code mcpWebUrl} is the shared web capability bound for the TR-d destination
- * research gather. The profile / notifier / memory URLs back the shared {@code agent-runtime} clients
- * every agent imports.
+ * research gather. {@code orchestratorUrl} is the hub the TR-d planner reaches to invoke the finance and
+ * calendar agents' read-only {@code brief} action (agents never call each other directly). The profile /
+ * notifier / memory URLs back the shared {@code agent-runtime} clients every agent imports.
  */
 @ConfigurationProperties(prefix = "travel-agent")
 public class TravelAgentProperties implements SharedClientProperties {
@@ -17,6 +18,7 @@ public class TravelAgentProperties implements SharedClientProperties {
     private String mcpTravelUrl = "http://mcp-travel:8123";
     private String mcpWeatherUrl = "http://mcp-weather:8113";
     private String mcpWebUrl = "http://mcp-web:8098";
+    private String orchestratorUrl = "http://orchestrator:8083";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
@@ -29,6 +31,9 @@ public class TravelAgentProperties implements SharedClientProperties {
 
     public String getMcpWebUrl() { return mcpWebUrl; }
     public void setMcpWebUrl(String mcpWebUrl) { this.mcpWebUrl = mcpWebUrl; }
+
+    public String getOrchestratorUrl() { return orchestratorUrl; }
+    public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }
     public void setProfileServiceUrl(String profileServiceUrl) {
