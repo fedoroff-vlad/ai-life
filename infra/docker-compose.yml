@@ -1614,6 +1614,9 @@ services:
       MCP_TRAVEL_URL: http://mcp-travel:8123
       MCP_WEATHER_URL: http://mcp-weather:8113
       MCP_WEB_URL: http://mcp-web:8098
+      # TR-f2 live flight/hotel options. Owner-key-gated + soft-fail — no depends_on, degrades to the
+      # planner MVP while down/unconfigured (like chart-render, the planner never blocks on it).
+      MCP_TRAVEL_SEARCH_URL: http://mcp-travel-search:8125
       # Hub for the TR-d planner's finance/calendar `brief` calls. No depends_on: the orchestrator
       # scrapes agent manifests at startup, so an agent must not block on it (would be a cycle).
       ORCHESTRATOR_URL: http://orchestrator:8083

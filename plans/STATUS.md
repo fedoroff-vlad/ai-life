@@ -5,26 +5,18 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **travel §TR-f — live flight/hotel search. TR-f1 shipped; TR-f2 next.** Owner picked TR-f (2026-08-12).
-  **TR-f1 shipped:** **`mcp-travel-search`** capability-MCP (port **8125**, `shared/mcp/`) over
-  **Travelpayouts** (ADR-0003 §3) behind a swappable `TravelSearchSource` — `resolve_place` /
-  `search_flights` (Aviasales, cheapest-first) / `search_hotels` (Hotellook), each offer carrying an
-  affiliate **deep link** only (agent never books). **Owner-key-gated:** with no `TRAVELPAYOUTS_TOKEN`
-  every tool returns `unconfigured=true` + empty (never a 500) → CI/tests green with no key, callers
-  degrade to the planner MVP. Tests: `TravelpayoutsSourceTest` (flights parse+sort+marker, hotels,
-  upstream-down soft-fail) + `TravelSearchControllerTest` (no-key degrade) — 6 green. Travelpayouts
-  field-mapping modeled from public API shapes; live parsing validated once the owner wires a real key.
-  → [travel.md](travel.md) §TR-f1 + [mcp-travel-search README](../shared/mcp/mcp-travel-search/README.md).
-  **Next slice TR-f2:** bind `mcp-travel-search` in travel-agent + wire live options into `trip-planner`
-  (rank min-transfers→price within the finance-`brief` budget; degrade to the MVP plan when `unconfigured`).
-  **To actually enable live search the owner must obtain a free Travelpayouts token + marker and accept
-  T&C** (a "confirm before doing" step — keys live in `.env`, never committed).
+- **No slice in flight.** travel §TR-f (live flight/hotel search) is **complete** — pick the next item from
+  `## Next`. To actually *enable* live search the owner must obtain a free **Travelpayouts** token + marker
+  and accept T&C (a "confirm before doing" step — keys live in `.env`, never committed); until then the
+  planner degrades to the MVP and tells the owner live search isn't set up.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
-  - **travel MVP #190 (planner) — DONE 2026-08-12.** Planner-first vacation agent: `mcp-weather` `climate` (TR-a) +
-    `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler` (TR-c) + `trip-planner`
-    gather→synthesize (TR-d) + the **HTML travel board** with a climate-by-month chart (TR-e). Booking
-    boundary permanent (ADR-0003). Follow-on TR-f (live flight/hotel pricing) is gated on an owner
-    Travelpayouts key — not started.
+  - **travel #190 — DONE 2026-08-12 (MVP TR-a…e + live-search TR-f1/f2).** Planner-first vacation agent:
+    `mcp-weather` `climate` (TR-a) + `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler`
+    (TR-c) + `trip-planner` gather→synthesize (TR-d) + the **HTML travel board** with a climate-by-month
+    chart (TR-e); **live flight/hotel options** via `mcp-travel-search` over Travelpayouts, owner-key-gated
+    (TR-f1 capability + TR-f2 planner wiring: rank min-transfers→price, over-budget flag, deep links,
+    degrade-to-MVP when `unconfigured`). Booking boundary permanent (ADR-0003). Only **TR-f3** (tours /
+    no-API sources → `mcp-browser`) stays deferred.
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
     (calendar/finance/tasks/nutrition/docs, write & read); item 8 memory-driven default (DS-0…DS-4,
     `LearnedSharingPolicy` over a `memory.sharing_decision` tally, deterministic majority); and **DS-N
@@ -51,9 +43,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **Pick the next future agent** — the travel MVP is closed. Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
-2. **travel §TR-f2 — wire live options into `trip-planner`** (see `## Now`): TR-f1 (`mcp-travel-search`) shipped; TR-f2 binds it in travel-agent and folds ranked flight/hotel options + deep links into the plan (degrades to the MVP when `unconfigured`). Buildable + testable with no key (mocked); real live search needs the owner's Travelpayouts token.
-3. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+1. **Pick the next future agent** — travel #190 is fully closed (MVP + live search). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
+2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+3. **travel TR-f3 (deferred)** — tours + no-API/JS sources → `mcp-browser` (browser-use), which also closes the general scraping gap. Not near-term (see `## Backlog`).
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 

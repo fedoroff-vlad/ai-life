@@ -20,9 +20,9 @@ import java.util.Set;
  *   <li>a preferences cue ("мои предпочтения для путешествий", "летаем из Москвы", "set up my travel
  *       preferences") → {@link TravelProfiler#setProfile} (one LLM extract + geocode → upsert the
  *       per-person prefs, TR-c);</li>
- *   <li>a plan-a-trip cue ("хочу на море в сентябре", "куда поехать", "plan me a trip", "where's warm in
- *       October") → {@link TripComposer#plan} (resolve profile → gather budget/dates/season/research →
- *       one synthesis, TR-d);</li>
+ *   <li>a plan-a-trip cue ("хочу на море в сентябре", "куда поехать", "найди билеты в …", "подбери отель",
+ *       "plan me a trip", "find flights") → {@link TripComposer#plan} (resolve profile → gather
+ *       budget/dates/season/research + live flight/hotel options when asked → one synthesis, TR-d/TR-f2);</li>
  *   <li>otherwise → the {@link TravelChat} fallback (plain questions).</li>
  * </ul>
  * The cue split is a deterministic keyword heuristic — good enough for the MVP, MockWebServer-testable,
@@ -46,9 +46,14 @@ public class IntentController {
             "хочу на море", "хочу в отпуск", "хочу в ", "хочу поехать", "хочу съездить", "поехать в",
             "съездить в", "отдохнуть в", "куда поехать", "куда съездить", "куда бы съездить",
             "куда на отдых", "где отдохнуть", "где тепло", "на море в", "отпуск в ",
+            // TR-f2 live-search cues: an explicit "find me tickets/hotels" still reaches the planner, which
+            // then does the live search (the FAST scope's `live` flag decides). Routing here, not booking.
+            "найди билет", "найти билет", "билеты в", "билеты на", "подбери отель", "подобрать отель",
+            "найди отель", "перелёт в", "сколько стоит перелёт", "сколько стоят билеты",
             "plan a trip", "plan me a trip", "plan my trip", "plan a vacation", "plan a holiday",
             "where should we go", "where should i go", "where to go", "where's warm", "where is warm",
-            "beach trip", "trip to", "go on holiday", "on vacation");
+            "beach trip", "trip to", "go on holiday", "on vacation",
+            "find flights", "find tickets", "find a hotel", "search flights", "search for flights");
 
     private final TravelProfiler profiler;
     private final TripComposer composer;

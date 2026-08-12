@@ -3,12 +3,13 @@
 On-demand **vacation planner** (port **8124**). Designs a trip from a stated wish and keeps the
 per-person travel preferences. A **cold** agent (started on demand, not always-on). Owns the
 `mcp-travel` domain-MCP; binds the shared `mcp-weather` (geocoding + climate), `mcp-web` (destination
-research) and `mcp-chart-render` (the board's climate chart) capabilities. Routes via the orchestrator as
+research), `mcp-chart-render` (the board's climate chart) and `mcp-travel-search` (TR-f2 live flight/hotel
+options) capabilities. Routes via the orchestrator as
 `travel`. **Never books or pays** — proposes options and provider links only
 ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
 [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-e — travel MVP closed)
+## Status (TR-f2 — live flight/hotel options)
 
 Two flows behind the intent cue-split:
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
@@ -26,6 +27,16 @@ Two flows behind the intent cue-split:
   finance brief falls back to the profile's `budgetHint` (unverified); no named destination skips climate.
   **Never books or pays** ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)) — options +
   links only.
+  - **TR-f2 live options:** when the FAST scope spots that the owner wants concrete tickets/hotels
+    (`найди билеты`, `подбери отель`, `find flights`) for a named destination + month, the gather grows a
+    live-options step over the shared `mcp-travel-search` capability (`/internal/resolve-place` →
+    `/internal/search-flights` + `/internal/search-hotels`): resolve the destination (+ home-base origin) to
+    search codes, search flights + hotels, **rank flights min-transfers→price**, flag any offer over the
+    profile's `budgetHint` (marked "над бюджетом", never hidden), and fold the ranked options + provider
+    **deep links** into both the `trip-composer` synthesis context and the board (a link per offer). The
+    capability is **owner-key-gated**: with no Travelpayouts key it reports `unconfigured` and the planner
+    **degrades to the MVP plan** + tells the owner live search isn't set up. Still **never books** — options
+    + links only. Routing cues for the live ask live in `web/IntentController` (`PLAN_CUES`).
   - **TR-e HTML travel board (closer):** the synthesis is rendered to an HTML board — the plan text as a
     section, the gathered web sources as grounded provenance links, and the destination's **climate-by-month
     curve** as a line chart (rendered by the shared `mcp-chart-render` capability) — via the shared
@@ -52,6 +63,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 | `MCP_TRAVEL_URL` | `http://mcp-travel:8123` | travel domain-MCP (`/internal/travel-profile`). |
 | `MCP_WEATHER_URL` | `http://mcp-weather:8113` | shared weather capability (`/internal/geocode`; TR-d `/internal/climate`). |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web capability (`/internal/search` for the TR-d research gather). |
+| `MCP_TRAVEL_SEARCH_URL` | `http://mcp-travel-search:8125` | shared travel-search capability (TR-f2 `/internal/resolve-place`, `/internal/search-flights`, `/internal/search-hotels`). Owner-key-gated → degrades. |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | blob store for the TR-e HTML board (`POST /v1/media`). |
 | `TRAVEL_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | externally-reachable base for the board open-link. |
 | `MCP_CHART_RENDER_URL` | `http://mcp-chart-render:8120` | shared chart-render capability (`/internal/render`) for the TR-e climate chart. |
@@ -69,13 +81,17 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `DeliverablePublisher`).
 - `profile/TravelProfiler` — the LLM extract → geocode → upsert flow; **vocabulary filtering** for
   `restTypes`/`companions`.
-- `flow/TripComposer` — the TR-d/TR-e `gather → synthesize` planner: profile resolve → FAST scope extract
-  → parallel gather (finance/calendar `brief`, 12-month climate, web search) → one `trip-composer`
-  synthesis → the TR-e HTML board (climate-by-month chart + plan + provenance links) via
-  `DeliverablePublisher`, open-link appended to the reply (soft-failed to text-only).
+- `flow/TripComposer` — the TR-d/TR-e/TR-f2 `gather → synthesize` planner: profile resolve → FAST scope
+  extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
+  web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
+  TR-e HTML board (climate-by-month chart + plan + option deep links + provenance links) via
+  `DeliverablePublisher`, open-link appended to the reply (soft-failed to text-only). Live options are
+  ranked min-transfers→price, flagged over-budget, and degrade to the MVP plan when the capability is
+  `unconfigured`.
 - `http/TravelProfileClient` (upsert/resolve `mcp-travel`) + `http/GeocodeClient` (`mcp-weather` geocode)
   + `http/ClimateClient` (`mcp-weather` climate) + `http/WebSearchClient` (`mcp-web` search) +
-  `http/ChartRenderClient` (`mcp-chart-render` `/internal/render` for the board's climate chart).
+  `http/ChartRenderClient` (`mcp-chart-render` `/internal/render` for the board's climate chart) +
+  `http/TravelSearchClient` (`mcp-travel-search` resolve-place/search-flights/search-hotels, TR-f2).
 - `chat/TravelChat` — conversational fallback for non-config, non-plan messages.
 - `web/IntentController` (`/agents/travel/intent`, cue split) + `web/ManifestController`
   (`/agents/travel/manifest`).

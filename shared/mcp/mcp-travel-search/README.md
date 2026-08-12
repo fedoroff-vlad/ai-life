@@ -18,14 +18,16 @@ A configured-but-down/empty upstream **soft-fails** to an empty (configured) res
 **Status (TR-f1):** the capability-MCP + its three tools, behind a swappable `TravelSearchSource`
 (`travelsearch.source=travelpayouts` default) so `mcp-browser` can replace it later with no caller change.
 Travelpayouts field-mapping is modeled from the public API shapes; the live parsing is validated once the
-owner wires a real key (the no-key / degrade / soft-fail paths are fully covered without one). Wiring into
-travel-agent's `trip-planner` = **TR-f2** (next). Tours + no-API/JS sources → `mcp-browser` (**TR-f3**,
-deferred).
+owner wires a real key (the no-key / degrade / soft-fail paths are fully covered without one). Wired into
+travel-agent's `trip-planner` in **TR-f2** (see §who-uses-me). Tours + no-API/JS sources → `mcp-browser`
+(**TR-f3**, deferred).
 
 ## §who-uses-me
 
-- **travel-agent** (`trip-planner`) — binds it for live options when the owner asks for concrete
-  tickets/hotels (wired in **TR-f2**). No caller yet at TR-f1.
+- **travel-agent** (`trip-planner`, TR-f2) — binds it (SSE + the HTTP `/internal/*` passthroughs via
+  `TravelSearchClient`) for live options when the owner asks for concrete tickets/hotels. The planner
+  resolves places → searches flights/hotels → ranks min-transfers→price → folds ranked options + deep
+  links into the synthesis + HTML board; `unconfigured` → degrades to the planner MVP.
 
 ## Port: `8125` (`MCP_TRAVEL_SEARCH_PORT`)
 
