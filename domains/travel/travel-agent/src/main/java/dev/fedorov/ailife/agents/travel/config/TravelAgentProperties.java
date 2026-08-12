@@ -11,6 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * research gather. {@code orchestratorUrl} is the hub the TR-d planner reaches to invoke the finance and
  * calendar agents' read-only {@code brief} action (agents never call each other directly). The profile /
  * notifier / memory URLs back the shared {@code agent-runtime} clients every agent imports.
+ * {@code mediaServiceUrl} / {@code publicMediaBaseUrl} back the TR-e HTML travel board (render → store →
+ * link, the shared {@code DeliverablePublisher} seam); {@code mcpChartRenderUrl} is the shared
+ * chart-render capability the board's climate-by-month curve is rendered by.
  */
 @ConfigurationProperties(prefix = "travel-agent")
 public class TravelAgentProperties implements SharedClientProperties {
@@ -22,6 +25,9 @@ public class TravelAgentProperties implements SharedClientProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
+    private String mediaServiceUrl = "http://media-service:8088";
+    private String publicMediaBaseUrl = "http://media-service:8088";
+    private String mcpChartRenderUrl = "http://mcp-chart-render:8120";
 
     public String getMcpTravelUrl() { return mcpTravelUrl; }
     public void setMcpTravelUrl(String mcpTravelUrl) { this.mcpTravelUrl = mcpTravelUrl; }
@@ -46,5 +52,18 @@ public class TravelAgentProperties implements SharedClientProperties {
     public String getMemoryServiceUrl() { return memoryServiceUrl; }
     public void setMemoryServiceUrl(String memoryServiceUrl) {
         this.memoryServiceUrl = memoryServiceUrl;
+    }
+
+    public String getMediaServiceUrl() { return mediaServiceUrl; }
+    public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
+
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {
+        this.publicMediaBaseUrl = publicMediaBaseUrl;
+    }
+
+    public String getMcpChartRenderUrl() { return mcpChartRenderUrl; }
+    public void setMcpChartRenderUrl(String mcpChartRenderUrl) {
+        this.mcpChartRenderUrl = mcpChartRenderUrl;
     }
 }

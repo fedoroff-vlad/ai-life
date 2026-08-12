@@ -1594,6 +1594,10 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      MEDIA_SERVICE_URL: http://media-service:8088
+      # TR-e HTML travel board: chart-render is cold (LC-1), started on demand — the board's climate
+      # chart reaches it over HTTP /internal/render and soft-fails while down (no depends_on, no cycle).
+      MCP_CHART_RENDER_URL: http://mcp-chart-render:8120
       TRAVEL_AGENT_MCP_CLIENT_ENABLED: ${TRAVEL_AGENT_MCP_CLIENT_ENABLED:-true}
       TRAVEL_AGENT_MEMORY_RECALL_K: ${TRAVEL_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:

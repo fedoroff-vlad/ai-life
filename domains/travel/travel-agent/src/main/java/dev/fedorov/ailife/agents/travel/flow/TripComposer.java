@@ -5,9 +5,11 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.node.StringNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.travel.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
@@ -17,11 +19,14 @@ import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.chart.ChartSeries;
+import dev.fedorov.ailife.contracts.chart.ChartSpec;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
+import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.llm.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +34,12 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -51,7 +59,14 @@ import java.util.UUID;
  * omitted, never faked. A missing finance brief falls back to the profile's {@code budgetHint} (marked
  * unverified); no named destination skips the climate gather. <b>Booking boundary (ADR-0003):</b> the
  * plan proposes options + provenance links only — it never books, reserves, or pays (enforced by the
- * {@code trip-composer} SKILL; this flow makes no outbound booking call). The HTML travel board is TR-e.
+ * {@code trip-composer} SKILL; this flow makes no outbound booking call).
+ *
+ * <p><b>TR-e (the MVP closer):</b> the synthesis is then rendered to an <b>HTML travel board</b> — the
+ * plan text as a section, the gathered web sources as grounded provenance links, and the destination's
+ * <b>climate-by-month curve</b> as a chart (rendered by the shared {@code mcp-chart-render} capability) —
+ * via the shared {@link DeliverablePublisher} (render → store in media-service → link), with the open-link
+ * appended to the reply. Both the chart and the board are <b>soft-failed</b>: a render/store hiccup ships
+ * the text-only plan. Same board seam as briefing/finance.
  */
 @Component
 public class TripComposer {
@@ -65,6 +80,11 @@ public class TripComposer {
     private static final Duration BRIEF_TIMEOUT = Duration.ofSeconds(20);
     /** Bound the research fan-out so the plan stays cheap + fast. */
     private static final int MAX_RESEARCH = 6;
+    /** Cap the board's provenance link list (the gathered web research). */
+    private static final int MAX_LINKS = 8;
+    /** Russian month labels for the climate-by-month chart's x-axis (index = month - 1). */
+    private static final String[] MONTHS_RU = {
+            "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
 
     /** Cheap FAST pre-step: spot a concrete destination + month so climate can be gathered for it. */
     private static final String SCOPE_SYSTEM = """
@@ -84,10 +104,13 @@ public class TripComposer {
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
+    private final DeliverablePublisher publisher;
+    private final ChartRenderClient chartRender;
 
     public TripComposer(Coordinator coordinator, TravelProfileClient profiles, GeocodeClient geocode,
                         ClimateClient climate, WebSearchClient web, OrchestratorInvokeClient hub,
-                        LlmClient llm, SkillRegistry skills, AgentManifest manifest, ObjectMapper json) {
+                        LlmClient llm, SkillRegistry skills, AgentManifest manifest, ObjectMapper json,
+                        DeliverablePublisher publisher, ChartRenderClient chartRender) {
         this.coordinator = coordinator;
         this.profiles = profiles;
         this.geocode = geocode;
@@ -98,6 +121,8 @@ public class TripComposer {
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
+        this.publisher = publisher;
+        this.chartRender = chartRender;
     }
 
     public Mono<IntentResponse> plan(NormalizedMessage msg) {
@@ -150,7 +175,9 @@ public class TripComposer {
         gather.put("budget", brief(FINANCE_AGENT, msg, budgetQuestion(msg, profile)));
         gather.put("dates", brief(CALENDAR_AGENT, msg, datesQuestion(msg, scope)));
         if (geo.latitude() != null && geo.longitude() != null) {
-            gather.put("climate", climate.climate(geo.latitude(), geo.longitude(), scope.month())
+            // Fetch the full 12-month curve (null month): it grounds the synthesis's season verdict (the
+            // requested month is in the payload) and is the TR-e board's climate-by-month chart.
+            gather.put("climate", climate.climate(geo.latitude(), geo.longitude(), null)
                     .map(json::valueToTree));
         }
         gather.put("research", web.search(researchQuery(msg, profile, scope), MAX_RESEARCH)
@@ -171,11 +198,134 @@ public class TripComposer {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .map(r -> reply(r.text(), r.llmModel()))
+                .flatMap(r -> publishBoard(msg, scope, r.text(), r.gathered())
+                        .map(link -> reply(withLink(r.text(), link), r.llmModel()))
+                        .defaultIfEmpty(reply(r.text(), r.llmModel()))
+                        .onErrorResume(e -> {
+                            // A media/render hiccup must not sink the plan — hand back the text alone.
+                            log.warn("trip board store failed: {}", e.toString());
+                            return Mono.just(reply(r.text(), r.llmModel()));
+                        }))
                 .onErrorResume(e -> {
                     log.warn("trip synthesis failed: {}", e.toString());
                     return Mono.just(reply("Собрал данные, но не смог оформить план поездки. Попробуйте позже.", null));
                 });
+    }
+
+    /**
+     * Render the synthesized plan (+ the destination's climate-by-month chart + the gathered web sources
+     * as provenance) to an HTML travel board and store it, returning the public open-link (TR-e). The
+     * chart is soft-failed independently, so a chart-render hiccup still ships a board without it.
+     */
+    private Mono<String> publishBoard(NormalizedMessage msg, Scope scope, String text, JsonNode gathered) {
+        return chartUrl(msg, scope, gathered).flatMap(chartUrl -> {
+            String dest = scope.destination();
+            Doc.Builder b = Doc.builder("План поездки")
+                    .kicker(dest == null || dest.isBlank() ? "Путешествие · План" : "Путешествие · " + dest)
+                    .subtitle(boardSubtitle(scope));
+            if (!chartUrl.isBlank()) {
+                b.chart(chartUrl);
+            }
+            b.section("План", DeliverablePublisher.splitParagraphs(text));
+            for (Doc.LinkItem l : researchLinks(gathered)) {
+                b.link(l.label(), l.url(), l.note());
+            }
+            return publisher.publish(msg.householdId(), msg.userId(), b.build());
+        });
+    }
+
+    /**
+     * Render the destination's climate-by-month curve via the shared {@code mcp-chart-render} capability
+     * and return the public URL of the stored image. Soft-fail: nothing to plot, or any render/store
+     * failure, yields an empty string so the board still ships without the chart.
+     */
+    private Mono<String> chartUrl(NormalizedMessage msg, Scope scope, JsonNode gathered) {
+        ChartSpec spec = climateChartSpec(gathered, scope.destination());
+        if (spec == null) {
+            return Mono.just("");
+        }
+        return chartRender.render(msg.householdId(), msg.userId(), spec)
+                .map(r -> {
+                    String url = publisher.mediaUrl(r.mediaId());
+                    return url == null ? "" : url;
+                })
+                .onErrorResume(e -> {
+                    log.warn("trip climate chart render failed: {}", e.toString());
+                    return Mono.just("");
+                });
+    }
+
+    /** A line chart of the destination's average monthly temperature; null when there's no curve to plot. */
+    private ChartSpec climateChartSpec(JsonNode gathered, String destination) {
+        if (gathered == null) {
+            return null;
+        }
+        JsonNode months = gathered.path("climate").path("months");
+        if (!months.isArray() || months.isEmpty()) {
+            return null;
+        }
+        List<String> categories = new ArrayList<>();
+        List<Double> temps = new ArrayList<>();
+        for (JsonNode m : months) {
+            JsonNode monthNode = m.get("month");
+            if (monthNode == null || !monthNode.isNumber() || !m.hasNonNull("avgTempC")) {
+                continue;
+            }
+            int month = monthNode.asInt();
+            if (month < 1 || month > 12) {
+                continue;
+            }
+            categories.add(MONTHS_RU[month - 1]);
+            temps.add(m.get("avgTempC").asDouble());
+        }
+        if (temps.size() < 2) {
+            return null;   // a single point isn't a curve
+        }
+        String title = (destination == null || destination.isBlank())
+                ? "Климат по месяцам · °C" : "Климат: " + destination + " · °C по месяцам";
+        return new ChartSpec("line", title, categories,
+                List.of(new ChartSeries("Средняя °C", temps)), "°C");
+    }
+
+    /** Flatten the gathered {@code research} hits into a deduped, capped provenance link list for the board. */
+    private List<Doc.LinkItem> researchLinks(JsonNode gathered) {
+        List<Doc.LinkItem> links = new ArrayList<>();
+        if (gathered == null) {
+            return links;
+        }
+        JsonNode hits = gathered.get("research");
+        if (hits == null || !hits.isArray()) {
+            return links;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        for (JsonNode hit : hits) {
+            String url = hit.hasNonNull("url") ? hit.get("url").asString() : null;
+            if (url == null || url.isBlank() || !seen.add(url)) {
+                continue;
+            }
+            String title = hit.hasNonNull("title") ? hit.get("title").asString() : url;
+            String snippet = hit.hasNonNull("snippet") ? hit.get("snippet").asString() : null;
+            links.add(new Doc.LinkItem(title, url, snippet));
+            if (links.size() >= MAX_LINKS) {
+                break;
+            }
+        }
+        return links;
+    }
+
+    private String boardSubtitle(Scope scope) {
+        StringBuilder sb = new StringBuilder("Маршрут · сезон · бюджет");
+        if (scope.month() != null && scope.month() >= 1 && scope.month() <= 12) {
+            sb.append(" · ").append(MONTHS_RU[scope.month() - 1]);
+        }
+        return sb.toString();
+    }
+
+    private static String withLink(String text, String link) {
+        if (link == null || link.isBlank()) {
+            return text;
+        }
+        return text + "\n\nОткрыть план поездки: " + link;
     }
 
     /** Invoke a specialist's read-only {@code brief} via the hub; any soft-failure → omitted from the context. */
