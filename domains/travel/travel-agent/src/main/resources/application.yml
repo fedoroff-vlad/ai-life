@@ -20,6 +20,12 @@ spring:
               url: ${MCP_WEATHER_URL:http://mcp-weather:8113}
             mcp-web:
               url: ${MCP_WEB_URL:http://mcp-web:8098}
+            # Shared travel-search capability (TR-f2). Bound here so a future LLM-driven flow can pick its
+            # tools; the deterministic live-options gather goes over the HTTP /internal/* passthroughs
+            # (TravelSearchClient), which — unlike MCP/SSE — are MockWebServer-testable. Owner-key-gated:
+            # with no Travelpayouts key it degrades (unconfigured) and the planner falls back to the MVP.
+            mcp-travel-search:
+              url: ${MCP_TRAVEL_SEARCH_URL:http://mcp-travel-search:8125}
             # Shared chart-render capability (#292). Bound here so a future LLM-driven flow can pick its
             # tools; the deterministic TR-e climate-chart call goes over the HTTP /internal/render
             # passthrough (ChartRenderClient), which — unlike MCP/SSE — is MockWebServer-testable.
@@ -38,6 +44,7 @@ travel-agent:
   mcp-travel-url: ${MCP_TRAVEL_URL:http://mcp-travel:8123}
   mcp-weather-url: ${MCP_WEATHER_URL:http://mcp-weather:8113}
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  mcp-travel-search-url: ${MCP_TRAVEL_SEARCH_URL:http://mcp-travel-search:8125}
   orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}

@@ -21,6 +21,7 @@ public class TravelAgentProperties implements SharedClientProperties {
     private String mcpTravelUrl = "http://mcp-travel:8123";
     private String mcpWeatherUrl = "http://mcp-weather:8113";
     private String mcpWebUrl = "http://mcp-web:8098";
+    private String mcpTravelSearchUrl = "http://mcp-travel-search:8125";
     private String orchestratorUrl = "http://orchestrator:8083";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
@@ -37,6 +38,11 @@ public class TravelAgentProperties implements SharedClientProperties {
 
     public String getMcpWebUrl() { return mcpWebUrl; }
     public void setMcpWebUrl(String mcpWebUrl) { this.mcpWebUrl = mcpWebUrl; }
+
+    public String getMcpTravelSearchUrl() { return mcpTravelSearchUrl; }
+    public void setMcpTravelSearchUrl(String mcpTravelSearchUrl) {
+        this.mcpTravelSearchUrl = mcpTravelSearchUrl;
+    }
 
     public String getOrchestratorUrl() { return orchestratorUrl; }
     public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }

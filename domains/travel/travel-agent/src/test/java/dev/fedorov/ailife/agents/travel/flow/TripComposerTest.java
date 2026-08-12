@@ -11,6 +11,11 @@ import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
+import dev.fedorov.ailife.contracts.travelsearch.FlightOffer;
+import dev.fedorov.ailife.contracts.travelsearch.FlightSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.HotelOffer;
+import dev.fedorov.ailife.contracts.travelsearch.HotelSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.PlaceResult;
 import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.MonthlyNormal;
@@ -58,6 +63,7 @@ class TripComposerTest {
     static MockWebServer mcpTravel;
     static MockWebServer mcpWeather;
     static MockWebServer mcpWeb;
+    static MockWebServer travelSearch;
     static MockWebServer orchestrator;
     static MockWebServer llmGateway;
     static MockWebServer mediaService;
@@ -68,6 +74,7 @@ class TripComposerTest {
         mcpTravel = new MockWebServer();
         mcpWeather = new MockWebServer();
         mcpWeb = new MockWebServer();
+        travelSearch = new MockWebServer();
         orchestrator = new MockWebServer();
         llmGateway = new MockWebServer();
         mediaService = new MockWebServer();
@@ -75,6 +82,7 @@ class TripComposerTest {
         mcpTravel.start();
         mcpWeather.start();
         mcpWeb.start();
+        travelSearch.start();
         orchestrator.start();
         llmGateway.start();
         mediaService.start();
@@ -86,6 +94,7 @@ class TripComposerTest {
         mcpTravel.shutdown();
         mcpWeather.shutdown();
         mcpWeb.shutdown();
+        travelSearch.shutdown();
         orchestrator.shutdown();
         llmGateway.shutdown();
         mediaService.shutdown();
@@ -97,6 +106,7 @@ class TripComposerTest {
         r.add("travel-agent.mcp-travel-url", () -> "http://localhost:" + mcpTravel.getPort());
         r.add("travel-agent.mcp-weather-url", () -> "http://localhost:" + mcpWeather.getPort());
         r.add("travel-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
+        r.add("travel-agent.mcp-travel-search-url", () -> "http://localhost:" + travelSearch.getPort());
         r.add("travel-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
         r.add("travel-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
@@ -110,16 +120,20 @@ class TripComposerTest {
     // Captured inside the dispatchers (takeRequest is unreliable with a custom Dispatcher across the
     // static, context-scoped servers); reset per test.
     static final CopyOnWriteArrayList<String> weatherPaths = new CopyOnWriteArrayList<>();
+    static final CopyOnWriteArrayList<String> travelSearchPaths = new CopyOnWriteArrayList<>();
     static final AtomicReference<String> synthBody = new AtomicReference<>();
     static final AtomicBoolean chartRendered = new AtomicBoolean();
     static final AtomicReference<String> chartBody = new AtomicReference<>();
+    static final AtomicReference<String> boardBody = new AtomicReference<>();
 
     @BeforeEach
     void resetCaptures() {
         weatherPaths.clear();
+        travelSearchPaths.clear();
         synthBody.set(null);
         chartRendered.set(false);
         chartBody.set(null);
+        boardBody.set(null);
         // Default board seam: media-service accepts the upload, chart-render returns a stored image. Tests
         // that assert the render-hiccup fallback override these with an error dispatcher.
         mediaService.setDispatcher(mediaOk());
@@ -325,6 +339,130 @@ class TripComposerTest {
         assertThat(resp.text()).doesNotContain("Открыть план поездки:").doesNotContain("/v1/media/");
     }
 
+    @Test
+    void liveOptionsRankMinTransfersThenPriceAndFlagOverBudget() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // Budget hint 15000 → the direct (30000) and 1-transfer (20000) flights are over, the 2-transfer
+        // (10000) is under. Ranking must still put the DIRECT first (min transfers beats price).
+        mcpTravel.setDispatcher(fixedJson(json.writeValueAsString(new TravelProfileDto(
+                UUID.randomUUID(), householdId, userId, "Москва", 55.75, 37.62,
+                json.readTree("[\"beach\"]"), "couple", null,
+                new BigDecimal("15000.00"), "RUB", null, Instant.now()))));
+        mcpWeather.setDispatcher(pathJson(
+                "/internal/geocode", json.writeValueAsString(new GeoLocation("Antalya", "Turkey", 36.9, 30.7, "Europe/Istanbul")),
+                "/internal/climate", json.writeValueAsString(new ClimateNormals(36.9, 30.7, List.of(
+                        new MonthlyNormal(9, 28.4, 21.0))))));
+        mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("Турция", List.of(
+                new WebSearchHit("Турция", "https://example.com/turkey", "Море."))))));
+        orchestrator.setDispatcher(hubBriefs("Бюджет ок.", "Даты свободны."));
+        travelSearch.setDispatcher(liveSearchOk());
+        llmGateway.setDispatcher(llm("{\"destination\":\"Турция\",\"month\":9,\"live\":true}",
+                "Вот варианты перелётов и отель."));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "найди билеты в Турцию в сентябре, подбери отель", List.of(), "telegram", "96", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+
+        // The live-options context reached the synthesis, ranked min-transfers→price (Direct0 < Mid1 < Cheap2).
+        String body = synthBody.get();
+        assertThat(body).as("synthesis request not captured").isNotNull();
+        int direct = body.indexOf("Direct0");
+        int mid = body.indexOf("Mid1");
+        int cheap = body.indexOf("Cheap2");
+        assertThat(direct).isGreaterThanOrEqualTo(0);
+        assertThat(direct).isLessThan(mid);
+        assertThat(mid).isLessThan(cheap);
+        // Over-budget flagged, not hidden: all three flights reached the synthesis, each with an
+        // overBudget flag (the quotes are JSON-escaped inside the request's user-message string).
+        assertThat(body).contains("overBudget").contains("Direct0").contains("Mid1").contains("Cheap2");
+        assertThat(body).contains("overBudget\\\":true");   // at least one offer marked over the budget
+
+        // The board carries the provider deep links (agent proposes, never books) in ranked order.
+        String board = boardBody.get();
+        assertThat(board).as("board not captured").isNotNull();
+        assertThat(board).contains("aviasales.com/a").contains("aviasales.com/b").contains("aviasales.com/c")
+                .contains("hotellook.com/h");
+        assertThat(board.indexOf("aviasales.com/b")).isLessThan(board.indexOf("aviasales.com/c"));
+        assertThat(board).contains("над бюджетом");
+
+        // Live search actually happened, and no booking/pay path was ever called (there is none).
+        assertThat(travelSearchPaths).anyMatch(p -> p.startsWith("/internal/search-flights"))
+                .anyMatch(p -> p.startsWith("/internal/search-hotels"))
+                .allMatch(p -> p.startsWith("/internal/"));
+        assertThat(travelSearchPaths).noneMatch(p -> p.contains("book") || p.contains("pay") || p.contains("order"));
+    }
+
+    @Test
+    void liveSearchUnconfiguredFallsBackToMvpWithNote() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mcpTravel.setDispatcher(fixedJson(json.writeValueAsString(new TravelProfileDto(
+                UUID.randomUUID(), householdId, userId, "Москва", 55.75, 37.62,
+                json.readTree("[\"beach\"]"), "family", null, null, null, null, Instant.now()))));
+        mcpWeather.setDispatcher(pathJson(
+                "/internal/geocode", json.writeValueAsString(new GeoLocation("Antalya", "Turkey", 36.9, 30.7, "Europe/Istanbul")),
+                "/internal/climate", json.writeValueAsString(new ClimateNormals(36.9, 30.7, List.of(
+                        new MonthlyNormal(9, 28.4, 21.0))))));
+        mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("Турция", List.of(
+                new WebSearchHit("Турция", "https://example.com/turkey", "Море."))))));
+        orchestrator.setDispatcher(hubBriefs("Бюджет ок.", "Даты свободны."));
+        // No Travelpayouts key wired → resolve_place degrades → the whole capability is unconfigured.
+        travelSearch.setDispatcher(fixedJson(json.writeValueAsString(PlaceResult.unconfigured("Турция"))));
+        llmGateway.setDispatcher(llm("{\"destination\":\"Турция\",\"month\":9,\"live\":true}",
+                "Турция в сентябре — отличный выбор."));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "найди билеты в Турцию в сентябре", List.of(), "telegram", "97", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // The MVP plan still ships, plus a note that live search needs a key.
+        assertThat(resp.text()).contains("Турция в сентябре").contains("Travelpayouts");
+        // No flights/hotels were searched once resolve reported unconfigured, and nothing was invented.
+        assertThat(travelSearchPaths).noneMatch(p -> p.startsWith("/internal/search-flights"));
+        assertThat(synthBody.get()).doesNotContain("\"deepLink\"");
+    }
+
+    /**
+     * mcp-travel-search: resolve both places (branch on the query), then serve three unsorted flights
+     * (a direct, a 1-transfer, a 2-transfer) + one hotel, each with a provider deep link.
+     */
+    private Dispatcher liveSearchOk() {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath();
+                String reqBody = request.getBody().readUtf8();
+                if (path != null) travelSearchPaths.add(path);
+                try {
+                    if (path != null && path.startsWith("/internal/resolve-place")) {
+                        PlaceResult pr = reqBody.contains("Москва")
+                                ? new PlaceResult("Москва", "Moscow", "MOW", null, false)
+                                : new PlaceResult("Турция", "Turkey", "AYT", "12209", false);
+                        return jsonResponse(json.writeValueAsString(pr));
+                    }
+                    if (path != null && path.startsWith("/internal/search-flights")) {
+                        return jsonResponse(json.writeValueAsString(new FlightSearchResult(false, List.of(
+                                new FlightOffer(10000.0, "RUB", 2, "Cheap2", "2026-09", null, "https://www.aviasales.com/a"),
+                                new FlightOffer(30000.0, "RUB", 0, "Direct0", "2026-09", null, "https://www.aviasales.com/b"),
+                                new FlightOffer(20000.0, "RUB", 1, "Mid1", "2026-09", null, "https://www.aviasales.com/c")))));
+                    }
+                    if (path != null && path.startsWith("/internal/search-hotels")) {
+                        return jsonResponse(json.writeValueAsString(new HotelSearchResult(false, List.of(
+                                new HotelOffer("Rixos", 12000.0, "RUB", 5.0, "https://search.hotellook.com/h")))));
+                    }
+                    return new MockResponse().setResponseCode(404);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
     private IntentResponse post(NormalizedMessage msg) {
         return http.post().uri("/agents/travel/intent")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
@@ -402,6 +540,7 @@ class TripComposerTest {
     private Dispatcher mediaOk() {
         return new Dispatcher() {
             @Override public MockResponse dispatch(RecordedRequest request) {
+                boardBody.set(request.getBody().readUtf8());   // capture the rendered board for assertions
                 try {
                     return jsonResponse(json.writeValueAsString(new MediaObjectDto(
                             UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "file",

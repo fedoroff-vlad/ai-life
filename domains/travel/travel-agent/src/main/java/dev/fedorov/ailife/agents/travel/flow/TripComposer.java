@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.travel.flow;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.node.StringNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
@@ -13,7 +14,13 @@ import dev.fedorov.ailife.agents.travel.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
+import dev.fedorov.ailife.agents.travel.http.TravelSearchClient;
 import dev.fedorov.ailife.agents.travel.http.WebSearchClient;
+import dev.fedorov.ailife.contracts.travelsearch.FlightOffer;
+import dev.fedorov.ailife.contracts.travelsearch.FlightSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.HotelOffer;
+import dev.fedorov.ailife.contracts.travelsearch.HotelSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.PlaceResult;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -33,14 +40,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * The trip-planning flow (TR-d): the travel agent's reason for existing, and — like briefing's
@@ -60,6 +70,15 @@ import java.util.UUID;
  * unverified); no named destination skips the climate gather. <b>Booking boundary (ADR-0003):</b> the
  * plan proposes options + provenance links only — it never books, reserves, or pays (enforced by the
  * {@code trip-composer} SKILL; this flow makes no outbound booking call).
+ *
+ * <p><b>TR-f2 (live options):</b> when the FAST scope spots that the owner wants concrete tickets/hotels
+ * ({@code live}) for a named destination + month, the gather grows a live-options step over the shared
+ * {@code mcp-travel-search} capability: resolve the destination (+ home-base origin) to search codes,
+ * search flights + hotels, <b>rank flights min-transfers→price</b>, flag any over the budget hint (never
+ * hidden), and fold the ranked options + provider <b>deep links</b> into both the synthesis context and the
+ * board. The capability is <b>owner-key-gated</b>: with no Travelpayouts key it reports {@code unconfigured}
+ * and the planner <b>degrades to the MVP plan</b> + tells the owner live search isn't set up. Still
+ * <b>never books</b> (ADR-0003) — options + links only.
  *
  * <p><b>TR-e (the MVP closer):</b> the synthesis is then rendered to an <b>HTML travel board</b> — the
  * plan text as a section, the gathered web sources as grounded provenance links, and the destination's
@@ -82,23 +101,36 @@ public class TripComposer {
     private static final int MAX_RESEARCH = 6;
     /** Cap the board's provenance link list (the gathered web research). */
     private static final int MAX_LINKS = 8;
+    /** Cap the live flight/hotel options folded into the synthesis + board (TR-f2). */
+    private static final int MAX_FLIGHT_OPTIONS = 5;
+    private static final int MAX_HOTEL_OPTIONS = 5;
+    /** A default stay length (nights) when the owner states only a month, not exact dates. */
+    private static final int DEFAULT_STAY_NIGHTS = 7;
+    /** Told to the owner when live search is asked for but the capability has no Travelpayouts key. */
+    private static final String LIVE_UNCONFIGURED_NOTE =
+            "Живой поиск билетов и отелей пока не настроен (нужен бесплатный ключ Travelpayouts) — "
+            + "показал план без конкретных цен.";
     /** Russian month labels for the climate-by-month chart's x-axis (index = month - 1). */
     private static final String[] MONTHS_RU = {
             "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
 
-    /** Cheap FAST pre-step: spot a concrete destination + month so climate can be gathered for it. */
+    /** Cheap FAST pre-step: spot a concrete destination + month + whether live options are wanted. */
     private static final String SCOPE_SYSTEM = """
             You extract trip parameters from a short vacation request. Return ONLY a JSON object:
-            {"destination": <a place the person explicitly named, or null>, "month": <trip month 1-12, or null>}.
+            {"destination": <a place the person explicitly named, or null>, "month": <trip month 1-12, or null>,
+             "live": <true if the person asks for concrete tickets/flights/hotels or their prices, else false>}.
             "destination" is a concrete place (city / country / region) ONLY if the person named one — a
             generic wish like "на море" or "somewhere warm" is NOT a destination, use null. "month" is the
-            travel month if stated (by name or number), else null. Output only the JSON — no prose, no code fence.""";
+            travel month if stated (by name or number), else null. "live" is true when the person wants real
+            bookable options — "найди билеты", "подбери отель", "сколько стоит перелёт", "find flights/hotels" —
+            and false for a general "where should I go / plan a trip" wish. Output only the JSON — no prose, no code fence.""";
 
     private final Coordinator coordinator;
     private final TravelProfileClient profiles;
     private final GeocodeClient geocode;
     private final ClimateClient climate;
     private final WebSearchClient web;
+    private final TravelSearchClient search;
     private final OrchestratorInvokeClient hub;
     private final LlmClient llm;
     private final SkillRegistry skills;
@@ -108,14 +140,16 @@ public class TripComposer {
     private final ChartRenderClient chartRender;
 
     public TripComposer(Coordinator coordinator, TravelProfileClient profiles, GeocodeClient geocode,
-                        ClimateClient climate, WebSearchClient web, OrchestratorInvokeClient hub,
-                        LlmClient llm, SkillRegistry skills, AgentManifest manifest, ObjectMapper json,
-                        DeliverablePublisher publisher, ChartRenderClient chartRender) {
+                        ClimateClient climate, WebSearchClient web, TravelSearchClient search,
+                        OrchestratorInvokeClient hub, LlmClient llm, SkillRegistry skills,
+                        AgentManifest manifest, ObjectMapper json, DeliverablePublisher publisher,
+                        ChartRenderClient chartRender) {
         this.coordinator = coordinator;
         this.profiles = profiles;
         this.geocode = geocode;
         this.climate = climate;
         this.web = web;
+        this.search = search;
         this.hub = hub;
         this.llm = llm;
         this.skills = skills;
@@ -182,6 +216,12 @@ public class TripComposer {
         }
         gather.put("research", web.search(researchQuery(msg, profile, scope), MAX_RESEARCH)
                 .map(res -> json.valueToTree(res.hits())));
+        // TR-f2 live options: only when the owner asked for concrete tickets/hotels AND named a
+        // destination + month (a real search needs both). Owner-key-gated / soft-fail inside; per-source
+        // soft-fail keeps a missing step from sinking the plan.
+        if (scope.live() && scope.destination() != null && !scope.destination().isBlank() && scope.month() != null) {
+            gather.put("liveOptions", liveOptions(profile, scope));
+        }
 
         ObjectNode payload = json.createObjectNode();
         payload.put("userText", msg.text() == null ? "" : msg.text());
@@ -198,14 +238,19 @@ public class TripComposer {
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
-                .flatMap(r -> publishBoard(msg, scope, r.text(), r.gathered())
-                        .map(link -> reply(withLink(r.text(), link), r.llmModel()))
-                        .defaultIfEmpty(reply(r.text(), r.llmModel()))
-                        .onErrorResume(e -> {
-                            // A media/render hiccup must not sink the plan — hand back the text alone.
-                            log.warn("trip board store failed: {}", e.toString());
-                            return Mono.just(reply(r.text(), r.llmModel()));
-                        }))
+                .flatMap(r -> {
+                    // TR-f2: if live search was asked for but the capability has no key, tell the owner and
+                    // fall back to the MVP plan (the synthesis already ran without live options).
+                    String text = withLiveNote(r.text(), r.gathered());
+                    return publishBoard(msg, scope, text, r.gathered())
+                            .map(link -> reply(withLink(text, link), r.llmModel()))
+                            .defaultIfEmpty(reply(text, r.llmModel()))
+                            .onErrorResume(e -> {
+                                // A media/render hiccup must not sink the plan — hand back the text alone.
+                                log.warn("trip board store failed: {}", e.toString());
+                                return Mono.just(reply(text, r.llmModel()));
+                            });
+                })
                 .onErrorResume(e -> {
                     log.warn("trip synthesis failed: {}", e.toString());
                     return Mono.just(reply("Собрал данные, но не смог оформить план поездки. Попробуйте позже.", null));
@@ -227,6 +272,11 @@ public class TripComposer {
                 b.chart(chartUrl);
             }
             b.section("План", DeliverablePublisher.splitParagraphs(text));
+            // TR-f2: the live flight/hotel options as buy deep links (agent never books) — ranked, with an
+            // "над бюджетом" marker on over-budget offers. Listed before the qualitative research links.
+            for (Doc.LinkItem l : optionLinks(gathered)) {
+                b.link(l.label(), l.url(), l.note());
+            }
             for (Doc.LinkItem l : researchLinks(gathered)) {
                 b.link(l.label(), l.url(), l.note());
             }
@@ -313,6 +363,73 @@ public class TripComposer {
         return links;
     }
 
+    /**
+     * Flatten the gathered {@code liveOptions} (TR-f2) into board deep links — flights first (already ranked
+     * min-transfers→price), then hotels — each an option the owner opens on the provider to buy. Over-budget
+     * offers are kept, marked "над бюджетом" in the note (flag, never hide). The agent never books.
+     */
+    private List<Doc.LinkItem> optionLinks(JsonNode gathered) {
+        List<Doc.LinkItem> links = new ArrayList<>();
+        if (gathered == null) {
+            return links;
+        }
+        JsonNode live = gathered.get("liveOptions");
+        if (live == null || live.path("unconfigured").asBoolean(false)) {
+            return links;
+        }
+        JsonNode flights = live.get("flights");
+        if (flights != null && flights.isArray()) {
+            int i = 1;
+            for (JsonNode f : flights) {
+                String url = f.path("deepLink").asString(null);
+                if (url == null || url.isBlank()) {
+                    continue;
+                }
+                links.add(new Doc.LinkItem(flightLabel(f, i++), url, priceNote(f)));
+            }
+        }
+        JsonNode hotels = live.get("hotels");
+        if (hotels != null && hotels.isArray()) {
+            for (JsonNode h : hotels) {
+                String url = h.path("deepLink").asString(null);
+                if (url == null || url.isBlank()) {
+                    continue;
+                }
+                String name = h.path("name").asString("Отель");
+                links.add(new Doc.LinkItem("Отель: " + name, url, priceNote(h)));
+            }
+        }
+        return links;
+    }
+
+    private static String flightLabel(JsonNode f, int idx) {
+        StringBuilder sb = new StringBuilder("Перелёт ").append(idx);
+        if (f.hasNonNull("transfers")) {
+            int t = f.get("transfers").asInt();
+            sb.append(" · ").append(t == 0 ? "без пересадок" : t + " пересадк.");
+        }
+        if (f.hasNonNull("airline")) {
+            sb.append(" · ").append(f.get("airline").asString());
+        }
+        return sb.toString();
+    }
+
+    /** A short price note with an over-budget marker — never a claim of a booked/guaranteed price. */
+    private static String priceNote(JsonNode offer) {
+        StringBuilder sb = new StringBuilder();
+        if (offer.hasNonNull("price")) {
+            sb.append("от ").append(offer.get("price").asString());
+            if (offer.hasNonNull("currency")) {
+                sb.append(' ').append(offer.get("currency").asString());
+            }
+        }
+        if (offer.path("overBudget").asBoolean(false)) {
+            if (sb.length() > 0) sb.append(" · ");
+            sb.append("над бюджетом");
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
+
     private String boardSubtitle(Scope scope) {
         StringBuilder sb = new StringBuilder("Маршрут · сезон · бюджет");
         if (scope.month() != null && scope.month() >= 1 && scope.month() <= 12) {
@@ -326,6 +443,142 @@ public class TripComposer {
             return text;
         }
         return text + "\n\nОткрыть план поездки: " + link;
+    }
+
+    /**
+     * TR-f2 live-options gather: resolve the destination (and the home-base origin) to search codes, then
+     * search flights + hotels for the stated month, ranking flights by <b>min transfers then price</b> and
+     * flagging any offer over the owner's budget hint (never hiding it). Returns a compact
+     * {@code {unconfigured, budgetRef, flights[], hotels[]}} node folded into the synthesis context + the
+     * board. <b>Owner-key-gated:</b> when the capability reports {@code unconfigured} (no Travelpayouts key)
+     * the caller degrades to the MVP plan. <b>Never books</b> (ADR-0003) — each offer is a provider deep
+     * link only. Soft-fails to an empty Mono so a search hiccup drops only this step.
+     */
+    private Mono<JsonNode> liveOptions(TravelProfileDto profile, Scope scope) {
+        return search.resolvePlace(scope.destination())
+                .flatMap(dest -> {
+                    if (dest.unconfigured()) {
+                        return Mono.just(unconfiguredOptions());
+                    }
+                    Mono<PlaceResult> originMono = (profile.homeBaseLabel() == null || profile.homeBaseLabel().isBlank())
+                            ? Mono.just(NO_PLACE)
+                            : search.resolvePlace(profile.homeBaseLabel());
+                    return originMono.flatMap(origin -> {
+                        int party = partySize(profile);
+                        String departMonth = monthCode(scope.month());
+                        Mono<FlightSearchResult> flights = canSearchFlights(origin, dest)
+                                ? search.searchFlights(origin.iataCity(), dest.iataCity(), departMonth, null, party)
+                                : Mono.just(new FlightSearchResult(false, List.of()));
+                        String[] stay = stayDates(scope.month());
+                        String hotelLocation = dest.hotelLocationId() != null ? dest.hotelLocationId() : scope.destination();
+                        Mono<HotelSearchResult> hotels = search.searchHotels(hotelLocation, stay[0], stay[1], party);
+                        return Mono.zip(flights, hotels)
+                                .map(t -> optionsNode(t.getT1(), t.getT2(), budgetRef(profile)));
+                    });
+                })
+                .onErrorResume(e -> {
+                    log.warn("live travel search failed, degrading to MVP plan: {}", e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    private static boolean canSearchFlights(PlaceResult origin, PlaceResult dest) {
+        return origin.iataCity() != null && !origin.iataCity().isBlank()
+                && dest.iataCity() != null && !dest.iataCity().isBlank();
+    }
+
+    /** Build the {@code liveOptions} context node: flights ranked min-transfers→price, hotels by price. */
+    private JsonNode optionsNode(FlightSearchResult flights, HotelSearchResult hotels, BigDecimal budgetRef) {
+        ObjectNode node = json.createObjectNode();
+        node.put("unconfigured", false);
+        if (budgetRef != null) {
+            node.put("budgetRef", budgetRef);
+        }
+        ArrayNode flightArr = node.putArray("flights");
+        flights.offers().stream()
+                .sorted(FLIGHT_ORDER)
+                .limit(MAX_FLIGHT_OPTIONS)
+                .forEach(o -> flightArr.add(flightNode(o, budgetRef)));
+        ArrayNode hotelArr = node.putArray("hotels");
+        hotels.offers().stream()
+                .sorted(Comparator.comparing(HotelOffer::price, Comparator.nullsLast(Comparator.naturalOrder())))
+                .limit(MAX_HOTEL_OPTIONS)
+                .forEach(o -> hotelArr.add(hotelNode(o, budgetRef)));
+        return node;
+    }
+
+    /** Min transfers first (nulls last), then cheapest price (nulls last) — the TR-f2 ranking rule. */
+    private static final Comparator<FlightOffer> FLIGHT_ORDER =
+            Comparator.comparing(FlightOffer::transfers, Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(FlightOffer::price, Comparator.nullsLast(Comparator.naturalOrder()));
+
+    private ObjectNode flightNode(FlightOffer o, BigDecimal budgetRef) {
+        ObjectNode n = json.createObjectNode();
+        if (o.price() != null) n.put("price", o.price());
+        if (o.currency() != null) n.put("currency", o.currency());
+        if (o.transfers() != null) n.put("transfers", o.transfers());
+        if (o.airline() != null) n.put("airline", o.airline());
+        if (o.departDate() != null) n.put("departDate", o.departDate());
+        if (o.returnDate() != null) n.put("returnDate", o.returnDate());
+        if (o.deepLink() != null) n.put("deepLink", o.deepLink());
+        n.put("overBudget", overBudget(o.price(), budgetRef));
+        return n;
+    }
+
+    private ObjectNode hotelNode(HotelOffer o, BigDecimal budgetRef) {
+        ObjectNode n = json.createObjectNode();
+        if (o.name() != null) n.put("name", o.name());
+        if (o.price() != null) n.put("price", o.price());
+        if (o.currency() != null) n.put("currency", o.currency());
+        if (o.stars() != null) n.put("stars", o.stars());
+        if (o.deepLink() != null) n.put("deepLink", o.deepLink());
+        n.put("overBudget", overBudget(o.price(), budgetRef));
+        return n;
+    }
+
+    private static boolean overBudget(Double price, BigDecimal budgetRef) {
+        return price != null && budgetRef != null && BigDecimal.valueOf(price).compareTo(budgetRef) > 0;
+    }
+
+    /** The numeric ceiling used to flag over-budget options — the owner's stated budget hint, if any. */
+    private static BigDecimal budgetRef(TravelProfileDto profile) {
+        return profile.budgetAmount();
+    }
+
+    private ObjectNode unconfiguredOptions() {
+        ObjectNode node = json.createObjectNode();
+        node.put("unconfigured", true);
+        return node;
+    }
+
+    /** solo → 1, couple/family → 2 adults (the search's party size). */
+    private static int partySize(TravelProfileDto profile) {
+        String c = profile.companions();
+        return ("couple".equals(c) || "family".equals(c)) ? 2 : 1;
+    }
+
+    /** A future {@code yyyy-MM} for the flight search: this year if the month is still ahead, else next. */
+    private static String monthCode(int month) {
+        YearMonth now = YearMonth.now();
+        int year = (month >= now.getMonthValue()) ? now.getYear() : now.getYear() + 1;
+        return String.format("%04d-%02d", year, month);
+    }
+
+    /** A concrete {@code [checkIn, checkOut]} for the hotel search: mid-month, a default stay length. */
+    private static String[] stayDates(int month) {
+        YearMonth now = YearMonth.now();
+        int year = (month >= now.getMonthValue()) ? now.getYear() : now.getYear() + 1;
+        LocalDate checkIn = LocalDate.of(year, month, 12);
+        LocalDate checkOut = checkIn.plusDays(DEFAULT_STAY_NIGHTS);
+        return new String[]{checkIn.toString(), checkOut.toString()};
+    }
+
+    /** Append the "live search not set up" note when the capability degraded (unconfigured). */
+    private static String withLiveNote(String text, JsonNode gathered) {
+        if (gathered != null && gathered.path("liveOptions").path("unconfigured").asBoolean(false)) {
+            return text + "\n\n" + LIVE_UNCONFIGURED_NOTE;
+        }
+        return text;
     }
 
     /** Invoke a specialist's read-only {@code brief} via the hub; any soft-failure → omitted from the context. */
@@ -446,7 +699,8 @@ public class TripComposer {
                     month = m;
                 }
             }
-            return new Scope(dest, month);
+            boolean live = node.hasNonNull("live") && node.get("live").asBoolean(false);
+            return new Scope(dest, month, live);
         } catch (Exception e) {
             return Scope.EMPTY;
         }
@@ -471,9 +725,14 @@ public class TripComposer {
     }
 
     private static final GeoLocation NO_GEO = new GeoLocation(null, null, null, null, null);
+    /** A "no home base to resolve" placeholder so the flight search is simply skipped (hotels still run). */
+    private static final PlaceResult NO_PLACE = new PlaceResult(null, null, null, null, false);
 
-    /** The FAST scope extract's result: a named destination + a stated travel month, either may be absent. */
-    private record Scope(String destination, Integer month) {
-        static final Scope EMPTY = new Scope(null, null);
+    /**
+     * The FAST scope extract's result: a named destination + a stated travel month (either may be absent)
+     * and whether the owner asked for concrete live tickets/hotels ({@code live}, TR-f2).
+     */
+    private record Scope(String destination, Integer month, boolean live) {
+        static final Scope EMPTY = new Scope(null, null, false);
     }
 }

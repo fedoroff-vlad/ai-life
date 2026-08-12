@@ -10,11 +10,17 @@ import dev.fedorov.ailife.agents.travel.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
+import dev.fedorov.ailife.agents.travel.http.TravelSearchClient;
 import dev.fedorov.ailife.agents.travel.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
+import dev.fedorov.ailife.contracts.travelsearch.FlightOffer;
+import dev.fedorov.ailife.contracts.travelsearch.FlightSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.HotelOffer;
+import dev.fedorov.ailife.contracts.travelsearch.HotelSearchResult;
+import dev.fedorov.ailife.contracts.travelsearch.PlaceResult;
 import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
 import dev.fedorov.ailife.contracts.weather.MonthlyNormal;
@@ -62,6 +68,8 @@ class GoldenTripComposerTest {
 
     private static final Pattern URL = Pattern.compile("https?://[^\\s)\\]<>\"'`]+");
     private static final String RESEARCH_URL = "https://example.com/turkey-guide";
+    private static final String FLIGHT_URL = "https://www.aviasales.com/search/MOW0912AYT1";
+    private static final String HOTEL_URL = "https://search.hotellook.com/hotels/rixos";
 
     private final ObjectMapper json = new ObjectMapper();
     private final Coordinator coordinator = new Coordinator(GoldenLlm.client(), json);
@@ -69,6 +77,7 @@ class GoldenTripComposerTest {
     private final GeocodeClient geocode = mock(GeocodeClient.class);
     private final ClimateClient climate = mock(ClimateClient.class);
     private final WebSearchClient web = mock(WebSearchClient.class);
+    private final TravelSearchClient search = mock(TravelSearchClient.class);
     private final OrchestratorInvokeClient hub = mock(OrchestratorInvokeClient.class);
     private final AgentManifest manifest = new AgentManifest(
             "travel", "travel agent", "0.1.0", 8124,
@@ -83,8 +92,8 @@ class GoldenTripComposerTest {
     private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
     private final ChartRenderClient chartRender = mock(ChartRenderClient.class);
     private final TripComposer composer = new TripComposer(
-            coordinator, profiles, geocode, climate, web, hub, GoldenLlm.client(), skills, manifest, json,
-            publisher, chartRender);
+            coordinator, profiles, geocode, climate, web, search, hub, GoldenLlm.client(), skills, manifest,
+            json, publisher, chartRender);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete corpus (budget + dates +
@@ -127,6 +136,67 @@ class GoldenTripComposerTest {
                     .as("hallucinated link '%s' (not in the corpus) in:\n%s", url, resp.text())
                     .isTrue();
         }
+    }
+
+    /**
+     * STRUCTURE (TR-f2) — when the owner asks for concrete tickets/hotels, the real model must fold the
+     * pre-gathered <b>live options</b> into the plan: it lists offers as the provider <b>deep links</b> and
+     * never fabricates a link or a bookable price without a source. The gather (place resolve + flight/hotel
+     * search) is mocked to a fixed corpus; the real Coordinator runs the one synthesis over the real SKILL.
+     * Asserts every cited link is a corpus link and at least one is an offer deep link — provenance, not wording.
+     */
+    @Test
+    void composesLivePlanCitingOnlyCorpusOptionLinks() {
+        UUID household = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+
+        when(profiles.get(any(), any())).thenReturn(Mono.just(new TravelProfileDto(
+                UUID.randomUUID(), household, user, "Москва", 55.75, 37.62,
+                json.valueToTree(List.of("beach")), "couple", null,
+                new java.math.BigDecimal("40000"), "RUB", null, Instant.now())));
+        when(geocode.geocode(any(), any())).thenReturn(Mono.just(
+                new GeoLocation("Antalya", "Turkey", 36.9, 30.7, "Europe/Istanbul")));
+        when(climate.climate(anyDouble(), anyDouble(), any())).thenReturn(Mono.just(new ClimateNormals(
+                36.9, 30.7, List.of(new MonthlyNormal(9, 28.4, 21.0)))));
+        when(web.search(anyString(), anyInt())).thenReturn(Mono.just(new WebSearchResult("Турция сентябрь", List.of(
+                new WebSearchHit("Турция в сентябре", RESEARCH_URL, "Море тёплое.")))));
+        when(hub.invoke(any(), any())).thenReturn(Mono.just(AgentActionResult.ok(answer(
+                "Бюджет на отпуск около 40000 RUB."))));
+        // Live options: two ranked flights (over/under budget) + one hotel, each a provider deep link.
+        when(search.resolvePlace(anyString())).thenReturn(Mono.just(
+                new PlaceResult("Турция", "Turkey", "AYT", "12209", false)));
+        when(search.searchFlights(anyString(), anyString(), anyString(), any(), anyInt()))
+                .thenReturn(Mono.just(new FlightSearchResult(false, List.of(
+                        new FlightOffer(30000.0, "RUB", 0, "Direct", "2026-09", null, FLIGHT_URL),
+                        new FlightOffer(50000.0, "RUB", 1, "OneStop", "2026-09", null, FLIGHT_URL + "b")))));
+        when(search.searchHotels(anyString(), anyString(), anyString(), anyInt()))
+                .thenReturn(Mono.just(new HotelSearchResult(false, List.of(
+                        new HotelOffer("Rixos", 12000.0, "RUB", 5.0, HOTEL_URL)))));
+        when(chartRender.render(any(), any(), any())).thenReturn(Mono.empty());
+        when(publisher.publish(any(), any(), any())).thenReturn(Mono.empty());
+
+        IntentResponse resp = composer.plan(GoldenLlm.message(household, user,
+                        "найди билеты в Турцию в сентябре и подбери отель, бюджет тысяч 40"))
+                .block(Duration.ofSeconds(150));
+
+        assertThat(resp).as("null result — is llm-gateway up at %s?", GoldenLlm.gatewayUrl()).isNotNull();
+        assertThat(resp.text()).as("empty plan").isNotBlank();
+
+        List<String> cited = extractUrls(resp.text());
+        assertThat(cited).as("no option/source link cited in:\n%s", resp.text()).isNotEmpty();
+        for (String url : cited) {
+            assertThat(isLiveCorpusUrl(url))
+                    .as("hallucinated link '%s' (not in the corpus) in:\n%s", url, resp.text())
+                    .isTrue();
+        }
+        assertThat(cited).as("no offer deep link surfaced in:\n%s", resp.text())
+                .anyMatch(u -> u.startsWith("https://www.aviasales.com") || u.startsWith("https://search.hotellook.com"));
+    }
+
+    /** The live golden's corpus: the research article + the offer deep links (with tolerant prefixing). */
+    private static boolean isLiveCorpusUrl(String cited) {
+        return isCorpusUrl(cited)
+                || cited.startsWith("https://www.aviasales.com") || cited.startsWith("https://search.hotellook.com");
     }
 
     private ObjectNode answer(String text) {
