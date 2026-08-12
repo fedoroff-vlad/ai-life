@@ -224,8 +224,10 @@ tallied in rubles.
 ### Locked decisions (owner, this session)
 - **One family budget, no settlement/debts.** No per-member "who owes whom" — that's cut. Members are the
   trip **roster/context**, not payers who reconcile.
-- **Members = the family**, spanning **both** identity kinds (ADR-0001): a space member who is a **user**
-  (e.g. wife) *and* a **recorded `people` unit** who isn't a user yet (e.g. daughter). Roster only.
+- **Members = a roster of participants added from the family environment** — a general add/remove
+  mechanism, **not** a fixed set of roles. Each participant is drawn from either identity kind (ADR-0001):
+  an existing **space member (a `user`)** or a **recorded `people` unit** who isn't a user yet. The point is
+  that *anyone* in the household circle can be put on a trip; who they are is data, not hardcoded. Roster/context only.
 - **Multi-currency is first-class.** Holdings + spends are per-currency; balances are kept **per currency**.
 - **FX rate is owner-supplied, not fetched.** The owner states the rate when acquiring a currency ("взял
   500 $ по 90 ₽") or at tally time. **No external FX dependency** (deliberately — the honest rate is the one
@@ -260,12 +262,14 @@ tallied in rubles.
 ### PR slices (spec-first; each its own PR, ≤5 files; WHEN/THEN before code)
 #### EX-a — `travel.trip` store in `mcp-travel` (the new layer; also unblocks #436)
 Migration `111-travel-trip.yml` (the four tables) + entities/repos + MCP tools (`createTrip`,
-`addTripMember`, `addFunding`, `logExpense`, `getTrip`, `getTripLedger`) + `/internal/*` passthroughs.
+`addTripMember`/`removeTripMember`, `addFunding`, `logExpense`, `getTrip`, `getTripLedger`) + `/internal/*`
+passthroughs. The roster is a plain add/remove of household users or `people` units — no special roles.
 Persistence only — no balance math yet (that's EX-b's deterministic ledger reads these rows).
 - **Scenario: create + read a trip** — WHEN `createTrip(household, owner, "Тайланд", home='RUB')` then
   `getTrip` — THEN the trip round-trips with `status=planning` (asserted by `McpTripIntegrationTest`, Testcontainers).
-- **Scenario: roster spans user + people** — WHEN a `user` member (wife) and a `person` member (daughter)
-  are added — THEN both resolve on the trip, each with exactly one identity ref (asserted by the IT).
+- **Scenario: roster adds participants of either identity kind** — WHEN one participant that is a `user`
+  and one that is a `people` unit are added to the trip (and one later removed) — THEN each resolves with
+  exactly one identity ref and the roster reflects add/remove, with no fixed/special roles (asserted by the IT).
 - **Scenario: funding + expense ledger rows** — WHEN two fundings (`RUB 100000 @1`, `USD 500 @90`) and one
   `THB 2000` expense are logged — THEN `getTripLedger` returns them grouped by currency (asserted by the IT).
 - **Scenario: reject cross-household trip access** — WHEN a trip is read with a mismatched household —
