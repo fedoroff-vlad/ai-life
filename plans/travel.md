@@ -209,6 +209,93 @@ travel-agent in §who-uses-me.
 - **Golden:** `GoldenTripComposerTest` gains a live-options fixture asserting structure (offers listed,
   links present, no price claimed without a source) — not wording.
 
+## Trip wallet — multi-currency family trip budget ([#437](https://github.com/fedoroff-vlad/ai-life/issues/437), reshaped)
+**Status: SPEC (spec-first, no code yet — owner review pending).** This section is the authority for #437.
+
+### What it is (owner's reshape)
+Not TREK-style expense *splitting* between people who then settle up — the owner explicitly **cut "кто кому
+должен"**. It is a **single family trip budget tracked across multiple currencies**: the owner records how
+much of each currency the family holds for the trip, logs spends in the currency actually spent, and at any
+time (and at trip end) sees **what's left per currency** and a **single total converted to the home currency
+(₽)**. A worked example from the owner: fly to Thailand (฿); hold 100 000 ₽ + 500 $ + 300 € (+ ฿ bought
+locally); spend in ฿/$/€ during the trip; at the end → "осталось 50 $, 15 €, 200 ฿" **and** the whole thing
+tallied in rubles.
+
+### Locked decisions (owner, this session)
+- **One family budget, no settlement/debts.** No per-member "who owes whom" — that's cut. Members are the
+  trip **roster/context**, not payers who reconcile.
+- **Members = a roster of participants added from the family environment** — a general add/remove
+  mechanism, **not** a fixed set of roles. Each participant is drawn from either identity kind (ADR-0001):
+  an existing **space member (a `user`)** or a **recorded `people` unit** who isn't a user yet. The point is
+  that *anyone* in the household circle can be put on a trip; who they are is data, not hardcoded. Roster/context only.
+- **Multi-currency is first-class.** Holdings + spends are per-currency; balances are kept **per currency**.
+- **FX rate is owner-supplied, not fetched.** The owner states the rate when acquiring a currency ("взял
+  500 $ по 90 ₽") or at tally time. **No external FX dependency** (deliberately — the honest rate is the one
+  the owner actually exchanged at, not a market mid). A currency with no stated rate is shown in its own
+  currency and **flagged "курс не задан"** in the ₽ tally, never silently converted.
+- **Balance math is deterministic Java**, never the LLM (a correctness/privacy boundary, like `libs/sharing`).
+- **Home currency default ₽** (per-trip `home_currency`, overridable).
+
+### Doctrine (reuse, flag nothing new except the store)
+- The **one genuinely-new thing** is a **persisted `travel.trip` store** (today the travel domain is
+  stateless — only `travel_profile`). It lands in the existing `mcp-travel` domain-MCP + `travel.*` schema
+  (migration range 110-119 already claimed) — **no new module**. The route-import follow-on
+  ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436)) builds on the same store.
+- Everything else reuses existing patterns: identity (ADR-0001) for the roster, the agent cue-split +
+  `Coordinator`/deliverable-board seam for the flow, `libs/doc-render` for the wallet board.
+- Sharing (ADR-0002): a **trip is a shared household entity**; the wallet is the family's, so sharing is not
+  the axis here (no personal-vs-shared spend split — that was the settlement framing we cut). Left out by design.
+
+### Schema (proposed — migration `111-travel-trip.yml`, `travel` schema)
+- `travel.trip` — `id, household_id, owner_id, title, destination?, start_date?, end_date?,
+  home_currency (default 'RUB'), status ('planning'|'active'|'closed'), created_at, updated_at`.
+- `travel.trip_member` — `id, trip_id, user_id? (→core.users), person_id? (→core.people), label,
+  created_at`. Exactly one of user_id/person_id set (else label-only). Roster/context; **no share/weight**.
+- `travel.trip_funding` — currency acquired: `id, trip_id, currency, amount, rate_to_home? (numeric),
+  acquired_at, note?`. "100 000 ₽" → `RUB, 100000, rate 1`; "500 $ по 90" → `USD, 500, rate 90`.
+- `travel.trip_expense` — a spend: `id, trip_id, currency, amount, category?, description?,
+  paid_by_user_id?/paid_by_person_id?, spent_at, created_at`.
+- Derived (no table): **per-currency balance** = Σ funding.amount − Σ expense.amount, per currency; the **₽
+  tally** converts each currency by its funding rate (weighted-average of that currency's fundings; a
+  currency with no rate is flagged, not converted).
+
+### PR slices (spec-first; each its own PR, ≤5 files; WHEN/THEN before code)
+#### EX-a — `travel.trip` store in `mcp-travel` (the new layer; also unblocks #436)
+Migration `111-travel-trip.yml` (the four tables) + entities/repos + MCP tools (`createTrip`,
+`addTripMember`/`removeTripMember`, `addFunding`, `logExpense`, `getTrip`, `getTripLedger`) + `/internal/*`
+passthroughs. The roster is a plain add/remove of household users or `people` units — no special roles.
+Persistence only — no balance math yet (that's EX-b's deterministic ledger reads these rows).
+- **Scenario: create + read a trip** — WHEN `createTrip(household, owner, "Тайланд", home='RUB')` then
+  `getTrip` — THEN the trip round-trips with `status=planning` (asserted by `McpTripIntegrationTest`, Testcontainers).
+- **Scenario: roster adds participants of either identity kind** — WHEN one participant that is a `user`
+  and one that is a `people` unit are added to the trip (and one later removed) — THEN each resolves with
+  exactly one identity ref and the roster reflects add/remove, with no fixed/special roles (asserted by the IT).
+- **Scenario: funding + expense ledger rows** — WHEN two fundings (`RUB 100000 @1`, `USD 500 @90`) and one
+  `THB 2000` expense are logged — THEN `getTripLedger` returns them grouped by currency (asserted by the IT).
+- **Scenario: reject cross-household trip access** — WHEN a trip is read with a mismatched household —
+  THEN 404/empty (tenant isolation, asserted by the IT).
+
+#### EX-b — wallet ledger flow + balance board in `travel-agent`
+A cue-routed create/fund/spend + a deterministic `TripLedger` (per-currency remaining + the owner-rate ₽
+tally, unset-rate currencies flagged) + an HTML **wallet board** (per-currency remaining rows + the ₽ total)
+via `DeliverablePublisher`. Cues: "создай поездку …", "завёл 500 $ по 90", "потратил 2000 бат на …",
+"сколько осталось / подведи итог".
+- **Scenario: per-currency remaining** — WHEN funded `RUB 100000, USD 500, EUR 300, THB 40000` and spent
+  `THB 39800, USD 450, EUR 285` — THEN the report shows `THB 200, USD 50, EUR 15` left (asserted by `TripLedgerTest`).
+- **Scenario: ₽ tally with owner rates** — WHEN each currency has a stated `rate_to_home` — THEN the total
+  spent and total remaining are given in ₽ from those rates (asserted by `TripLedgerTest`).
+- **Scenario: currency with no rate is flagged, not converted** — WHEN a currency has no `rate_to_home` —
+  THEN it appears in its own currency and the ₽ tally flags "курс не задан для <ccy>" (asserted by `TripLedgerTest`).
+- **Scenario: no "who owes whom"** — WHEN the report is produced — THEN it contains per-currency family
+  balances and a ₽ total only, and **no** per-member debt/settlement line (asserted by `TripLedgerTest`).
+- **Scenario: board** — WHEN a trip is tallied — THEN an HTML wallet board carries the per-currency rows +
+  the ₽ total, soft-failing to text-only on a render hiccup (asserted by `TripLedgerTest`).
+
+#### EX-c — (deferred) tie the trip's ₽ spend into the finance `brief` seam
+Once EX-a/b are in, optionally surface a closed trip's ₽ total to finance (a spend signal) and/or read the
+household budget to frame the trip budget. Lower priority; **not** in the first cut. (This is the only place
+the travel↔finance seam re-enters, now that splitting is cut.)
+
 ## Deferred (further out)
 - **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
   (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).
@@ -224,6 +311,6 @@ TREK is a planner *app* that exposes itself as an MCP server for external agents
 we take concepts, not code. It also validates our defaults (Open-Meteo keyless weather, OSM places, MCP
 as the data seam).
 - **Route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436)**; pairs with the `travel.trip` store above.
-- **Per-member trip budget & expense splitting** over the travel↔finance `brief` seam + identity (ADR-0001) / sharing (ADR-0002) — **[#437](https://github.com/fedoroff-vlad/ai-life/issues/437)**.
+- **Trip budget** — **[#437](https://github.com/fedoroff-vlad/ai-life/issues/437)**, **reshaped** by the owner away from TREK-style per-person expense *splitting/settlement* toward a **multi-currency family trip wallet** (one family budget, no "who owes whom"). Full spec below (§Trip wallet).
 - **Packing-list templates** seeded by rest type + climate + companions — **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438)**; could ride the TR-e board.
 - (Reservation tracking / PDF export are already covered by our TR-f live-search follow-on and the TR-e HTML board respectively.)
