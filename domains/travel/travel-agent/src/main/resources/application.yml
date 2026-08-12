@@ -20,6 +20,11 @@ spring:
               url: ${MCP_WEATHER_URL:http://mcp-weather:8113}
             mcp-web:
               url: ${MCP_WEB_URL:http://mcp-web:8098}
+            # Shared chart-render capability (#292). Bound here so a future LLM-driven flow can pick its
+            # tools; the deterministic TR-e climate-chart call goes over the HTTP /internal/render
+            # passthrough (ChartRenderClient), which — unlike MCP/SSE — is MockWebServer-testable.
+            mcp-chart-render:
+              url: ${MCP_CHART_RENDER_URL:http://mcp-chart-render:8120}
 
 server:
   port: ${TRAVEL_AGENT_PORT:8124}
@@ -37,6 +42,9 @@ travel-agent:
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  public-media-base-url: ${TRAVEL_PUBLIC_MEDIA_BASE_URL:http://media-service:8088}
+  mcp-chart-render-url: ${MCP_CHART_RENDER_URL:http://mcp-chart-render:8120}
 
 ailife:
   llm-client:

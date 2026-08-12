@@ -6,8 +6,10 @@ import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.chart.ChartResult;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
 import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
@@ -35,6 +37,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +60,8 @@ class TripComposerTest {
     static MockWebServer mcpWeb;
     static MockWebServer orchestrator;
     static MockWebServer llmGateway;
+    static MockWebServer mediaService;
+    static MockWebServer chartRender;
 
     @BeforeAll
     static void start() throws Exception {
@@ -65,11 +70,15 @@ class TripComposerTest {
         mcpWeb = new MockWebServer();
         orchestrator = new MockWebServer();
         llmGateway = new MockWebServer();
+        mediaService = new MockWebServer();
+        chartRender = new MockWebServer();
         mcpTravel.start();
         mcpWeather.start();
         mcpWeb.start();
         orchestrator.start();
         llmGateway.start();
+        mediaService.start();
+        chartRender.start();
     }
 
     @AfterAll
@@ -79,6 +88,8 @@ class TripComposerTest {
         mcpWeb.shutdown();
         orchestrator.shutdown();
         llmGateway.shutdown();
+        mediaService.shutdown();
+        chartRender.shutdown();
     }
 
     @DynamicPropertySource
@@ -88,6 +99,9 @@ class TripComposerTest {
         r.add("travel-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
         r.add("travel-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        r.add("travel-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("travel-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("travel-agent.mcp-chart-render-url", () -> "http://localhost:" + chartRender.getPort());
     }
 
     @Autowired WebTestClient http;
@@ -97,11 +111,19 @@ class TripComposerTest {
     // static, context-scoped servers); reset per test.
     static final CopyOnWriteArrayList<String> weatherPaths = new CopyOnWriteArrayList<>();
     static final AtomicReference<String> synthBody = new AtomicReference<>();
+    static final AtomicBoolean chartRendered = new AtomicBoolean();
+    static final AtomicReference<String> chartBody = new AtomicReference<>();
 
     @BeforeEach
     void resetCaptures() {
         weatherPaths.clear();
         synthBody.set(null);
+        chartRendered.set(false);
+        chartBody.set(null);
+        // Default board seam: media-service accepts the upload, chart-render returns a stored image. Tests
+        // that assert the render-hiccup fallback override these with an error dispatcher.
+        mediaService.setDispatcher(mediaOk());
+        chartRender.setDispatcher(chartOk());
     }
 
     @Test
@@ -239,6 +261,70 @@ class TripComposerTest {
         assertThat(weatherPaths).isEmpty();
     }
 
+    @Test
+    void boardWithSeasonChartCarriesLinkAndRendersClimateChart() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mcpTravel.setDispatcher(fixedJson(json.writeValueAsString(new TravelProfileDto(
+                UUID.randomUUID(), householdId, userId, "Москва", 55.75, 37.62,
+                json.readTree("[\"beach\"]"), "family", null,
+                new BigDecimal("200000.00"), "RUB", null, Instant.now()))));
+        // A full multi-month curve → the climate-by-month chart has something to plot.
+        mcpWeather.setDispatcher(pathJson(
+                "/internal/geocode", json.writeValueAsString(new GeoLocation("Antalya", "Turkey", 36.9, 30.7, "Europe/Istanbul")),
+                "/internal/climate", json.writeValueAsString(new ClimateNormals(36.9, 30.7, List.of(
+                        new MonthlyNormal(1, 10.0, 190.0), new MonthlyNormal(9, 28.4, 21.0),
+                        new MonthlyNormal(12, 12.0, 150.0))))));
+        mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("Турция сезон", List.of(
+                new WebSearchHit("Турция в сентябре", "https://example.com/turkey", "Бархатный сезон."))))));
+        orchestrator.setDispatcher(hubBriefs("Бюджет ок.", "Даты свободны."));
+        llmGateway.setDispatcher(llm("{\"destination\":\"Турция\",\"month\":9}",
+                "Турция подойдёт: сентябрь тёплый."));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "хочу в Турцию в сентябре", List.of(), "telegram", "94", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // The reply carries the HTML-board open link (the stored media object).
+        assertThat(resp.text()).contains("Турция подойдёт")
+                .contains("Открыть план поездки:").contains("/v1/media/");
+        // A 12-month climate chart was rendered as a line chart for the board.
+        assertThat(chartRendered).isTrue();
+        assertThat(chartBody.get()).as("chart-render request not captured").isNotNull();
+        assertThat(chartBody.get()).contains("\"line\"").contains("28.4");
+    }
+
+    @Test
+    void renderHiccupFallsBackToTextOnly() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mcpTravel.setDispatcher(fixedJson(json.writeValueAsString(new TravelProfileDto(
+                UUID.randomUUID(), householdId, userId, "Москва", 55.75, 37.62,
+                json.readTree("[\"beach\"]"), "family", null, null, null, null, Instant.now()))));
+        mcpWeather.setDispatcher(pathJson(
+                "/internal/geocode", json.writeValueAsString(new GeoLocation("Antalya", "Turkey", 36.9, 30.7, "Europe/Istanbul")),
+                "/internal/climate", json.writeValueAsString(new ClimateNormals(36.9, 30.7, List.of(
+                        new MonthlyNormal(1, 10.0, 190.0), new MonthlyNormal(9, 28.4, 21.0))))));
+        mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("Турция", List.of(
+                new WebSearchHit("Турция", "https://example.com/turkey", "Море."))))));
+        orchestrator.setDispatcher(hubBriefs("Бюджет ок.", "Даты свободны."));
+        llmGateway.setDispatcher(llm("{\"destination\":\"Турция\",\"month\":9}",
+                "План поездки в Турцию готов."));
+        // media-service down → the board store fails; the plan must still reach the user, text-only.
+        mediaService.setDispatcher(serverError());
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "хочу в Турцию в сентябре", List.of(), "telegram", "95", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).isEqualTo("План поездки в Турцию готов.");
+        assertThat(resp.text()).doesNotContain("Открыть план поездки:").doesNotContain("/v1/media/");
+    }
+
     private IntentResponse post(NormalizedMessage msg) {
         return http.post().uri("/agents/travel/intent")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
@@ -308,6 +394,36 @@ class TripComposerTest {
                 if (path != null && path.startsWith(pathA)) return jsonResponse(bodyA);
                 if (path != null && path.startsWith(pathB)) return jsonResponse(bodyB);
                 return new MockResponse().setResponseCode(404);
+            }
+        };
+    }
+
+    /** media-service accepts the board/chart upload and returns a stored object with a fresh id. */
+    private Dispatcher mediaOk() {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                try {
+                    return jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                            UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "file",
+                            "text/html", 1024, "sha", "travel", Instant.now())));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
+    /** chart-render returns a stored image id and records that (and what) it was asked to plot. */
+    private Dispatcher chartOk() {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                chartRendered.set(true);
+                chartBody.set(request.getBody().readUtf8());
+                try {
+                    return jsonResponse(json.writeValueAsString(new ChartResult(UUID.randomUUID(), "java2d")));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }

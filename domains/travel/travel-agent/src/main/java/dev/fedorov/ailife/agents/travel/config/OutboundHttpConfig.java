@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.agents.travel.config;
 
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -11,9 +13,11 @@ import org.springframework.web.reactive.function.client.WebClient;
  * builder to avoid base-URL leakage (same pattern as the other agents): {@code mcpTravel} (its data) +
  * {@code mcpWeather} (geocoding + the TR-d climate season substrate) + {@code mcpWeb} (TR-d
  * destination research) + {@code orchestrator} (the hub the TR-d planner reaches to invoke the finance
- * and calendar {@code brief} actions — same wiring as coordinator-agent). The shared
- * {@code profile/notifier/memory} WebClients live in {@code agent-runtime}'s {@code AgentRuntimeConfig}
- * (built from {@code SharedClientProperties}).
+ * and calendar {@code brief} actions — same wiring as coordinator-agent) + the TR-e deliverable seam:
+ * {@code mediaService} (blob store) + {@code mcpChartRender} (the climate-by-month curve), wired into a
+ * {@link MediaStoreClient} + {@link DeliverablePublisher} exactly as the finance report board does. The
+ * shared {@code profile/notifier/memory} WebClients live in {@code agent-runtime}'s
+ * {@code AgentRuntimeConfig} (built from {@code SharedClientProperties}).
  */
 @Configuration
 public class OutboundHttpConfig {
@@ -42,5 +46,28 @@ public class OutboundHttpConfig {
     public OrchestratorInvokeClient orchestratorInvokeClient(
             @Qualifier("orchestratorWebClient") WebClient orchestratorWebClient) {
         return new OrchestratorInvokeClient(orchestratorWebClient);
+    }
+
+    @Bean
+    public WebClient mediaServiceWebClient(WebClient.Builder builder, TravelAgentProperties props) {
+        return builder.clone().baseUrl(props.getMediaServiceUrl()).build();
+    }
+
+    @Bean
+    public MediaStoreClient mediaStoreClient(
+            @Qualifier("mediaServiceWebClient") WebClient mediaServiceWebClient) {
+        return new MediaStoreClient(mediaServiceWebClient, "travel");
+    }
+
+    @Bean
+    public DeliverablePublisher deliverablePublisher(MediaStoreClient mediaStoreClient,
+                                                     TravelAgentProperties props) {
+        // Default editorial theme → the convenience ctor builds the renderer (no per-agent RenderConfig).
+        return new DeliverablePublisher(mediaStoreClient, props.getPublicMediaBaseUrl());
+    }
+
+    @Bean
+    public WebClient mcpChartRenderWebClient(WebClient.Builder builder, TravelAgentProperties props) {
+        return builder.clone().baseUrl(props.getMcpChartRenderUrl()).build();
     }
 }

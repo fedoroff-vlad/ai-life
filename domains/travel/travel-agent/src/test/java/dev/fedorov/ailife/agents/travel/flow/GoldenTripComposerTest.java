@@ -3,8 +3,10 @@ package dev.fedorov.ailife.agents.travel.flow;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.travel.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
@@ -76,8 +78,13 @@ class GoldenTripComposerTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenTripComposerTest.class.getClassLoader(),
                     "skills/travel/trip-composer/SKILL.md")));
+    // The TR-e board seam is not under test here (the golden asserts plan grounding, not the HTML board),
+    // so both soft-fail to empty → the text-only reply, keeping the corpus-links assertion clean.
+    private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
+    private final ChartRenderClient chartRender = mock(ChartRenderClient.class);
     private final TripComposer composer = new TripComposer(
-            coordinator, profiles, geocode, climate, web, hub, GoldenLlm.client(), skills, manifest, json);
+            coordinator, profiles, geocode, climate, web, hub, GoldenLlm.client(), skills, manifest, json,
+            publisher, chartRender);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete corpus (budget + dates +
@@ -103,6 +110,8 @@ class GoldenTripComposerTest {
                         "Море тёплое, погода мягкая, семьям комфортно.")))));
         when(hub.invoke(any(), any())).thenReturn(Mono.just(AgentActionResult.ok(answer(
                 "Бюджет на отпуск около 250000 RUB, запас есть."))));
+        when(chartRender.render(any(), any(), any())).thenReturn(Mono.empty());
+        when(publisher.publish(any(), any(), any())).thenReturn(Mono.empty());
 
         IntentResponse resp = composer.plan(GoldenLlm.message(household, user,
                         "хочу в Турцию в сентябре, бюджет тысяч 200 на семью"))

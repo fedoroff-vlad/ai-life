@@ -5,27 +5,16 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **travel-agent ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190)) — spec landed, MVP queued.**
-  Owner picked travel as the next agent (2026-08-10). Spec written **WHEN/THEN-first**: plan
-  [travel.md](travel.md) + **[ADR-0003](adr/ADR-0003-travel-data-source.md)** (**Accepted 2026-08-10** — scope
-  + source + the "agent never books" boundary). Scope = **planner-first MVP** (finance/calendar `brief` +
-  `mcp-weather` `climate` + `mcp-web` → itinerary + HTML board; per-owner `travel_profile`); live
-  flight/hotel/tour pricing = the **§TR-f** follow-on behind a capability-MCP (Travelpayouts pref /
-  `mcp-browser` fallback), still owner-key-gated. **TR-a + TR-b + TR-c + TR-d shipped:** TR-a = `climate` tool
-  in `mcp-weather` (monthly normals over Open-Meteo Archive, soft-fail); TR-b = **`mcp-travel`**
-  domain-MCP (port 8123, `travel.travel_profile`); TR-c = **`travel-agent`** (port 8124) scaffold +
-  **`travel-profiler`** skill — a preferences cue → LLM extract (vocabulary-filtered) → geocode home_base
-  → upsert; binds `mcp-travel`+`mcp-weather`+`mcp-web`, registered in orchestrator as `travel`; goldens
-  (`GoldenTravelProfileTest` + orchestrator `travel` routing case) green vs real qwen3:8b →
-  [HISTORY](HISTORY.md) + [travel-agent README](../domains/travel/travel-agent/README.md). **TR-d shipped:**
-  the `trip-planner` `gather→synthesize` flow (`flow/TripComposer`) — plan-a-trip cue → profile resolve →
-  FAST scope extract → parallel gather (finance/calendar `brief` via the orchestrator hub + `climate` +
-  `mcp-web` search) → one `trip-composer` synthesis; per-source soft-fail + booking boundary (options +
-  links only). `TripComposerTest` (4) + opt-in `GoldenTripComposerTest`. **Next slice: TR-e** (HTML travel
-  board via `doc-render`/`DeliverablePublisher` + a climate-by-month chart — closes the travel MVP #190). Also
-  landed earlier: the repo-wide **WHEN/THEN acceptance-criteria** convention (CLAUDE.md §Spec each slice
-  + PATTERNS.md recipe, PR #430).
+- **Nothing in flight.** travel MVP [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) **COMPLETE
+  2026-08-12** (TR-a…TR-e all shipped) — detail in [HISTORY.md](HISTORY.md) + [travel.md](travel.md); the
+  live-pricing **§TR-f** follow-on stays owner-key-gated (Travelpayouts token + T&C — see `## Next`). Pick
+  the next agent from `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
+  - **travel MVP #190 — DONE 2026-08-12.** Planner-first vacation agent: `mcp-weather` `climate` (TR-a) +
+    `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler` (TR-c) + `trip-planner`
+    gather→synthesize (TR-d) + the **HTML travel board** with a climate-by-month chart (TR-e). Booking
+    boundary permanent (ADR-0003). Follow-on TR-f (live flight/hotel pricing) is gated on an owner
+    Travelpayouts key — not started.
   - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
     (calendar/finance/tasks/nutrition/docs, write & read); item 8 memory-driven default (DS-0…DS-4,
     `LearnedSharingPolicy` over a `memory.sharing_decision` tally, deterministic majority); and **DS-N
@@ -52,11 +41,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **travel MVP slices ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190), [travel.md](travel.md)):**
-   TR-a…TR-d shipped (see `## Now`); **only TR-e HTML board (closer) remains** — `trip-composer` synthesis →
-   `doc-render` board + climate-by-month chart via `DeliverablePublisher`, link appended to the reply.
-   Its own PR, WHEN/THEN criteria in the plan.
-2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+1. **Pick the next future agent** — the travel MVP is closed. Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
+2. **travel §TR-f — live flight/hotel pricing (owner-key-gated, not started)** — [travel.md](travel.md) §TR-f: a `mcp-travel-search` capability-MCP over Travelpayouts (owner token + marker + T&C — a "confirm before doing" step) + wire ranked options/deep links into `trip-planner`; the agent still never books. Blocked on the owner obtaining the free key.
+3. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 

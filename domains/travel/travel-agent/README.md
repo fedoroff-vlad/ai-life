@@ -2,12 +2,13 @@
 
 On-demand **vacation planner** (port **8124**). Designs a trip from a stated wish and keeps the
 per-person travel preferences. A **cold** agent (started on demand, not always-on). Owns the
-`mcp-travel` domain-MCP; binds the shared `mcp-weather` (geocoding + climate) and `mcp-web` (destination
-research) capabilities. Routes via the orchestrator as `travel`. **Never books or pays** — proposes
-options and provider links only ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
+`mcp-travel` domain-MCP; binds the shared `mcp-weather` (geocoding + climate), `mcp-web` (destination
+research) and `mcp-chart-render` (the board's climate chart) capabilities. Routes via the orchestrator as
+`travel`. **Never books or pays** — proposes options and provider links only
+([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
 [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-d)
+## Status (TR-e — travel MVP closed)
 
 Two flows behind the intent cue-split:
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
@@ -24,10 +25,17 @@ Two flows behind the intent cue-split:
   plan (route + season verdict + budget check) grounded in the web links. Per-source soft-fail; a missing
   finance brief falls back to the profile's `budgetHint` (unverified); no named destination skips climate.
   **Never books or pays** ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)) — options +
-  links only. The HTML travel board is TR-e.
+  links only.
+  - **TR-e HTML travel board (closer):** the synthesis is rendered to an HTML board — the plan text as a
+    section, the gathered web sources as grounded provenance links, and the destination's **climate-by-month
+    curve** as a line chart (rendered by the shared `mcp-chart-render` capability) — via the shared
+    `DeliverablePublisher` (render → store in media-service → link); the open-link is appended to the reply.
+    Chart and board are soft-failed independently: a render/store hiccup ships the text-only plan. The
+    full 12-month climate curve is fetched for the board and also grounds the season verdict. Same board
+    seam as briefing/finance.
 
 Non-plan, non-config messages fall through to the conversational chat fallback. Mirrors `briefing-agent`
-(BR-c2 profiler + BR-d `BriefingComposer`).
+(BR-c2 profiler + BR-d `BriefingComposer`) and the finance report board (`MonthlyReporter`).
 
 ## HTTP surface
 
@@ -44,6 +52,9 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 | `MCP_TRAVEL_URL` | `http://mcp-travel:8123` | travel domain-MCP (`/internal/travel-profile`). |
 | `MCP_WEATHER_URL` | `http://mcp-weather:8113` | shared weather capability (`/internal/geocode`; TR-d `/internal/climate`). |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web capability (`/internal/search` for the TR-d research gather). |
+| `MEDIA_SERVICE_URL` | `http://media-service:8088` | blob store for the TR-e HTML board (`POST /v1/media`). |
+| `TRAVEL_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | externally-reachable base for the board open-link. |
+| `MCP_CHART_RENDER_URL` | `http://mcp-chart-render:8120` | shared chart-render capability (`/internal/render`) for the TR-e climate chart. |
 | `ORCHESTRATOR_URL` | `http://orchestrator:8083` | the hub the TR-d planner reaches to invoke the `finance`/`calendar` `brief` action. |
 | `TRAVEL_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the Spring AI MCP-SSE client (off in dev/degraded envs). |
 | `TRAVEL_AGENT_MEMORY_RECALL_K` | `5` | memory-recall depth for the shared agent-runtime clients. |
@@ -53,14 +64,18 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 
 - `TravelAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/TravelAgentProperties` (`travel-agent.*`, implements `SharedClientProperties`) +
-  `config/OutboundHttpConfig` (`mcpTravel`/`mcpWeather`/`mcpWeb`/`orchestrator` WebClient beans +
-  the `OrchestratorInvokeClient`).
+  `config/OutboundHttpConfig` (`mcpTravel`/`mcpWeather`/`mcpWeb`/`orchestrator`/`mediaService`/
+  `mcpChartRender` WebClient beans + the `OrchestratorInvokeClient`, `MediaStoreClient` and the TR-e
+  `DeliverablePublisher`).
 - `profile/TravelProfiler` — the LLM extract → geocode → upsert flow; **vocabulary filtering** for
   `restTypes`/`companions`.
-- `flow/TripComposer` — the TR-d `gather → synthesize` planner: profile resolve → FAST scope extract →
-  parallel gather (finance/calendar `brief`, climate, web search) → one `trip-composer` synthesis.
+- `flow/TripComposer` — the TR-d/TR-e `gather → synthesize` planner: profile resolve → FAST scope extract
+  → parallel gather (finance/calendar `brief`, 12-month climate, web search) → one `trip-composer`
+  synthesis → the TR-e HTML board (climate-by-month chart + plan + provenance links) via
+  `DeliverablePublisher`, open-link appended to the reply (soft-failed to text-only).
 - `http/TravelProfileClient` (upsert/resolve `mcp-travel`) + `http/GeocodeClient` (`mcp-weather` geocode)
-  + `http/ClimateClient` (`mcp-weather` climate) + `http/WebSearchClient` (`mcp-web` search).
+  + `http/ClimateClient` (`mcp-weather` climate) + `http/WebSearchClient` (`mcp-web` search) +
+  `http/ChartRenderClient` (`mcp-chart-render` `/internal/render` for the board's climate chart).
 - `chat/TravelChat` — conversational fallback for non-config, non-plan messages.
 - `web/IntentController` (`/agents/travel/intent`, cue split) + `web/ManifestController`
   (`/agents/travel/manifest`).
