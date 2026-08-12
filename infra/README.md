@@ -240,7 +240,8 @@ name(s) you configured, then bring the profile up.
 | mcp-coach            | 8121 | Coach domain-MCP (subject-scoped coaching record: profile/values/observations/hypotheses/actions/sessions/intake) |
 | coach-agent          | 8122 | Self-understanding coach (#289): safety gate → Reflect over the sender's own notes; binds memory-service + mcp-coach `/internal` |
 | mcp-travel           | 8123 | Travel domain-MCP (per-owner travel preferences: home base / rest types / companions / budget hint) |
-| travel-agent         | 8124 | On-demand vacation planner (#190): travel-profiler write path; binds mcp-travel + mcp-weather + mcp-web; routes as `travel`. Never books |
+| travel-agent         | 8124 | On-demand vacation planner (#190): profiler + trip-planner + HTML board; binds mcp-travel + mcp-weather + mcp-web + mcp-chart-render; routes as `travel`. Never books |
+| mcp-travel-search    | 8125 | Live flight/hotel search capability-MCP over Travelpayouts (#190 TR-f). Owner-key-gated: no key → degrades (unconfigured). Options + deep links only — never books |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

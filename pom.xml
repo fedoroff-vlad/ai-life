@@ -91,6 +91,7 @@
         <module>shared/mcp/mcp-image-gen</module>
         <module>shared/mcp/mcp-chart-render</module>
         <module>shared/mcp/mcp-weather</module>
+        <module>shared/mcp/mcp-travel-search</module>
         <module>domains/researcher/researcher-agent</module>
     </modules>
 

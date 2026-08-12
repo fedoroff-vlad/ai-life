@@ -21,9 +21,10 @@ label — pick one up independently, don't reopen "Stage 6" as a bucket:
   (plan [travel.md](travel.md), first WHEN/THEN-first plan): a cold on-demand vacation planner reusing the
   finance/calendar `brief` (budget + free dates) + `mcp-weather` `climate` (season) → itinerary + HTML
   board; personalized via a per-owner `travel_profile`. **Planner-first MVP** (TR-a…TR-e shipped; TR-e =
-  the HTML travel board with a climate-by-month chart via `mcp-chart-render`) — live flight/hotel/tour
-  pricing + booking deferred behind a capability-MCP (TR-f) and the "agent never books" boundary →
-  [ADR-0003](adr/ADR-0003-travel-data-source.md).
+  the HTML travel board with a climate-by-month chart via `mcp-chart-render`). **Live pricing (§TR-f):**
+  the `mcp-travel-search` capability-MCP over Travelpayouts is **built (TR-f1)** but owner-key-gated
+  (degrades with no token); wiring it into `trip-planner` = **TR-f2**. Booking never happens — the agent
+  proposes options + provider deep links only → [ADR-0003](adr/ADR-0003-travel-data-source.md).
 - **email-agent** — low — [#191](https://github.com/fedoroff-vlad/ai-life/issues/191)
 - **smart-home-agent** (Home Assistant) — conditional — [#192](https://github.com/fedoroff-vlad/ai-life/issues/192)
 

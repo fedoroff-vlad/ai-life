@@ -5,12 +5,22 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Nothing in flight.** travel MVP [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) **COMPLETE
-  2026-08-12** (TR-a…TR-e all shipped) — detail in [HISTORY.md](HISTORY.md) + [travel.md](travel.md); the
-  live-pricing **§TR-f** follow-on stays owner-key-gated (Travelpayouts token + T&C — see `## Next`). Pick
-  the next agent from `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
+- **travel §TR-f — live flight/hotel search. TR-f1 shipped; TR-f2 next.** Owner picked TR-f (2026-08-12).
+  **TR-f1 shipped:** **`mcp-travel-search`** capability-MCP (port **8125**, `shared/mcp/`) over
+  **Travelpayouts** (ADR-0003 §3) behind a swappable `TravelSearchSource` — `resolve_place` /
+  `search_flights` (Aviasales, cheapest-first) / `search_hotels` (Hotellook), each offer carrying an
+  affiliate **deep link** only (agent never books). **Owner-key-gated:** with no `TRAVELPAYOUTS_TOKEN`
+  every tool returns `unconfigured=true` + empty (never a 500) → CI/tests green with no key, callers
+  degrade to the planner MVP. Tests: `TravelpayoutsSourceTest` (flights parse+sort+marker, hotels,
+  upstream-down soft-fail) + `TravelSearchControllerTest` (no-key degrade) — 6 green. Travelpayouts
+  field-mapping modeled from public API shapes; live parsing validated once the owner wires a real key.
+  → [travel.md](travel.md) §TR-f1 + [mcp-travel-search README](../shared/mcp/mcp-travel-search/README.md).
+  **Next slice TR-f2:** bind `mcp-travel-search` in travel-agent + wire live options into `trip-planner`
+  (rank min-transfers→price within the finance-`brief` budget; degrade to the MVP plan when `unconfigured`).
+  **To actually enable live search the owner must obtain a free Travelpayouts token + marker and accept
+  T&C** (a "confirm before doing" step — keys live in `.env`, never committed).
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
-  - **travel MVP #190 — DONE 2026-08-12.** Planner-first vacation agent: `mcp-weather` `climate` (TR-a) +
+  - **travel MVP #190 (planner) — DONE 2026-08-12.** Planner-first vacation agent: `mcp-weather` `climate` (TR-a) +
     `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler` (TR-c) + `trip-planner`
     gather→synthesize (TR-d) + the **HTML travel board** with a climate-by-month chart (TR-e). Booking
     boundary permanent (ADR-0003). Follow-on TR-f (live flight/hotel pricing) is gated on an owner
@@ -42,7 +52,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **Pick the next future agent** — the travel MVP is closed. Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
-2. **travel §TR-f — live flight/hotel pricing (owner-key-gated, not started)** — [travel.md](travel.md) §TR-f: a `mcp-travel-search` capability-MCP over Travelpayouts (owner token + marker + T&C — a "confirm before doing" step) + wire ranked options/deep links into `trip-planner`; the agent still never books. Blocked on the owner obtaining the free key.
+2. **travel §TR-f2 — wire live options into `trip-planner`** (see `## Now`): TR-f1 (`mcp-travel-search`) shipped; TR-f2 binds it in travel-agent and folds ranked flight/hotel options + deep links into the plan (degrades to the MVP when `unconfigured`). Buildable + testable with no key (mocked); real live search needs the owner's Travelpayouts token.
 3. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
