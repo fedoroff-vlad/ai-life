@@ -778,6 +778,32 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-travel-search:
+    profiles: ["cold"]
+    image: ai-life/mcp-travel-search:local
+    container_name: ai-life-mcp-travel-search
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-travel-search/Dockerfile
+    restart: unless-stopped
+    # No backing container — flight/hotel prices come from Travelpayouts over public HTTPS.
+    # Owner-key-gated (ADR-0003): with no TRAVELPAYOUTS_TOKEN the capability degrades (every tool
+    # returns unconfigured + empty), so it boots and stays healthy with no key. Keys live in .env
+    # (from .env.example), never committed.
+    environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      MCP_TRAVEL_SEARCH_PORT: 8125
+      TRAVEL_SEARCH_SOURCE: ${TRAVEL_SEARCH_SOURCE:-travelpayouts}
+      TRAVELPAYOUTS_TOKEN: ${TRAVELPAYOUTS_TOKEN:-}
+      TRAVELPAYOUTS_MARKER: ${TRAVELPAYOUTS_MARKER:-}
+      TRAVEL_SEARCH_CURRENCY: ${TRAVEL_SEARCH_CURRENCY:-rub}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8125/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-food-data:
     profiles: ["cold"]
     image: ai-life/mcp-food-data:local

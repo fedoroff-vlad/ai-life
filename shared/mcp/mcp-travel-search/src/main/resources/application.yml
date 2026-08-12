@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: mcp-travel-search
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-travel-search
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Shared travel-search capability (read-only, owner-key-gated). resolve_place: place name →
+          IATA city + hotel location id. search_flights / search_hotels: real priced offers over
+          Travelpayouts (Aviasales + Hotellook), each with a provider buy deep link. The agent never
+          books or pays — it proposes options + links only. With no provider key wired every tool
+          returns unconfigured=true + empty, so the caller degrades to the planner MVP.
+
+server:
+  port: ${MCP_TRAVEL_SEARCH_PORT:8125}
+
+travelsearch:
+  # Which search backend to wire: travelpayouts (default). Swappable later (mcp-browser) via env.
+  source: ${TRAVEL_SEARCH_SOURCE:travelpayouts}
+  # Owner Travelpayouts affiliate credentials — env only, NEVER committed. Blank token → the whole
+  # capability degrades (every tool returns unconfigured=true + empty), so CI/tests stay green with no key.
+  token: ${TRAVELPAYOUTS_TOKEN:}
+  marker: ${TRAVELPAYOUTS_MARKER:}
+  currency: ${TRAVEL_SEARCH_CURRENCY:rub}
+  max-results: ${TRAVEL_SEARCH_MAX_RESULTS:10}
+  # Travelpayouts endpoints (public HTTPS; no backing container). Data APIs vs site hosts (deep links).
+  aviasales-api-url: ${TRAVELPAYOUTS_AVIASALES_API_URL:https://api.travelpayouts.com}
+  aviasales-site-url: ${TRAVELPAYOUTS_AVIASALES_SITE_URL:https://www.aviasales.com}
+  hotellook-api-url: ${TRAVELPAYOUTS_HOTELLOOK_API_URL:https://engine.hotellook.com}
+  hotellook-site-url: ${TRAVELPAYOUTS_HOTELLOOK_SITE_URL:https://search.hotellook.com}
+  autocomplete-url: ${TRAVELPAYOUTS_AUTOCOMPLETE_URL:https://autocomplete.travelpayouts.com}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG
