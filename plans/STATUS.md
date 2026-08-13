@@ -5,15 +5,11 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **EX-c2 in flight** (branch `feat/travel-ex-c2-finance-signal`) — the agent half of travel↔finance EX-c:
-  a `close` cue → final tally → `closeTrip` → deposit a finance **spend-signal** note (`MemoryClient.note`,
-  decoupled via the shared second brain — finance's `brief` recall surfaces it) → final board; plus
-  `TripLedger.totalSpentInHome` (expenses only, excluding exchange transfers). Tests: `TripLedgerTest` +
-  `WalletFlowTest` green locally. **EX-c1 (store close) SHIPPED** — PR446 merged. This closes EX-c → trip
-  wallet #437 fully done.
-- **Trip wallet #437 core COMPLETE** — EX-a store (PR443) + EX-b wallet flow (PR445) + EX-c1 store close
-  (PR446); detail → [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Trip wallet.
-- **travel MVP + live search + trip wallet (EX-a+b) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
+- **No slice in flight.** **Trip wallet #437 is COMPLETE (EX-a…EX-c)** — EX-a store (PR443) + EX-b wallet
+  flow (PR445) + EX-c1 store close (PR446) + EX-c2 close-flow & finance spend-signal (PR447), all 2026-08-13;
+  detail → [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Trip wallet. **Pick the next item from `## Next`**
+  — the near-term travel follow-ups #436/#438 are now queued there.
+- **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
   never committed); until then the planner degrades to the MVP. Only **TR-f3** (tours/JS sources → `mcp-browser`) deferred.
@@ -51,9 +47,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **Pick the next future agent** — travel #190 is fully closed (MVP + live search). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
-2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
-3. **travel TR-f3 (deferred)** — tours + no-API/JS sources → `mcp-browser` (browser-use), which also closes the general scraping gap. Not near-term (see `## Backlog`).
+1. **travel follow-ups on the now-built `travel.trip` store (near-term).** In priority:
+   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — the natural next: it pairs directly with the `travel.trip` store just shipped (EX-a…c). Owner-picked as the next travel slice (2026-08-13).
+   - **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438) packing-list templates** seeded by rest type + climate + companions — can ride the existing TR-e board; simpler.
+   - Spec/ideas: [travel.md](travel.md) §Deferred + §Ideas from TREK.
+2. **Pick the next future agent** — travel #190 is fully closed (MVP + live search + trip wallet). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
+3. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+4. **travel TR-f3 (deferred)** — tours + no-API/JS sources → `mcp-browser` (browser-use), which also closes the general scraping gap. Not near-term (see `## Backlog`).
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 
