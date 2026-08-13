@@ -5,15 +5,11 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Next slice = travel EX-b (Trip wallet #437).** EX-a (the `travel.trip` store) is **DONE 2026-08-13**
-  (PR443 → [HISTORY.md](HISTORY.md); authority [travel.md](travel.md) §Trip wallet). EX-b = the **wallet
-  ledger flow + balance board** in `travel-agent`: a cue-routed create/fund/exchange/spend + a
-  **deterministic `TripLedger`** (per-currency remaining + the owner-rate ₽ tally, unset-rate currencies
-  flagged, exchange as out/inflow with the acquired ₽-rate derived from the source spend) + an HTML **wallet
-  board** via `DeliverablePublisher`. Reads the raw ledger rows from `mcp-travel /internal/trips/{id}/ledger`
-  (EX-a). Balance math is deterministic Java, never the LLM. WHEN/THEN + tests already spec'd in
-  [travel.md](travel.md) §EX-b. Not started.
-- **travel MVP + live search + EX-a store COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
+- **No slice in flight.** **Trip wallet #437 core is COMPLETE** — EX-a store (PR443) + EX-b wallet flow
+  (branch `feat/travel-ex-b-wallet-ledger`, PR pending CI) both 2026-08-13; detail → [HISTORY.md](HISTORY.md)
+  / [travel.md](travel.md) §Trip wallet. Only **EX-c** (surface a closed trip's ₽ spend into the finance
+  `brief` seam) stays **deferred** (explicitly "not in the first cut"). Pick the next item from `## Next`.
+- **travel MVP + live search + trip wallet (EX-a+b) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
   never committed); until then the planner degrades to the MVP. Only **TR-f3** (tours/JS sources → `mcp-browser`) deferred.

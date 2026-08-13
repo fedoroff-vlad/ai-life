@@ -309,6 +309,15 @@ A cue-routed create/fund/exchange/spend + a deterministic `TripLedger` (per-curr
 owner-rate ₽ tally, unset-rate currencies flagged) + an HTML **wallet board** (per-currency remaining rows +
 the ₽ total) via `DeliverablePublisher`. Cues: "создай поездку …", "завёл 500 $ по 90", "поменял 36000 ₽ на
 40000 бат", "потратил 2000 бат на …", "сколько осталось / подведи итог".
+
+**Shipped 2026-08-13.** `travel-agent`: `WalletExtractor` (one LLM turn → a create/fund/exchange/spend/tally
+`WalletAction`, ISO-4217 codes) + the deterministic `TripLedger`/`WalletTally` (per-currency remaining +
+weighted-avg ₽ home-rate with exchange-in priced single-level from the source, unset-rate flags) + `WalletFlow`
+(cue dispatch → `TripWalletClient` store calls → tally board via `DeliverablePublisher`) + the `WALLET_CUES`
+route. fund/exchange/spend/tally attach to the household's **active trip** — a small EX-a store add:
+`getActiveTrip(householdId)` (most recent non-`closed`) + `GET /internal/trips/active`. Tests: `TripLedgerTest`
+(6, pure unit — the §EX-b math scenarios) + `WalletFlowTest` (7, MockWebServer — create/fund/exchange/spend/
+tally + board + no-active-trip + render-hiccup fallback). Balance math is deterministic Java, never the LLM.
 - **Scenario: per-currency remaining** — WHEN funded `RUB 100000, USD 500, EUR 300, THB 40000` and spent
   `THB 39800, USD 450, EUR 285` — THEN the report shows `THB 200, USD 50, EUR 15` left (asserted by `TripLedgerTest`).
 - **Scenario: ₽ tally with owner rates** — WHEN each currency has a stated `rate_to_home` — THEN the total

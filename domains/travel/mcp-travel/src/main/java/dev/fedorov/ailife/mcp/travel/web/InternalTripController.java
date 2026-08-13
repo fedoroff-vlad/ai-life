@@ -69,6 +69,12 @@ public class InternalTripController {
         return guard(() -> ResponseEntity.ok(tools.logExpense(input)));
     }
 
+    @GetMapping("/active")
+    public ResponseEntity<TripDto> active(@RequestParam UUID householdId) {
+        TripDto dto = tools.getActiveTrip(householdId);
+        return dto == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(dto);
+    }
+
     @GetMapping("/{tripId}")
     public ResponseEntity<TripDto> get(@PathVariable UUID tripId, @RequestParam UUID householdId) {
         TripDto dto = tools.getTrip(tripId, householdId);

@@ -157,6 +157,28 @@ class McpTripIntegrationTest extends AbstractPostgresIntegrationTest {
                 .hasMessageContaining("different currencies");
     }
 
+    /** getActiveTrip returns the household's most recent non-closed trip (EX-b's "current trip"). */
+    @Test
+    void getActiveTripReturnsMostRecentOpenTrip() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        assertThat(tools.getActiveTrip(h)).isNull();
+
+        TripDto first = tools.createTrip(new CreateTripInput(h, null, "Первая", null, null, null, null));
+        TripDto second = tools.createTrip(new CreateTripInput(h, null, "Вторая", null, null, null, null));
+        // The most recently created open trip is active.
+        assertThat(tools.getActiveTrip(h).id()).isEqualTo(second.id());
+
+        // Close the newest → the earlier open trip becomes active again.
+        jdbc.update("UPDATE travel.trip SET status = 'closed' WHERE id = ?", second.id());
+        assertThat(tools.getActiveTrip(h).id()).isEqualTo(first.id());
+
+        // Another household's trip never leaks in.
+        UUID other = UUID.randomUUID();
+        seedHousehold(other);
+        assertThat(tools.getActiveTrip(other)).isNull();
+    }
+
     /** Scenario: reject cross-household trip access → null (tenant isolation). */
     @Test
     void crossHouseholdReadReturnsNull() {

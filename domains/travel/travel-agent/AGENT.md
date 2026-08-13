@@ -10,15 +10,22 @@ mcp:
 skills:
   - travel-profiler
   - trip-composer
+  - trip-wallet
 intents:
   - example: Мы семья с ребёнком 4 года, любим пляж и спокойный отдых, летаем из Москвы
     description: Set or update the per-person travel preferences (home base, rest types, companions, budget hint).
   - example: Set up my travel preferences — couple, city breaks, flying from London, budget about 2000 euros
     description: Set or update the per-person travel preferences.
   - example: Хочу на море в сентябре тысяч на 200
-    description: Plan a trip now — destination + season fit + a budget check (the planner flow, later slices).
+    description: Plan a trip now — destination + season fit + a budget check (the planner flow).
   - example: Где тепло в октябре для спокойного семейного отдыха?
     description: Suggest a destination that fits the season and the family's rest style.
+  - example: Создай поездку в Тайланд
+    description: Start a multi-currency family trip wallet (the trip budget).
+  - example: Завёл 500 долларов по 90; поменял 36000 рублей на 40000 бат; потратил 2000 бат на ужин
+    description: Record acquired currency, an on-site exchange, or a spend in the trip wallet.
+  - example: Сколько осталось по поездке?
+    description: Tally the trip wallet — per-currency remaining + a single ₽ total.
 ---
 
 You are the travel agent for the ai-life system — an on-demand vacation planner. You help a person

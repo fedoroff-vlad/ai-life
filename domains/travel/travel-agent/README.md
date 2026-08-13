@@ -1,17 +1,17 @@
 # travel-agent
 
-On-demand **vacation planner** (port **8124**). Designs a trip from a stated wish and keeps the
-per-person travel preferences. A **cold** agent (started on demand, not always-on). Owns the
-`mcp-travel` domain-MCP; binds the shared `mcp-weather` (geocoding + climate), `mcp-web` (destination
-research), `mcp-chart-render` (the board's climate chart) and `mcp-travel-search` (TR-f2 live flight/hotel
-options) capabilities. Routes via the orchestrator as
-`travel`. **Never books or pays** — proposes options and provider links only
+On-demand **vacation planner** + **multi-currency trip wallet** (port **8124**). Designs a trip from a
+stated wish, keeps the per-person travel preferences, and tracks a family trip's money across currencies.
+A **cold** agent (started on demand, not always-on). Owns the `mcp-travel` domain-MCP; binds the shared
+`mcp-weather` (geocoding + climate), `mcp-web` (destination research), `mcp-chart-render` (the board's
+climate chart) and `mcp-travel-search` (TR-f2 live flight/hotel options) capabilities. Routes via the
+orchestrator as `travel`. **Never books or pays** — proposes options and provider links only
 ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
 [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-f2 — live flight/hotel options)
+## Status (TR-f2 planner + EX-b trip wallet)
 
-Two flows behind the intent cue-split:
+Four flows behind the intent cue-split (preferences → wallet → plan → chat):
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
   `travel-profiler` SKILL → geocode the stated home-base city via `mcp-weather /internal/geocode`
   (soft-fail) → upsert via `mcp-travel /internal/travel-profile`. Vocabulary enforcement lives here (the
@@ -45,6 +45,18 @@ Two flows behind the intent cue-split:
     full 12-month climate curve is fetched for the board and also grounds the season verdict. Same board
     seam as briefing/finance.
 
+- **trip-wallet** (EX-b) `cue → action` flow: a wallet cue ("создай поездку", "завёл 500 $ по 90",
+  "поменял 36000 ₽ на 40000 бат", "потратил 2000 бат на …", "сколько осталось") → one `WalletExtractor`
+  LLM turn classifies the message into a create / fund / exchange / spend / tally action (ISO-4217
+  currency codes) → the store call over `mcp-travel /internal/trips/*`. fund/exchange/spend/tally attach
+  to the household's **active trip** (`/internal/trips/active`, most recent non-closed) without the owner
+  naming it. A **tally** reads the raw ledger and runs the deterministic `TripLedger` — per-currency
+  remaining + a single **₽ total** by the owner's stated acquisition rates, unset-rate currencies flagged
+  "курс не задан" — then renders an HTML **wallet board** via the shared `DeliverablePublisher`
+  (soft-failing to text-only on a render hiccup). An on-site exchange is one paired op (source outflow +
+  acquired inflow) so the ₽ tally never double-counts; **balance math is deterministic Java, never the
+  LLM**; there is **no "who owes whom"** — one family budget, no settlement.
+
 Non-plan, non-config messages fall through to the conversational chat fallback. Mirrors `briefing-agent`
 (BR-c2 profiler + BR-d `BriefingComposer`) and the finance report board (`MonthlyReporter`).
 
@@ -52,7 +64,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 
 | method | path | body | purpose |
 |--------|------|------|---------|
-| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: preferences cue → `travel-profiler`; plan-a-trip cue → `trip-composer`; else → chat fallback. |
+| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; plan-a-trip cue → `trip-composer`; else → chat fallback. |
 | GET | `/agents/travel/manifest` | — | the `AgentManifest` (AGENT.md frontmatter) the orchestrator scrapes for routing. |
 
 ## Env
@@ -81,6 +93,17 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `DeliverablePublisher`).
 - `profile/TravelProfiler` — the LLM extract → geocode → upsert flow; **vocabulary filtering** for
   `restTypes`/`companions`.
+- `flow/WalletFlow` — the EX-b trip-wallet flow: extract → store dispatch (create/fund/exchange/spend) or
+  tally (fetch ledger → `TripLedger` → text + HTML wallet board via `DeliverablePublisher`). Resolves the
+  household's active trip for non-create actions.
+- `flow/WalletExtractor` (+ nested `WalletAction`) — the one LLM turn classifying a wallet message
+  (create/fund/exchange/spend/tally) with ISO-4217 codes; no balance math.
+- `flow/TripLedger` (+ `WalletTally`) — the **deterministic** multi-currency balance engine over the raw
+  ledger rows: per-currency remaining (fundings + exchange-in − expenses − exchange-out), a weighted-average
+  ₽ home-rate per currency (exchange-in priced single-level from the source), the ₽ total, and unset-rate
+  flags. Pure Java, never the LLM (a correctness/privacy boundary).
+- `http/TripWalletClient` — the `mcp-travel /internal/trips/*` store calls (create / active / funding /
+  exchange / expense / ledger).
 - `flow/TripComposer` — the TR-d/TR-e/TR-f2 `gather → synthesize` planner: profile resolve → FAST scope
   extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
   web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
@@ -96,4 +119,5 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 - `web/IntentController` (`/agents/travel/intent`, cue split) + `web/ManifestController`
   (`/agents/travel/manifest`).
 - `AGENT.md` (manifest) + `../skills/travel-profiler/SKILL.md` (the extract prompt) +
-  `../skills/trip-composer/SKILL.md` (the synthesis prompt).
+  `../skills/trip-composer/SKILL.md` (the synthesis prompt) + `../skills/trip-wallet/SKILL.md` (the EX-b
+  wallet-action extract prompt).
