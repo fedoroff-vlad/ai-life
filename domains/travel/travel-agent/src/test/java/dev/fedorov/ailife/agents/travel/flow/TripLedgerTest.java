@@ -99,6 +99,34 @@ class TripLedgerTest {
         assertThat(tally.unratedCurrencies()).contains("USD", "THB");
     }
 
+    /**
+     * Scenario (EX-c): the ₽ spend signal is expenses only, priced at the home-rate, and it excludes the
+     * on-site exchange out-flow (a swap moves money, it is not a spend).
+     */
+    @Test
+    void spendTotalExcludesExchangeTransfers() {
+        TripLedgerDto ledger = ledger("RUB",
+                List.of(fund("RUB", "100000", "1")),
+                List.of(exchange("RUB", "36000", "THB", "40000")),
+                List.of(expense("THB", "39800")));
+
+        WalletTally tally = TripLedger.compute(ledger);
+        // The 36000 ₽ exchange out-flow is NOT a spend; the real spend is 39800 THB @0.9 = 35820 ₽.
+        assertThat(tally.totalSpentInHome()).isEqualByComparingTo("35820");
+    }
+
+    /** Scenario (EX-c): a spend in a rated currency prices straight through at its acquisition rate. */
+    @Test
+    void spendTotalPricesRatedExpensesAtAcquisitionRate() {
+        TripLedgerDto ledger = ledger("RUB",
+                List.of(fund("USD", "500", "90")),
+                List.of(),
+                List.of(expense("USD", "450")));
+
+        WalletTally tally = TripLedger.compute(ledger);
+        assertThat(tally.totalSpentInHome()).isEqualByComparingTo("40500");   // 450 * 90
+    }
+
     /** Scenario: the tally is a set of per-currency family balances + one ₽ total — no per-member debt. */
     @Test
     void tallyIsCurrencyKeyedFamilyBalanceNoSettlement() {

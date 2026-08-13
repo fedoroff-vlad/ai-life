@@ -7,6 +7,7 @@ import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.travel.AddFundingInput;
 import dev.fedorov.ailife.contracts.travel.LogExchangeInput;
 import dev.fedorov.ailife.contracts.travel.LogExpenseInput;
@@ -56,15 +57,18 @@ class WalletFlowTest {
     static MockWebServer llmGateway;
     static MockWebServer mcpTravel;
     static MockWebServer mediaService;
+    static MockWebServer memoryService;
 
     @BeforeAll
     static void start() throws Exception {
         llmGateway = new MockWebServer();
         mcpTravel = new MockWebServer();
         mediaService = new MockWebServer();
+        memoryService = new MockWebServer();
         llmGateway.start();
         mcpTravel.start();
         mediaService.start();
+        memoryService.start();
     }
 
     @AfterAll
@@ -72,6 +76,7 @@ class WalletFlowTest {
         llmGateway.shutdown();
         mcpTravel.shutdown();
         mediaService.shutdown();
+        memoryService.shutdown();
     }
 
     @DynamicPropertySource
@@ -80,6 +85,7 @@ class WalletFlowTest {
         r.add("travel-agent.mcp-travel-url", () -> "http://localhost:" + mcpTravel.getPort());
         r.add("travel-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("travel-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("travel-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
         // Unused by the wallet flow, but the context builds their WebClient beans — point them anywhere.
         r.add("travel-agent.mcp-weather-url", () -> "http://localhost:1");
         r.add("travel-agent.mcp-web-url", () -> "http://localhost:1");
@@ -95,12 +101,15 @@ class WalletFlowTest {
 
     static final CopyOnWriteArrayList<String> travelPaths = new CopyOnWriteArrayList<>();
     static final AtomicReference<String> boardBody = new AtomicReference<>();
+    static final AtomicReference<String> noteBody = new AtomicReference<>();
 
     @BeforeEach
     void reset() {
         travelPaths.clear();
         boardBody.set(null);
+        noteBody.set(null);
         mediaService.setDispatcher(mediaOk());
+        memoryService.setDispatcher(noteOk());
     }
 
     @Test
@@ -183,6 +192,35 @@ class WalletFlowTest {
         assertThat(resp.text()).doesNotContain("Открыть кошелёк:");
     }
 
+    @Test
+    void closeTalliesClosesAndDepositsFinanceSpendSignal() {
+        llmGateway.setDispatcher(llmAction("{\"action\":\"close\"}"));
+        mcpTravel.setDispatcher(walletStore(true));
+
+        IntentResponse resp = post("закрой поездку");
+        // The trip is tallied, closed in the store, and the reply carries the spend total + the board.
+        assertThat(resp.text()).contains("Поездка «Тайланд» закрыта").contains("Потрачено ≈ 35820 RUB")
+                .contains("Открыть кошелёк:");
+        assertThat(travelPaths).anyMatch(p -> p.equals("/internal/trips/" + TRIP_ID + "/close"));
+
+        // A finance spend-signal note is deposited into the shared second brain (household-shared, tagged).
+        String note = noteBody.get();
+        assertThat(note).as("finance note not captured").isNotNull();
+        assertThat(note).contains("Расходы на поездку").contains("35820")
+                .contains("trip-spend").contains("finance");
+    }
+
+    @Test
+    void closeStillClosesWhenFinanceNoteWriteFails() {
+        llmGateway.setDispatcher(llmAction("{\"action\":\"close\"}"));
+        mcpTravel.setDispatcher(walletStore(true));
+        memoryService.setDispatcher(serverError());   // memory down → note soft-fails
+
+        IntentResponse resp = post("заверши поездку");
+        assertThat(resp.text()).contains("Поездка «Тайланд» закрыта").contains("Потрачено ≈ 35820 RUB");
+        assertThat(travelPaths).anyMatch(p -> p.equals("/internal/trips/" + TRIP_ID + "/close"));
+    }
+
     // --- dispatchers ---
 
     /** llm-gateway: the WalletExtractor turn — always return the given action JSON as the content. */
@@ -218,6 +256,11 @@ class WalletFlowTest {
                     }
                     if (path != null && path.contains("/ledger")) {
                         return jsonResponse(json.writeValueAsString(ledger()));
+                    }
+                    if ("POST".equals(method) && path != null && path.contains("/close")) {
+                        return jsonResponse(json.writeValueAsString(new TripDto(TRIP_ID, UUID.randomUUID(),
+                                null, "Тайланд", "Пхукет", null, null, "RUB", "closed",
+                                Instant.now(), Instant.now())));
                     }
                     if ("POST".equals(method) && path != null && path.equals("/internal/trips")) {
                         return jsonResponse(json.writeValueAsString(trip()));
@@ -261,6 +304,23 @@ class WalletFlowTest {
         TripExpenseDto spend = new TripExpenseDto(UUID.randomUUID(), TRIP_ID, "THB",
                 new BigDecimal("39800"), null, "отель+еда", Instant.now(), Instant.now());
         return new TripLedgerDto(trip(), List.of(), List.of(rub), List.of(swap), List.of(spend));
+    }
+
+    /** memory-service /v1/notes: capture the deposited finance spend-signal note, echo a NoteDto. */
+    private Dispatcher noteOk() {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                noteBody.set(request.getBody().readUtf8());
+                try {
+                    return jsonResponse(json.writeValueAsString(new NoteDto(
+                            UUID.randomUUID(), UUID.randomUUID(), null, "note", "fact",
+                            List.of("finance", "travel"), "travel-agent", null, "body", null,
+                            Instant.now(), Instant.now())));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
     }
 
     private Dispatcher mediaOk() {

@@ -5,13 +5,14 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **EX-c1 in flight** (branch `feat/travel-ex-c1-trip-close`) — the store half of travel↔finance EX-c:
-  `mcp-travel` gains `closeTrip(tripId, householdId)` + `POST /internal/trips/{id}/close` (set
-  `status='closed'`, tenant-scoped, idempotent) so a trip can leave the active set. Spec locked in
-  [travel.md](travel.md) §EX-c (WHEN/THEN for c1 + c2). **Next: EX-c2** — the `close` cue + finance
-  spend-signal note (`MemoryClient.note`) + `TripLedger.totalSpentInHome` in `travel-agent`.
-- **Trip wallet #437 core is COMPLETE** — EX-a store (PR443) + EX-b wallet flow (PR445) both 2026-08-13;
-  detail → [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Trip wallet.
+- **EX-c2 in flight** (branch `feat/travel-ex-c2-finance-signal`) — the agent half of travel↔finance EX-c:
+  a `close` cue → final tally → `closeTrip` → deposit a finance **spend-signal** note (`MemoryClient.note`,
+  decoupled via the shared second brain — finance's `brief` recall surfaces it) → final board; plus
+  `TripLedger.totalSpentInHome` (expenses only, excluding exchange transfers). Tests: `TripLedgerTest` +
+  `WalletFlowTest` green locally. **EX-c1 (store close) SHIPPED** — PR446 merged. This closes EX-c → trip
+  wallet #437 fully done.
+- **Trip wallet #437 core COMPLETE** — EX-a store (PR443) + EX-b wallet flow (PR445) + EX-c1 store close
+  (PR446); detail → [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Trip wallet.
 - **travel MVP + live search + trip wallet (EX-a+b) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,

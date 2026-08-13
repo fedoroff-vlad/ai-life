@@ -49,6 +49,14 @@ public class TripWalletClient {
                 .retrieve().bodyToMono(TripDto.class).timeout(TIMEOUT);
     }
 
+    /** Close a trip (EX-c): set status='closed' so it drops out of getActiveTrip; 204 → empty. */
+    public Mono<TripDto> closeTrip(UUID tripId, UUID householdId) {
+        return http.post()
+                .uri(b -> b.path("/internal/trips/" + tripId + "/close")
+                        .queryParam("householdId", householdId).build())
+                .retrieve().bodyToMono(TripDto.class).timeout(TIMEOUT);
+    }
+
     public Mono<TripFundingDto> addFunding(AddFundingInput input) {
         return http.post().uri("/internal/trips/fundings")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(input)

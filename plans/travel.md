@@ -333,7 +333,7 @@ tally + board + no-active-trip + render-hiccup fallback). Balance math is determ
   the ₽ total, soft-failing to text-only on a render hiccup (asserted by `TripLedgerTest`).
 
 #### EX-c — closing a trip surfaces its ₽ spend to finance
-**Status: SPEC LOCKED (2026-08-13; EX-c1 in flight).** Surface a *closed* trip's ₽ spend to finance as a
+**Status: EX-c1 SHIPPED (store close, PR446); EX-c2 in flight (agent close-flow + finance signal).** Surface a *closed* trip's ₽ spend to finance as a
 **spend signal** — the travel↔finance seam, decoupled: travel never calls finance directly, it **deposits
 the signal into the shared second brain** (`MemoryClient.note`, the universal write seam SB-5), where
 finance's read-only `brief` recall ([stage4.md](stage4.md) §E-B1) naturally surfaces it when the coordinator

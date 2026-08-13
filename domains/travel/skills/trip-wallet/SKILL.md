@@ -32,6 +32,9 @@ Return ONLY a JSON object (no prose, no code fence) with an `action` field, one 
   euros on a taxi".
 - `"tally"` — a request to see **what's left / the total**. No other fields.
   Examples: «сколько осталось», «подведи итог», «сколько денег в поездке», "how much is left".
+- `"close"` — the trip is **over / finished**; wrap it up. No other fields.
+  Examples: «закрой поездку», «заверши поездку», «поездка окончена/завершена», "close the trip",
+  "finish the trip", "the trip is over".
 - `"none"` — the message isn't any of the above. `{"action":"none"}`.
 
 Currency rules:

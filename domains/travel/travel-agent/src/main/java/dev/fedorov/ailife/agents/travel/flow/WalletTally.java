@@ -8,13 +8,17 @@ import java.util.List;
  * trip wallet snapshot (plans/travel.md §Trip wallet / EX-b). Per-currency <b>remaining</b> balances +
  * a single <b>₽ tally</b> converted by the owner's stated acquisition rates; a currency whose home-rate
  * can't be resolved is listed in {@link #unratedCurrencies()} and left out of the ₽ total (shown in its
- * own currency, never silently converted). There is deliberately <b>no</b> per-member "who owes whom" —
+ * own currency, never silently converted). {@link #totalSpentInHome()} is the ₽ value of the trip's
+ * genuine spend — <b>expenses only</b>, priced at each currency's home-rate, deliberately excluding
+ * on-site exchange out-flows (a swap moves money, it is not a spend); it is the "spend signal" the
+ * close-flow surfaces to finance (EX-c). There is deliberately <b>no</b> per-member "who owes whom" —
  * this is one family budget, not a settlement.
  */
 public record WalletTally(
         String homeCurrency,
         List<CurrencyLine> currencies,
         BigDecimal totalRemainingInHome,
+        BigDecimal totalSpentInHome,
         List<String> unratedCurrencies) {
 
     /**
