@@ -5,17 +5,15 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Next slice = travel EX-a (Trip wallet #437).** Spec **reviewed + locked 2026-08-13** (authority:
-  [travel.md](travel.md) §Trip wallet). Locked this session: on-site currency purchase is a first-class
-  `exchange` primitive (source outflow + acquired inflow, acquired ₽-rate derived — no double-count); EX-a
-  ships all **five** tables (trip/member/funding/**exchange**/expense) in **one PR**, deliberately over the
-  ~5-file guideline; **no `paid_by`** on expenses (settlement cut, YAGNI); money cols `numeric(19,4)` +
-  `CHECK amount>=0`. **In flight** (branch `feat/travel-ex-a-trip-store`, PR pending CI): migration
-  `111-travel-trip.yml` (5 tables) + entities/repos + `TripMcpTools` (create/roster/funding/exchange/
-  expense/getTrip/getTripLedger) + `/internal/trips/*` in `mcp-travel` + `McpTripIntegrationTest`. IT is
-  Testcontainers (no Docker on the dev box → CI is the authority); contracts+module compile locally +
-  consistency lint green. Balance math is EX-b, not here.
-- **travel MVP + live search COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
+- **Next slice = travel EX-b (Trip wallet #437).** EX-a (the `travel.trip` store) is **DONE 2026-08-13**
+  (PR443 → [HISTORY.md](HISTORY.md); authority [travel.md](travel.md) §Trip wallet). EX-b = the **wallet
+  ledger flow + balance board** in `travel-agent`: a cue-routed create/fund/exchange/spend + a
+  **deterministic `TripLedger`** (per-currency remaining + the owner-rate ₽ tally, unset-rate currencies
+  flagged, exchange as out/inflow with the acquired ₽-rate derived from the source spend) + an HTML **wallet
+  board** via `DeliverablePublisher`. Reads the raw ledger rows from `mcp-travel /internal/trips/{id}/ledger`
+  (EX-a). Balance math is deterministic Java, never the LLM. WHEN/THEN + tests already spec'd in
+  [travel.md](travel.md) §EX-b. Not started.
+- **travel MVP + live search + EX-a store COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
   never committed); until then the planner degrades to the MVP. Only **TR-f3** (tours/JS sources → `mcp-browser`) deferred.
