@@ -179,6 +179,46 @@ class McpTripIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(tools.getActiveTrip(other)).isNull();
     }
 
+    /**
+     * EX-c1: closeTrip is tenant-scoped + idempotent, and a closed trip drops out of getActiveTrip
+     * (both tool and /internal/trips/{id}/close paths).
+     */
+    @Test
+    void closeTripIsTenantScopedIdempotentAndDropsFromActive() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        UUID other = UUID.randomUUID();
+        seedHousehold(other);
+        UUID owner = seedUser(h);
+
+        TripDto first = tools.createTrip(new CreateTripInput(h, owner, "Первая", null, null, null, "RUB"));
+        TripDto second = tools.createTrip(new CreateTripInput(h, owner, "Вторая", null, null, null, "RUB"));
+        assertThat(tools.getActiveTrip(h).id()).isEqualTo(second.id());
+
+        // Another household cannot close this trip → null, trip stays open.
+        assertThat(tools.closeTrip(second.id(), other)).isNull();
+        assertThat(tools.getTrip(second.id(), h).status()).isEqualTo("planning");
+
+        // Close the active trip over HTTP → 200 closed; the earlier open trip becomes active again.
+        WebTestClient client = WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
+        TripDto closed = client.post()
+                .uri(b -> b.path("/internal/trips/" + second.id() + "/close")
+                        .queryParam("householdId", h).build())
+                .exchange().expectStatus().isOk()
+                .expectBody(TripDto.class).returnResult().getResponseBody();
+        assertThat(closed).isNotNull();
+        assertThat(closed.status()).isEqualTo("closed");
+        assertThat(tools.getActiveTrip(h).id()).isEqualTo(first.id());
+
+        // Idempotent: closing again returns the same closed trip, no error.
+        assertThat(tools.closeTrip(second.id(), h).status()).isEqualTo("closed");
+
+        // Out-of-tenant close over HTTP → 204.
+        client.post().uri(b -> b.path("/internal/trips/" + first.id() + "/close")
+                        .queryParam("householdId", other).build())
+                .exchange().expectStatus().isNoContent();
+    }
+
     /** Scenario: reject cross-household trip access → null (tenant isolation). */
     @Test
     void crossHouseholdReadReturnsNull() {

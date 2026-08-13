@@ -190,6 +190,25 @@ public class TripMcpTools {
     }
 
     @Tool(description = """
+            Close a trip, scoped to its household: sets status to 'closed' so it is no longer the active
+            trip. Idempotent — closing an already-closed trip returns it unchanged. Returns null if the
+            trip does not exist or belongs to another household. Closing is the signal the travel-agent
+            uses to surface the trip's final ₽ spend to finance (EX-c).
+            """)
+    @Transactional
+    public TripDto closeTrip(UUID tripId, UUID householdId) {
+        requireField(tripId, "tripId");
+        requireField(householdId, "householdId");
+        Trip trip = trips.findByIdAndHouseholdId(tripId, householdId).orElse(null);
+        if (trip == null) return null;
+        if (!"closed".equals(trip.getStatus())) {
+            trip.setStatus("closed");
+            trip = trips.save(trip);
+        }
+        return trip.toDto();
+    }
+
+    @Tool(description = """
             Get the full trip wallet by id, scoped to its household: the trip header, its roster, and the
             raw ledger rows (fundings, exchanges, expenses). Returns null if the trip does not exist or
             belongs to another household. Balance math is computed by the caller (EX-b), not here.

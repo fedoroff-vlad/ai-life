@@ -31,6 +31,7 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | `logExpense` | `LogExpenseInput` | `TripExpenseDto` | log a spend (outflow). No paid-by. |
 | `getTrip` | `tripId`, `householdId` | `TripDto` \| null | tenant-scoped trip header; null if absent/out-of-tenant. |
 | `getActiveTrip` | `householdId` | `TripDto` \| null | the household's most recent non-`closed` trip (the wallet flow's "current trip"); null if none open. |
+| `closeTrip` | `tripId`, `householdId` | `TripDto` \| null | set `status='closed'` (tenant-scoped, idempotent) so it drops out of `getActiveTrip`; null if absent/out-of-tenant. The travel-agent's close-flow (EX-c) uses it before surfacing the trip's ₽ spend to finance. |
 | `getTripLedger` | `tripId`, `householdId` | `TripLedgerDto` \| null | full wallet: header + roster + funding/exchange/expense rows (raw; no balance math). |
 
 ## HTTP passthrough
@@ -46,6 +47,7 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | POST | `/internal/trips/exchanges` | `LogExchangeInput` | `TripExchangeDto` | log an on-site swap. |
 | POST | `/internal/trips/expenses` | `LogExpenseInput` | `TripExpenseDto` | log a spend. |
 | GET | `/internal/trips/active` | `householdId` | `TripDto` (204 if none open) | the household's active (most recent non-closed) trip. |
+| POST | `/internal/trips/{tripId}/close` | `householdId` | `TripDto` (204 if absent/out-of-tenant) | close a trip (idempotent); it drops out of `/active`. |
 | GET | `/internal/trips/{tripId}` | `householdId` | `TripDto` (204 if absent/out-of-tenant) | read the trip header. |
 | GET | `/internal/trips/{tripId}/ledger` | `householdId` | `TripLedgerDto` (204 if absent/out-of-tenant) | read the full wallet. |
 
@@ -71,7 +73,7 @@ schema created in [`infra/postgres/init.sql`](../../../infra/postgres/init.sql).
 - `domain/Trip`, `TripMember`, `TripFunding`, `TripExchange`, `TripExpense` (+ their `Repository`) — the
   trip-wallet entities; `TripRepository.findByIdAndHouseholdId` is the tenant-scoped read.
 - `tools/TravelMcpTools` — profile `set`/`get` `@Tool`s; `(household, owner)` upsert keying.
-- `tools/TripMcpTools` — trip-wallet `@Tool`s (create/roster/funding/exchange/expense/read); currency
+- `tools/TripMcpTools` — trip-wallet `@Tool`s (create/roster/funding/exchange/expense/read/close); currency
   normalization + at-most-one-identity + non-negative-amount guards. Persistence only, no balance math.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider` beans exposing both tool objects.
 - `web/InternalTravelProfileController` — `POST`/`GET /internal/travel-profile` (204 on unseen owner).
