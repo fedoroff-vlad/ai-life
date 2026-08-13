@@ -22,8 +22,9 @@ import java.util.Set;
  *       preferences") → {@link TravelProfiler#setProfile} (one LLM extract + geocode → upsert the
  *       per-person prefs, TR-c);</li>
  *   <li>a trip-wallet cue ("создай поездку", "завёл 500 $ по 90", "поменял 36000 ₽ на 40000 бат",
- *       "потратил 2000 бат на …", "сколько осталось / подведи итог") → {@link WalletFlow#handle} (the
- *       multi-currency family trip budget, EX-b);</li>
+ *       "потратил 2000 бат на …", "сколько осталось / подведи итог", "закрой поездку") →
+ *       {@link WalletFlow#handle} (the multi-currency family trip budget, EX-b; close + finance
+ *       spend-signal, EX-c);</li>
  *   <li>a plan-a-trip cue ("хочу на море в сентябре", "куда поехать", "найди билеты в …", "подбери отель",
  *       "plan me a trip", "find flights") → {@link TripComposer#plan} (resolve profile → gather
  *       budget/dates/season/research + live flight/hotel options when asked → one synthesis, TR-d/TR-f2);</li>
@@ -55,8 +56,11 @@ public class IntentController {
             "потратил", "потратили", "потрачено", "оплатил",
             "сколько осталось", "сколько денег осталось", "подведи итог", "подбей итог", "останется",
             "остаток по поездк", "сколько потратили",
+            "закрой поездк", "закрыть поездк", "заверши поездк", "завершить поездк",
+            "поездка окончена", "поездка завершена", "поездка закончилась", "поездка закончена",
             "create a trip", "new trip", "trip wallet", "trip budget",
-            "funded", "exchanged", "spent", "how much is left", "how much left", "tally the trip");
+            "funded", "exchanged", "spent", "how much is left", "how much left", "tally the trip",
+            "close the trip", "finish the trip", "end the trip", "trip is over");
 
     // The orchestrator only routes a message here once it is already travel-intent, so these cues can be
     // broad ("хочу в …" won't be a cinema request by the time it reaches the travel agent).

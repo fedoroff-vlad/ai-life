@@ -1,11 +1,15 @@
 package dev.fedorov.ailife.agents.travel.flow;
 
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agents.travel.flow.WalletExtractor.WalletAction;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.contracts.travel.AddFundingInput;
 import dev.fedorov.ailife.contracts.travel.CreateTripInput;
 import dev.fedorov.ailife.contracts.travel.LogExchangeInput;
@@ -30,6 +34,11 @@ import java.util.List;
  * remaining + the owner-rate ₽ total, unset-rate currencies flagged — then renders an HTML <b>wallet
  * board</b> via the shared {@link DeliverablePublisher} (soft-failing to text-only on a render hiccup).
  *
+ * <p>A {@code close} action (EX-c) wraps a finished trip: final tally → {@code closeTrip} in the store →
+ * deposit a finance <b>spend-signal</b> note (the trip's ₽ spend) into the shared second brain via
+ * {@link MemoryClient#note}, where finance's read-only {@code brief} recall surfaces it — the travel↔finance
+ * seam, decoupled (travel never calls finance directly). The note write is best-effort.
+ *
  * <p>Balance math is never the LLM's job (a correctness/privacy boundary). There is no "who owes whom":
  * one family budget, no settlement.
  */
@@ -44,13 +53,17 @@ public class WalletFlow {
     private final WalletExtractor extractor;
     private final TripWalletClient wallet;
     private final DeliverablePublisher publisher;
+    private final MemoryClient memory;
+    private final ObjectMapper json;
     private final AgentManifest manifest;
 
-    public WalletFlow(WalletExtractor extractor, TripWalletClient wallet,
-                      DeliverablePublisher publisher, AgentManifest manifest) {
+    public WalletFlow(WalletExtractor extractor, TripWalletClient wallet, DeliverablePublisher publisher,
+                      MemoryClient memory, ObjectMapper json, AgentManifest manifest) {
         this.extractor = extractor;
         this.wallet = wallet;
         this.publisher = publisher;
+        this.memory = memory;
+        this.json = json;
         this.manifest = manifest;
     }
 
@@ -70,10 +83,11 @@ public class WalletFlow {
             case "exchange" -> exchange(msg, a);
             case "spend" -> spend(msg, a);
             case "tally" -> tally(msg);
+            case "close" -> close(msg);
             default -> Mono.just(reply(
                     "Не понял операцию. Могу: создать поездку, записать валюту («завёл 500 $ по 90»), "
-                    + "обмен («поменял 36000 ₽ на 40000 бат»), трату («потратил 2000 бат на ужин») "
-                    + "или подвести итог («сколько осталось»)."));
+                    + "обмен («поменял 36000 ₽ на 40000 бат»), трату («потратил 2000 бат на ужин»), "
+                    + "подвести итог («сколько осталось») или закрыть поездку («закрой поездку»)."));
         };
     }
 
@@ -136,6 +150,62 @@ public class WalletFlow {
                             });
                 })
                 .switchIfEmpty(Mono.just(reply("У поездки «" + trip.title() + "» пока нет записей."))));
+    }
+
+    /**
+     * Close the active trip (EX-c): final tally → set status='closed' in the store → deposit a finance
+     * <b>spend-signal</b> note into the shared second brain (best-effort) → reply with the final board.
+     * The travel↔finance seam is deliberately decoupled: travel never calls finance directly, it drops a
+     * note that finance's read-only {@code brief} recall surfaces. Note-write and board both soft-fail —
+     * a memory/render outage never blocks closing the trip.
+     */
+    private Mono<IntentResponse> close(NormalizedMessage msg) {
+        return withActiveTrip(msg, trip -> wallet.getTripLedger(trip.id(), msg.householdId())
+                .map(TripLedger::compute)
+                .flatMap(t -> wallet.closeTrip(trip.id(), msg.householdId())
+                        .then(depositSpendSignal(msg, trip, t))
+                        .then(finalReply(msg, trip, t)))
+                .onErrorResume(storeError("закрыть поездку")));
+    }
+
+    /** Best-effort finance spend-signal note; soft-fails to a completed Mono (MemoryClient.note swallows). */
+    private Mono<Void> depositSpendSignal(NormalizedMessage msg, TripDto trip, WalletTally t) {
+        ObjectNode fm = json.createObjectNode();
+        fm.put("kind", "trip-spend");
+        fm.put("refId", trip.id().toString());
+        WriteNoteRequest req = new WriteNoteRequest(
+                msg.householdId(), null,                     // household-shared, so any member's finance brief sees it
+                "Расходы на поездку «" + trip.title() + "»", "fact",
+                List.of("finance", "travel", "trip-spend"), manifest.name(), null,
+                spendNoteBody(trip, t), fm);
+        return memory.note(req).then();
+    }
+
+    private String spendNoteBody(TripDto trip, WalletTally t) {
+        StringBuilder sb = new StringBuilder("Поездка «").append(trip.title()).append('»');
+        if (trip.destination() != null && !trip.destination().isBlank()) {
+            sb.append(" (").append(trip.destination()).append(')');
+        }
+        sb.append(" закрыта.\nПотрачено за поездку: ≈ ").append(money(t.totalSpentInHome()))
+                .append(' ').append(t.homeCurrency()).append(".\n");
+        sb.append("Осталось (вернулось домой): ≈ ").append(money(t.totalRemainingInHome()))
+                .append(' ').append(t.homeCurrency()).append('.');
+        if (t.hasUnrated()) {
+            sb.append("\nВалюты без курса (не вошли в ₽-итог): ").append(String.join(", ", t.unratedCurrencies()));
+        }
+        return sb.toString();
+    }
+
+    private Mono<IntentResponse> finalReply(NormalizedMessage msg, TripDto trip, WalletTally t) {
+        String text = "Поездка «" + trip.title() + "» закрыта. Потрачено ≈ " + money(t.totalSpentInHome())
+                + ' ' + t.homeCurrency() + ".\n\n" + tallyText(trip, t);
+        return publishBoard(msg, trip, t)
+                .map(link -> reply(withLink(text, link)))
+                .defaultIfEmpty(reply(text))
+                .onErrorResume(e -> {
+                    log.warn("wallet close board store failed: {}", e.toString());
+                    return Mono.just(reply(text));
+                });
     }
 
     /** Resolve the household's active trip, or tell the owner to create one first. */

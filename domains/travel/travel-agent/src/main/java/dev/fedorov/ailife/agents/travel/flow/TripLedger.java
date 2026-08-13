@@ -64,10 +64,12 @@ public final class TripLedger {
         List<WalletTally.CurrencyLine> lines = new ArrayList<>();
         List<String> unrated = new ArrayList<>();
         BigDecimal totalRemainingHome = BigDecimal.ZERO;
+        BigDecimal totalSpentHome = BigDecimal.ZERO;
 
         for (String ccy : currencies) {
             BigDecimal inflow = BigDecimal.ZERO;
             BigDecimal outflow = BigDecimal.ZERO;
+            BigDecimal expenseOutflow = BigDecimal.ZERO;   // genuine spend only (no exchange out-flow)
             for (TripFundingDto f : fundings) {
                 if (ccy.equals(f.currency())) inflow = inflow.add(amt(f.amount()));
             }
@@ -76,7 +78,10 @@ public final class TripLedger {
                 if (ccy.equals(x.fromCurrency())) outflow = outflow.add(amt(x.fromAmount()));
             }
             for (TripExpenseDto e : expenses) {
-                if (ccy.equals(e.currency())) outflow = outflow.add(amt(e.amount()));
+                if (ccy.equals(e.currency())) {
+                    outflow = outflow.add(amt(e.amount()));
+                    expenseOutflow = expenseOutflow.add(amt(e.amount()));
+                }
             }
             BigDecimal remaining = inflow.subtract(outflow);
 
@@ -85,6 +90,10 @@ public final class TripLedger {
             if (homeRate != null) {
                 remainingInHome = remaining.multiply(homeRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP);
                 totalRemainingHome = totalRemainingHome.add(remainingInHome);
+                // Spend surfaced to finance is expenses only, priced at this currency's home-rate — an
+                // exchange out-flow is a transfer, not a spend, so it never enters the spend total.
+                totalSpentHome = totalSpentHome.add(
+                        expenseOutflow.multiply(homeRate).setScale(MONEY_SCALE, RoundingMode.HALF_UP));
             } else {
                 unrated.add(ccy);
             }
@@ -92,7 +101,8 @@ public final class TripLedger {
         }
 
         return new WalletTally(home, lines,
-                totalRemainingHome.setScale(MONEY_SCALE, RoundingMode.HALF_UP), unrated);
+                totalRemainingHome.setScale(MONEY_SCALE, RoundingMode.HALF_UP),
+                totalSpentHome.setScale(MONEY_SCALE, RoundingMode.HALF_UP), unrated);
     }
 
     /** Weighted-average rate over just this currency's rated fundings; null when none carry a rate. */

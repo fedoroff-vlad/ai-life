@@ -210,7 +210,7 @@ travel-agent in §who-uses-me.
   links present, no price claimed without a source) — not wording.
 
 ## Trip wallet — multi-currency family trip budget ([#437](https://github.com/fedoroff-vlad/ai-life/issues/437), reshaped)
-**Status: SPEC LOCKED (owner-reviewed 2026-08-13; ready for EX-a, no code yet).** This section is the
+**Status: COMPLETE 2026-08-13 (EX-a store · EX-b wallet flow · EX-c1 store close · EX-c2 finance signal — PR443/445/446/447).** This section is the
 authority for #437.
 
 ### What it is (owner's reshape)
@@ -333,7 +333,7 @@ tally + board + no-active-trip + render-hiccup fallback). Balance math is determ
   the ₽ total, soft-failing to text-only on a render hiccup (asserted by `TripLedgerTest`).
 
 #### EX-c — closing a trip surfaces its ₽ spend to finance
-**Status: SPEC LOCKED (2026-08-13; EX-c1 in flight).** Surface a *closed* trip's ₽ spend to finance as a
+**Status: COMPLETE 2026-08-13 — EX-c1 store close (PR446) + EX-c2 agent close-flow & finance signal (PR447). Trip wallet #437 fully done.** Surface a *closed* trip's ₽ spend to finance as a
 **spend signal** — the travel↔finance seam, decoupled: travel never calls finance directly, it **deposits
 the signal into the shared second brain** (`MemoryClient.note`, the universal write seam SB-5), where
 finance's read-only `brief` recall ([stage4.md](stage4.md) §E-B1) naturally surfaces it when the coordinator

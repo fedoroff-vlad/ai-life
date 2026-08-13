@@ -9,7 +9,7 @@ orchestrator as `travel`. **Never books or pays** — proposes options and provi
 ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
 [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-f2 planner + EX-b trip wallet)
+## Status (TR-f2 planner + EX-b/EX-c trip wallet)
 
 Four flows behind the intent cue-split (preferences → wallet → plan → chat):
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
@@ -56,6 +56,12 @@ Four flows behind the intent cue-split (preferences → wallet → plan → chat
   (soft-failing to text-only on a render hiccup). An on-site exchange is one paired op (source outflow +
   acquired inflow) so the ₽ tally never double-counts; **balance math is deterministic Java, never the
   LLM**; there is **no "who owes whom"** — one family budget, no settlement.
+  A **close** action (EX-c — "закрой поездку", "заверши поездку", "close/finish the trip") wraps a
+  finished trip: final tally → `closeTrip` in the store (drops it from the active set) → deposit a finance
+  **spend-signal** note (the trip's ₽ spend = `TripLedger.totalSpentInHome`, expenses only, excluding
+  exchange transfers) into the shared second brain via `MemoryClient.note`, where finance's read-only
+  `brief` recall surfaces it — the travel↔finance seam, **decoupled** (travel never calls finance
+  directly). The note write is best-effort (soft-fails; closing never blocks on memory-service).
 
 Non-plan, non-config messages fall through to the conversational chat fallback. Mirrors `briefing-agent`
 (BR-c2 profiler + BR-d `BriefingComposer`) and the finance report board (`MonthlyReporter`).
@@ -82,7 +88,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 | `ORCHESTRATOR_URL` | `http://orchestrator:8083` | the hub the TR-d planner reaches to invoke the `finance`/`calendar` `brief` action. |
 | `TRAVEL_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the Spring AI MCP-SSE client (off in dev/degraded envs). |
 | `TRAVEL_AGENT_MEMORY_RECALL_K` | `5` | memory-recall depth for the shared agent-runtime clients. |
-| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | the shared agent-runtime platform clients. |
+| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | the shared agent-runtime platform clients (`MEMORY_SERVICE_URL` also backs the EX-c finance spend-signal note write). |
 
 ## Key classes
 
@@ -93,17 +99,19 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `DeliverablePublisher`).
 - `profile/TravelProfiler` — the LLM extract → geocode → upsert flow; **vocabulary filtering** for
   `restTypes`/`companions`.
-- `flow/WalletFlow` — the EX-b trip-wallet flow: extract → store dispatch (create/fund/exchange/spend) or
+- `flow/WalletFlow` — the trip-wallet flow: extract → store dispatch (create/fund/exchange/spend) or
   tally (fetch ledger → `TripLedger` → text + HTML wallet board via `DeliverablePublisher`). Resolves the
-  household's active trip for non-create actions.
+  household's active trip for non-create actions. **close** (EX-c) tallies → `closeTrip` → deposits a
+  finance spend-signal note via `MemoryClient.note` (best-effort) → final board.
 - `flow/WalletExtractor` (+ nested `WalletAction`) — the one LLM turn classifying a wallet message
-  (create/fund/exchange/spend/tally) with ISO-4217 codes; no balance math.
+  (create/fund/exchange/spend/tally/close) with ISO-4217 codes; no balance math.
 - `flow/TripLedger` (+ `WalletTally`) — the **deterministic** multi-currency balance engine over the raw
   ledger rows: per-currency remaining (fundings + exchange-in − expenses − exchange-out), a weighted-average
-  ₽ home-rate per currency (exchange-in priced single-level from the source), the ₽ total, and unset-rate
+  ₽ home-rate per currency (exchange-in priced single-level from the source), the ₽ total remaining,
+  `totalSpentInHome` (the EX-c spend signal — expenses only, excluding exchange transfers), and unset-rate
   flags. Pure Java, never the LLM (a correctness/privacy boundary).
 - `http/TripWalletClient` — the `mcp-travel /internal/trips/*` store calls (create / active / funding /
-  exchange / expense / ledger).
+  exchange / expense / ledger / close).
 - `flow/TripComposer` — the TR-d/TR-e/TR-f2 `gather → synthesize` planner: profile resolve → FAST scope
   extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
   web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
