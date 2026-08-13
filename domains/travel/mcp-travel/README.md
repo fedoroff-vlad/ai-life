@@ -30,6 +30,7 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | `logExchange` | `LogExchangeInput` | `TripExchangeDto` | on-site swap: outflow of `fromCurrency` + inflow of `toCurrency` (currencies must differ). |
 | `logExpense` | `LogExpenseInput` | `TripExpenseDto` | log a spend (outflow). No paid-by. |
 | `getTrip` | `tripId`, `householdId` | `TripDto` \| null | tenant-scoped trip header; null if absent/out-of-tenant. |
+| `getActiveTrip` | `householdId` | `TripDto` \| null | the household's most recent non-`closed` trip (the wallet flow's "current trip"); null if none open. |
 | `getTripLedger` | `tripId`, `householdId` | `TripLedgerDto` \| null | full wallet: header + roster + funding/exchange/expense rows (raw; no balance math). |
 
 ## HTTP passthrough
@@ -44,6 +45,7 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | POST | `/internal/trips/fundings` | `AddFundingInput` | `TripFundingDto` | record a funding inflow. |
 | POST | `/internal/trips/exchanges` | `LogExchangeInput` | `TripExchangeDto` | log an on-site swap. |
 | POST | `/internal/trips/expenses` | `LogExpenseInput` | `TripExpenseDto` | log a spend. |
+| GET | `/internal/trips/active` | `householdId` | `TripDto` (204 if none open) | the household's active (most recent non-closed) trip. |
 | GET | `/internal/trips/{tripId}` | `householdId` | `TripDto` (204 if absent/out-of-tenant) | read the trip header. |
 | GET | `/internal/trips/{tripId}/ledger` | `householdId` | `TripLedgerDto` (204 if absent/out-of-tenant) | read the full wallet. |
 

@@ -178,6 +178,18 @@ public class TripMcpTools {
     }
 
     @Tool(description = """
+            Get the household's active trip — the most recently created trip that is not yet 'closed'.
+            The wallet flow attaches fund/exchange/spend/tally to it without the owner naming a trip.
+            Returns null when the household has no open trip.
+            """)
+    @Transactional(readOnly = true)
+    public TripDto getActiveTrip(UUID householdId) {
+        requireField(householdId, "householdId");
+        return trips.findFirstByHouseholdIdAndStatusNotOrderByCreatedAtDesc(householdId, "closed")
+                .map(Trip::toDto).orElse(null);
+    }
+
+    @Tool(description = """
             Get the full trip wallet by id, scoped to its household: the trip header, its roster, and the
             raw ledger rows (fundings, exchanges, expenses). Returns null if the trip does not exist or
             belongs to another household. Balance math is computed by the caller (EX-b), not here.
