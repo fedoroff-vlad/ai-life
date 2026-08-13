@@ -9,9 +9,9 @@ import org.springframework.context.annotation.Configuration;
 public class ToolsConfig {
 
     @Bean
-    public ToolCallbackProvider travelTools(TravelMcpTools tools) {
+    public ToolCallbackProvider travelTools(TravelMcpTools profileTools, TripMcpTools tripTools) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(tools)
+                .toolObjects(profileTools, tripTools)
                 .build();
     }
 }

@@ -1,0 +1,339 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 111-travel-trip
+      author: ai-life
+      comment: |
+        Trip wallet store — the persisted multi-currency family trip budget
+        (plans/travel.md §Trip wallet, #437, EX-a). Five tables in the travel schema:
+
+          trip           — the trip header (household-scoped, home_currency default RUB,
+                           status planning|active|closed).
+          trip_member    — the roster: at most one identity ref (user_id -> core.users OR
+                           person_id -> core.people) plus a required label. Context only —
+                           no share/weight, no "who owes whom" (settlement is cut).
+          trip_funding   — a currency acquired externally (brought from home) = an inflow;
+                           optional owner-stated rate_to_home (FX is owner-supplied, never fetched).
+          trip_exchange  — an on-site currency swap = one paired op (outflow of from_currency +
+                           inflow of to_currency) so the ₽ tally is not double-counted. No stored
+                           rate — implied by from_amount/to_amount.
+          trip_expense   — a spend = an outflow. No paid_by (settlement is cut).
+
+        Persistence only — the per-currency balance and the ₽ tally are deterministic Java in
+        the travel-agent (EX-b), computed over these rows. Money columns are numeric(19,4) with
+        amount >= 0 checks; ledger rows cascade-delete with their trip.
+      changes:
+        - createTable:
+            schemaName: travel
+            tableName: trip
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trip_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_trip_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: title
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: destination
+                  type: text
+              - column:
+                  name: start_date
+                  type: date
+              - column:
+                  name: end_date
+                  type: date
+              - column:
+                  name: home_currency
+                  type: varchar(8)
+                  defaultValue: RUB
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: planning
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            schemaName: travel
+            tableName: trip_member
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: trip_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trip_member_trip
+                    referencedTableSchemaName: travel
+                    referencedTableName: trip
+                    referencedColumnNames: id
+                    deleteCascade: true
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_trip_member_user
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: person_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_trip_member_person
+                    referencedTableSchemaName: core
+                    referencedTableName: people
+                    referencedColumnNames: id
+              - column:
+                  name: label
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createTable:
+            schemaName: travel
+            tableName: trip_funding
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: trip_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trip_funding_trip
+                    referencedTableSchemaName: travel
+                    referencedTableName: trip
+                    referencedColumnNames: id
+                    deleteCascade: true
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(19,4)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: rate_to_home
+                  type: numeric(19,4)
+              - column:
+                  name: acquired_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: text
+
+        - createTable:
+            schemaName: travel
+            tableName: trip_exchange
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: trip_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trip_exchange_trip
+                    referencedTableSchemaName: travel
+                    referencedTableName: trip
+                    referencedColumnNames: id
+                    deleteCascade: true
+              - column:
+                  name: from_currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: from_amount
+                  type: numeric(19,4)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: to_currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: to_amount
+                  type: numeric(19,4)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: exchanged_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: note
+                  type: text
+
+        - createTable:
+            schemaName: travel
+            tableName: trip_expense
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: trip_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_trip_expense_trip
+                    referencedTableSchemaName: travel
+                    referencedTableName: trip
+                    referencedColumnNames: id
+                    deleteCascade: true
+              - column:
+                  name: currency
+                  type: varchar(8)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: numeric(19,4)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category
+                  type: text
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: spent_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: travel
+            tableName: trip
+            indexName: ix_trip_household
+            columns:
+              - column:
+                  name: household_id
+        - createIndex:
+            schemaName: travel
+            tableName: trip_member
+            indexName: ix_trip_member_trip
+            columns:
+              - column:
+                  name: trip_id
+        - createIndex:
+            schemaName: travel
+            tableName: trip_funding
+            indexName: ix_trip_funding_trip
+            columns:
+              - column:
+                  name: trip_id
+        - createIndex:
+            schemaName: travel
+            tableName: trip_exchange
+            indexName: ix_trip_exchange_trip
+            columns:
+              - column:
+                  name: trip_id
+        - createIndex:
+            schemaName: travel
+            tableName: trip_expense
+            indexName: ix_trip_expense_trip
+            columns:
+              - column:
+                  name: trip_id
+
+        # Check constraints (raw SQL — at-most-one identity ref + non-negative money).
+        - sql:
+            stripComments: false
+            sql: |
+              ALTER TABLE travel.trip_member
+                ADD CONSTRAINT ck_trip_member_one_identity
+                CHECK (num_nonnulls(user_id, person_id) <= 1);
+              ALTER TABLE travel.trip_funding
+                ADD CONSTRAINT ck_trip_funding_amount CHECK (amount >= 0);
+              ALTER TABLE travel.trip_funding
+                ADD CONSTRAINT ck_trip_funding_rate CHECK (rate_to_home IS NULL OR rate_to_home >= 0);
+              ALTER TABLE travel.trip_exchange
+                ADD CONSTRAINT ck_trip_exchange_amounts CHECK (from_amount >= 0 AND to_amount >= 0);
+              ALTER TABLE travel.trip_exchange
+                ADD CONSTRAINT ck_trip_exchange_diff CHECK (from_currency <> to_currency);
+              ALTER TABLE travel.trip_expense
+                ADD CONSTRAINT ck_trip_expense_amount CHECK (amount >= 0);

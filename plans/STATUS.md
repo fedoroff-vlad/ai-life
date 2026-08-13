@@ -5,10 +5,20 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **No slice in flight.** travel §TR-f (live flight/hotel search) is **complete** — pick the next item from
-  `## Next`. To actually *enable* live search the owner must obtain a free **Travelpayouts** token + marker
-  and accept T&C (a "confirm before doing" step — keys live in `.env`, never committed); until then the
-  planner degrades to the MVP and tells the owner live search isn't set up.
+- **Next slice = travel EX-a (Trip wallet #437).** Spec **reviewed + locked 2026-08-13** (authority:
+  [travel.md](travel.md) §Trip wallet). Locked this session: on-site currency purchase is a first-class
+  `exchange` primitive (source outflow + acquired inflow, acquired ₽-rate derived — no double-count); EX-a
+  ships all **five** tables (trip/member/funding/**exchange**/expense) in **one PR**, deliberately over the
+  ~5-file guideline; **no `paid_by`** on expenses (settlement cut, YAGNI); money cols `numeric(19,4)` +
+  `CHECK amount>=0`. **In flight** (branch `feat/travel-ex-a-trip-store`, PR pending CI): migration
+  `111-travel-trip.yml` (5 tables) + entities/repos + `TripMcpTools` (create/roster/funding/exchange/
+  expense/getTrip/getTripLedger) + `/internal/trips/*` in `mcp-travel` + `McpTripIntegrationTest`. IT is
+  Testcontainers (no Docker on the dev box → CI is the authority); contracts+module compile locally +
+  consistency lint green. Balance math is EX-b, not here.
+- **travel MVP + live search COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
+  TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
+  free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
+  never committed); until then the planner degrades to the MVP. Only **TR-f3** (tours/JS sources → `mcp-browser`) deferred.
 - **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
   - **travel #190 — DONE 2026-08-12 (MVP TR-a…e + live-search TR-f1/f2).** Planner-first vacation agent:
     `mcp-weather` `climate` (TR-a) + `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler`

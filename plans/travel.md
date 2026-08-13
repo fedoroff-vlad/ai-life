@@ -210,7 +210,8 @@ travel-agent in §who-uses-me.
   links present, no price claimed without a source) — not wording.
 
 ## Trip wallet — multi-currency family trip budget ([#437](https://github.com/fedoroff-vlad/ai-life/issues/437), reshaped)
-**Status: SPEC (spec-first, no code yet — owner review pending).** This section is the authority for #437.
+**Status: SPEC LOCKED (owner-reviewed 2026-08-13; ready for EX-a, no code yet).** This section is the
+authority for #437.
 
 ### What it is (owner's reshape)
 Not TREK-style expense *splitting* between people who then settle up — the owner explicitly **cut "кто кому
@@ -235,6 +236,18 @@ tallied in rubles.
   currency and **flagged "курс не задан"** in the ₽ tally, never silently converted.
 - **Balance math is deterministic Java**, never the LLM (a correctness/privacy boundary, like `libs/sharing`).
 - **Home currency default ₽** (per-trip `home_currency`, overridable).
+- **On-site currency purchase = a first-class `exchange` primitive** (owner-reviewed 2026-08-13). Buying
+  ฿ locally with ₽ is one paired op — an outflow of the source currency **and** an inflow of the acquired
+  currency — so the ₽ tally stays honest (recording only a bare `THB` funding would overstate the source
+  balance: the "held 100 000 ₽ + ฿ bought locally" double-count). The acquired currency **inherits** its
+  ₽ home-rate from the source spend (`from_amount × from_home_rate / to_amount`), so no separate rate is
+  needed — the honest rate is the one the owner actually exchanged at. A store primitive, not manual
+  funding+expense.
+- **No `paid_by` on expenses** (owner-reviewed 2026-08-13, YAGNI). With settlement cut, no read uses
+  "who paid" — the roster is the only participant context. Re-add a payer ref only when a real consumer
+  appears.
+- **Money precision:** all amount/rate columns `numeric(19,4)` with a `CHECK (amount >= 0)`; balances
+  computed at that scale, ₽ tally rounded for display only.
 
 ### Doctrine (reuse, flag nothing new except the store)
 - The **one genuinely-new thing** is a **persisted `travel.trip` store** (today the travel domain is
@@ -250,40 +263,59 @@ tallied in rubles.
 - `travel.trip` — `id, household_id, owner_id, title, destination?, start_date?, end_date?,
   home_currency (default 'RUB'), status ('planning'|'active'|'closed'), created_at, updated_at`.
 - `travel.trip_member` — `id, trip_id, user_id? (→core.users), person_id? (→core.people), label,
-  created_at`. Exactly one of user_id/person_id set (else label-only). Roster/context; **no share/weight**.
-- `travel.trip_funding` — currency acquired: `id, trip_id, currency, amount, rate_to_home? (numeric),
-  acquired_at, note?`. "100 000 ₽" → `RUB, 100000, rate 1`; "500 $ по 90" → `USD, 500, rate 90`.
-- `travel.trip_expense` — a spend: `id, trip_id, currency, amount, category?, description?,
-  paid_by_user_id?/paid_by_person_id?, spent_at, created_at`.
-- Derived (no table): **per-currency balance** = Σ funding.amount − Σ expense.amount, per currency; the **₽
-  tally** converts each currency by its funding rate (weighted-average of that currency's fundings; a
-  currency with no rate is flagged, not converted).
+  created_at`. **At most one** of user_id/person_id set (both null = label-only member), enforced by
+  `CHECK (num_nonnull(user_id, person_id) <= 1)`; `label` is always required. Roster/context; **no
+  share/weight**.
+- `travel.trip_funding` — currency acquired externally (brought from home): `id, trip_id, currency,
+  amount, rate_to_home? (numeric), acquired_at, note?`. "100 000 ₽" → `RUB, 100000, rate 1`; "500 $ по 90"
+  → `USD, 500, rate 90`.
+- `travel.trip_exchange` — on-site currency swap (§Locked decisions): `id, trip_id, from_currency,
+  from_amount, to_currency, to_amount, exchanged_at, note?`. No stored rate — the effective swap rate is
+  `to_amount/from_amount`, and the acquired currency's ₽ home-rate is derived from the source spend. Counts
+  as an **outflow of `from_currency` and an inflow of `to_currency`** in the balance math below.
+- `travel.trip_expense` — a spend: `id, trip_id, currency, amount, category?, description?, spent_at,
+  created_at`. (No `paid_by` — settlement is cut, §Locked decisions.)
+- Derived (no table), deterministic Java: **per-currency balance** = (Σ funding.amount + Σ
+  exchange.to_amount for that ccy) − (Σ expense.amount + Σ exchange.from_amount for that ccy). The **₽
+  tally** converts each currency by its **weighted-average acquisition rate** across that currency's inflows
+  — funding rows contribute `(amount, rate_to_home)`; exchange-in rows contribute `(to_amount, from_amount ×
+  from_ccy_home_rate / to_amount)`. A currency whose home-rate stays unresolved (no rated funding and no
+  rate-resolvable exchange source) is shown in its own currency and **flagged "курс не задан"**, never
+  silently converted. Multi-hop exchange chains resolve single-level; an unresolvable hop flags rather than
+  guesses.
 
 ### PR slices (spec-first; each its own PR, ≤5 files; WHEN/THEN before code)
 #### EX-a — `travel.trip` store in `mcp-travel` (the new layer; also unblocks #436)
-Migration `111-travel-trip.yml` (the four tables) + entities/repos + MCP tools (`createTrip`,
-`addTripMember`/`removeTripMember`, `addFunding`, `logExpense`, `getTrip`, `getTripLedger`) + `/internal/*`
-passthroughs. The roster is a plain add/remove of household users or `people` units — no special roles.
-Persistence only — no balance math yet (that's EX-b's deterministic ledger reads these rows).
+Migration `111-travel-trip.yml` (the **five** tables: trip / trip_member / trip_funding / trip_exchange /
+trip_expense) + entities/repos + MCP tools (`createTrip`, `addTripMember`/`removeTripMember`, `addFunding`,
+`logExchange`, `logExpense`, `getTrip`, `getTripLedger`) + `/internal/*` passthroughs. The roster is a plain
+add/remove of household users or `people` units — no special roles. Persistence only — no balance math yet
+(that's EX-b's deterministic ledger reading these rows). **Deliberately one PR over the ~5-file guideline**
+(owner-approved 2026-08-13): the five tables are one cohesive store and splitting the entity/repo set is
+artificial; the WHEN/THEN below are the gate.
 - **Scenario: create + read a trip** — WHEN `createTrip(household, owner, "Тайланд", home='RUB')` then
   `getTrip` — THEN the trip round-trips with `status=planning` (asserted by `McpTripIntegrationTest`, Testcontainers).
 - **Scenario: roster adds participants of either identity kind** — WHEN one participant that is a `user`
   and one that is a `people` unit are added to the trip (and one later removed) — THEN each resolves with
-  exactly one identity ref and the roster reflects add/remove, with no fixed/special roles (asserted by the IT).
-- **Scenario: funding + expense ledger rows** — WHEN two fundings (`RUB 100000 @1`, `USD 500 @90`) and one
-  `THB 2000` expense are logged — THEN `getTripLedger` returns them grouped by currency (asserted by the IT).
+  at most one identity ref + a label and the roster reflects add/remove, with no fixed/special roles (asserted by the IT).
+- **Scenario: funding + exchange + expense ledger rows** — WHEN two fundings (`RUB 100000 @1`, `USD 500 @90`),
+  one exchange (`RUB 36000 → THB 40000`), and one `THB 2000` expense are logged — THEN `getTripLedger`
+  returns them grouped by currency, the exchange counted as a RUB outflow and a THB inflow (asserted by the IT).
 - **Scenario: reject cross-household trip access** — WHEN a trip is read with a mismatched household —
   THEN 404/empty (tenant isolation, asserted by the IT).
 
 #### EX-b — wallet ledger flow + balance board in `travel-agent`
-A cue-routed create/fund/spend + a deterministic `TripLedger` (per-currency remaining + the owner-rate ₽
-tally, unset-rate currencies flagged) + an HTML **wallet board** (per-currency remaining rows + the ₽ total)
-via `DeliverablePublisher`. Cues: "создай поездку …", "завёл 500 $ по 90", "потратил 2000 бат на …",
-"сколько осталось / подведи итог".
+A cue-routed create/fund/exchange/spend + a deterministic `TripLedger` (per-currency remaining + the
+owner-rate ₽ tally, unset-rate currencies flagged) + an HTML **wallet board** (per-currency remaining rows +
+the ₽ total) via `DeliverablePublisher`. Cues: "создай поездку …", "завёл 500 $ по 90", "поменял 36000 ₽ на
+40000 бат", "потратил 2000 бат на …", "сколько осталось / подведи итог".
 - **Scenario: per-currency remaining** — WHEN funded `RUB 100000, USD 500, EUR 300, THB 40000` and spent
   `THB 39800, USD 450, EUR 285` — THEN the report shows `THB 200, USD 50, EUR 15` left (asserted by `TripLedgerTest`).
 - **Scenario: ₽ tally with owner rates** — WHEN each currency has a stated `rate_to_home` — THEN the total
   spent and total remaining are given in ₽ from those rates (asserted by `TripLedgerTest`).
+- **Scenario: on-site exchange keeps the ₽ tally honest** — WHEN `36000 ₽` is exchanged for `40000 THB`
+  then `39800 THB` is spent — THEN RUB drops by 36000, THB shows `200` left, the acquired THB inherits a
+  `0.9 ₽` home-rate (no double-count of the 36000 ₽), and the ₽ tally reflects it (asserted by `TripLedgerTest`).
 - **Scenario: currency with no rate is flagged, not converted** — WHEN a currency has no `rate_to_home` —
   THEN it appears in its own currency and the ₽ tally flags "курс не задан для <ccy>" (asserted by `TripLedgerTest`).
 - **Scenario: no "who owes whom"** — WHEN the report is produced — THEN it contains per-currency family
