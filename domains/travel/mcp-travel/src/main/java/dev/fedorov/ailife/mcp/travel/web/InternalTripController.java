@@ -75,6 +75,12 @@ public class InternalTripController {
         return dto == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(dto);
     }
 
+    @PostMapping("/{tripId}/close")
+    public ResponseEntity<TripDto> close(@PathVariable UUID tripId, @RequestParam UUID householdId) {
+        TripDto dto = tools.closeTrip(tripId, householdId);
+        return dto == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(dto);
+    }
+
     @GetMapping("/{tripId}")
     public ResponseEntity<TripDto> get(@PathVariable UUID tripId, @RequestParam UUID householdId) {
         TripDto dto = tools.getTrip(tripId, householdId);

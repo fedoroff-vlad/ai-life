@@ -332,10 +332,45 @@ tally + board + no-active-trip + render-hiccup fallback). Balance math is determ
 - **Scenario: board** — WHEN a trip is tallied — THEN an HTML wallet board carries the per-currency rows +
   the ₽ total, soft-failing to text-only on a render hiccup (asserted by `TripLedgerTest`).
 
-#### EX-c — (deferred) tie the trip's ₽ spend into the finance `brief` seam
-Once EX-a/b are in, optionally surface a closed trip's ₽ total to finance (a spend signal) and/or read the
-household budget to frame the trip budget. Lower priority; **not** in the first cut. (This is the only place
-the travel↔finance seam re-enters, now that splitting is cut.)
+#### EX-c — closing a trip surfaces its ₽ spend to finance
+**Status: SPEC LOCKED (2026-08-13; EX-c1 in flight).** Surface a *closed* trip's ₽ spend to finance as a
+**spend signal** — the travel↔finance seam, decoupled: travel never calls finance directly, it **deposits
+the signal into the shared second brain** (`MemoryClient.note`, the universal write seam SB-5), where
+finance's read-only `brief` recall ([stage4.md](stage4.md) §E-B1) naturally surfaces it when the coordinator
+asks finance about spending. (Reading the household budget to *frame* the trip budget is already covered —
+`trip-planner` reads the finance `brief`, TR-d; EX-c is the write-back half.) Split into two PRs to keep each
+a vertical slice:
+
+**EX-c1 — `closeTrip` in the `mcp-travel` store.** A `closeTrip(tripId, householdId)` tool +
+`POST /internal/trips/{tripId}/close` that sets `status='closed'` (tenant-scoped, idempotent). Until now
+"closed" was a status no tool could set (`getActiveTrip` = most recent non-`closed`); this is the missing
+transition. IT: `McpTripIntegrationTest`.
+- **Scenario: close is tenant-scoped** — WHEN `closeTrip` is called for a trip in another household — THEN
+  it is a no-op returning null / HTTP 204, and the trip stays open in its own household (asserted by the IT).
+- **Scenario: close is idempotent** — WHEN a trip is closed twice — THEN the second call returns the same
+  `closed` trip, no error (asserted by the IT).
+- **Scenario: a closed trip drops out of `getActiveTrip`** — WHEN the household's active trip is closed —
+  THEN `getActiveTrip` returns the next open trip (or null) (asserted by the IT).
+
+**EX-c2 — close-flow + finance spend-signal note in `travel-agent`.** A `close` cue ("закрой поездку",
+"заверши поездку", "поездка окончена", "close/finish/end the trip") → `WalletExtractor` emits
+`action:"close"` → `WalletFlow.close`: resolve the active trip → deterministic tally → `closeTrip` in the
+store → **deposit a finance spend-signal note** (title + per-currency spend + the ₽ total, frontmatter
+`{kind:"trip-spend", refId:tripId}`) → reply with the final wallet board. The ₽ **total spent** is a new
+`TripLedger.totalSpentInHome` — expenses only, priced at each currency's home-rate, **excluding on-site
+exchange transfers** (a swap moves money, it is not a spend). Tests: `TripLedgerTest` (spend-total math) +
+`WalletFlowTest` (close dispatch + note write + board).
+- **Scenario: closing tallies then closes** — WHEN the owner says "закрой поездку" — THEN the trip is
+  tallied, `closeTrip` is called, and the reply carries the final wallet board (asserted by `WalletFlowTest`).
+- **Scenario: a closed trip's ₽ spend is deposited for finance** — WHEN a trip with recorded spend is
+  closed — THEN a second-brain note is written carrying the ₽ total spent and a `{kind:"trip-spend"}`
+  back-pointer, so a later finance `brief` recall can surface it (asserted by `WalletFlowTest`).
+- **Scenario: spend total excludes exchange transfers** — WHEN `36000 ₽` is exchanged for `40000 THB` and
+  `39800 THB` is then spent — THEN `totalSpentInHome` is `35820 ₽` (the expense priced at the acquired
+  THB's `0.9 ₽` rate), not `71820` (the exchange out-flow is not double-counted as a spend) (asserted by
+  `TripLedgerTest`).
+- **Scenario: note write soft-fails** — WHEN memory-service is down at close — THEN the trip still closes
+  and the board still replies; only the finance signal is skipped (asserted by `WalletFlowTest`).
 
 ## Deferred (further out)
 - **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
