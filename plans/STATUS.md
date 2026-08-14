@@ -5,11 +5,10 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **RT-a in flight — route/itinerary import store ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436)).**
-  First slice of route import, building on the `travel.trip` store: a new `travel.route` layer in `mcp-travel`
-  (geometry JSONB) + a **zero-dep parser** (GeoJSON via Jackson, GPX via JDK StAX, XXE-hardened) +
-  `importRoute`/`getRoute`/`listRoutes` tools + `/internal/routes`. Spec + WHEN/THEN →
-  [travel.md](travel.md) §Route import. Remaining: RT-b KML/KMZ, RT-c agent flow, RT-d map-links (deferred).
+- **No slice in flight.** **RT-a route-import store is DONE** ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436),
+  PR448, 2026-08-14): `travel.route` store + zero-dep GeoJSON/GPX parser in `mcp-travel` — detail →
+  [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Route import. **Pick the next item from `## Next`** —
+  the natural continuation is RT-b (KML/KMZ) or RT-c (agent flow + route board).
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
@@ -49,7 +48,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **travel follow-ups on the now-built `travel.trip` store (near-term).** In priority:
-   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — **RT-a in flight** (see `## Now`); remaining slices RT-b (KML/KMZ), RT-c (agent flow + route board), RT-d (map-links, deferred) → [travel.md](travel.md) §Route import.
+   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — **RT-a store DONE** (see [HISTORY.md](HISTORY.md)); remaining RT-b (KML/KMZ, drop-in via the parser SPI), RT-c (agent flow + route board), RT-d (map-links, deferred) → [travel.md](travel.md) §Route import.
    - **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438) packing-list templates** seeded by rest type + climate + companions — can ride the existing TR-e board; simpler.
    - Spec/ideas: [travel.md](travel.md) §Deferred + §Ideas from TREK.
 2. **Pick the next future agent** — travel #190 is fully closed (MVP + live search + trip wallet). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
