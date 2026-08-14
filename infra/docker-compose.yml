@@ -1565,6 +1565,8 @@ services:
         condition: service_healthy
       mcp-web:
         condition: service_healthy
+      orchestrator:
+        condition: service_healthy
     environment:
       JAVA_TOOL_OPTIONS: *jvm-opts
       BRIEFING_AGENT_PORT: 8115
@@ -1575,6 +1577,7 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
+      ORCHESTRATOR_URL: http://orchestrator:8083
       BRIEFING_AGENT_MCP_CLIENT_ENABLED: ${BRIEFING_AGENT_MCP_CLIENT_ENABLED:-true}
       BRIEFING_AGENT_MEMORY_RECALL_K: ${BRIEFING_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:

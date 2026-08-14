@@ -7,10 +7,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Outbound HTTP destinations the briefing agent talks to. {@code mcpBriefingUrl} is its own data (the
  * briefing domain-MCP); {@code mcpWeatherUrl} is the shared weather+geocoding capability the profiler
  * (BR-c) and the digest gather (BR-d) call over its {@code /internal/*} passthroughs; {@code mcpWebUrl}
- * is the shared web capability for news; {@code mcpCaldavUrl} / {@code mcpFinanceUrl} are the calendar
- * and finance domain-MCPs the digest gathers today's agenda + a spend snapshot from over their
- * deterministic {@code /internal/*} read passthroughs (BR-d — reads only, no MCP-SSE binding). The
- * profile / notifier / memory URLs back the shared {@code agent-runtime} clients every agent imports.
+ * is the shared web capability for news; {@code mcpCaldavUrl} is the calendar domain-MCP the digest
+ * gathers today's agenda from over its deterministic {@code /internal/*} read passthrough (BR-d — reads
+ * only, no MCP-SSE binding). The finance spend snapshot is NOT read from mcp-finance directly — briefing
+ * asks finance-agent's {@code spend_snapshot} action over the {@code orchestratorUrl} hub (agents don't
+ * reach into another domain's MCP). The profile / notifier / memory URLs back the shared
+ * {@code agent-runtime} clients every agent imports.
  * {@code mediaServiceUrl} stores the rendered HTML digest board and {@code publicMediaBaseUrl} is the
  * base the returned open-link is built from (BR-e).
  */
@@ -21,7 +23,7 @@ public class BriefingAgentProperties implements SharedClientProperties {
     private String mcpWeatherUrl = "http://mcp-weather:8113";
     private String mcpWebUrl = "http://mcp-web:8098";
     private String mcpCaldavUrl = "http://mcp-caldav:8090";
-    private String mcpFinanceUrl = "http://mcp-finance:8092";
+    private String orchestratorUrl = "http://orchestrator:8083";
     private String mediaServiceUrl = "http://media-service:8088";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
@@ -46,8 +48,8 @@ public class BriefingAgentProperties implements SharedClientProperties {
     public String getMcpCaldavUrl() { return mcpCaldavUrl; }
     public void setMcpCaldavUrl(String mcpCaldavUrl) { this.mcpCaldavUrl = mcpCaldavUrl; }
 
-    public String getMcpFinanceUrl() { return mcpFinanceUrl; }
-    public void setMcpFinanceUrl(String mcpFinanceUrl) { this.mcpFinanceUrl = mcpFinanceUrl; }
+    public String getOrchestratorUrl() { return orchestratorUrl; }
+    public void setOrchestratorUrl(String orchestratorUrl) { this.orchestratorUrl = orchestratorUrl; }
 
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }

@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.agents.briefing.flow;
 
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -51,7 +53,7 @@ class BriefingComposerTest {
     static MockWebServer mcpBriefing;
     static MockWebServer mcpWeather;
     static MockWebServer mcpCaldav;
-    static MockWebServer mcpFinance;
+    static MockWebServer orchestrator;
     static MockWebServer mcpWeb;
     static MockWebServer mediaService;
     static MockWebServer llmGateway;
@@ -61,14 +63,14 @@ class BriefingComposerTest {
         mcpBriefing = new MockWebServer();
         mcpWeather = new MockWebServer();
         mcpCaldav = new MockWebServer();
-        mcpFinance = new MockWebServer();
+        orchestrator = new MockWebServer();
         mcpWeb = new MockWebServer();
         mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
         mcpBriefing.start();
         mcpWeather.start();
         mcpCaldav.start();
-        mcpFinance.start();
+        orchestrator.start();
         mcpWeb.start();
         mediaService.start();
         llmGateway.start();
@@ -79,7 +81,7 @@ class BriefingComposerTest {
         mcpBriefing.shutdown();
         mcpWeather.shutdown();
         mcpCaldav.shutdown();
-        mcpFinance.shutdown();
+        orchestrator.shutdown();
         mcpWeb.shutdown();
         mediaService.shutdown();
         llmGateway.shutdown();
@@ -90,7 +92,7 @@ class BriefingComposerTest {
         r.add("briefing-agent.mcp-briefing-url", () -> "http://localhost:" + mcpBriefing.getPort());
         r.add("briefing-agent.mcp-weather-url", () -> "http://localhost:" + mcpWeather.getPort());
         r.add("briefing-agent.mcp-caldav-url", () -> "http://localhost:" + mcpCaldav.getPort());
-        r.add("briefing-agent.mcp-finance-url", () -> "http://localhost:" + mcpFinance.getPort());
+        r.add("briefing-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
         r.add("briefing-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
         r.add("briefing-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("briefing-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
@@ -116,8 +118,10 @@ class BriefingComposerTest {
                 UUID.randomUUID(), householdId, "personal", "uid-1", "Standup", null, "Zoom",
                 Instant.parse("2026-07-02T07:00:00Z"), Instant.parse("2026-07-02T07:15:00Z"),
                 null, List.of(), null)))));
-        mcpFinance.setDispatcher(fixedJson(json.writeValueAsString(List.of(new SpendingByCategoryRow(
-                UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3)))));
+        ObjectNode spend1 = json.createObjectNode();
+        spend1.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend1))));
         mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("AI", List.of(
                 new WebSearchHit("AI breakthrough", "https://example.com/ai", "A new model shipped."))))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
@@ -162,8 +166,10 @@ class BriefingComposerTest {
                 UUID.randomUUID(), householdId, "personal", "uid-2", "Dentist", null, null,
                 Instant.parse("2026-07-02T09:00:00Z"), Instant.parse("2026-07-02T09:30:00Z"),
                 null, List.of(), null)))));
-        mcpFinance.setDispatcher(fixedJson(json.writeValueAsString(List.of(new SpendingByCategoryRow(
-                UUID.randomUUID(), "Transport", "RUB", new BigDecimal("300.00"), 2)))));
+        ObjectNode spend2 = json.createObjectNode();
+        spend2.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Transport", "RUB", new BigDecimal("300.00"), 2))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend2))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Сегодня: приём и расходы на транспорт.", "stop",
                 new LlmUsage(120, 40, 160)))));

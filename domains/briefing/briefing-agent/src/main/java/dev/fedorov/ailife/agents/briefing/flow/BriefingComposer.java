@@ -10,8 +10,9 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
-import dev.fedorov.ailife.agents.briefing.http.FinanceSnapshotClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
+import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -28,6 +29,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -74,7 +76,7 @@ public class BriefingComposer {
     private final BriefingProfileClient profiles;
     private final ForecastClient forecast;
     private final CalendarEventsClient calendar;
-    private final FinanceSnapshotClient finance;
+    private final OrchestratorInvokeClient orchestrator;
     private final WebSearchClient news;
     private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
@@ -85,7 +87,7 @@ public class BriefingComposer {
                             BriefingProfileClient profiles,
                             ForecastClient forecast,
                             CalendarEventsClient calendar,
-                            FinanceSnapshotClient finance,
+                            OrchestratorInvokeClient orchestrator,
                             WebSearchClient news,
                             DeliverablePublisher publisher,
                             SkillRegistry skills,
@@ -95,7 +97,7 @@ public class BriefingComposer {
         this.profiles = profiles;
         this.forecast = forecast;
         this.calendar = calendar;
-        this.finance = finance;
+        this.orchestrator = orchestrator;
         this.news = news;
         this.publisher = publisher;
         this.skills = skills;
@@ -140,10 +142,9 @@ public class BriefingComposer {
                     .map(json::valueToTree));
         }
         if (sections.contains("finance")) {
-            gather.put("finance", finance.spendingByCategory(msg.householdId(),
-                            today.minusDays(1).atStartOfDay(zone).toInstant(),
-                            today.atStartOfDay(zone).toInstant())
-                    .map(json::valueToTree));
+            gather.put("finance", financeSpend(msg,
+                    today.minusDays(1).atStartOfDay(zone).toInstant(),
+                    today.atStartOfDay(zone).toInstant()));
         }
         List<String> interests = interests(profile);
         if (sections.contains("news") && !interests.isEmpty()) {
@@ -223,6 +224,29 @@ public class BriefingComposer {
     }
 
     /** One search per interest, folded into an array of {@code {topic, hits:[{title, url, snippet}]}}. */
+    /**
+     * The digest's finance section: yesterday's spend-by-category, gathered from <b>finance-agent</b>
+     * through the orchestrator hub (its {@code spend_snapshot} action), NOT by reading mcp-finance
+     * directly — a specialist owns its domain's store. Returns the raw {@code spending} rows (the same
+     * JSON shape the composer prompt already expects), so only the transport changed. Soft-fails to an
+     * empty array so a finance hiccup drops only this section.
+     */
+    private Mono<JsonNode> financeSpend(NormalizedMessage msg, Instant from, Instant to) {
+        ObjectNode args = json.createObjectNode();
+        args.put("from", from.toString());
+        args.put("to", to.toString());
+        AgentActionRequest req = new AgentActionRequest(
+                "finance", "spend_snapshot", msg.householdId(), msg.userId(), "briefing", args);
+        return orchestrator.invoke(req)
+                .map(res -> res.ok() && res.result() != null && res.result().has("spending")
+                        ? res.result().get("spending")
+                        : (JsonNode) json.createArrayNode())
+                .onErrorResume(e -> {
+                    log.warn("finance spend_snapshot failed: {}", e.toString());
+                    return Mono.just(json.createArrayNode());
+                });
+    }
+
     private Mono<JsonNode> gatherNews(List<String> interests) {
         return Flux.fromIterable(interests)
                 .flatMap(topic -> news.search(topic, NEWS_PER_TOPIC, Duration.ofSeconds(8))

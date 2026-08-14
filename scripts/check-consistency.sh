@@ -111,12 +111,12 @@ fi
 # *define* /internal controllers live in mcp-*/ and shared/mcp/, not *-agent; the shared clients
 # live in libs/, not scanned) so a hit is unambiguously an agent-side copy.
 # ALLOWLIST: a deliberate cross-domain DOMAIN read (not a capability) that legitimately hits another
-# domain's /internal endpoint — prefer the `brief` inter-agent primitive, but until then list it here
-# with a why so the guard stays green and still catches real capability copies.
+# domain's /internal endpoint — prefer an inter-agent action over the hub, but until then list it here
+# with a why so the guard stays green and still catches real capability copies. Empty today: briefing's
+# old direct finance read (`/internal/spending-by-category`) was moved onto finance-agent's
+# `spend_snapshot` hub action, so no cross-domain /internal read remains.
 echo "check 5: capability /internal/* passthrough clients are shared, not per-agent copies"
-# /internal/spending-by-category: briefing reads finance's spend snapshot cross-domain (a domain read,
-# not a capability). Candidate to move onto the `brief` primitive; allowed until then.
-ALLOWLIST_URIS="/internal/spending-by-category"
+ALLOWLIST_URIS=""
 dupes="$(
   for d in domains/*/*-agent; do
     [ -d "$d/src/main" ] || continue

@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
+import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -23,6 +24,7 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -187,6 +189,55 @@ class ActionControllerTest {
                     assertThat(res.ok()).isTrue();
                     assertThat(res.result().get("hasGiftBudget").asBoolean()).isFalse();
                     assertThat(res.result().has("amount")).isFalse();
+                });
+    }
+
+    @Test
+    void spendSnapshotReturnsRowsForWindow() throws Exception {
+        UUID household = UUID.randomUUID();
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(List.of(
+                        new SpendingByCategoryRow(UUID.randomUUID(), "Groceries", "RUB",
+                                new BigDecimal("1234.50"), 3)))));
+
+        Instant from = Instant.parse("2026-08-13T00:00:00Z");
+        Instant to = Instant.parse("2026-08-14T00:00:00Z");
+        ObjectNode args = json.createObjectNode();
+        args.put("from", from.toString());
+        args.put("to", to.toString());
+        var req = new AgentActionRequest("finance", "spend_snapshot", household, null, "briefing", args);
+
+        http.post().uri("/agents/finance/actions/spend_snapshot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("spending")).hasSize(1);
+                    assertThat(res.result().get("spending").get(0).get("categoryName").asString())
+                            .isEqualTo("Groceries");
+                    assertThat(res.result().get("from").asString()).isEqualTo(from.toString());
+                });
+
+        RecordedRequest sent = mcpFinance.takeRequest();
+        assertThat(sent.getPath()).startsWith("/internal/spending-by-category?householdId=" + household);
+    }
+
+    @Test
+    void spendSnapshotMissingWindowIsError() {
+        var req = new AgentActionRequest("finance", "spend_snapshot", UUID.randomUUID(), null, "briefing", null);
+        http.post().uri("/agents/finance/actions/spend_snapshot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isFalse();
+                    assertThat(res.error()).contains("from");
                 });
     }
 

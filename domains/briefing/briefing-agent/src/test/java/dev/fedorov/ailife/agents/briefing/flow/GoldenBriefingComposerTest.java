@@ -1,14 +1,16 @@
 package dev.fedorov.ailife.agents.briefing.flow;
 
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
-import dev.fedorov.ailife.agents.briefing.http.FinanceSnapshotClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
+import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
@@ -64,7 +66,7 @@ class GoldenBriefingComposerTest {
     private final BriefingProfileClient profiles = mock(BriefingProfileClient.class);
     private final ForecastClient forecast = mock(ForecastClient.class);
     private final CalendarEventsClient calendar = mock(CalendarEventsClient.class);
-    private final FinanceSnapshotClient finance = mock(FinanceSnapshotClient.class);
+    private final OrchestratorInvokeClient orchestrator = mock(OrchestratorInvokeClient.class);
     private final WebSearchClient news = mock(WebSearchClient.class);
     private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
     private final AgentManifest manifest = new AgentManifest(
@@ -76,7 +78,7 @@ class GoldenBriefingComposerTest {
             GoldenLlm.skill(GoldenBriefingComposerTest.class.getClassLoader(),
                     "skills/briefing/briefing-composer/SKILL.md")));
     private final BriefingComposer composer =
-            new BriefingComposer(coordinator, profiles, forecast, calendar, finance, news, publisher, skills, manifest, json);
+            new BriefingComposer(coordinator, profiles, forecast, calendar, orchestrator, news, publisher, skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete four-section corpus, must
@@ -99,8 +101,10 @@ class GoldenBriefingComposerTest {
                 UUID.randomUUID(), household, "personal", "uid-1", "Standup", null, "Zoom",
                 Instant.parse("2026-07-02T07:00:00Z"), Instant.parse("2026-07-02T07:15:00Z"),
                 null, List.of(), null))));
-        when(finance.spendingByCategory(any(), any(), any())).thenReturn(Mono.just(List.of(
+        ObjectNode spend = json.createObjectNode();
+        spend.set("spending", json.valueToTree(List.of(
                 new SpendingByCategoryRow(UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
+        when(orchestrator.invoke(any())).thenReturn(Mono.just(AgentActionResult.ok(spend)));
         when(news.search(anyString(), anyInt(), any())).thenReturn(Mono.just(new WebSearchResult("AI", List.of(
                 new WebSearchHit("Новый ИИ-прорыв", NEWS_URL, "Исследователи представили новую модель.")))));
         // The board store is out of scope here — fail it so the reply is the pure model synthesis, whose
