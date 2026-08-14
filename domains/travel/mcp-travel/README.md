@@ -1,12 +1,12 @@
 # mcp-travel
 
-Travel domain-MCP (port **8123**). Source-of-truth CRUD over the `travel.*` schema. Two stores: the
-**per-person travel preferences** (`travel_profile`) that personalize the on-demand trip planner, and the
-**multi-currency family trip wallet** (`trip` + ledger tables, #437). The gather → synthesize
-trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp-briefing`. Plan:
-[plans/travel.md](../../../plans/travel.md).
+Travel domain-MCP (port **8123**). Source-of-truth CRUD over the `travel.*` schema. Three stores: the
+**per-person travel preferences** (`travel_profile`) that personalize the on-demand trip planner, the
+**multi-currency family trip wallet** (`trip` + ledger tables, #437), and the **route/itinerary import**
+(`route`, #436). The gather → synthesize trip-planning flow lives in `travel-agent`; this MCP just
+persists. Mirrors `mcp-briefing`. Plan: [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-b + EX-a)
+## Status (TR-b + EX-a + RT-a)
 
 - **TR-b** — the personalization store: `travel_profile` keyed `(household_id, owner_id)` (null owner =
   household-default) + `set`/`get` tools + `/internal/travel-profile`. Vocabulary enforcement for
@@ -16,6 +16,11 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
   Persistence only — the per-currency balance and the ₽ tally are deterministic Java in `travel-agent`
   (EX-b), not here. On-site currency purchase is a first-class **exchange** (source outflow + acquired
   inflow) so the ₽ tally never double-counts; **no `paid_by`** on expenses (settlement is cut).
+- **RT-a** — the **route/itinerary import store**: a `route` table (geometry as jsonb) +
+  `importRoute`/`getRoute`/`listRoutes` tools + `/internal/routes`. Parses owner-supplied **GPX**/**GeoJSON**
+  into a normalized geometry (track polyline + named waypoints) — **zero-dependency** (GeoJSON via Jackson,
+  GPX via JDK StAX, XXE-hardened). A new format = one new `RouteParser` bean (KML/KMZ = RT-b). Point count +
+  haversine track distance are derived at import. Parses owner-supplied bytes only — it never fetches.
 
 ## MCP tools
 
@@ -33,6 +38,9 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | `getActiveTrip` | `householdId` | `TripDto` \| null | the household's most recent non-`closed` trip (the wallet flow's "current trip"); null if none open. |
 | `closeTrip` | `tripId`, `householdId` | `TripDto` \| null | set `status='closed'` (tenant-scoped, idempotent) so it drops out of `getActiveTrip`; null if absent/out-of-tenant. The travel-agent's close-flow (EX-c) uses it before surfacing the trip's ₽ spend to finance. |
 | `getTripLedger` | `tripId`, `householdId` | `TripLedgerDto` \| null | full wallet: header + roster + funding/exchange/expense rows (raw; no balance math). |
+| `importRoute` | `ImportRouteInput` | `RouteDto` | parse a GPX/GeoJSON file into a normalized geometry and store it (optionally attached to a `tripId` in the same household). `householdId`/`format`/`content` required; empty (no points) rejected; unsupported format rejected. Derives point count + haversine distance. |
+| `getRoute` | `routeId`, `householdId` | `RouteDto` \| null | tenant-scoped route read; null if absent/out-of-tenant. |
+| `listRoutes` | `householdId`, `tripId?` | `RouteDto[]` | household's routes newest-first; filtered to `tripId` when given. |
 
 ## HTTP passthrough
 
@@ -50,6 +58,9 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | POST | `/internal/trips/{tripId}/close` | `householdId` | `TripDto` (204 if absent/out-of-tenant) | close a trip (idempotent); it drops out of `/active`. |
 | GET | `/internal/trips/{tripId}` | `householdId` | `TripDto` (204 if absent/out-of-tenant) | read the trip header. |
 | GET | `/internal/trips/{tripId}/ledger` | `householdId` | `TripLedgerDto` (204 if absent/out-of-tenant) | read the full wallet. |
+| POST | `/internal/routes` | `ImportRouteInput` | `RouteDto` (400 on bad input/format/empty) | import a route file. |
+| GET | `/internal/routes/{routeId}` | `householdId` | `RouteDto` (204 if absent/out-of-tenant) | read an imported route. |
+| GET | `/internal/routes` | `householdId`, `tripId?` | `RouteDto[]` | list a household's routes (filtered to `tripId` when given). |
 
 ## Env
 
@@ -60,9 +71,10 @@ trip-planning flow lives in `travel-agent`; this MCP just persists. Mirrors `mcp
 | `MCP_TRAVEL_DB_USER` / `MCP_TRAVEL_DB_PASSWORD` | `ailife` / `ailife` | DB credentials. |
 
 Schema owned: `travel` (`travel_profile`; `trip` + `trip_member`/`trip_funding`/`trip_exchange`/
-`trip_expense`). Migrations:
+`trip_expense`; `route`). Migrations:
 [`110-travel.yml`](../../../infra/liquibase/features/110-travel.yml) (profile),
-[`111-travel-trip.yml`](../../../infra/liquibase/features/111-travel-trip.yml) (trip wallet). `travel`
+[`111-travel-trip.yml`](../../../infra/liquibase/features/111-travel-trip.yml) (trip wallet),
+[`112-travel-route.yml`](../../../infra/liquibase/features/112-travel-route.yml) (route import). `travel`
 schema created in [`infra/postgres/init.sql`](../../../infra/postgres/init.sql).
 
 ## Key classes
@@ -75,6 +87,13 @@ schema created in [`infra/postgres/init.sql`](../../../infra/postgres/init.sql).
 - `tools/TravelMcpTools` — profile `set`/`get` `@Tool`s; `(household, owner)` upsert keying.
 - `tools/TripMcpTools` — trip-wallet `@Tool`s (create/roster/funding/exchange/expense/read/close); currency
   normalization + at-most-one-identity + non-negative-amount guards. Persistence only, no balance math.
-- `tools/ToolsConfig` — `MethodToolCallbackProvider` beans exposing both tool objects.
+- `tools/RouteMcpTools` — route-import `@Tool`s (`importRoute`/`getRoute`/`listRoutes`); parses via
+  `RouteImporter`, rejects empty/unsupported, tenant-checks a supplied `tripId`, stores geometry as jsonb.
+- `tools/ToolsConfig` — `MethodToolCallbackProvider` bean exposing all three tool objects.
+- `domain/Route` (+ `Repository`) — the `route` entity (geometry jsonb); household-scoped reads + trip filter.
+- `parse/` — the format-independent parser SPI: `RouteParser` (iface) + `GpxRouteParser` (JDK StAX,
+  XXE-hardened) + `GeoJsonRouteParser` (Jackson) + `RouteImporter` (format dispatch + haversine distance);
+  `RouteGeometry`/`RoutePoint`/`ParsedRoute` are the normalized value types.
 - `web/InternalTravelProfileController` — `POST`/`GET /internal/travel-profile` (204 on unseen owner).
 - `web/InternalTripController` — `/internal/trips/*` passthroughs (400 on bad input, 204 on out-of-tenant read).
+- `web/InternalRouteController` — `/internal/routes*` passthroughs (400 on bad input/format, 204 on out-of-tenant read).
