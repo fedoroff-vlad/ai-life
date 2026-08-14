@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.web;
 
 import dev.fedorov.ailife.agents.travel.chat.TravelChat;
+import dev.fedorov.ailife.agents.travel.flow.PackingFlow;
 import dev.fedorov.ailife.agents.travel.flow.RouteFlow;
 import dev.fedorov.ailife.agents.travel.flow.TripComposer;
 import dev.fedorov.ailife.agents.travel.flow.WalletFlow;
@@ -30,6 +31,9 @@ import java.util.regex.Pattern;
  *       "потратил 2000 бат на …", "сколько осталось / подведи итог", "закрой поездку") →
  *       {@link WalletFlow#handle} (the multi-currency family trip budget, EX-b; close + finance
  *       spend-signal, EX-c);</li>
+ *   <li>a packing cue ("что взять с собой", "собери список вещей", "packing list") →
+ *       {@link PackingFlow#handle} (a deterministic list seeded by the active trip's season + the profile's
+ *       rest types/companions, PK-a);</li>
  *   <li>a plan-a-trip cue ("хочу на море в сентябре", "куда поехать", "найди билеты в …", "подбери отель",
  *       "plan me a trip", "find flights") → {@link TripComposer#plan} (resolve profile → gather
  *       budget/dates/season/research + live flight/hotel options when asked → one synthesis, TR-d/TR-f2);</li>
@@ -67,6 +71,14 @@ public class IntentController {
             "funded", "exchanged", "spent", "how much is left", "how much left", "tally the trip",
             "close the trip", "finish the trip", "end the trip", "trip is over");
 
+    // Packing-list cues (PK-a, #438): a deterministic categorized list seeded by the active trip's season +
+    // the profile's rest types/companions. Checked BEFORE plan cues so "что взять в отпуск" builds a list
+    // instead of being read as a planning wish. Distinct enough from wallet/plan cues to need no LLM.
+    private static final Set<String> PACKING_CUES = Set.of(
+            "что взять", "что брать", "что упаковать", "собери список вещ", "собрать список вещ",
+            "список вещей", "список в дорогу", "собрать чемодан", "собрать сумку", "собрать рюкзак",
+            "packing list", "what to pack", "what should i pack", "help me pack", "pack for");
+
     // The orchestrator only routes a message here once it is already travel-intent, so these cues can be
     // broad ("хочу в …" won't be a cinema request by the time it reaches the travel agent).
     private static final Set<String> PLAN_CUES = Set.of(
@@ -85,14 +97,16 @@ public class IntentController {
 
     private final TravelProfiler profiler;
     private final WalletFlow wallet;
+    private final PackingFlow packing;
     private final TripComposer composer;
     private final RouteFlow route;
     private final TravelChat chat;
 
-    public IntentController(TravelProfiler profiler, WalletFlow wallet, TripComposer composer,
-                            RouteFlow route, TravelChat chat) {
+    public IntentController(TravelProfiler profiler, WalletFlow wallet, PackingFlow packing,
+                            TripComposer composer, RouteFlow route, TravelChat chat) {
         this.profiler = profiler;
         this.wallet = wallet;
+        this.packing = packing;
         this.composer = composer;
         this.route = route;
         this.chat = chat;
@@ -112,6 +126,9 @@ public class IntentController {
         }
         if (isMatch(message.text(), WALLET_CUES)) {
             return wallet.handle(message);
+        }
+        if (isMatch(message.text(), PACKING_CUES)) {
+            return packing.handle(message);
         }
         if (isMatch(message.text(), PLAN_CUES)) {
             return composer.plan(message);

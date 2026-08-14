@@ -9,9 +9,9 @@ orchestrator as `travel`. **Never books or pays** — proposes options and provi
 ([ADR-0003](../../../plans/adr/ADR-0003-travel-data-source.md)). Plan:
 [plans/travel.md](../../../plans/travel.md).
 
-## Status (TR-f2 planner + EX-b/EX-c trip wallet + RT-c route import)
+## Status (TR-f2 planner + EX-b/EX-c trip wallet + RT-c route import + PK-a packing list)
 
-Five flows behind the intent split (**route file** → preferences → wallet → plan → chat). A `file`
+Six flows behind the intent split (**route file** → preferences → wallet → packing → plan → chat). A `file`
 attachment is checked first (an unambiguous import), then the text cues:
 
 - **route-import** (RT-c/RT-d2) `file|link → store → board` flow: a `file` attachment (a route/itinerary
@@ -33,6 +33,18 @@ attachment is checked first (an unambiguous import), then the text cues:
   (soft-fail) → upsert via `mcp-travel /internal/travel-profile`. Vocabulary enforcement lives here (the
   write path): `restTypes` is filtered to `beach|active|family|couple|city|ski|wellness` and `companions`
   to `solo|couple|family` before the upsert, so an out-of-vocabulary value never reaches the store.
+- **packing-list** (PK-a, [#438](https://github.com/fedoroff-vlad/ai-life/issues/438)) `gather → compose`
+  flow: a packing cue ("что взять с собой", "собери список вещей", "packing list") → resolve the
+  household's **active trip** (optional) + the `travel_profile` (self → household-default → empty) → derive
+  the trip's **season band** from its destination+month via the existing geocode→climate chain →
+  `PackingListComposer` builds a **categorized list** (documents/electronics/hygiene + climate-band
+  clothing/footwear + rest-type activity gear + children items, globally deduped) → reply + an HTML
+  **packing board** via the shared `DeliverablePublisher`. The list is **deterministic Java, never the LLM**
+  (a correctness boundary like the wallet's `TripLedger`; also why PK-a needs no golden). Every source
+  soft-fails: no active trip → a profile-only generic list + a nudge to create one; no destination/date or a
+  climate hiccup → the climate-driven items drop and the list notes the weather is unconfirmed; a render
+  hiccup → text-only. Reuses the wallet/planner clients (`TripWalletClient`, `TravelProfileClient`,
+  `GeocodeClient`, `ClimateClient`) — no new store, client, or contract.
 - **trip-planner** (TR-d) `gather → synthesize` flow: a plan-a-trip cue → resolve the profile (self →
   household-default → empty) → one **FAST** scope extract (named destination + month) → geocode the
   destination → **gather in parallel** on the shared `Coordinator`: the household **budget** and **free
@@ -86,7 +98,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 
 | method | path | body | purpose |
 |--------|------|------|---------|
-| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow.handle` (route import); else preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; plan-a-trip cue → `trip-composer`; else a **map link** in the text → `RouteFlow.handleLink` (RT-d2); else → chat fallback. |
+| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow.handle` (route import); else preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; packing cue → `PackingFlow` (PK-a); plan-a-trip cue → `trip-composer`; else a **map link** in the text → `RouteFlow.handleLink` (RT-d2); else → chat fallback. |
 | GET | `/agents/travel/manifest` | — | the `AgentManifest` (AGENT.md frontmatter) the orchestrator scrapes for routing. |
 
 ## Env
@@ -128,6 +140,13 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   flags. Pure Java, never the LLM (a correctness/privacy boundary).
 - `http/TripWalletClient` — the `mcp-travel /internal/trips/*` store calls (create / active / funding /
   exchange / expense / ledger / close).
+- `flow/PackingFlow` (PK-a) — the packing-list flow: resolve active trip (optional) + profile → derive the
+  season band from the trip's destination+month (geocode→climate, soft-fail) → `PackingListComposer` →
+  reply + HTML packing board via `DeliverablePublisher`. Reuses `TripWalletClient`/`TravelProfileClient`/
+  `GeocodeClient`/`ClimateClient`; no new client.
+- `flow/PackingListComposer` (PK-a) — the **deterministic** seed-and-combine list engine (essentials +
+  `ClimateBand` clothing/footwear + rest-type activity gear + children items, globally deduped in category
+  order). Pure Java, never the LLM; nested `PackingContext`/`PackingList`/`Category`/`ClimateBand`.
 - `flow/RouteFlow` (RT-c/RT-d2) — the route-import flow: `handle` (a file: fetch bytes → `sniffFormat`) /
   `handleLink` (a map URL → `maplink`) → resolve the active trip → `importRoute` → route board (point count
   + distance + OpenStreetMap map link) via `DeliverablePublisher`. `http/RouteImportClient`

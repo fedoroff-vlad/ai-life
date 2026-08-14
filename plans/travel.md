@@ -462,6 +462,53 @@ travel-agent detects a map URL in the message text (no file) → `importRoute(fo
 attached to the active trip → the same route board. Short-link/JS cases degrade with a clear message
 pointing at sending a GPX/KML file instead (until `mcp-browser` lands).
 
+## Packing-list templates ([#438](https://github.com/fedoroff-vlad/ai-life/issues/438)) — a list seeded by rest type + climate + companions
+Build on the `travel.trip` store (EX-a) + `travel_profile` (TR-b): when the owner asks "что взять с собой",
+produce a **categorized packing list** tailored to the active trip's **season** (the destination's climate
+for the trip month) and the person's **rest types + companions**, delivered as a short reply + an HTML board
+(the TR-e board seam). **Idea-only origin:** TREK (§Ideas).
+
+### Doctrine (reuse, flag nothing new)
+- **Deterministic, no LLM** — the list is a **seed-and-combine** of static per-input item sets
+  (rest_type × climate-band × companions + always-on essentials), a correctness boundary like `TripLedger`
+  and `libs/sharing` (owner pref: simplicity; also no golden and no new external dep needed). The composer
+  is pure Java, fully unit-testable.
+- **Context is gathered, not asked** — anchors on the household's **active trip** (`getActiveTrip`, EX-a):
+  its `destination` + `start_date` give the season via the existing geocode→climate chain (TripComposer's
+  pattern); the `travel_profile` (self → household-default → empty, TR-d's resolve) gives rest_types +
+  companions + child_ages. Every source **soft-fails**: no active trip → a profile-only generic list + a
+  nudge to create one; no destination/date or a climate hiccup → the climate-driven items are dropped and
+  the list notes the weather is unconfirmed.
+- **Board** = the same `DeliverablePublisher` seam as the wallet/plan boards; a render hiccup → text-only.
+- **No new store, no new client, no new contract** — reuses `TripWalletClient.getActiveTrip`,
+  `TravelProfileClient`, `GeocodeClient`, `ClimateClient`, `DeliverablePublisher`.
+
+### PK-a — packing-list flow in `travel-agent` (the closer for #438)
+A packing cue ("что взять с собой", "собери список вещей", "что упаковать", "packing list", "what to pack")
+→ resolve active trip (optional) + profile → derive the season band from the trip's destination+month →
+`PackingListComposer` builds the categorized list → reply + HTML board via `DeliverablePublisher`. New cue
+set in `IntentController` (checked before the plan cues); `AGENT.md` gains a packing intent so the
+orchestrator routes the ask to `travel`.
+- **Scenario: beach + hot + family list** — WHEN the owner asks "что взять с собой" with an active trip to a
+  hot-month coastal destination and a `rest_types=[beach], companions=family, childAges=[4]` profile — THEN
+  the list has a documents category (always), beach items (купальник, солнцезащитный крем), hot-weather
+  clothing, and a children category, deduped (asserted by `PackingListComposerTest`).
+- **Scenario: cold/ski destination flips the clothing band** — WHEN the trip month is sub-zero and
+  `rest_types=[ski]` — THEN the list carries warm/thermal clothing + ski items and no beachwear (asserted by
+  `PackingListComposerTest`).
+- **Scenario: no climate → weather-neutral list, flagged** — WHEN the destination/month or climate is
+  unavailable — THEN the list still returns from rest_types + companions + essentials and notes the weather
+  is unconfirmed (asserted by `PackingListComposerTest` + `PackingFlowTest`).
+- **Scenario: no active trip → profile-only list + nudge** — WHEN there is no active trip — THEN a generic
+  list is produced from the profile and the reply nudges the owner to create a trip for season-tailoring
+  (asserted by `PackingFlowTest`).
+- **Scenario: essentials always present** — WHEN any list is produced — THEN the document/money essentials
+  (паспорт, билеты, карты, телефон+зарядка) are always included regardless of inputs (asserted by
+  `PackingListComposerTest`).
+- **Scenario: end-to-end board** — WHEN a packing list is produced for an active trip — THEN the reply
+  carries an HTML board link and the board embeds the categorized sections, soft-failing to text-only on a
+  render hiccup (asserted by `PackingFlowTest`).
+
 ## Deferred (further out)
 - **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
   (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).
