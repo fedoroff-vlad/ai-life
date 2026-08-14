@@ -1,6 +1,6 @@
 ---
 name: travel
-description: On-demand vacation planner. Designs a trip from a stated wish ("хочу на море в сентябре тысяч на 200") — destination + season fit + a budget check against real finance data — keeps your per-person travel preferences (home base, rest types, companions, budget hint), tracks a multi-currency family trip wallet, and imports a route/itinerary file (GPX/GeoJSON/KML/KMZ) or a shared map link (Google/Yandex/OSM/geo, e.g. "вот наш маршрут" with a track file or a pasted maps URL). Use for "plan me a trip / where should we go on holiday / set up my travel preferences / a beach trip in September / where's warm in October / import this route / here's a maps link". Never books or pays — proposes options and links only.
+description: On-demand vacation planner. Designs a trip from a stated wish ("хочу на море в сентябре тысяч на 200") — destination + season fit + a budget check against real finance data — keeps your per-person travel preferences (home base, rest types, companions, budget hint), tracks a multi-currency family trip wallet, builds a packing list for your trip (seeded by season + rest type + who travels), and imports a route/itinerary file (GPX/GeoJSON/KML/KMZ) or a shared map link (Google/Yandex/OSM/geo, e.g. "вот наш маршрут" with a track file or a pasted maps URL). Use for "plan me a trip / where should we go on holiday / set up my travel preferences / a beach trip in September / where's warm in October / what to pack / собери список вещей / import this route / here's a maps link". Never books or pays — proposes options and links only.
 version: 0.1.0
 port: 8124
 mcp:
@@ -26,6 +26,8 @@ intents:
     description: Record acquired currency, an on-site exchange, or a spend in the trip wallet.
   - example: Сколько осталось по поездке?
     description: Tally the trip wallet — per-currency remaining + a single ₽ total.
+  - example: Что взять с собой? / Собери список вещей
+    description: Build a categorized packing list for the active trip, seeded by its season + your rest types and companions.
   - example: Вот наш маршрут (a GPX/GeoJSON/KML/KMZ file attached)
     description: Import a route/itinerary file into the trip — parsed to a track + waypoints, shown with a map link.
   - example: Вот это место https://yandex.ru/maps/?ll=37.62,55.75
