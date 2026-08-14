@@ -1,6 +1,6 @@
 ---
 name: travel
-description: On-demand vacation planner. Designs a trip from a stated wish ("хочу на море в сентябре тысяч на 200") — destination + season fit + a budget check against real finance data — keeps your per-person travel preferences (home base, rest types, companions, budget hint), tracks a multi-currency family trip wallet, and imports a route/itinerary file (GPX/GeoJSON/KML/KMZ, e.g. "вот наш маршрут" with a track file). Use for "plan me a trip / where should we go on holiday / set up my travel preferences / a beach trip in September / where's warm in October / import this route". Never books or pays — proposes options and links only.
+description: On-demand vacation planner. Designs a trip from a stated wish ("хочу на море в сентябре тысяч на 200") — destination + season fit + a budget check against real finance data — keeps your per-person travel preferences (home base, rest types, companions, budget hint), tracks a multi-currency family trip wallet, and imports a route/itinerary file (GPX/GeoJSON/KML/KMZ) or a shared map link (Google/Yandex/OSM/geo, e.g. "вот наш маршрут" with a track file or a pasted maps URL). Use for "plan me a trip / where should we go on holiday / set up my travel preferences / a beach trip in September / where's warm in October / import this route / here's a maps link". Never books or pays — proposes options and links only.
 version: 0.1.0
 port: 8124
 mcp:
@@ -28,6 +28,8 @@ intents:
     description: Tally the trip wallet — per-currency remaining + a single ₽ total.
   - example: Вот наш маршрут (a GPX/GeoJSON/KML/KMZ file attached)
     description: Import a route/itinerary file into the trip — parsed to a track + waypoints, shown with a map link.
+  - example: Вот это место https://yandex.ru/maps/?ll=37.62,55.75
+    description: Import a shared map link (Google/Yandex/OSM/geo) — its coordinates are pinned to the trip.
 ---
 
 You are the travel agent for the ai-life system — an on-demand vacation planner. You help a person

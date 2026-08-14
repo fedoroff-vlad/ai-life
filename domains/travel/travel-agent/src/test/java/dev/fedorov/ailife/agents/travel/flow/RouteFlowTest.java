@@ -139,6 +139,27 @@ class RouteFlowTest {
     }
 
     @Test
+    void importsMapLinkToActiveTrip() {
+        mcpTravel.setDispatcher(travelStore(true));
+
+        IntentResponse resp = postText("вот это место: https://yandex.ru/maps/?ll=37.62,55.75&z=13");
+        assertThat(resp.text()).contains("Импортировал маршрут")
+                .contains("Добавил к поездке «Тайланд»")
+                .contains("На карте: https://www.openstreetmap.org");
+        assertThat(travelPaths).anyMatch(p -> p.equals("/internal/routes"));
+        assertThat(routeReqBody.get()).contains("\"format\":\"maplink\"")
+                .contains("yandex.ru/maps").contains(TRIP_ID.toString());
+    }
+
+    @Test
+    void shortMapLinkGivesFriendlyMessage() {
+        mcpTravel.setDispatcher(travelStore(true)); // returns 400 for a goo.gl body (no coordinates)
+
+        IntentResponse resp = postText("смотри https://maps.app.goo.gl/abc123");
+        assertThat(resp.text()).contains("Не смог разобрать ссылку").contains("файл маршрута");
+    }
+
+    @Test
     void boardHiccupFallsBackToTextOnly() {
         mcpTravel.setDispatcher(travelStore(true));
         mediaService.setDispatcher(media(true)); // board upload 500 → text-only
@@ -165,6 +186,11 @@ class RouteFlowTest {
                     }
                     if ("POST".equals(method) && path != null && path.equals("/internal/routes")) {
                         routeReqBody.set(body);
+                        // A short link carries no coordinates → the store returns 400 (parser found no points).
+                        if (body.contains("goo.gl")) {
+                            return new MockResponse().setResponseCode(400)
+                                    .setBody("{\"error\":\"Route has no points (no track and no waypoints)\"}");
+                        }
                         UUID tripId = body.contains(TRIP_ID.toString()) ? TRIP_ID : null;
                         return jsonResponse(json.writeValueAsString(route(tripId)));
                     }
@@ -226,6 +252,16 @@ class RouteFlowTest {
                 MessageScope.PRIVATE, "вот наш маршрут",
                 List.of(new Attachment("file", "application/gpx+xml", MEDIA_ID, "route.gpx")),
                 "telegram", "1", Instant.now());
+        return post(msg);
+    }
+
+    private IntentResponse postText(String text) {
+        NormalizedMessage msg = new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(),
+                MessageScope.PRIVATE, text, List.of(), "telegram", "1", Instant.now());
+        return post(msg);
+    }
+
+    private IntentResponse post(NormalizedMessage msg) {
         return http.post().uri("/agents/travel/intent")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()

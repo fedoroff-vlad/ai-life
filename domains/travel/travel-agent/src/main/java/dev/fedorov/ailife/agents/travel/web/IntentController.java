@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Hit by the orchestrator when intent routing selects {@code travel}:
@@ -114,7 +116,41 @@ public class IntentController {
         if (isMatch(message.text(), PLAN_CUES)) {
             return composer.plan(message);
         }
+        // A map link with no strong plan/wallet cue is a route import (RT-d2) — checked after the cues so an
+        // explicit "хочу на море <link>" still plans; a bare/casual link pins the place onto the trip.
+        Optional<String> mapUrl = mapLink(message.text());
+        if (mapUrl.isPresent()) {
+            return route.handleLink(message, mapUrl.get());
+        }
         return chat.reply(message);
+    }
+
+    private static final Pattern URL = Pattern.compile("(?i)((?:https?://|geo:)\\S+)");
+    private static final Set<String> MAP_HOSTS = Set.of(
+            "google.", "goo.gl", "yandex.", "openstreetmap.", "osm.org");
+
+    /** The first map-provider URL (or {@code geo:} URI) in the text, trailing punctuation trimmed. */
+    static Optional<String> mapLink(String text) {
+        if (text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        Matcher m = URL.matcher(text);
+        while (m.find()) {
+            String url = m.group(1);
+            String lower = url.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("geo:") || MAP_HOSTS.stream().anyMatch(lower::contains)) {
+                return Optional.of(stripTrailingPunctuation(url));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String stripTrailingPunctuation(String url) {
+        int end = url.length();
+        while (end > 0 && ").,;!?»".indexOf(url.charAt(end - 1)) >= 0) {
+            end--;
+        }
+        return url.substring(0, end);
     }
 
     private static Optional<Attachment> routeFileAttachment(NormalizedMessage message) {

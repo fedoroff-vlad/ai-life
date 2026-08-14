@@ -41,6 +41,14 @@ public class RouteFlow {
     private static final Logger log = LoggerFactory.getLogger(RouteFlow.class);
     private static final BigDecimal METRES_PER_KM = new BigDecimal(1000);
 
+    private static final String UNKNOWN_FILE =
+            "Не смог распознать формат маршрута. Поддерживаю GPX, GeoJSON, KML и KMZ.";
+    private static final String FILE_REJECT =
+            "Файл получен, но маршрут не распознан — похоже, он пустой или не в том формате.";
+    private static final String LINK_REJECT =
+            "Не смог разобрать ссылку на карту. Если это короткая ссылка (goo.gl или yandex.ru/-/…), "
+            + "пришлите файл маршрута (GPX/KML) — его прочитаю точно.";
+
     private final MediaFetchClient media;
     private final RouteImportClient routes;
     private final TripWalletClient wallet;
@@ -56,6 +64,7 @@ public class RouteFlow {
         this.manifest = manifest;
     }
 
+    /** File-attachment import (RT-c): fetch the bytes → sniff the format → import to the active trip. */
     public Mono<IntentResponse> handle(NormalizedMessage msg, Attachment attachment) {
         return media.fetch(attachment.storageUri())
                 .flatMap(bytes -> importFromBytes(msg, bytes))
@@ -65,28 +74,43 @@ public class RouteFlow {
                 });
     }
 
+    /** Map-link import (RT-d2): a map URL in the message text → import its coordinates to the active trip. */
+    public Mono<IntentResponse> handleLink(NormalizedMessage msg, String url) {
+        return attachToActiveTrip(msg, "maplink", url, LINK_REJECT)
+                .onErrorResume(e -> {
+                    log.warn("route link import failed: {}", e.toString());
+                    return Mono.just(reply(LINK_REJECT));
+                });
+    }
+
     private Mono<IntentResponse> importFromBytes(NormalizedMessage msg, byte[] bytes) {
         String format = sniffFormat(bytes);
         if (format == null) {
-            return Mono.just(reply("Не смог распознать формат маршрута. Поддерживаю GPX, GeoJSON, KML и KMZ."));
+            return Mono.just(reply(UNKNOWN_FILE));
         }
         String content = "kmz".equals(format)
                 ? Base64.getEncoder().encodeToString(bytes)
                 : new String(bytes, StandardCharsets.UTF_8);
-        // Attach to the household's active trip when there is one; otherwise import unattached.
-        return wallet.getActiveTrip(msg.householdId())
-                .flatMap(trip -> importAndReply(msg, format, content, trip))
-                .switchIfEmpty(Mono.defer(() -> importAndReply(msg, format, content, null)));
+        return attachToActiveTrip(msg, format, content, FILE_REJECT);
     }
 
-    private Mono<IntentResponse> importAndReply(NormalizedMessage msg, String format, String content, TripDto trip) {
+    /** Import {@code content} as {@code format}, attaching to the household's active trip when there is one. */
+    private Mono<IntentResponse> attachToActiveTrip(NormalizedMessage msg, String format, String content,
+                                                    String rejectMsg) {
+        return wallet.getActiveTrip(msg.householdId())
+                .flatMap(trip -> importAndReply(msg, format, content, trip, rejectMsg))
+                .switchIfEmpty(Mono.defer(() -> importAndReply(msg, format, content, null, rejectMsg)));
+    }
+
+    private Mono<IntentResponse> importAndReply(NormalizedMessage msg, String format, String content,
+                                                TripDto trip, String rejectMsg) {
         UUID tripId = trip == null ? null : trip.id();
         ImportRouteInput input = new ImportRouteInput(msg.householdId(), tripId, null, format, content);
         return routes.importRoute(input)
                 .flatMap(route -> boardAndReply(msg, route, trip))
                 .onErrorResume(e -> {
-                    log.warn("route store rejected the file: {}", e.toString());
-                    return Mono.just(reply("Файл получен, но маршрут не распознан — похоже, он пустой или не в том формате."));
+                    log.warn("route store rejected the import: {}", e.toString());
+                    return Mono.just(reply(rejectMsg));
                 });
     }
 
