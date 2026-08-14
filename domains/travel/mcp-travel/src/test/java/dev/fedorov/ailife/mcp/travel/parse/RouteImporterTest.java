@@ -18,7 +18,7 @@ class RouteImporterTest {
     /** Scenario: unsupported format — a format with no parser is rejected. */
     @Test
     void rejectsUnsupportedFormat() {
-        assertThatThrownBy(() -> importer.parse("kml", "<kml/>"))
+        assertThatThrownBy(() -> importer.parse("docx", "..."))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported route format");
     }
