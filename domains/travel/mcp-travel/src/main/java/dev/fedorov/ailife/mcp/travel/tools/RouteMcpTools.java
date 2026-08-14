@@ -43,9 +43,11 @@ public class RouteMcpTools {
     }
 
     @Tool(description = """
-            Import a route/itinerary file into the travel store. `householdId`, `format` and `content` are
-            required; `format` is 'gpx', 'geojson', 'kml' or 'kmz'; `content` is the raw file text — except
-            for 'kmz' (a zipped KML) where `content` is the base64-encoded archive bytes. `tripId` optionally
+            Import a route/itinerary into the travel store. `householdId`, `format` and `content` are
+            required; `format` is 'gpx', 'geojson', 'kml', 'kmz' or 'maplink'; `content` is the raw file text
+            — except for 'kmz' (a zipped KML) where `content` is the base64-encoded archive bytes, and
+            'maplink' where `content` is a map URL (Google/Yandex/OSM/geo) to extract coordinates from.
+            `tripId` optionally
             attaches the route to a trip (it must belong to the same household). `name` overrides the name
             parsed from the file. The file is parsed into a normalized geometry (track polyline + named
             waypoints); an empty file (no points) is rejected. Returns the stored route with point count and

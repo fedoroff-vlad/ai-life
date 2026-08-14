@@ -16,13 +16,16 @@ persists. Mirrors `mcp-briefing`. Plan: [plans/travel.md](../../../plans/travel.
   Persistence only — the per-currency balance and the ₽ tally are deterministic Java in `travel-agent`
   (EX-b), not here. On-site currency purchase is a first-class **exchange** (source outflow + acquired
   inflow) so the ₽ tally never double-counts; **no `paid_by`** on expenses (settlement is cut).
-- **RT-a/RT-b** — the **route/itinerary import store**: a `route` table (geometry as jsonb) +
+- **RT-a/RT-b/RT-d1** — the **route/itinerary import store**: a `route` table (geometry as jsonb) +
   `importRoute`/`getRoute`/`listRoutes` tools + `/internal/routes`. Parses owner-supplied
-  **GPX**/**GeoJSON**/**KML**/**KMZ** into a normalized geometry (track polyline + named waypoints) —
-  **zero-dependency** (GeoJSON via Jackson; GPX/KML via JDK StAX, XXE-hardened; KMZ = base64 zip → inner KML
-  via `java.util.zip`). A new format = one new `RouteParser` bean (RT-b added KML/KMZ this way, store
-  untouched). Point count + haversine track distance are derived at import. Parses owner-supplied bytes only
-  — it never fetches. **`kmz` content is base64-encoded** archive bytes (the contract's `content` is a String).
+  **GPX**/**GeoJSON**/**KML**/**KMZ**/**maplink** into a normalized geometry (track polyline + named
+  waypoints) — **zero-dependency** (GeoJSON via Jackson; GPX/KML via JDK StAX, XXE-hardened; KMZ = base64 zip
+  → inner KML via `java.util.zip`; **maplink** = coordinates parsed out of a Google/Yandex/OSM/`geo:` URL).
+  A new format = one new `RouteParser` bean (RT-b added KML/KMZ, RT-d1 added maplink — store untouched).
+  Point count + haversine track distance are derived at import. Parses owner-supplied bytes/URLs only — it
+  never fetches. **`kmz` content is base64** archive bytes; **`maplink` content is the map URL** (the
+  contract's `content` is a String). Short links (`goo.gl`, `yandex.ru/maps/-/…`) that only resolve via a
+  redirect are **not** handled (return empty → rejected; need `mcp-browser`, TR-f3).
 
 ## MCP tools
 
@@ -40,7 +43,7 @@ persists. Mirrors `mcp-briefing`. Plan: [plans/travel.md](../../../plans/travel.
 | `getActiveTrip` | `householdId` | `TripDto` \| null | the household's most recent non-`closed` trip (the wallet flow's "current trip"); null if none open. |
 | `closeTrip` | `tripId`, `householdId` | `TripDto` \| null | set `status='closed'` (tenant-scoped, idempotent) so it drops out of `getActiveTrip`; null if absent/out-of-tenant. The travel-agent's close-flow (EX-c) uses it before surfacing the trip's ₽ spend to finance. |
 | `getTripLedger` | `tripId`, `householdId` | `TripLedgerDto` \| null | full wallet: header + roster + funding/exchange/expense rows (raw; no balance math). |
-| `importRoute` | `ImportRouteInput` | `RouteDto` | parse a GPX/GeoJSON/KML/KMZ file into a normalized geometry and store it (optionally attached to a `tripId` in the same household). `householdId`/`format`/`content` required (`kmz` content = base64 zip); empty (no points) rejected; unsupported format rejected. Derives point count + haversine distance. |
+| `importRoute` | `ImportRouteInput` | `RouteDto` | parse a GPX/GeoJSON/KML/KMZ file (or a `maplink` URL) into a normalized geometry and store it (optionally attached to a `tripId` in the same household). `householdId`/`format`/`content` required (`kmz` content = base64 zip; `maplink` content = a map URL); empty (no points) rejected; unsupported format rejected. Derives point count + haversine distance. |
 | `getRoute` | `routeId`, `householdId` | `RouteDto` \| null | tenant-scoped route read; null if absent/out-of-tenant. |
 | `listRoutes` | `householdId`, `tripId?` | `RouteDto[]` | household's routes newest-first; filtered to `tripId` when given. |
 
@@ -95,8 +98,8 @@ schema created in [`infra/postgres/init.sql`](../../../infra/postgres/init.sql).
 - `domain/Route` (+ `Repository`) — the `route` entity (geometry jsonb); household-scoped reads + trip filter.
 - `parse/` — the format-independent parser SPI: `RouteParser` (iface) + `GpxRouteParser` / `KmlRouteParser`
   (JDK StAX, XXE-hardened) + `GeoJsonRouteParser` (Jackson) + `KmzRouteParser` (base64 zip → inner KML) +
-  `RouteImporter` (format dispatch + haversine distance); `RouteGeometry`/`RoutePoint`/`ParsedRoute` are the
-  normalized value types.
+  `MapLinkRouteParser` (coordinates out of a Google/Yandex/OSM/`geo:` URL, RT-d1) + `RouteImporter` (format
+  dispatch + haversine distance); `RouteGeometry`/`RoutePoint`/`ParsedRoute` are the normalized value types.
 - `web/InternalTravelProfileController` — `POST`/`GET /internal/travel-profile` (204 on unseen owner).
 - `web/InternalTripController` — `/internal/trips/*` passthroughs (400 on bad input, 204 on out-of-tenant read).
 - `web/InternalRouteController` — `/internal/routes*` passthroughs (400 on bad input/format, 204 on out-of-tenant read).
