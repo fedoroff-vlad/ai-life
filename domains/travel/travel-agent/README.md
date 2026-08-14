@@ -14,15 +14,19 @@ orchestrator as `travel`. **Never books or pays** — proposes options and provi
 Five flows behind the intent split (**route file** → preferences → wallet → plan → chat). A `file`
 attachment is checked first (an unambiguous import), then the text cues:
 
-- **route-import** (RT-c) `file → store → board` flow: a `file` attachment (a route/itinerary sent as a
-  document) → fetch the bytes from media-service (`GET /v1/media/{id}`) → **sniff the format from the
-  content** (ZIP magic → KMZ; leading `{`/`[` → GeoJSON; `<gpx>`/`<kml>` → GPX/KML — no filename needed) →
-  `importRoute` into `mcp-travel` (RT-a), attaching it to the household's **active trip** when there is one
-  → render a route board (point count, distance, an **OpenStreetMap map link** built from the first point —
-  a plain URL, no external call) via the shared `DeliverablePublisher` → reply. Unknown formats and empty
-  files soft-fail with a friendly message; the board soft-fails to text-only. KMZ bytes are base64-encoded
-  into the store's `content` field (RT-b). The agent parses owner-supplied bytes only — it never fetches a
-  remote map or transmits the file.
+- **route-import** (RT-c/RT-d2) `file|link → store → board` flow: a `file` attachment (a route/itinerary
+  sent as a document) **or** a **map link in the message text** (Google/Yandex/OSM/`geo:`, RT-d2) → for a
+  file, fetch the bytes from media-service (`GET /v1/media/{id}`) and **sniff the format from the content**
+  (ZIP magic → KMZ; leading `{`/`[` → GeoJSON; `<gpx>`/`<kml>` → GPX/KML — no filename needed); for a link,
+  import it as `maplink` (coordinates parsed out of the URL, RT-d1) → `importRoute` into `mcp-travel`,
+  attaching it to the household's **active trip** when there is one → render a route board (point count,
+  distance, an **OpenStreetMap map link** built from the first point — a plain URL, no external call) via
+  the shared `DeliverablePublisher` → reply. Unknown formats, empty files and unparseable **short links**
+  (`goo.gl`, `yandex.ru/maps/-/…` — need `mcp-browser`, TR-f3) soft-fail with a friendly message pointing at
+  sending a GPX/KML file; the board soft-fails to text-only. KMZ bytes are base64-encoded into the store's
+  `content` (RT-b). The agent parses owner-supplied bytes/URLs only — it never fetches a remote map or
+  transmits the file. The map-link check runs **after** the plan/wallet cues, so "хочу на море `<link>`"
+  still plans while a bare link pins the place.
 
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
   `travel-profiler` SKILL → geocode the stated home-base city via `mcp-weather /internal/geocode`
@@ -82,7 +86,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 
 | method | path | body | purpose |
 |--------|------|------|---------|
-| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow` (route import); else preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; plan-a-trip cue → `trip-composer`; else → chat fallback. |
+| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow.handle` (route import); else preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; plan-a-trip cue → `trip-composer`; else a **map link** in the text → `RouteFlow.handleLink` (RT-d2); else → chat fallback. |
 | GET | `/agents/travel/manifest` | — | the `AgentManifest` (AGENT.md frontmatter) the orchestrator scrapes for routing. |
 
 ## Env
@@ -124,10 +128,11 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   flags. Pure Java, never the LLM (a correctness/privacy boundary).
 - `http/TripWalletClient` — the `mcp-travel /internal/trips/*` store calls (create / active / funding /
   exchange / expense / ledger / close).
-- `flow/RouteFlow` (RT-c) — the route-import flow: fetch bytes → `sniffFormat` (content-based) → resolve the
-  active trip → `importRoute` → route board (point count + distance + OpenStreetMap map link) via
-  `DeliverablePublisher`. `http/RouteImportClient` (`mcp-travel /internal/routes`) + `http/MediaFetchClient`
-  (`media-service GET /v1/media/{id}`, reuses the `mediaServiceWebClient`).
+- `flow/RouteFlow` (RT-c/RT-d2) — the route-import flow: `handle` (a file: fetch bytes → `sniffFormat`) /
+  `handleLink` (a map URL → `maplink`) → resolve the active trip → `importRoute` → route board (point count
+  + distance + OpenStreetMap map link) via `DeliverablePublisher`. `http/RouteImportClient`
+  (`mcp-travel /internal/routes`) + `http/MediaFetchClient` (`media-service GET /v1/media/{id}`, reuses the
+  `mediaServiceWebClient`). `IntentController.mapLink` detects a Google/Yandex/OSM/`geo:` URL in the text.
 - `flow/TripComposer` — the TR-d/TR-e/TR-f2 `gather → synthesize` planner: profile resolve → FAST scope
   extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
   web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
