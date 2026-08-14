@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.config;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
@@ -56,6 +57,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpMediaProcessingWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpMediaProcessingUrl()).build();
+    }
+
+    /** Shared {@code mcp-media-processing} vision-caption client (agent-runtime) — receipt OCR fallback. */
+    @Bean
+    public CaptionClient captionClient(
+            @Qualifier("mcpMediaProcessingWebClient") WebClient mcpMediaProcessingWebClient) {
+        return new CaptionClient(mcpMediaProcessingWebClient);
     }
 
     @Bean
