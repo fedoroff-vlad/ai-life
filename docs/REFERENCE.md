@@ -111,7 +111,7 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 | **4 — memory + inter-agent** | done | memory-service (pgvector recall + scope), graph relations (SQL; AGE deferred), LISTEN/NOTIFY bus + outbox, conversation-state (route-lock / confirm), first Coordinator chains |
 | **5 — real LLM** | done ([#199](https://github.com/fedoroff-vlad/ai-life/issues/199)) | Langfuse tracing + Anthropic/openai-compatible/Ollama providers; **local Ollama** baseline (`qwen3:8b` + `nomic-embed-text`, free). Opt-in, CI-skipped **golden tests** (structure-not-text, `@Tag("golden")` + `GOLDEN_LLM`) now cover all agents + orchestrator routing via `libs/golden-test-support`. CI default stays `mock` |
 | **6 — domain agents** | done (current domains) | researcher (+ `mcp-web`), stylist, nutrition (nutritionist + chef), creator — each MVP-complete. Future agents extracted to [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issues |
-| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), coach-agent CO-1/CO-2 (now parked), the **skills-vs-flows** in-agent refactor (shared `SkillClassifier` #358 + Bucket 2 pilot #360; cutover #369 Mac-gated), and the **identity & membership epic COMPLETE** ([ADR-0001](../plans/adr/ADR-0001-identity-membership-scope.md), 2026-08-01 — invite-only onboarding + per-member calendar routing + per-person ICS feed, closed #295). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. Also since: the **sharing-as-a-capability epic COMPLETE** ([ADR-0002](../plans/adr/ADR-0002-sharing-shared-capability.md), 2026-08-07 — a reusable `libs/sharing` "own vs shared" capability across all opt-in domains, incl. item 8 memory-driven default + DS-N confirm-on-ambiguity), ADR-0001 item 6 (`people.user_id`, 2026-08-04), and a **fast/slow test split** (#423, `mvn test` needs no Docker). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. **No feature slice in flight; Mac deployment + hot/cold lifecycle is PARKED** (hardware-blocked, [`plans/lifecycle.md`](../plans/lifecycle.md)) — next candidates in [`plans/STATUS.md`](../plans/STATUS.md). |
+| **post-6 — since this snapshot** | shipped | platform migration (Java 21→25 / Boot 3→4, #288), briefing + docs future-agents, the **second-brain** epic (#257) + ambient capture, the **coordinator-agent** (#290), coach-agent CO-1/CO-2 (now parked), the **skills-vs-flows** in-agent refactor (shared `SkillClassifier` #358 + Bucket 2 pilot #360; cutover #369 Mac-gated), and the **identity & membership epic COMPLETE** ([ADR-0001](../plans/adr/ADR-0001-identity-membership-scope.md), 2026-08-01 — invite-only onboarding + per-member calendar routing + per-person ICS feed, closed #295). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. Also since: the **sharing-as-a-capability epic COMPLETE** ([ADR-0002](../plans/adr/ADR-0002-sharing-shared-capability.md), 2026-08-07 — a reusable `libs/sharing` "own vs shared" capability across all opt-in domains, incl. item 8 memory-driven default + DS-N confirm-on-ambiguity), ADR-0001 item 6 (`people.user_id`, 2026-08-04), a **fast/slow test split** (#423, `mvn test` needs no Docker), and the **travel-agent** ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190), 2026-08-12 — MVP + live search + trip wallet + route import + packing list). See [`plans/HISTORY.md`](../plans/HISTORY.md) for the timeline. **No feature slice in flight; Mac deployment + hot/cold lifecycle is PARKED** (hardware-blocked, [`plans/lifecycle.md`](../plans/lifecycle.md)) — next candidates in [`plans/STATUS.md`](../plans/STATUS.md). |
 
 ### Live domains (current)
 
@@ -131,6 +131,11 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
   the proactive wake. See [briefing.md](../plans/briefing.md).
 - **docs** — done. `mcp-docs` + `docs-agent`: ingest a receipt/contract/warranty photo → OCR → archive +
   index → "find my X" search. See [docs.md](../plans/docs.md).
+- **travel** — done ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190)). `mcp-travel` (per-owner
+  `travel_profile`) + `travel-agent`: a cold on-demand vacation planner (finance/calendar `brief` +
+  `mcp-weather` `climate` → itinerary + HTML board), live flight/hotel options via shared `mcp-travel-search`
+  (owner-key-gated), trip wallet, route import (GPX/GeoJSON/KML/KMZ + map links), and a deterministic packing
+  list. The agent **never books** ([ADR-0003](../plans/adr/ADR-0003-travel-data-source.md)). See [travel.md](../plans/travel.md).
 - **second brain / notes** — done ([#257](https://github.com/fedoroff-vlad/ai-life/issues/257)). Authored
   `memory.note` tier on memory-service + `[[wiki-links]]` relations + `notes-agent` ("запомни…" / "что я думал
   про…"), auto-filled by **ambient capture**. The substrate every agent reads/writes. See
@@ -143,7 +148,7 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
 
 Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper sidecar + vision-caption),
 `mcp-web`, `mcp-market-data` (Stooq quotes), `mcp-weather` (Open-Meteo forecast + geocode),
-`mcp-image-gen` (scaffolded, stub engine — real GPU engine ahead), `mcp-chart-render` (data → PNG via Java2D, bound by finance reports), `mcp-food-data`.
+`mcp-image-gen` (scaffolded, stub engine — real GPU engine ahead), `mcp-chart-render` (data → PNG via Java2D, bound by finance reports), `mcp-food-data`, `mcp-travel-search` (flight/hotel options over Travelpayouts, owner-key-gated), and the creator sources `mcp-youtube` / `mcp-reddit` / `mcp-feeds`.
 
 ### Not done / deferred
 
@@ -151,9 +156,9 @@ Shared capability-MCPs: `mcp-media-processing` (OCR Tesseract + STT whisper side
 - **GPU line** — real image-gen engine, virtual try-on (CatVTON), VLM-OCR (Unlimited-OCR) — wait on a GPU host.
 - **Apache AGE graph** — deferred (SQL `memory.relations` suffices).
 - **creator-deferred** — Threads/Instagram/Pinterest via `mcp-browser`, post imagery, scheduling/auto-posting.
-- **Future agents (still open)** — health / travel / email / smart-home, each a
-  [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue. (briefing + docs
-  shipped; family-memory folded into the second-brain epic; coach parked.)
+- **Future agents (still open)** — health / email / smart-home, each a
+  [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) issue. (briefing + docs +
+  travel shipped; family-memory folded into the second-brain epic; coach parked.)
 
 ### Build
 
