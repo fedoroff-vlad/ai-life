@@ -17,14 +17,17 @@ label — pick one up independently, don't reopen "Stage 6" as a bucket:
 - **health-agent** (Apple Health) — med — [#187](https://github.com/fedoroff-vlad/ai-life/issues/187) — **⏸️ DEFERRED (owner, 2026-07-02): owner wants to rethink/redesign before building.**
 - **docs-agent** (receipts/contracts archive, OCR + search) — med — [#188](https://github.com/fedoroff-vlad/ai-life/issues/188) — **✅ DONE (second future-agent, 2026-07-02).** Personal document archive: photo → OCR (`mcp-media-processing`) → `mcp-docs` (`docs` schema, 8116) store + pg_trgm search → "find my X"; semantic recall via memory-service. Merged D-a..D-e (PR249/250/254/255/256): store + `/internal/ocr` passthrough + `docs-agent` (8117, `doc-archiver` ingest + `doc-finder` search) + the **D-e semantic index closer** (seed OCR text to memory-service via shared `MemoryClient.remember`; hybrid trigram+recall search; `E2EDocsIngestSearchFlowTest`), golden-verified on local Ollama. Plan in [docs.md](docs.md).
 - **family-memory-agent** — med — [#189](https://github.com/fedoroff-vlad/ai-life/issues/189) — **✅ CLOSED (2026-07-03) as second-brain slice SB-6** (people/preferences = notes tagged `#person` resolved to `core.people`; `GiftRecommender` reads curated person-notes). Landed inside the epic [#257](https://github.com/fedoroff-vlad/ai-life/issues/257), not as a standalone agent.
-- **travel-agent** — low — [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) — **MVP DONE**
+- **travel-agent** — low — [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) — **✅ DONE**
   (plan [travel.md](travel.md), first WHEN/THEN-first plan): a cold on-demand vacation planner reusing the
   finance/calendar `brief` (budget + free dates) + `mcp-weather` `climate` (season) → itinerary + HTML
-  board; personalized via a per-owner `travel_profile`. **Planner-first MVP** (TR-a…TR-e shipped; TR-e =
-  the HTML travel board with a climate-by-month chart via `mcp-chart-render`). **Live pricing (§TR-f):**
-  the `mcp-travel-search` capability-MCP over Travelpayouts is **built (TR-f1)** but owner-key-gated
-  (degrades with no token); wiring it into `trip-planner` = **TR-f2**. Booking never happens — the agent
-  proposes options + provider deep links only → [ADR-0003](adr/ADR-0003-travel-data-source.md).
+  board; personalized via a per-owner `travel_profile`. Shipped in full: **MVP** (TR-a…TR-e — TR-e = the
+  HTML travel board with a climate-by-month chart via `mcp-chart-render`); **live flight/hotel pricing**
+  via the `mcp-travel-search` capability-MCP over Travelpayouts (TR-f1 capability + **TR-f2** planner
+  wiring — owner-key-gated, degrades to MVP with no token); the **trip wallet** (EX-a…EX-c); **route/
+  itinerary import** ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436), RT-a…RT-d2 — GPX/GeoJSON/
+  KML/KMZ files + map links); and a deterministic **packing-list** ([#438](https://github.com/fedoroff-vlad/ai-life/issues/438),
+  PK-a). Only **TR-f3** (tours / no-API JS sources → `mcp-browser`) stays deferred. Booking never happens
+  — the agent proposes options + provider deep links only → [ADR-0003](adr/ADR-0003-travel-data-source.md).
 - **email-agent** — low — [#191](https://github.com/fedoroff-vlad/ai-life/issues/191)
 - **smart-home-agent** (Home Assistant) — conditional — [#192](https://github.com/fedoroff-vlad/ai-life/issues/192)
 

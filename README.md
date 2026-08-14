@@ -29,7 +29,7 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 **Shipped** — each line links to its source of truth; presence here = done, detail lives at the link:
 - **Stages 0–5** — foundation · calendar · finance · tasks · memory + inter-agent · real-LLM golden tests → [`roadmap.md`](plans/roadmap.md)
 - **Stage 6 domain agents** — researcher, stylist, nutrition (nutritionist + chef), creator → [`roadmap.md`](plans/roadmap.md)
-- **Future agents** — briefing ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186)) · docs ([#188](https://github.com/fedoroff-vlad/ai-life/issues/188)) → [`briefing.md`](plans/briefing.md) · [`docs.md`](plans/docs.md)
+- **Future agents** — briefing ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186)) · docs ([#188](https://github.com/fedoroff-vlad/ai-life/issues/188)) · travel ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190) — MVP + live search + trip wallet + route import + packing) → [`briefing.md`](plans/briefing.md) · [`docs.md`](plans/docs.md) · [`travel.md`](plans/travel.md)
 - **Second brain** ([#257](https://github.com/fedoroff-vlad/ai-life/issues/257)) + ambient capture + memory-driven orchestration ([#290](https://github.com/fedoroff-vlad/ai-life/issues/290)) → [`second-brain.md`](plans/second-brain.md) · [`ambient-capture.md`](plans/ambient-capture.md) · [`stage4.md`](plans/stage4.md)
 - **Finance reporting** — monthly + year report, `mcp-chart-render` ([#291](https://github.com/fedoroff-vlad/ai-life/issues/291) · [#292](https://github.com/fedoroff-vlad/ai-life/issues/292)) → [`finance.md`](plans/finance.md)
 - **Platform** — Java 25 / Boot 4 / Spring AI 2 migration ([#288](https://github.com/fedoroff-vlad/ai-life/issues/288)) + build/CI perf + fast/slow test split ([#423](https://github.com/fedoroff-vlad/ai-life/issues/423)) → [`migration-25-boot4.md`](plans/migration-25-boot4.md)
@@ -37,7 +37,7 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 - **Sharing as a capability** epic → [ADR-0002](plans/adr/ADR-0002-sharing-shared-capability.md)
 - **skills-vs-flows** in-agent refactor (shared `SkillClassifier`) → [`skills-vs-flows.md`](plans/skills-vs-flows.md)
 
-**Paused / not done:** coach-agent (CO-1/CO-2 shipped, then PARKED mid-epic — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289), [`coach.md`](plans/coach.md)) · Mac deployment + hot/cold lifecycle (PARKED, hardware-blocked — [`lifecycle.md`](plans/lifecycle.md)) · future agents health/travel/email/smart-home. Next pick → [`plans/STATUS.md`](plans/STATUS.md).
+**Paused / not done:** coach-agent (CO-1/CO-2 shipped, then PARKED mid-epic — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289), [`coach.md`](plans/coach.md)) · Mac deployment + hot/cold lifecycle (PARKED, hardware-blocked — [`lifecycle.md`](plans/lifecycle.md)) · future agents health/email/smart-home. Next pick → [`plans/STATUS.md`](plans/STATUS.md).
 
 See [`docs/REFERENCE.md`](docs/REFERENCE.md) for the two-lens overview and [`CLAUDE.md`](CLAUDE.md) for conventions + authorization.
 
@@ -72,6 +72,7 @@ ai-life/
 │   ├── stylist/             stylist-agent, mcp-wardrobe, skills/
 │   ├── nutrition/           nutritionist-agent, chef-agent, mcp-nutrition, skills/
 │   ├── creator/             creator-agent, mcp-creator, skills/
+│   ├── travel/              travel-agent, mcp-travel, skills/ (✅ done, #190)
 │   ├── briefing/            briefing-agent, mcp-briefing, skills/ (✅ done, #186)
 │   ├── docs/                docs-agent, mcp-docs, skills/ (✅ done, #188)
 │   ├── knowledge/           notes-agent (second-brain front; binds memory-service, no own MCP)

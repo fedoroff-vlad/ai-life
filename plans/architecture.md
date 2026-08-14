@@ -127,7 +127,7 @@ ai-life/
 │   ├── briefing/   { briefing-agent, mcp-briefing, skills/ }
 │   ├── docs/       { docs-agent, mcp-docs, skills/ }
 │   ├── coach/      { coach-agent, mcp-coach, skills/ }
-│   ├── travel/     { mcp-travel }                      # travel-agent lands in TR-c
+│   ├── travel/     { travel-agent, mcp-travel, skills/ }  # planner-first vacation agent (#190)
 │   ├── knowledge/  { notes-agent }                    # second-brain front, no own MCP
 │   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
