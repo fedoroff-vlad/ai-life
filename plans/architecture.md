@@ -107,7 +107,7 @@ ai-life/
 │   ├── llm-client/          # client to llm-gateway (channel-based)
 │   ├── event-bus/           # Postgres LISTEN/NOTIFY adapter
 │   ├── platform-common/     # security, logging, metrics, errors
-│   ├── agent-runtime/       # AGENT.md/SKILL.md loaders + SkillRegistry + shared ProfileClient/NotifierClient/MemoryClient + Coordinator (gather→synthesize) + BriefResponder (read-only cross-agent query) (agents @Import this)
+│   ├── agent-runtime/       # AGENT.md/SKILL.md loaders + SkillRegistry + shared platform clients (Profile/Notifier/Memory/MediaStore/Orchestrator) + capability clients (ChartRender/Geocode/WebSearch/Caption — lifted, not per-agent copies) + Coordinator (gather→synthesize) + BriefResponder (read-only cross-agent query) (agents @Import this)
 │   └── doc-render/          # shared HTML deliverable renderer (briefing/stylist/nutrition boards)
 ├── infra/
 │   ├── docker-compose.yml          # all services
