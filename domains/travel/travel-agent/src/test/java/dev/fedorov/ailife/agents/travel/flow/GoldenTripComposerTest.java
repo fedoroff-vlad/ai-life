@@ -11,7 +11,7 @@ import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
 import dev.fedorov.ailife.agents.travel.http.TravelSearchClient;
-import dev.fedorov.ailife.agents.travel.http.WebSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;

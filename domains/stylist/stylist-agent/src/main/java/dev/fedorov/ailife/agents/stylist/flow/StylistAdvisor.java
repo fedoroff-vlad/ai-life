@@ -9,7 +9,7 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.stylist.http.ImageGenClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
-import dev.fedorov.ailife.agents.stylist.http.WebSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;

@@ -5,7 +5,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.researcher.config.ResearcherAgentProperties;
 import dev.fedorov.ailife.agents.researcher.http.PageFetchClient;
-import dev.fedorov.ailife.agents.researcher.http.WebSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.web.PageContent;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;

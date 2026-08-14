@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.agents.researcher.config;
 
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,5 +19,11 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWebWebClient(WebClient.Builder builder, ResearcherAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWebUrl()).build();
+    }
+
+    /** Shared {@code mcp-web} search client (agent-runtime) over this agent's web WebClient. */
+    @Bean
+    public WebSearchClient webSearchClient(@Qualifier("mcpWebWebClient") WebClient mcpWebWebClient) {
+        return new WebSearchClient(mcpWebWebClient);
     }
 }

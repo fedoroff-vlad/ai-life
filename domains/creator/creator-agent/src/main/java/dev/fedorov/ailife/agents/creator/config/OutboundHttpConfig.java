@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.creator.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +26,12 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWebWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWebUrl()).build();
+    }
+
+    /** Shared {@code mcp-web} search client (agent-runtime); the {@code TrendGatherClient} web leg binds it. */
+    @Bean
+    public WebSearchClient webSearchClient(@Qualifier("mcpWebWebClient") WebClient mcpWebWebClient) {
+        return new WebSearchClient(mcpWebWebClient);
     }
 
     @Bean

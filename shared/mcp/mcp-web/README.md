@@ -2,8 +2,10 @@
 
 Shared **web capability-MCP** (`shared/mcp/`, no schema). Cheap web retrieval any agent can
 reuse. **Bound by:** the `researcher` (its first consumer), the chef (recipe search, CH-b), the
-nutritionist (store-availability lookup, NU-g), the stylist (trends), and the `travel` agent (bound in
-TR-c for the TR-d destination-research gather); briefing news later. Bound over MCP/SSE; it owns no
+nutritionist (store-availability lookup, NU-g), the stylist (trends), the `travel` agent (TR-d
+destination-research gather), the `briefing` digest (news search), and the `creator` agent (its trend
+gather's web leg). Consumers reach the `/internal/search` passthrough through the shared
+`agent-runtime` `WebSearchClient` (one client, not a per-agent copy). Bound over MCP/SSE; it owns no
 data. Plan: [research.md](../../../plans/research.md).
 
 **Status:** `web_search` runs against a self-hosted **SearXNG** backing service (free, no

@@ -9,7 +9,7 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.researcher.config.ResearcherAgentProperties;
 import dev.fedorov.ailife.agents.researcher.http.PageFetchClient;
-import dev.fedorov.ailife.agents.researcher.http.WebSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;

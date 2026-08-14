@@ -4,8 +4,7 @@ import dev.fedorov.ailife.contracts.trends.FeedItemsInput;
 import dev.fedorov.ailife.contracts.trends.RedditTrendsInput;
 import dev.fedorov.ailife.contracts.trends.TrendHit;
 import dev.fedorov.ailife.contracts.trends.YoutubeTrendsInput;
-import dev.fedorov.ailife.contracts.web.WebSearchInput;
-import dev.fedorov.ailife.contracts.web.WebSearchResult;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -30,12 +29,12 @@ public class TrendGatherClient {
     private static final ParameterizedTypeReference<List<TrendHit>> HITS = new ParameterizedTypeReference<>() {};
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
 
-    private final WebClient web;
+    private final WebSearchClient web;
     private final WebClient youtube;
     private final WebClient reddit;
     private final WebClient feeds;
 
-    public TrendGatherClient(@Qualifier("mcpWebWebClient") WebClient web,
+    public TrendGatherClient(WebSearchClient web,
                              @Qualifier("mcpYoutubeWebClient") WebClient youtube,
                              @Qualifier("mcpRedditWebClient") WebClient reddit,
                              @Qualifier("mcpFeedsWebClient") WebClient feeds) {
@@ -47,12 +46,7 @@ public class TrendGatherClient {
 
     /** Web search via {@code mcp-web}; its {@code WebSearchHit}s are mapped to the uniform {@link TrendHit}. */
     public Mono<List<TrendHit>> web(String query, int limit) {
-        return web.post().uri("/internal/search")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new WebSearchInput(query, limit))
-                .retrieve()
-                .bodyToMono(WebSearchResult.class)
-                .timeout(TIMEOUT)
+        return web.search(query, limit, TIMEOUT)
                 .map(r -> r.hits() == null ? List.<TrendHit>of()
                         : r.hits().stream()
                         .map(h -> new TrendHit("web", "web", h.title(), h.url(), h.snippet(), null))
