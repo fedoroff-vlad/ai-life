@@ -2,7 +2,7 @@ package dev.fedorov.ailife.agents.travel.profile;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.travel.SetTravelProfileInput;

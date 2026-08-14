@@ -3,7 +3,7 @@ package dev.fedorov.ailife.agents.briefing.profile;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
-import dev.fedorov.ailife.agents.briefing.http.GeocodeClient;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import dev.fedorov.ailife.contracts.briefing.SetBriefingProfileInput;

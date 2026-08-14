@@ -7,7 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.finance.http.ChartRenderClient;
+import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;

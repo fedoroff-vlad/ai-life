@@ -5,7 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
-import dev.fedorov.ailife.agents.briefing.http.GeocodeClient;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;

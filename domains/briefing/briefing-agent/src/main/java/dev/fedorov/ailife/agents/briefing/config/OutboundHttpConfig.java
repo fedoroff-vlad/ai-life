@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.briefing.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +27,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWeatherWebClient(WebClient.Builder builder, BriefingAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWeatherUrl()).build();
+    }
+
+    /** Shared {@code mcp-weather} geocode client (agent-runtime) over this agent's weather WebClient. */
+    @Bean
+    public GeocodeClient geocodeClient(
+            @Qualifier("mcpWeatherWebClient") WebClient mcpWeatherWebClient) {
+        return new GeocodeClient(mcpWeatherWebClient);
     }
 
     @Bean
