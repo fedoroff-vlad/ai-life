@@ -372,6 +372,70 @@ exchange transfers** (a swap moves money, it is not a spend). Tests: `TripLedger
 - **Scenario: note write soft-fails** — WHEN memory-service is down at close — THEN the trip still closes
   and the board still replies; only the finance signal is skipped (asserted by `WalletFlowTest`).
 
+## Route / itinerary import ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436)) — import a shared trip route into the wallet
+Build on the `travel.trip` store just shipped (EX-a): import a route/itinerary file (GPX/KML/KMZ/GeoJSON)
+into `mcp-travel`, normalize it to a common geometry, and (optionally) attach it to a trip so the wallet
+board and planner can show the route + map links. **Idea-only origin:** borrowed from TREK (§Ideas). The
+agent never fetches or transmits the file anywhere — it parses owner-supplied bytes and stores the result.
+
+### Doctrine (reuse, flag nothing new except the parser)
+- The store is a **new `travel.route` layer** in the existing `mcp-travel` domain-MCP (`travel.*` schema,
+  migration range 110-119) — **no new module**. Geometry is a normalized JSONB blob (waypoints + track
+  polyline), the same JSONB pattern as `travel_profile.rest_types`.
+- Parsing is **zero-dependency JDK** (owner-decided 2026-08-14, `simplicity > OSS-reuse` here for simple,
+  well-known formats): GeoJSON via the existing Jackson `ObjectMapper`; GPX/KML via JDK StAX
+  (`javax.xml.stream`), XXE-hardened (DTD + external-entity resolution off). No new library enters the
+  SSOT/lockfile.
+- The parser is a small SPI (`RouteParser` per format behind a `RouteImporter` dispatcher) so a format is
+  added by dropping one class — RT-b (KML/KMZ) extends it without touching the store or the agent.
+
+### PR slices (spec-first; each its own PR, WHEN/THEN before code)
+#### RT-a — `travel.route` store + GeoJSON & GPX import (the new parser layer)
+Migration `112-travel-route.yml` (one `travel.route` table, geometry `jsonb`) + `Route` entity/repo +
+contracts (`RouteDto`, `ImportRouteInput`) + the parser SPI (`RouteParser` + `GpxRouteParser` +
+`GeoJsonRouteParser` + `RouteImporter`, with a haversine track-distance) + MCP tools
+(`importRoute`/`getRoute`/`listRoutes`) + `/internal/routes` passthroughs. Persistence + parsing only — no
+agent flow yet (that is RT-c). **Deliberately over the ~5-file guideline** (owner-approved 2026-08-14, like
+EX-a): the store + the two-format parser is one cohesive vertical slice; the WHEN/THEN below are the gate.
+- **Scenario: import a GPX track round-trips** — WHEN a GPX with a named track (trkpts with elevation) and a
+  waypoint is imported for a household — THEN `getRoute` returns the name, the track points (lat/lon/ele) and
+  the waypoint, `pointCount` and a computed `distanceM` > 0 (asserted by `GpxRouteParserTest` unit +
+  `McpRouteIntegrationTest`).
+- **Scenario: import a GeoJSON LineString + Point** — WHEN a GeoJSON FeatureCollection with a LineString and
+  a named Point is imported — THEN the LineString becomes track points (GeoJSON `[lon,lat]` mapped to
+  lat/lon correctly) and the Point becomes a named waypoint (asserted by `GeoJsonRouteParserTest` + the IT).
+- **Scenario: an empty/pointless file is rejected, not stored** — WHEN a syntactically-valid file with no
+  track and no waypoints is imported — THEN `importRoute` fails with a clear error and stores nothing
+  (asserted by the IT) — the "a parser that does nothing must still fail this" gate.
+- **Scenario: unsupported format** — WHEN `format` is not gpx/geojson — THEN `importRoute` fails with
+  "Unsupported route format" (asserted by `RouteImporterTest`).
+- **Scenario: XXE-hardened parse** — WHEN a GPX declares a DTD / external entity — THEN parsing never
+  resolves it (asserted by `GpxRouteParserTest`: a doctype-bearing doc throws, never reads a local file).
+- **Scenario: route attaches to a trip only within the household** — WHEN `importRoute` is given a `tripId`
+  belonging to another household — THEN it is rejected (tenant isolation, asserted by the IT); a `tripId` in
+  the same household attaches, and `listRoutes(household, tripId)` returns it.
+- **Scenario: cross-household read is blocked** — WHEN a route is read/listed with a mismatched household —
+  THEN `getRoute`→null / `listRoutes`→empty (asserted by the IT).
+
+#### RT-b — KML + KMZ import (extend the parser SPI)
+Add `KmlRouteParser` (StAX over `<Placemark>`/`<LineString>`/`<Point>`/`<coordinates>`) and a KMZ wrapper
+(unzip → the contained `.kml` → `KmlRouteParser`). One PR; store + agent untouched — the SPI is the seam.
+- **Scenario: KML placemarks** — WHEN a KML with a LineString and a named Point placemark is imported — THEN
+  track + named waypoint are produced (asserted by `KmlRouteParserTest`).
+- **Scenario: KMZ unwraps to its KML** — WHEN a KMZ archive is imported — THEN its inner KML is parsed to the
+  same result (asserted by `KmlRouteParserTest`).
+
+#### RT-c — travel-agent import flow + route on the trip board
+travel-agent gains a cue (a route file attached / "вот наш маршрут") → `importRoute` attached to the active
+trip → the wallet/trip board gains a route section (point count, distance, a **map deep link** built from the
+first point — an OSM/geo URL, no external call) → reply. Same `DeliverablePublisher` board seam.
+- **Scenario: attach + show** — WHEN the owner sends a route file during an active trip — THEN it is stored
+  against that trip and the reply's board shows the route with a map link (asserted by a travel-agent flow test).
+
+#### RT-d (deferred) — map-link import
+Import a shared **map link** (Google/Yandex/OSM URL) → extract coordinates/waypoints (no file). Deferred —
+URL shapes vary and some need JS; rides the `mcp-browser` capability (TR-f3) where needed.
+
 ## Deferred (further out)
 - **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
   (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).

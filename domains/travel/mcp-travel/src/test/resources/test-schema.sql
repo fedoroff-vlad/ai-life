@@ -1,5 +1,5 @@
--- Mirrors infra/liquibase/features/{001-core, 003-people, 110-travel, 111-travel-trip}.yml —
--- just enough to run mcp-travel integration tests. Kept minimal so drift surfaces as a failing test.
+-- Mirrors infra/liquibase/features/{001-core, 003-people, 110-travel, 111-travel-trip, 112-travel-route}.yml
+-- — just enough to run mcp-travel integration tests. Kept minimal so drift surfaces as a failing test.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -115,3 +115,20 @@ CREATE TABLE IF NOT EXISTS travel.trip_expense (
     CONSTRAINT ck_trip_expense_amount CHECK (amount >= 0)
 );
 CREATE INDEX IF NOT EXISTS ix_trip_expense_trip ON travel.trip_expense (trip_id);
+
+-- Route import table (mirrors 112-travel-route.yml).
+CREATE TABLE IF NOT EXISTS travel.route (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id  uuid NOT NULL REFERENCES core.households(id),
+    trip_id       uuid REFERENCES travel.trip(id) ON DELETE CASCADE,
+    name          text        NOT NULL,
+    source_format varchar(16) NOT NULL,
+    point_count   int         NOT NULL DEFAULT 0,
+    distance_m    numeric(19,4),
+    geometry      jsonb       NOT NULL,
+    imported_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_route_point_count CHECK (point_count >= 0),
+    CONSTRAINT ck_route_distance CHECK (distance_m IS NULL OR distance_m >= 0)
+);
+CREATE INDEX IF NOT EXISTS ix_route_household ON travel.route (household_id);
+CREATE INDEX IF NOT EXISTS ix_route_trip ON travel.route (trip_id);

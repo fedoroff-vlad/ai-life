@@ -5,10 +5,11 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **No slice in flight.** **Trip wallet #437 is COMPLETE (EX-a…EX-c)** — EX-a store (PR443) + EX-b wallet
-  flow (PR445) + EX-c1 store close (PR446) + EX-c2 close-flow & finance spend-signal (PR447), all 2026-08-13;
-  detail → [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Trip wallet. **Pick the next item from `## Next`**
-  — the near-term travel follow-ups #436/#438 are now queued there.
+- **RT-a in flight — route/itinerary import store ([#436](https://github.com/fedoroff-vlad/ai-life/issues/436)).**
+  First slice of route import, building on the `travel.trip` store: a new `travel.route` layer in `mcp-travel`
+  (geometry JSONB) + a **zero-dep parser** (GeoJSON via Jackson, GPX via JDK StAX, XXE-hardened) +
+  `importRoute`/`getRoute`/`listRoutes` tools + `/internal/routes`. Spec + WHEN/THEN →
+  [travel.md](travel.md) §Route import. Remaining: RT-b KML/KMZ, RT-c agent flow, RT-d map-links (deferred).
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
@@ -48,7 +49,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **travel follow-ups on the now-built `travel.trip` store (near-term).** In priority:
-   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — the natural next: it pairs directly with the `travel.trip` store just shipped (EX-a…c). Owner-picked as the next travel slice (2026-08-13).
+   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** (GPX/KML/KMZ/GeoJSON + map links) into `mcp-travel` — **RT-a in flight** (see `## Now`); remaining slices RT-b (KML/KMZ), RT-c (agent flow + route board), RT-d (map-links, deferred) → [travel.md](travel.md) §Route import.
    - **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438) packing-list templates** seeded by rest type + climate + companions — can ride the existing TR-e board; simpler.
    - Spec/ideas: [travel.md](travel.md) §Deferred + §Ideas from TREK.
 2. **Pick the next future agent** — travel #190 is fully closed (MVP + live search + trip wallet). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
@@ -59,7 +60,11 @@ _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migr
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
-Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294. (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
+Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294.
+**Lists capability** (owner idea, 2026-08-14): grocery/things lists captured **ambiently** (no keyword) into
+the second brain as **structured item lists** (add/check-off/clear), owned by **notes-agent** (`memory.note`
+tier — not a new domain); rides the [ambient-capture.md](ambient-capture.md) epic and could subsume #438
+packing-list. Spec/WHEN-THEN TBD. (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
 
