@@ -432,9 +432,35 @@ first point — an OSM/geo URL, no external call) → reply. Same `DeliverablePu
 - **Scenario: attach + show** — WHEN the owner sends a route file during an active trip — THEN it is stored
   against that trip and the reply's board shows the route with a map link (asserted by a travel-agent flow test).
 
-#### RT-d (deferred) — map-link import
-Import a shared **map link** (Google/Yandex/OSM URL) → extract coordinates/waypoints (no file). Deferred —
-URL shapes vary and some need JS; rides the `mcp-browser` capability (TR-f3) where needed.
+#### RT-d — map-link import (URL-coordinate subset now; browser part stays deferred)
+Import a shared **map link** (Google/Yandex/OSM/`geo:` URL) → extract coordinates directly from the URL and
+store them as a route (a pinned waypoint, or a track from a directions URL). **Zero-dependency, no browser**:
+many map links carry lat/lon in the URL itself (Google `@lat,lon` / `!3d!4d` / `q=`, Yandex `ll=`/`pt=`
+in **lon,lat** order, OSM `mlat`/`mlon` / `#map=z/lat/lon`, `geo:lat,lon`). Split like RT-a/RT-c: **RT-d1**
+= a `MapLinkRouteParser` in the store (a drop-in `RouteParser`, `format="maplink"`, `content`=the URL);
+**RT-d2** = the agent detects a map URL in the message text → `importRoute`. **Still deferred (needs
+`mcp-browser`, TR-f3):** short links (`maps.app.goo.gl`, `yandex.ru/maps/-/…`) that only resolve via a
+redirect, and place/route polylines that render only in JS — the parser returns empty for those and the
+agent says it can't read a short link.
+
+##### RT-d1 — `MapLinkRouteParser` in `mcp-travel` (store, SPI drop-in)
+- **Scenario: Google `@lat,lon` link** — WHEN a `https://www.google.com/maps/place/…/@55.75,37.62,15z` URL is
+  imported as `maplink` — THEN a route with one waypoint at `(55.75, 37.62)` is stored (asserted by
+  `MapLinkRouteParserTest` + `McpRouteIntegrationTest`).
+- **Scenario: Yandex `ll` is lon,lat** — WHEN `https://yandex.ru/maps/?ll=37.62,55.75&z=13` is imported —
+  THEN the waypoint is `(lat=55.75, lon=37.62)` (the lon,lat order is swapped correctly) (asserted by the unit test).
+- **Scenario: OSM + geo** — WHEN an OSM `#map=13/55.75/37.62` (or `geo:55.75,37.62`) link is imported — THEN
+  the waypoint is `(55.75, 37.62)` (asserted by the unit test).
+- **Scenario: Google directions → a track** — WHEN a `/maps/dir/55.75,37.62/55.80,37.70` URL is imported —
+  THEN the two points become an ordered track (asserted by the unit test).
+- **Scenario: unparseable/short link → empty (rejected upstream)** — WHEN a `maps.app.goo.gl/xxxx` short link
+  is imported — THEN the parser returns empty geometry, so `importRoute` rejects it with "no points" (the
+  agent, RT-d2, turns that into "короткую ссылку не могу разобрать") (asserted by the unit test + IT).
+
+##### RT-d2 — agent map-link flow
+travel-agent detects a map URL in the message text (no file) → `importRoute(format="maplink", content=url)`
+attached to the active trip → the same route board. Short-link/JS cases degrade with a clear message
+pointing at sending a GPX/KML file instead (until `mcp-browser` lands).
 
 ## Deferred (further out)
 - **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`

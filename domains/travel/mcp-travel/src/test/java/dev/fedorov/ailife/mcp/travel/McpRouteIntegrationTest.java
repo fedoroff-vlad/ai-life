@@ -114,6 +114,25 @@ class McpRouteIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(read.geometry().get("waypoints").get(0).get("name").asString()).isEqualTo("Точка");
     }
 
+    /** RT-d1: a map link imports through the same store (a pinned waypoint); a short link is rejected. */
+    @Test
+    void importMapLinkThroughStore() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        RouteDto imported = routes.importRoute(new ImportRouteInput(
+                h, null, null, "maplink", "https://yandex.ru/maps/?ll=37.62,55.75&z=13"));
+        assertThat(imported.sourceFormat()).isEqualTo("maplink");
+        assertThat(imported.geometry().get("waypoints")).hasSize(1);
+        assertThat(imported.geometry().get("waypoints").get(0).get("lat").asDouble()).isEqualTo(55.75);
+
+        // A short link carries no coordinates → the parser returns empty → importRoute rejects it.
+        assertThatThrownBy(() -> routes.importRoute(new ImportRouteInput(
+                h, null, null, "maplink", "https://maps.app.goo.gl/abc123")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no points");
+    }
+
     /** Scenario: import a GeoJSON attached to a trip; listRoutes filters by that trip within the household. */
     @Test
     void importGeoJsonAttachedToTripAndList() {
