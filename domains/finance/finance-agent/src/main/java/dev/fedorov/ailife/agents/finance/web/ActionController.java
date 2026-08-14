@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;
+import dev.fedorov.ailife.agents.finance.http.SpendingClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.UUID;
 
 /**
@@ -43,13 +46,20 @@ import java.util.UUID;
 public class ActionController extends AgentActionController {
 
     private final GiftBudgetClient giftBudget;
+    private final SpendingClient spending;
     private final ObjectMapper json;
 
-    public ActionController(GiftBudgetClient giftBudget, BriefResponder briefResponder, ObjectMapper json) {
+    public ActionController(GiftBudgetClient giftBudget, SpendingClient spending,
+                            BriefResponder briefResponder, ObjectMapper json) {
         super("finance");
         this.giftBudget = giftBudget;
+        this.spending = spending;
         this.json = json;
         register("get_gift_budget", this::getGiftBudget);
+        // Structured spend-by-category read over [from,to] for another agent's own synthesis (the
+        // briefing digest's finance section). Unlike `brief` this returns the raw rows, not LLM prose —
+        // the caller keeps its exact numbers. Read-only, householdId forced from the envelope.
+        register("spend_snapshot", this::spendSnapshot);
         // Generic read-only cross-agent query (#290, Slice B): the coordinator can ask finance a
         // focused sub-question and fold the grounded answer into a multi-domain synthesis.
         register("brief", briefResponder::answer);
@@ -73,6 +83,45 @@ public class ActionController extends AgentActionController {
                         .flatMap(opt -> opt.isPresent()
                                 ? Mono.just(ruleResult(opt.get(), relationship))
                                 : envelope(household));
+    }
+
+    /**
+     * Structured spend-by-category read over the {@code args.from}..{@code args.to} window (ISO-8601
+     * instants), for a caller that folds the raw rows into its own synthesis (the briefing digest). Ok →
+     * {@code {spending:[SpendingByCategoryRow…], from, to}}; missing household / bad window → {@code ok=false};
+     * mcp-finance down → {@code ok=false} (the digest soft-fails that section). No LLM, no writes.
+     */
+    private Mono<AgentActionResult> spendSnapshot(AgentActionRequest request) {
+        UUID household = request.householdId();
+        if (household == null) {
+            return Mono.just(AgentActionResult.error("spend_snapshot requires householdId"));
+        }
+        Instant from = instantArg(request, "from");
+        Instant to = instantArg(request, "to");
+        if (from == null || to == null) {
+            return Mono.just(AgentActionResult.error("spend_snapshot requires ISO-8601 args.from and args.to"));
+        }
+        return spending.spendingByCategory(household, from, to)
+                .map(rows -> {
+                    ObjectNode node = json.createObjectNode();
+                    node.set("spending", json.valueToTree(rows));
+                    node.put("from", from.toString());
+                    node.put("to", to.toString());
+                    return AgentActionResult.ok(node);
+                })
+                .onErrorResume(e -> Mono.just(AgentActionResult.error("spend_snapshot failed: " + e.getMessage())));
+    }
+
+    private Instant instantArg(AgentActionRequest request, String field) {
+        JsonNode args = request.args();
+        if (args == null) return null;
+        JsonNode v = args.get(field);
+        if (v == null || v.isNull()) return null;
+        try {
+            return Instant.parse(v.asString().trim());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     /** The household "Gifts" envelope read (D2b), used directly or as the D3c tier fallback. */

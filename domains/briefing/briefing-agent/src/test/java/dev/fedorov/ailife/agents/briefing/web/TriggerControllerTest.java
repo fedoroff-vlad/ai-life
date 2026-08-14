@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
@@ -52,7 +53,7 @@ class TriggerControllerTest {
     static MockWebServer mcpBriefing;
     static MockWebServer mcpWeather;
     static MockWebServer mcpCaldav;
-    static MockWebServer mcpFinance;
+    static MockWebServer orchestrator;
     static MockWebServer mcpWeb;
     static MockWebServer mediaService;
     static MockWebServer llmGateway;
@@ -64,13 +65,13 @@ class TriggerControllerTest {
         mcpBriefing = new MockWebServer();
         mcpWeather = new MockWebServer();
         mcpCaldav = new MockWebServer();
-        mcpFinance = new MockWebServer();
+        orchestrator = new MockWebServer();
         mcpWeb = new MockWebServer();
         mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
         profileService = new MockWebServer();
         notifier = new MockWebServer();
-        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, mcpFinance, mcpWeb,
+        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, orchestrator, mcpWeb,
                 mediaService, llmGateway, profileService, notifier)) {
             s.start();
         }
@@ -78,7 +79,7 @@ class TriggerControllerTest {
 
     @AfterAll
     static void stop() throws Exception {
-        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, mcpFinance, mcpWeb,
+        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, orchestrator, mcpWeb,
                 mediaService, llmGateway, profileService, notifier)) {
             s.shutdown();
         }
@@ -88,7 +89,7 @@ class TriggerControllerTest {
      *  otherwise a prior test's request leaks into a later {@code takeRequest} (negative) assertion. */
     @AfterEach
     void drain() throws Exception {
-        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, mcpFinance, mcpWeb,
+        for (MockWebServer s : List.of(mcpBriefing, mcpWeather, mcpCaldav, orchestrator, mcpWeb,
                 mediaService, llmGateway, profileService, notifier)) {
             while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
                 // discard
@@ -101,7 +102,7 @@ class TriggerControllerTest {
         r.add("briefing-agent.mcp-briefing-url", () -> "http://localhost:" + mcpBriefing.getPort());
         r.add("briefing-agent.mcp-weather-url", () -> "http://localhost:" + mcpWeather.getPort());
         r.add("briefing-agent.mcp-caldav-url", () -> "http://localhost:" + mcpCaldav.getPort());
-        r.add("briefing-agent.mcp-finance-url", () -> "http://localhost:" + mcpFinance.getPort());
+        r.add("briefing-agent.orchestrator-url", () -> "http://localhost:" + orchestrator.getPort());
         r.add("briefing-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
         r.add("briefing-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("briefing-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
@@ -129,8 +130,10 @@ class TriggerControllerTest {
                 UUID.randomUUID(), householdId, "personal", "uid-1", "Standup", null, null,
                 Instant.parse("2026-07-02T07:00:00Z"), Instant.parse("2026-07-02T07:15:00Z"),
                 null, List.of(), null)))));
-        mcpFinance.setDispatcher(fixedJson(json.writeValueAsString(List.of(new SpendingByCategoryRow(
-                UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3)))));
+        ObjectNode spend1 = json.createObjectNode();
+        spend1.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend1))));
         mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("AI", List.of(
                 new WebSearchHit("AI breakthrough", "https://example.com/ai", "A new model shipped."))))));
         mediaService.setDispatcher(fixedJson(json.writeValueAsString(new MediaObjectDto(
@@ -164,8 +167,10 @@ class TriggerControllerTest {
                 UUID.randomUUID(), householdId, "personal", "uid-2", "Dentist", null, null,
                 Instant.parse("2026-07-02T09:00:00Z"), Instant.parse("2026-07-02T09:30:00Z"),
                 null, List.of(), null)))));
-        mcpFinance.setDispatcher(fixedJson(json.writeValueAsString(List.of(new SpendingByCategoryRow(
-                UUID.randomUUID(), "Transport", "RUB", new BigDecimal("300.00"), 2)))));
+        ObjectNode spend2 = json.createObjectNode();
+        spend2.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Transport", "RUB", new BigDecimal("300.00"), 2))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend2))));
         mediaService.setDispatcher(fixedJson(json.writeValueAsString(new MediaObjectDto(
                 UUID.randomUUID(), householdId, null, "file", "text/html", 2048, "sha", "briefing", Instant.now()))));
         profileService.setDispatcher(fixedJson(json.writeValueAsString(List.of(

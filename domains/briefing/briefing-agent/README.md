@@ -20,7 +20,8 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - **BR-d — the digest flow. DONE.** A produce-now cue ("собери мне брифинг на сегодня", "brief me") →
   resolve the profile (self → household-default → all-sections default) → **gather** the enabled
   sections in parallel over the `/internal/*` read passthroughs (weather for the geocoded coordinates,
-  today's agenda from `mcp-caldav`, yesterday's spend snapshot from `mcp-finance`, news from `mcp-web`
+  today's agenda from `mcp-caldav`, yesterday's spend snapshot from **finance-agent** (its `spend_snapshot`
+  action over the orchestrator hub — not a direct mcp-finance read), news from `mcp-web`
   — one search per interest) → **one** `briefing-composer` LLM synthesis on the shared `Coordinator`.
   Per-source soft-fail; weather needs coordinates and news needs ≥1 interest, else those steps skip.
   Household-scoped agenda/finance for now. `flow/BriefingComposer`.
@@ -53,7 +54,7 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 | `MCP_WEATHER_URL` | `http://mcp-weather:8113` | shared weather + geocoding capability |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web/news capability (BR-d news gather) |
 | `MCP_CALDAV_URL` | `http://mcp-caldav:8090` | calendar domain-MCP — today's agenda (`/internal/events`, BR-d) |
-| `MCP_FINANCE_URL` | `http://mcp-finance:8092` | finance domain-MCP — spend snapshot (`/internal/spending-by-category`, BR-d) |
+| `ORCHESTRATOR_URL` | `http://orchestrator:8083` | inter-agent hub — the digest's spend snapshot via finance-agent's `spend_snapshot` action (BR-d) |
 | `MEDIA_SERVICE_URL` | `http://media-service:8088` | stores the rendered HTML digest board (BR-e) |
 | `BRIEFING_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | public base for the board open-link (`<base>/v1/media/{id}`, BR-e) |
 | `BRIEFING_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the eager MCP-SSE binding off in dev |
@@ -83,8 +84,8 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - `http/GeocodeClient` — `POST /internal/geocode` on `mcp-weather` (city → coords + timezone; soft-fail).
 - `http/ForecastClient` — `POST /internal/forecast` on `mcp-weather` (today's weather for the profile coords).
 - `http/CalendarEventsClient` — `GET /internal/events` on `mcp-caldav` (today's agenda for the window).
-- `http/FinanceSnapshotClient` — `GET /internal/spending-by-category` on `mcp-finance` (yesterday's spend).
-- `http/NewsSearchClient` — `POST /internal/search` on `mcp-web` (headlines per interest).
+- finance spend snapshot — via the shared `agent-runtime` `OrchestratorInvokeClient` (`BriefingComposer.financeSpend`): invokes finance-agent's `spend_snapshot` action over the hub (`POST /v1/agents/invoke`) and folds the returned `spending` rows into the gather. No direct mcp-finance read (a specialist owns its store).
+- news search — via the shared `agent-runtime` `WebSearchClient` (`POST /internal/search` on `mcp-web`, headlines per interest; 8s at the call site).
 
 ## Skills
 
