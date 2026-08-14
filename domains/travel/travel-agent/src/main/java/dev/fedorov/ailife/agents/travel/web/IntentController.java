@@ -1,9 +1,11 @@
 package dev.fedorov.ailife.agents.travel.web;
 
 import dev.fedorov.ailife.agents.travel.chat.TravelChat;
+import dev.fedorov.ailife.agents.travel.flow.RouteFlow;
 import dev.fedorov.ailife.agents.travel.flow.TripComposer;
 import dev.fedorov.ailife.agents.travel.flow.WalletFlow;
 import dev.fedorov.ailife.agents.travel.profile.TravelProfiler;
+import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -81,17 +84,27 @@ public class IntentController {
     private final TravelProfiler profiler;
     private final WalletFlow wallet;
     private final TripComposer composer;
+    private final RouteFlow route;
     private final TravelChat chat;
 
-    public IntentController(TravelProfiler profiler, WalletFlow wallet, TripComposer composer, TravelChat chat) {
+    public IntentController(TravelProfiler profiler, WalletFlow wallet, TripComposer composer,
+                            RouteFlow route, TravelChat chat) {
         this.profiler = profiler;
         this.wallet = wallet;
         this.composer = composer;
+        this.route = route;
         this.chat = chat;
     }
 
     @PostMapping("/intent")
     public Mono<IntentResponse> intent(@RequestBody NormalizedMessage message) {
+        // A route file attached to a travel-routed message is an unambiguous import (RT-c) — check it first,
+        // like docs checks a photo before its text cues. The flow sniffs the format and soft-fails if it
+        // isn't a route file.
+        Optional<Attachment> routeFile = routeFileAttachment(message);
+        if (routeFile.isPresent()) {
+            return route.handle(message, routeFile.get());
+        }
         if (isMatch(message.text(), PROFILE_CUES)) {
             return profiler.setProfile(message);
         }
@@ -102,6 +115,15 @@ public class IntentController {
             return composer.plan(message);
         }
         return chat.reply(message);
+    }
+
+    private static Optional<Attachment> routeFileAttachment(NormalizedMessage message) {
+        if (message == null || message.attachments() == null) {
+            return Optional.empty();
+        }
+        return message.attachments().stream()
+                .filter(a -> "file".equals(a.kind()) && a.storageUri() != null)
+                .findFirst();
     }
 
     private static boolean isMatch(String text, Set<String> cues) {
