@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.config;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
 import dev.fedorov.ailife.sharing.LearnedSharingPolicy;
@@ -65,6 +66,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpChartRenderWebClient(WebClient.Builder builder, FinanceAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpChartRenderUrl()).build();
+    }
+
+    /** Shared {@code mcp-chart-render} client (agent-runtime) over this agent's chart-render WebClient. */
+    @Bean
+    public ChartRenderClient chartRenderClient(
+            @Qualifier("mcpChartRenderWebClient") WebClient mcpChartRenderWebClient) {
+        return new ChartRenderClient(mcpChartRenderWebClient);
     }
 
     /**

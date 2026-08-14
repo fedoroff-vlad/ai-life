@@ -7,7 +7,7 @@ import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.ClimateBand;
 import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.PackingContext;
 import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.PackingList;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
-import dev.fedorov.ailife.agents.travel.http.GeocodeClient;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;

@@ -1,6 +1,8 @@
 package dev.fedorov.ailife.agents.travel.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
+import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,6 +33,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWeatherWebClient(WebClient.Builder builder, TravelAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWeatherUrl()).build();
+    }
+
+    /** Shared {@code mcp-weather} geocode client (agent-runtime) over this agent's weather WebClient. */
+    @Bean
+    public GeocodeClient geocodeClient(
+            @Qualifier("mcpWeatherWebClient") WebClient mcpWeatherWebClient) {
+        return new GeocodeClient(mcpWeatherWebClient);
     }
 
     @Bean
@@ -75,5 +84,12 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpChartRenderWebClient(WebClient.Builder builder, TravelAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpChartRenderUrl()).build();
+    }
+
+    /** Shared {@code mcp-chart-render} client (agent-runtime) over this agent's chart-render WebClient. */
+    @Bean
+    public ChartRenderClient chartRenderClient(
+            @Qualifier("mcpChartRenderWebClient") WebClient mcpChartRenderWebClient) {
+        return new ChartRenderClient(mcpChartRenderWebClient);
     }
 }
