@@ -45,6 +45,14 @@ class McpRouteIntegrationTest extends AbstractPostgresIntegrationTest {
             </gpx>
             """;
 
+    private static final String KML = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>KML маршрут</name>
+              <Placemark><name>Точка</name><Point><coordinates>37.62,55.75,0</coordinates></Point></Placemark>
+              <Placemark><LineString><coordinates>37.62,55.75 37.63,55.76</coordinates></LineString></Placemark>
+            </Document></kml>
+            """;
+
     private static final String GEOJSON = """
             {"type":"FeatureCollection","features":[
               {"type":"Feature","properties":{"name":"Кафе"},
@@ -88,6 +96,22 @@ class McpRouteIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(read.geometry().get("waypoints")).hasSize(1);
         assertThat(read.geometry().get("waypoints").get(0).get("name").asString()).isEqualTo("Старт");
         assertThat(read.geometry().get("track").get(0).get("lat").asDouble()).isEqualTo(55.75);
+    }
+
+    /** RT-b: a KML route imports through the same store path (parser is a drop-in). */
+    @Test
+    void importKmlThroughStore() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+
+        RouteDto imported = routes.importRoute(new ImportRouteInput(h, null, null, "kml", KML));
+        assertThat(imported.name()).isEqualTo("KML маршрут");
+        assertThat(imported.sourceFormat()).isEqualTo("kml");
+        assertThat(imported.pointCount()).isEqualTo(3); // 2 track + 1 waypoint
+
+        RouteDto read = routes.getRoute(imported.id(), h);
+        assertThat(read.geometry().get("track")).hasSize(2);
+        assertThat(read.geometry().get("waypoints").get(0).get("name").asString()).isEqualTo("Точка");
     }
 
     /** Scenario: import a GeoJSON attached to a trip; listRoutes filters by that trip within the household. */
