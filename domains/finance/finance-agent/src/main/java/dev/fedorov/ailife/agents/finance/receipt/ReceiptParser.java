@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
 import dev.fedorov.ailife.agents.finance.http.BasketCapturedClient;
-import dev.fedorov.ailife.agents.finance.http.CaptionClient;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;

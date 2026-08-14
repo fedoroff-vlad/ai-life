@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.stylist.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.docrender.DocRenderer;
@@ -27,6 +28,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpMediaProcessingWebClient(WebClient.Builder builder, StylistAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpMediaProcessingUrl()).build();
+    }
+
+    /** Shared {@code mcp-media-processing} vision-caption client (agent-runtime) — wardrobe-item captioning. */
+    @Bean
+    public CaptionClient captionClient(
+            @Qualifier("mcpMediaProcessingWebClient") WebClient mcpMediaProcessingWebClient) {
+        return new CaptionClient(mcpMediaProcessingWebClient);
     }
 
     @Bean

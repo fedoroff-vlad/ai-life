@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.http.BasketClient;
-import dev.fedorov.ailife.agents.nutritionist.http.CaptionClient;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
 import dev.fedorov.ailife.agents.nutritionist.http.FoodDataClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;

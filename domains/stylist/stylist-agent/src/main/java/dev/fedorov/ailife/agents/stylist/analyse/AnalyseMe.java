@@ -5,7 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.stylist.http.CaptionClient;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agents.stylist.http.StyleProfileClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;

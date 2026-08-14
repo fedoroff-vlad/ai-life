@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.nutritionist.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
@@ -32,6 +33,13 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpMediaProcessingWebClient(WebClient.Builder builder, NutritionistAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpMediaProcessingUrl()).build();
+    }
+
+    /** Shared {@code mcp-media-processing} vision-caption client (agent-runtime) — food-photo captioning. */
+    @Bean
+    public CaptionClient captionClient(
+            @Qualifier("mcpMediaProcessingWebClient") WebClient mcpMediaProcessingWebClient) {
+        return new CaptionClient(mcpMediaProcessingWebClient);
     }
 
     @Bean

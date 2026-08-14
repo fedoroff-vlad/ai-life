@@ -2,7 +2,7 @@ package dev.fedorov.ailife.agents.nutritionist.foodlog;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
-import dev.fedorov.ailife.agents.nutritionist.http.CaptionClient;
+import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agents.nutritionist.http.MealClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.nutrition.LogMealInput;
