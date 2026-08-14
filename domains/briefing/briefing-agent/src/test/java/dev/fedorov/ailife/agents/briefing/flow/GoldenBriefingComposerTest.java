@@ -8,7 +8,7 @@ import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
 import dev.fedorov.ailife.agents.briefing.http.FinanceSnapshotClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
-import dev.fedorov.ailife.agents.briefing.http.NewsSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.briefing.BriefingProfileDto;
@@ -65,7 +65,7 @@ class GoldenBriefingComposerTest {
     private final ForecastClient forecast = mock(ForecastClient.class);
     private final CalendarEventsClient calendar = mock(CalendarEventsClient.class);
     private final FinanceSnapshotClient finance = mock(FinanceSnapshotClient.class);
-    private final NewsSearchClient news = mock(NewsSearchClient.class);
+    private final WebSearchClient news = mock(WebSearchClient.class);
     private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
     private final AgentManifest manifest = new AgentManifest(
             "briefing", "briefing agent", "0.1.0", 8115,
@@ -101,7 +101,7 @@ class GoldenBriefingComposerTest {
                 null, List.of(), null))));
         when(finance.spendingByCategory(any(), any(), any())).thenReturn(Mono.just(List.of(
                 new SpendingByCategoryRow(UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
-        when(news.search(anyString(), anyInt())).thenReturn(Mono.just(new WebSearchResult("AI", List.of(
+        when(news.search(anyString(), anyInt(), any())).thenReturn(Mono.just(new WebSearchResult("AI", List.of(
                 new WebSearchHit("Новый ИИ-прорыв", NEWS_URL, "Исследователи представили новую модель.")))));
         // The board store is out of scope here — fail it so the reply is the pure model synthesis, whose
         // link provenance we assert (the happy-path board link is covered by BriefingComposerTest).

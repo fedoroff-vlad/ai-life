@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.stylist.config;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.docrender.DocRenderer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +32,12 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpWebWebClient(WebClient.Builder builder, StylistAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpWebUrl()).build();
+    }
+
+    /** Shared {@code mcp-web} search client (agent-runtime) over this agent's web WebClient. */
+    @Bean
+    public WebSearchClient webSearchClient(@Qualifier("mcpWebWebClient") WebClient mcpWebWebClient) {
+        return new WebSearchClient(mcpWebWebClient);
     }
 
     @Bean

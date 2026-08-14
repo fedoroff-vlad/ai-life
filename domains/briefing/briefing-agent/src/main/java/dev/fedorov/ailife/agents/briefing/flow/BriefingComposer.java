@@ -12,7 +12,7 @@ import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
 import dev.fedorov.ailife.agents.briefing.http.FinanceSnapshotClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
-import dev.fedorov.ailife.agents.briefing.http.NewsSearchClient;
+import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -74,7 +75,7 @@ public class BriefingComposer {
     private final ForecastClient forecast;
     private final CalendarEventsClient calendar;
     private final FinanceSnapshotClient finance;
-    private final NewsSearchClient news;
+    private final WebSearchClient news;
     private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
@@ -85,7 +86,7 @@ public class BriefingComposer {
                             ForecastClient forecast,
                             CalendarEventsClient calendar,
                             FinanceSnapshotClient finance,
-                            NewsSearchClient news,
+                            WebSearchClient news,
                             DeliverablePublisher publisher,
                             SkillRegistry skills,
                             AgentManifest manifest,
@@ -224,7 +225,8 @@ public class BriefingComposer {
     /** One search per interest, folded into an array of {@code {topic, hits:[{title, url, snippet}]}}. */
     private Mono<JsonNode> gatherNews(List<String> interests) {
         return Flux.fromIterable(interests)
-                .flatMap(topic -> news.search(topic, NEWS_PER_TOPIC)
+                .flatMap(topic -> news.search(topic, NEWS_PER_TOPIC, Duration.ofSeconds(8))
+                        .defaultIfEmpty(new WebSearchResult(topic, List.of()))
                         .map(res -> topicNode(topic, res))
                         .onErrorResume(e -> {
                             log.warn("news search failed for '{}': {}", topic, e.toString());
