@@ -4,14 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: lists LI-a — explicit list operations.** New **lists** capability ([lists.md](lists.md)):
-  everyday item checklists (grocery / to-buy / packing) the owner adds to, checks off, and clears. A list
-  **is** a `type=list` `memory.note` whose body is a CommonMark task list; `notes-agent` gains the
-  `list-manager` SKILL + `ListManager` (find-or-create by title → mutate `MarkdownChecklist` body →
-  `POST`/`PUT /v1/notes`) + an `IntentController` list cue. No new store/endpoint/contract (PK-a ethos).
-  Ambient keyword-free capture (LI-b) + travel packing-list-as-note (LI-c) deferred. WHEN/THEN + slices →
-  [lists.md](lists.md). (Prior: **packing-list #438** DONE PK-a [PR457](https://github.com/fedoroff-vlad/ai-life/pull/457);
-  **route import #436** DONE RT-a…RT-d2 — browser short links → TR-f3.)
+- **No slice in flight. lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
+  2026-08-15): a `type=list` `memory.note` with a CommonMark task-list body maintained by `notes-agent`
+  (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`); no new
+  store/endpoint/contract. Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md). **LI-b** ambient
+  keyword-free list capture + **LI-c** travel packing-list-as-note stay deferred (see [lists.md](lists.md)).
+  (Prior: **packing-list #438** DONE PK-a [PR457](https://github.com/fedoroff-vlad/ai-life/pull/457);
+  **route import #436** DONE RT-a…RT-d2 — browser short links → TR-f3.) **Pick the next item from `## Next`.**
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,

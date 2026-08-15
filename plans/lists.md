@@ -34,7 +34,7 @@ A list reuses the second-brain substrate ([second-brain.md](second-brain.md)) en
 
 ## Phased slices (each = one small vertical slice / PR)
 
-### LI-a — explicit list operations ✅ SPEC (this slice)
+### LI-a — explicit list operations ✅ DONE ([PR466](https://github.com/fedoroff-vlad/ai-life/pull/466))
 The conversational front in `notes-agent`: the owner manages a named list by voice/text. One llm-gateway
 turn with the **`list-manager`** SKILL classifies the message into `{op, list, item}` (strict JSON,
 temperature 0, the `note-writer` shape); `ListManager` then resolves the list note (find-or-create by
