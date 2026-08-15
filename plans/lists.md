@@ -78,10 +78,41 @@ Ops: `add` · `check` (check off / mark done) · `clear` (empty the list) · `sh
   WHEN the op is `check`/`clear`/`show` and no matching list exists
   THEN nothing is written and the reply says the list wasn't found (no empty note is created).
 
-### LI-b — ambient list capture (deferred, rides ambient-capture)
+### LI-b — ambient list capture (keyword-free)
 Fill a list *without* a keyword: "надо купить молоко" / "заканчивается кофе" → append to the grocery
-list. Extends the ambient decision engine (a fourth outcome / a list-intent branch in
-`NoteWorthinessExtractor`), reusing LI-a's `MarkdownChecklist` write. LLM-gated; specced when picked.
+list. This is the ambient half — it must run in the always-on capture path (`memory-service.CaptureService`,
+plans/ambient-capture.md), because with no keyword the orchestrator never routes the message to
+`notes-agent`. A new **`ListIntentExtractor`** is added *alongside* the existing extractors (the AC
+"add, don't unify" doctrine), and the write reuses LI-a's checklist logic — lifted to a shared home.
+Posture (owner, 2026-08-15): **auto-save + a notifier ack** (frictionless, transparent, reversible), not
+per-item approval. Gated by the existing `memory.ambient-capture.enabled` flag (off by default). Split:
+
+#### LI-b1 — list-intent detection engine ✅ DONE ([PR468](https://github.com/fedoroff-vlad/ai-life/pull/468))
+`memory-service` `capture/ListIntentExtractor` (mirrors `NoteWorthinessExtractor`: DEFAULT channel,
+strict-JSON, lenient parse, best-effort → empty on junk) emits 0..N `ListItemCandidate {item, list}` for a
+genuine add-to-list intent. Conservative by design (most chatter is not a list intent) so the LI-b2
+auto-save posture is safe. Decide-only, **no writes**.
+
+- Scenario: **a buy intent yields an item**
+  WHEN the message is "надо купить молоко" THEN one candidate `{item: "молоко"}` is emitted.
+- Scenario: **running-low implies a buy**
+  WHEN "дома заканчивается кофе" THEN a candidate for `кофе` is emitted.
+- Scenario: **several things split into several items**
+  WHEN "нужно купить молоко и хлеб" THEN two candidates (`молоко`, `хлеб`).
+- Scenario: **a named list is captured**
+  WHEN "добавь зонт в список на поездку" THEN the candidate carries that list name (else `list=null`).
+- Scenario: **small-talk / a past purchase yield nothing**
+  WHEN "привет, как дела?" or "сегодня купил молоко" THEN no candidate (a past purchase is not an add).
+- Scenario: **a malformed model reply never breaks capture**
+  WHEN the LLM returns non-JSON THEN `extract` returns an empty list (best-effort), never throws.
+
+#### LI-b2 — wire the write into `CaptureService` (deferred, next)
+Lift LI-a's `MarkdownChecklist` (+ find-or-create-list-by-title) into a shared home (`libs/platform-common`,
+the "second consumer lifts it" rule — memory-service is the second consumer), then add a best-effort
+`captureListItems` output to `CaptureService`: for each candidate, find-or-create the `type=list` note by
+title (default `список покупок`), append via `MarkdownChecklist`, `NoteService.update`, and push a notifier
+ack ("➕ добавил «молоко» в список покупок"). Dedup an already-present item (LI-a's idempotent add). Flag-gated;
+E2E over real `/v1/capture`.
 
 ### LI-c — travel packing-list as a list note (deferred)
 Let travel's `PackingListComposer` emit its result as a `type=list` note so the owner can then check
@@ -95,3 +126,7 @@ items off through LI-a. Folds #438's output onto this tier without moving the ge
   missing-list graceful. llm-gateway + memory-service mocked.
 - **Golden (opt-in, `GOLDEN_LLM`)** `GoldenListManagerTest` — the real local model classifies a natural
   list message into a parseable `{op, list, item}` (structure, not wording).
+- **LI-b1 unit** `ListIntentExtractorTest` (memory-service) — lenient JSON parse, several-items, fences/prose
+  tolerance, empty-on-junk, blank-item drop, blank-text-skips-LLM (mirror `NoteWorthinessExtractorTest`).
+- **LI-b1 golden (opt-in)** `GoldenListIntentExtractorTest` — the real model emits an item for a buy /
+  running-low message and **nothing** for small-talk or a past purchase (the auto-save safety check).
