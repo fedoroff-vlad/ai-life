@@ -4,13 +4,18 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **No slice in flight. lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
+- **In flight: lists LI-b1 — ambient list-intent detection.** New `memory-service` `ListIntentExtractor`
+  (mirrors `NoteWorthinessExtractor`, added alongside per the AC "add, don't unify" doctrine): from an
+  ordinary keyword-free message it emits `ListItemCandidate {item, list}` for a genuine add-to-list intent
+  ("надо купить молоко", "заканчивается кофе"). Decide-only, no writes. Conservative prompt so the LI-b2
+  auto-save posture is safe (golden verifies small-talk / past-purchase → nothing). WHEN/THEN → [lists.md](lists.md)
+  §LI-b1. **Next slice LI-b2** wires the write into `CaptureService` (lift `MarkdownChecklist` to
+  `libs/platform-common` + find-or-create list + append + notifier ack; posture = **auto-save + notify**,
+  owner 2026-08-15; flag-gated by `ambient-capture.enabled`).
+- **lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
   2026-08-15): a `type=list` `memory.note` with a CommonMark task-list body maintained by `notes-agent`
-  (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`); no new
-  store/endpoint/contract. Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md). **LI-b** ambient
-  keyword-free list capture + **LI-c** travel packing-list-as-note stay deferred (see [lists.md](lists.md)).
-  (Prior: **packing-list #438** DONE PK-a [PR457](https://github.com/fedoroff-vlad/ai-life/pull/457);
-  **route import #436** DONE RT-a…RT-d2 — browser short links → TR-f3.) **Pick the next item from `## Next`.**
+  (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`). Detail →
+  [HISTORY.md](HISTORY.md) / [lists.md](lists.md). **LI-c** travel packing-list-as-note stays deferred.
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
