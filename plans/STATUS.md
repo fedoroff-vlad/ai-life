@@ -4,12 +4,14 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **No slice in flight.** **Packing-list #438 is DONE** (PK-a, [PR457](https://github.com/fedoroff-vlad/ai-life/pull/457),
-  2026-08-14): a deterministic packing list for the active trip — cue → resolve active trip + `travel_profile`
-  → season band via geocode→climate → `PackingListComposer` (essentials + climate clothing + rest-type gear +
-  kids, deduped) → reply + HTML packing board. Pure Java, no LLM, no new store/client/contract. Detail →
-  [HISTORY.md](HISTORY.md) / [travel.md](travel.md) §Packing-list. (Prior: **route import #436** file+URL scope
-  DONE, RT-a…RT-d2 — only browser short links → TR-f3.) **Pick the next item from `## Next`.**
+- **In flight: lists LI-a — explicit list operations.** New **lists** capability ([lists.md](lists.md)):
+  everyday item checklists (grocery / to-buy / packing) the owner adds to, checks off, and clears. A list
+  **is** a `type=list` `memory.note` whose body is a CommonMark task list; `notes-agent` gains the
+  `list-manager` SKILL + `ListManager` (find-or-create by title → mutate `MarkdownChecklist` body →
+  `POST`/`PUT /v1/notes`) + an `IntentController` list cue. No new store/endpoint/contract (PK-a ethos).
+  Ambient keyword-free capture (LI-b) + travel packing-list-as-note (LI-c) deferred. WHEN/THEN + slices →
+  [lists.md](lists.md). (Prior: **packing-list #438** DONE PK-a [PR457](https://github.com/fedoroff-vlad/ai-life/pull/457);
+  **route import #436** DONE RT-a…RT-d2 — browser short links → TR-f3.)
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
@@ -61,10 +63,10 @@ _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migr
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
 Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294.
-**Lists capability** (owner idea, 2026-08-14): grocery/things lists captured **ambiently** (no keyword) into
-the second brain as **structured item lists** (add/check-off/clear), owned by **notes-agent** (`memory.note`
-tier — not a new domain); rides the [ambient-capture.md](ambient-capture.md) epic and could subsume #438
-packing-list. Spec/WHEN-THEN TBD. (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
+**Lists capability** (owner idea, 2026-08-14) — now specced + in flight, see `## Now` + [lists.md](lists.md):
+grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
+**notes-agent**. LI-a (explicit ops) in flight; **LI-b** ambient keyword-free capture (rides
+[ambient-capture.md](ambient-capture.md)) + **LI-c** subsume #438 packing-list-as-note stay deferred. (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
 
