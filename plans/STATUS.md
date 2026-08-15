@@ -4,14 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: lists LI-b1 — ambient list-intent detection.** New `memory-service` `ListIntentExtractor`
-  (mirrors `NoteWorthinessExtractor`, added alongside per the AC "add, don't unify" doctrine): from an
-  ordinary keyword-free message it emits `ListItemCandidate {item, list}` for a genuine add-to-list intent
-  ("надо купить молоко", "заканчивается кофе"). Decide-only, no writes. Conservative prompt so the LI-b2
-  auto-save posture is safe (golden verifies small-talk / past-purchase → nothing). WHEN/THEN → [lists.md](lists.md)
-  §LI-b1. **Next slice LI-b2** wires the write into `CaptureService` (lift `MarkdownChecklist` to
-  `libs/platform-common` + find-or-create list + append + notifier ack; posture = **auto-save + notify**,
-  owner 2026-08-15; flag-gated by `ambient-capture.enabled`).
+- **No slice in flight. lists LI-b1 is DONE** (ambient list-intent detection, [PR468](https://github.com/fedoroff-vlad/ai-life/pull/468),
+  2026-08-15): `memory-service` `ListIntentExtractor` emits `ListItemCandidate {item, list}` for a
+  keyword-free add-to-list intent; decide-only, conservative prompt (golden vs qwen3:8b: small-talk /
+  past-purchase → nothing). Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md) §LI-b1.
+  **Next slice = LI-b2:** wire the write into `CaptureService` — lift `MarkdownChecklist` to
+  `libs/platform-common`, find-or-create the `type=list` note + append + notifier ack; posture =
+  **auto-save + notify** (owner 2026-08-15), flag-gated by `ambient-capture.enabled`; E2E over `/v1/capture`.
 - **lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
   2026-08-15): a `type=list` `memory.note` with a CommonMark task-list body maintained by `notes-agent`
   (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`). Detail →
