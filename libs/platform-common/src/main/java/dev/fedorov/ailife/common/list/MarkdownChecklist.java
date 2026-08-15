@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.agents.notes.list;
+package dev.fedorov.ailife.common.list;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,15 +8,18 @@ import java.util.regex.Pattern;
 
 /**
  * A list's items as a CommonMark task list — the body form of a {@code type=list}
- * {@code memory.note} (LI-a, {@link dev.fedorov.ailife.agents.notes.list}). One line per item:
+ * {@code memory.note} (lists capability, plans/lists.md). One line per item:
  * <pre>
  * - [ ] молоко
  * - [x] яйца
  * </pre>
- * Pure + immutable: every mutation returns a new {@code MarkdownChecklist}, so the flow can render the
+ * Pure + immutable: every mutation returns a new {@code MarkdownChecklist}, so a caller can render the
  * before/after body and decide whether anything actually changed. Item matching is case-insensitive on
  * the trimmed, whitespace-collapsed text. List notes are owned entirely by the lists capability, so
  * non-item lines in the body are not preserved on rewrite — the body is the checklist.
+ *
+ * <p>Shared home: lifted here from notes-agent when memory-service (ambient list capture, §LI-b) became
+ * the second consumer — the "second consumer lifts it" rule. Depends on nothing but the JDK.
  */
 public final class MarkdownChecklist {
 

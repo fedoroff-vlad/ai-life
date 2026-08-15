@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.notes.list;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.notes.http.NoteClient;
+import dev.fedorov.ailife.common.list.MarkdownChecklist;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;

@@ -1,12 +1,13 @@
-package dev.fedorov.ailife.agents.notes.list;
+package dev.fedorov.ailife.common.list;
 
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit spec for the pure checklist body util (LI-a). Covers parse/render round-trip, case-insensitive
- * item matching, idempotent add, check-off, and clear — the mutations {@link ListManager} composes.
+ * Unit spec for the pure checklist body util (lists capability). Covers parse/render round-trip,
+ * case-insensitive item matching, idempotent add, check-off, and clear — the mutations both
+ * notes-agent's {@code ListManager} (LI-a) and memory-service's ambient capture (LI-b) compose.
  */
 class MarkdownChecklistTest {
 

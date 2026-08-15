@@ -132,6 +132,29 @@ while IFS='|' read -r uri who; do
   err "→ lift ONE shared client into libs/agent-runtime/http (see ChartRender/Geocode/WebSearch/Caption) + an opt-in @Bean per agent; or, if it's a deliberate cross-domain domain read, add it to ALLOWLIST_URIS in $0 with a why"
 done <<< "$dupes"
 
+# ── Check 6: every libs/* module is in the ci.yml pre-install list ────────────────────
+# The PR CI pre-installs the whole libs/* layer into .m2 so a GIB-pruned, -T2-parallel reactor can
+# resolve any lib SNAPSHOT order-independently (see .github/workflows/ci.yml). The list is hand-maintained,
+# so a NEW lib silently drops off it — invisible until a PR drags a dependent of that lib into the parallel
+# reactor and the build dies on "Could not find artifact …" (bit us 2026-08-15: libs/sharing was missing,
+# a platform-common change pulled calendar-web in, and its sharing dep failed to resolve under -T2). This
+# check fails the moment a libs/* module (a dir with a pom.xml) is absent from that -pl list.
+echo "check 6: every libs/* module is in the ci.yml pre-install list"
+preinstall="$(grep -oE '\-pl libs/[a-zA-Z0-9,/_-]+' .github/workflows/ci.yml | head -1 | sed 's/^-pl //' || true)"
+if [ -z "$preinstall" ]; then
+  err "could not find the 'mvn … install -pl libs/…' pre-install list in .github/workflows/ci.yml"
+else
+  for d in libs/*/; do
+    name="${d%/}"                       # e.g. libs/sharing
+    [ -f "$name/pom.xml" ] || continue
+    case ",$preinstall," in
+      *",$name,"*) : ;;
+      *) err "libs module '$name' is missing from the ci.yml pre-install -pl list"
+         err "→ add '$name' to the pre-install step in .github/workflows/ci.yml (a new lib must join it, or PRs that drag a dependent into the -T2 reactor fail to resolve its SNAPSHOT)" ;;
+    esac
+  done
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
