@@ -8,9 +8,12 @@ import dev.fedorov.ailife.contracts.memory.WriteMemoryRequest;
 import dev.fedorov.ailife.contracts.memory.WriteRelationRequest;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
+import dev.fedorov.ailife.common.list.MarkdownChecklist;
 import dev.fedorov.ailife.memory.capture.CaptureOutcome;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
+import dev.fedorov.ailife.memory.capture.ListIntentExtractor;
+import dev.fedorov.ailife.memory.capture.ListItemCandidate;
 import dev.fedorov.ailife.memory.capture.NoteCandidate;
 import dev.fedorov.ailife.memory.capture.NoteReconciler;
 import dev.fedorov.ailife.memory.capture.NoteReconciliation;
@@ -80,9 +83,14 @@ public class CaptureService {
     /** Subject sentinel the extractor uses for a statement about the speaker. */
     private static final String SELF = "self";
 
+    /** Note type + default title for the lists capability (LI-b: ambient list capture). */
+    private static final String LIST_TYPE = "list";
+    private static final String DEFAULT_LIST = "список покупок";
+
     private final FactExtractor extractor;
     private final RelationExtractor relationExtractor;
     private final NoteWorthinessExtractor noteExtractor;
+    private final ListIntentExtractor listExtractor;
     private final NoteReconciler reconciler;
     private final MemoryService memories;
     private final RelationService relations;
@@ -96,6 +104,7 @@ public class CaptureService {
     public CaptureService(FactExtractor extractor,
                           RelationExtractor relationExtractor,
                           NoteWorthinessExtractor noteExtractor,
+                          ListIntentExtractor listExtractor,
                           NoteReconciler reconciler,
                           MemoryService memories,
                           RelationService relations,
@@ -108,6 +117,7 @@ public class CaptureService {
         this.extractor = extractor;
         this.relationExtractor = relationExtractor;
         this.noteExtractor = noteExtractor;
+        this.listExtractor = listExtractor;
         this.reconciler = reconciler;
         this.memories = memories;
         this.relations = relations;
@@ -134,6 +144,7 @@ public class CaptureService {
         }
         captureRelations(req);
         captureNotes(req);
+        captureListItems(req);
         return written;
     }
 
@@ -210,6 +221,75 @@ public class CaptureService {
         } catch (Exception e) {
             log.warn("ambient note capture failed: {}", e.toString());
         }
+    }
+
+    /**
+     * Ambient list capture (LI-b) — best-effort, flag-gated, never throws. From an ordinary keyword-free
+     * message ("надо купить молоко", "заканчивается кофе") the {@link ListIntentExtractor} pulls add-to-list
+     * intents; each is appended to the household's {@code type=list} note (find-or-create by title, default
+     * {@value #DEFAULT_LIST}) with a notifier ack (auto-save + notify posture, owner 2026-08-15). An item
+     * already on the list is a silent no-op (no duplicate, no notify).
+     */
+    private void captureListItems(CaptureRequest req) {
+        if (!props.getAmbientCapture().isEnabled()) {
+            return;
+        }
+        try {
+            int added = 0;
+            for (ListItemCandidate candidate : listExtractor.extract(req.text())) {
+                if (addToList(req, candidate)) {
+                    added++;
+                }
+            }
+            if (added > 0) {
+                log.debug("captured {} ambient list item(s) from message", added);
+            }
+        } catch (Exception e) {
+            log.warn("ambient list capture failed: {}", e.toString());
+        }
+    }
+
+    /**
+     * Append one candidate item to its list note (household-shared, find-or-create by title). Idempotent:
+     * an item already present (case-insensitive) is skipped with no write and no notify. Returns whether the
+     * list actually changed. The notifier ack goes to the capturing user (best-effort; a null user just
+     * writes silently — the list is still updated).
+     */
+    private boolean addToList(CaptureRequest req, ListItemCandidate candidate) {
+        String item = candidate.item() == null ? null : candidate.item().trim();
+        if (item == null || item.isBlank()) {
+            return false;
+        }
+        String listName = (candidate.list() == null || candidate.list().isBlank())
+                ? DEFAULT_LIST : candidate.list().trim();
+        Optional<NoteDto> existing = notes.findByTypeAndTitle(req.householdId(), LIST_TYPE, listName);
+        if (existing.isPresent()) {
+            NoteDto note = existing.get();
+            MarkdownChecklist list = MarkdownChecklist.parse(note.bodyMd());
+            if (list.contains(item)) {
+                return false;   // already on the list — no duplicate, no noise
+            }
+            notes.update(note.id(), withBody(note, list.add(item).render()));
+        } else {
+            String body = MarkdownChecklist.parse(null).add(item).render();
+            notes.create(new WriteNoteRequest(
+                    req.householdId(),
+                    null,                       // household-shared: the grocery list belongs to everyone
+                    listName,
+                    LIST_TYPE,
+                    List.of(LIST_TYPE),
+                    NOTE_SOURCE_AMBIENT,        // system-noticed, like an approved inferred note
+                    null,
+                    body,
+                    null));
+        }
+        notifier.notify(req.userId(), listAck(item, listName));
+        return true;
+    }
+
+    /** The "➕ добавил …" ack pushed to the owner after an ambient list add. */
+    private static String listAck(String item, String listName) {
+        return "➕ добавил «" + item + "» в список «" + listName + "».";
     }
 
     /**

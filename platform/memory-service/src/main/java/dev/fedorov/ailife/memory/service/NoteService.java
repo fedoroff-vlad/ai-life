@@ -110,6 +110,18 @@ public class NoteService {
         return repo.findById(id).map(row -> row.toDto());
     }
 
+    /**
+     * Find a note by coarse {@code type} + title (case-insensitive) — the lists capability's
+     * find-or-create lookup for a {@code type=list} note. Bounded, so it never misses behind the paged
+     * {@link #list} cap. Empty on a null household / blank title or when none matches.
+     */
+    public Optional<NoteDto> findByTypeAndTitle(UUID householdId, String type, String title) {
+        if (householdId == null || type == null || title == null || title.isBlank()) {
+            return Optional.empty();
+        }
+        return repo.findByTypeAndTitle(householdId, type.trim(), title.trim()).map(NoteRow::toDto);
+    }
+
     public List<NoteDto> list(UUID householdId, Integer limit) {
         if (householdId == null) {
             throw new IllegalArgumentException("householdId is required");
