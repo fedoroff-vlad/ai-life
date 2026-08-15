@@ -90,8 +90,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `config/NotesAgentProperties` — `notes-agent.*` base URLs (implements `SharedClientProperties`).
 - `config/OutboundHttpConfig` — the `schedulerWebClient` bean (its own base URL; the profile/notifier/memory clients come from `agent-runtime`).
 - `http/NoteClient` — `/v1/notes` create / get / **update** / **list** / backlinks / **resurface** over the shared `memoryServiceWebClient`.
-- `list/MarkdownChecklist` — LI-a: pure, immutable util that parses/renders a note body as a `- [ ]`/`- [x]` task list and applies add (dedup, case-insensitive) / check / clear.
-- `list/ListManager` — LI-a flow: LLM classify (`list-manager` SKILL, temperature 0) → find-or-create the `type=list` note by title → mutate the checklist body → `POST`/`PUT /v1/notes`; each stage soft-fails.
+- `list/ListManager` — LI-a flow: LLM classify (`list-manager` SKILL, temperature 0) → find-or-create the `type=list` note by title → mutate the checklist body (via the shared `common.list.MarkdownChecklist` in `libs/platform-common`) → `POST`/`PUT /v1/notes`; each stage soft-fails.
 - `http/SchedulerClient` — R-c: idempotent `ensureResurfaceSchedule(household)` (list → create only if no `notes.resurface` cron yet) over `schedulerWebClient`; best-effort, soft-fails.
 - `flow/NoteResurfacer` — the R-b proactive flow: `NoteClient.resurface` → format a reminder → deliver via notifier (owner if set, else household fan-out); best-effort, no-op when nothing is stale.
 - `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title. On a successful capture it also fires `SchedulerClient.ensureResurfaceSchedule` (R-c, fire-and-forget).
