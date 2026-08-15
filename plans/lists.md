@@ -145,6 +145,8 @@ items off through LI-a. Folds #438's output onto this tier without moving the ge
 - **LI-b2 unit** `CaptureServiceTest` (+6) — absent-list creates a household-shared `type=list`/`source=ambient`
   note + notifies, null list → default shopping list, existing list appends via update, already-present item is
   a silent no-op, ambient-off never calls the extractor, a write failure never breaks capture.
-- **LI-b2 integration (Testcontainers)** `AmbientListCaptureIntegrationTest` — over the real `/v1/capture`
-  boundary into Postgres: a buy intent creates the list note, a second item appends to the same note, the
-  same item twice stays one entry.
+- **LI-b2 integration (Testcontainers)** the list cases in `AmbientCaptureIntegrationTest` — over the real
+  `/v1/capture` boundary into Postgres: a buy intent creates the list note, a second item appends to the
+  same note, the same item twice stays one entry. (Kept in the existing ambient IT rather than a new
+  `@SpringBootTest` class — another context would add a Hikari pool against the one Testcontainers Postgres
+  and exhaust connections across the module's ~dozen IT contexts.)
