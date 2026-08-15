@@ -7,9 +7,19 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4 + resurfacing R-b + ambient-approve AC-4)
+## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a)
 
-Scaffold + the **capture**, **recall**, **proactive-resurfacing**, and **ambient-approve** (AC-4 resume) flows.
+Scaffold + the **capture**, **recall**, **proactive-resurfacing**, **ambient-approve** (AC-4 resume),
+and **lists** (LI-a) flows.
+
+- **Lists (LI-a)** — everyday item checklists (a shopping / to-buy / packing list). A "…список…" /
+  "вычеркни …" cue → one llm-gateway turn with the `list-manager` SKILL classifies the message into
+  `{op, list, item}` → `ListManager` resolves the list note (find-or-create by title among the
+  household's `type=list` notes) and applies the op (`add` / `check` / `clear` / `show`) to the
+  checklist body via the pure `MarkdownChecklist` util, persisting with `POST`/`PUT /v1/notes`. A list
+  **is** a note (`type=list`, household-shared, body = a `- [ ]`/`- [x]` task list), so it recalls and
+  exports (SB-2/SB-7) with everything else — no new store/endpoint/contract. Plan:
+  [plans/lists.md](../../../plans/lists.md). Ambient (keyword-free) list capture is LI-b, deferred.
 
 - **Resurface (R-b)** — a `notes.resurface` scheduler wake (declared in `AGENT.md`) → `NoteResurfacer`
   pulls one stale note the owner hasn't revisited in a while (memory-service
@@ -47,7 +57,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/notes/intent` | orchestrator entry. "запомни …" cue → `note-writer` capture; "что я думал про …" cue → `note-finder` recall; else the chat fallback. |
+| POST | `/agents/notes/intent` | orchestrator entry. "что я думал про …" cue → `note-finder` recall; "…список…" / "вычеркни …" cue → `list-manager` op (LI-a); "запомни …" cue → `note-writer` capture; else the chat fallback. |
 | POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); unknown flow → graceful reply. |
 | POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
@@ -58,6 +68,8 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   (title / type / tags / body) from a "remember this" request.
 - **`note-finder`** (`domains/knowledge/skills/note-finder/SKILL.md`) — strict-JSON distil of a search
   query from a "what did I think about X" request.
+- **`list-manager`** (`domains/knowledge/skills/list-manager/SKILL.md`) — strict-JSON classify of a
+  list request into `{op, list, item}` (`op` ∈ `add|check|clear|show`) for LI-a.
 
 ## Env
 
@@ -77,13 +89,15 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `NotesAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/NotesAgentProperties` — `notes-agent.*` base URLs (implements `SharedClientProperties`).
 - `config/OutboundHttpConfig` — the `schedulerWebClient` bean (its own base URL; the profile/notifier/memory clients come from `agent-runtime`).
-- `http/NoteClient` — `/v1/notes` create / get / backlinks / **resurface** over the shared `memoryServiceWebClient`.
+- `http/NoteClient` — `/v1/notes` create / get / **update** / **list** / backlinks / **resurface** over the shared `memoryServiceWebClient`.
+- `list/MarkdownChecklist` — LI-a: pure, immutable util that parses/renders a note body as a `- [ ]`/`- [x]` task list and applies add (dedup, case-insensitive) / check / clear.
+- `list/ListManager` — LI-a flow: LLM classify (`list-manager` SKILL, temperature 0) → find-or-create the `type=list` note by title → mutate the checklist body → `POST`/`PUT /v1/notes`; each stage soft-fails.
 - `http/SchedulerClient` — R-c: idempotent `ensureResurfaceSchedule(household)` (list → create only if no `notes.resurface` cron yet) over `schedulerWebClient`; best-effort, soft-fails.
 - `flow/NoteResurfacer` — the R-b proactive flow: `NoteClient.resurface` → format a reminder → deliver via notifier (owner if set, else household fan-out); best-effort, no-op when nothing is stale.
 - `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title. On a successful capture it also fires `SchedulerClient.ensureResurfaceSchedule` (R-c, fire-and-forget).
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `approve/AmbientApprover` — AC-4 resume: parse the `pendingAction.note` (a ready `WriteNoteRequest`), and on an affirmative reply write it (`source=ambient`) via `NoteClient.create`, else drop; both clear the lock. Soft-fails to a friendly reply.
-- `web/IntentController` — recall cue → find, capture cue → write, else chat; `web/ManifestController`.
+- `web/IntentController` — recall cue → find, list cue → lists (LI-a), capture cue → write, else chat; `web/ManifestController`.
 - `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`).
 - `web/TriggerController` — `POST /agents/notes/triggers/{kind}`; `notes.resurface` → `NoteResurfacer` (202), unbound kind → 404.

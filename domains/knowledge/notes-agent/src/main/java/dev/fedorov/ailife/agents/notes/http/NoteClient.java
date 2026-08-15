@@ -38,6 +38,32 @@ public class NoteClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
+    /** Replace the mutable fields of an existing note ({@code PUT /v1/notes/{id}}) — the lists path
+     *  reads a list note, mutates its checklist body, and writes it back. */
+    public Mono<NoteDto> update(UUID id, WriteNoteRequest req) {
+        return http.put()
+                .uri("/v1/notes/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .retrieve()
+                .bodyToMono(NoteDto.class)
+                .timeout(Duration.ofSeconds(10));
+    }
+
+    /** The household's notes ({@code GET /v1/notes?householdId=…}) — the lists path filters these to
+     *  {@code type=list} to find a list by title (find-or-create). */
+    public Mono<java.util.List<NoteDto>> list(UUID householdId, int limit) {
+        return http.get()
+                .uri(uri -> uri.path("/v1/notes")
+                        .queryParam("householdId", householdId)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToFlux(NoteDto.class)
+                .collectList()
+                .timeout(Duration.ofSeconds(10));
+    }
+
     /** One note by id — resolving a semantic-recall hit's {@code refId} back-pointer. */
     public Mono<NoteDto> get(UUID id) {
         return http.get()
