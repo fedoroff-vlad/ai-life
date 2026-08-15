@@ -105,6 +105,25 @@ public class NoteRepository {
         }
     }
 
+    /**
+     * Resolve a note by its coarse {@code type} + title within a household (case-insensitive;
+     * most-recently-updated wins on duplicates). The lists capability's find-or-create lookup for a
+     * {@code type=list} note. Bounded (single row), so it never misses behind the paged list cap. Empty
+     * when none matches.
+     */
+    public Optional<NoteRow> findByTypeAndTitle(UUID householdId, String type, String title) {
+        try {
+            return Optional.ofNullable(jdbc.queryForObject("SELECT " + COLUMNS + """
+                     FROM memory.note
+                     WHERE household_id = ? AND type = ? AND lower(title) = lower(?)
+                     ORDER BY updated_at DESC
+                     LIMIT 1
+                    """, rowMapper, householdId, type, title));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
     /** Most-recent notes in a household (by {@code updated_at}). */
     public List<NoteRow> listByHousehold(UUID householdId, int limit) {
         return jdbc.query("SELECT " + COLUMNS + """

@@ -4,14 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **No slice in flight. lists LI-b1 is DONE** (ambient list-intent detection, [PR468](https://github.com/fedoroff-vlad/ai-life/pull/468),
-  2026-08-15): `memory-service` `ListIntentExtractor` emits `ListItemCandidate {item, list}` for a
-  keyword-free add-to-list intent; decide-only, conservative prompt (golden vs qwen3:8b: small-talk /
-  past-purchase → nothing). Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md) §LI-b1.
-  **Next slice = LI-b2:** wire the write into `CaptureService` — lift `MarkdownChecklist` to
-  `libs/platform-common`, find-or-create the `type=list` note + append + notifier ack; posture =
-  **auto-save + notify** (owner 2026-08-15), flag-gated by `ambient-capture.enabled`; E2E over `/v1/capture`.
-- **lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
+- **In flight: lists LI-b2 — wire the ambient list write into `CaptureService`.** LI-b2a lifted
+  `MarkdownChecklist` → `libs/platform-common` ([PR470](https://github.com/fedoroff-vlad/ai-life/pull/470),
+  also fixed a latent CI bug: `libs/sharing` was missing from the ci.yml pre-install list → now guarded by
+  check-consistency check 6). LI-b2b ([PR471](https://github.com/fedoroff-vlad/ai-life/pull/471)) adds
+  `captureListItems` to `CaptureService`: keyword-free add-intent → find-or-create the `type=list` note
+  (default `список покупок`) → append via `MarkdownChecklist` → notifier ack (**auto-save + notify**),
+  flag-gated by `ambient-capture.enabled`, idempotent. WHEN/THEN → [lists.md](lists.md) §LI-b2. With this
+  **lists LI-b (ambient capture) is complete**; only **LI-c** (travel packing-list-as-note) stays deferred.
+- **lists LI-b1 is DONE** (ambient list-intent detection, [PR468](https://github.com/fedoroff-vlad/ai-life/pull/468),
+  2026-08-15). **lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
   2026-08-15): a `type=list` `memory.note` with a CommonMark task-list body maintained by `notes-agent`
   (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`). Detail →
   [HISTORY.md](HISTORY.md) / [lists.md](lists.md). **LI-c** travel packing-list-as-note stays deferred.

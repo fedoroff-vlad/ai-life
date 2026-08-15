@@ -10,6 +10,8 @@ import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.memory.capture.ExtractedRelation;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
+import dev.fedorov.ailife.memory.capture.ListIntentExtractor;
+import dev.fedorov.ailife.memory.capture.ListItemCandidate;
 import dev.fedorov.ailife.memory.capture.NoteCandidate;
 import dev.fedorov.ailife.memory.capture.NoteReconciler;
 import dev.fedorov.ailife.memory.capture.NoteReconciliation;
@@ -50,6 +52,7 @@ class CaptureServiceTest {
     private final FactExtractor facts = mock(FactExtractor.class);
     private final RelationExtractor relationExtractor = mock(RelationExtractor.class);
     private final NoteWorthinessExtractor noteExtractor = mock(NoteWorthinessExtractor.class);
+    private final ListIntentExtractor listExtractor = mock(ListIntentExtractor.class);
     private final NoteReconciler reconciler = mock(NoteReconciler.class);
     private final MemoryService memories = mock(MemoryService.class);
     private final RelationService relations = mock(RelationService.class);
@@ -61,8 +64,8 @@ class CaptureServiceTest {
     private final MemoryServiceProperties props = new MemoryServiceProperties();
 
     private final CaptureService service = new CaptureService(
-            facts, relationExtractor, noteExtractor, reconciler, memories, relations, notes, profile,
-            conversation, notifier, json, props);
+            facts, relationExtractor, noteExtractor, listExtractor, reconciler, memories, relations, notes,
+            profile, conversation, notifier, json, props);
 
     private final UUID household = UUID.randomUUID();
     private final UUID speaker = UUID.randomUUID();
@@ -404,5 +407,100 @@ class CaptureServiceTest {
         service.capture(req(speaker));
 
         verify(notes).create(any());   // fail-open: a dedup lookup blip never drops the note
+    }
+
+    // --- LI-b ambient list capture -------------------------------------------------------------------
+
+    /** Turn on ambient capture and stub the list extractor's output (other extractors quiet). */
+    private void enableLists(ListItemCandidate... items) {
+        props.getAmbientCapture().setEnabled(true);
+        when(relationExtractor.extract(any())).thenReturn(List.of());
+        when(noteExtractor.extract(any())).thenReturn(List.of());
+        when(listExtractor.extract(any())).thenReturn(List.of(items));
+    }
+
+    private static NoteDto listNote(UUID id, String title, String body) {
+        return new NoteDto(id, UUID.randomUUID(), null, title, "list", List.of("list"),
+                "user", null, body, null, null, null);
+    }
+
+    @Test
+    void listsDisabledByDefault_extractorNeverCalled() {
+        when(relationExtractor.extract(any())).thenReturn(List.of());
+        when(listExtractor.extract(any())).thenReturn(List.of(new ListItemCandidate("молоко", null)));
+
+        service.capture(req(speaker));   // ambient off by default
+
+        verify(listExtractor, never()).extract(any());
+        verify(notes, never()).create(any());
+    }
+
+    @Test
+    void ambientItem_absentList_createsHouseholdSharedListAndNotifies() {
+        enableLists(new ListItemCandidate("молоко", "список покупок"));
+        when(notes.findByTypeAndTitle(household, "list", "список покупок")).thenReturn(Optional.empty());
+
+        service.capture(req(speaker));
+
+        ArgumentCaptor<WriteNoteRequest> captor = ArgumentCaptor.forClass(WriteNoteRequest.class);
+        verify(notes).create(captor.capture());
+        WriteNoteRequest w = captor.getValue();
+        assertThat(w.householdId()).isEqualTo(household);
+        assertThat(w.ownerId()).isNull();                 // household-shared
+        assertThat(w.type()).isEqualTo("list");
+        assertThat(w.title()).isEqualTo("список покупок");
+        assertThat(w.source()).isEqualTo("ambient");
+        assertThat(w.bodyMd()).isEqualTo("- [ ] молоко");
+        verify(notifier).notify(eq(speaker), org.mockito.ArgumentMatchers.contains("молоко"));
+    }
+
+    @Test
+    void ambientItem_nullList_defaultsToShoppingList() {
+        enableLists(new ListItemCandidate("хлеб", null));
+        when(notes.findByTypeAndTitle(household, "list", "список покупок")).thenReturn(Optional.empty());
+
+        service.capture(req(speaker));
+
+        ArgumentCaptor<WriteNoteRequest> captor = ArgumentCaptor.forClass(WriteNoteRequest.class);
+        verify(notes).create(captor.capture());
+        assertThat(captor.getValue().title()).isEqualTo("список покупок");
+    }
+
+    @Test
+    void ambientItem_existingList_appendsViaUpdate() {
+        UUID listId = UUID.randomUUID();
+        enableLists(new ListItemCandidate("хлеб", "список покупок"));
+        when(notes.findByTypeAndTitle(household, "list", "список покупок"))
+                .thenReturn(Optional.of(listNote(listId, "список покупок", "- [ ] молоко")));
+
+        service.capture(req(speaker));
+
+        ArgumentCaptor<WriteNoteRequest> captor = ArgumentCaptor.forClass(WriteNoteRequest.class);
+        verify(notes).update(eq(listId), captor.capture());
+        assertThat(captor.getValue().bodyMd()).isEqualTo("- [ ] молоко\n- [ ] хлеб");
+        verify(notes, never()).create(any());
+        verify(notifier).notify(eq(speaker), org.mockito.ArgumentMatchers.contains("хлеб"));
+    }
+
+    @Test
+    void ambientItem_alreadyOnList_isSilentNoOp() {
+        UUID listId = UUID.randomUUID();
+        enableLists(new ListItemCandidate("молоко", "список покупок"));
+        when(notes.findByTypeAndTitle(household, "list", "список покупок"))
+                .thenReturn(Optional.of(listNote(listId, "список покупок", "- [ ] молоко")));
+
+        service.capture(req(speaker));
+
+        verify(notes, never()).update(any(), any());
+        verify(notes, never()).create(any());
+        verify(notifier, never()).notify(any(), any());
+    }
+
+    @Test
+    void ambientListWriteFailureNeverBreaksCapture() {
+        enableLists(new ListItemCandidate("молоко", "список покупок"));
+        when(notes.findByTypeAndTitle(any(), any(), any())).thenThrow(new RuntimeException("db blip"));
+
+        assertThatCode(() -> service.capture(req(speaker))).doesNotThrowAnyException();
     }
 }

@@ -6,9 +6,12 @@ import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.memory.CaptureRequest;
 import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.memory.capture.FactExtractor;
+import dev.fedorov.ailife.memory.capture.ListIntentExtractor;
+import dev.fedorov.ailife.memory.capture.ListItemCandidate;
 import dev.fedorov.ailife.memory.capture.NoteCandidate;
 import dev.fedorov.ailife.memory.capture.NoteWorthinessExtractor;
 import dev.fedorov.ailife.memory.capture.RelationExtractor;
+import dev.fedorov.ailife.memory.http.NotifierClient;
 import dev.fedorov.ailife.memory.http.ProfileClient;
 import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import okhttp3.mockwebserver.Dispatcher;
@@ -49,7 +52,11 @@ import static org.mockito.Mockito.when;
  * recall runs against the real pgvector store.
  *
  * <p>Proves: an explicit-fixation about a person → an attributed note (+ note→person edge); a "self"
- * fixation → an owner-scoped note; the same message twice → exactly one note (dedup).
+ * fixation → an owner-scoped note; the same message twice → exactly one note (dedup). Also covers the
+ * lists sibling (LI-b2): a keyword-free buy intent → a {@code type=list} note the item is appended to
+ * (find-or-create, idempotent). The list tests share this context on purpose — a separate
+ * {@code @SpringBootTest} class would add another Hikari pool against the one Testcontainers Postgres and
+ * exhaust its connections across the module's ~dozen IT contexts.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {"event-bus.enabled=false", "memory.ambient-capture.enabled=true"})
@@ -105,7 +112,9 @@ class AmbientCaptureIntegrationTest extends AbstractPostgresIntegrationTest {
     @MockitoBean FactExtractor facts;                 // returns [] by default — no free-text facts in these cases
     @MockitoBean RelationExtractor relationExtractor; // returns [] by default — focus stays on the note output
     @MockitoBean NoteWorthinessExtractor noteExtractor;
+    @MockitoBean ListIntentExtractor listExtractor;   // returns [] by default — only the list tests stub it
     @MockitoBean ProfileClient profile;
+    @MockitoBean NotifierClient notifier;             // the LI-b2 "➕ добавил …" ack is a mocked side push
 
     @Autowired JdbcTemplate jdbc;
     @LocalServerPort int port;
@@ -202,5 +211,56 @@ class AmbientCaptureIntegrationTest extends AbstractPostgresIntegrationTest {
 
         // AC-3: the near-identical second note is skipped on write.
         assertThat(notesInHousehold()).hasSize(1);
+    }
+
+    // --- LI-b2 ambient list capture (shares this context; see class javadoc) -------------------------
+
+    private List<Map<String, Object>> listNotes() {
+        return jdbc.queryForList(
+                "SELECT * FROM memory.note WHERE household_id = ? AND type = 'list'", household);
+    }
+
+    @Test
+    void buyIntent_absentList_createsHouseholdSharedListNote() {
+        when(listExtractor.extract(any()))
+                .thenReturn(List.of(new ListItemCandidate("молоко", "список покупок")));
+
+        capture("надо купить молоко");
+
+        List<Map<String, Object>> notes = listNotes();
+        assertThat(notes).hasSize(1);
+        Map<String, Object> note = notes.get(0);
+        assertThat(note.get("title")).isEqualTo("список покупок");
+        assertThat(note.get("owner_id")).isNull();          // household-shared
+        assertThat(note.get("source")).isEqualTo("ambient");
+        assertThat((String) note.get("body_md")).isEqualTo("- [ ] молоко");
+    }
+
+    @Test
+    void secondItem_appendsToTheSameList() {
+        when(listExtractor.extract(any()))
+                .thenReturn(List.of(new ListItemCandidate("молоко", "список покупок")));
+        capture("надо купить молоко");
+
+        when(listExtractor.extract(any()))
+                .thenReturn(List.of(new ListItemCandidate("хлеб", "список покупок")));
+        capture("ещё нужен хлеб");
+
+        List<Map<String, Object>> notes = listNotes();
+        assertThat(notes).hasSize(1);
+        assertThat((String) notes.get(0).get("body_md")).isEqualTo("- [ ] молоко\n- [ ] хлеб");
+    }
+
+    @Test
+    void sameItemTwice_staysOneEntry() {
+        when(listExtractor.extract(any()))
+                .thenReturn(List.of(new ListItemCandidate("молоко", "список покупок")));
+
+        capture("надо купить молоко");
+        capture("не забыть купить молоко");   // idempotent add — no duplicate line
+
+        List<Map<String, Object>> notes = listNotes();
+        assertThat(notes).hasSize(1);
+        assertThat((String) notes.get(0).get("body_md")).isEqualTo("- [ ] молоко");
     }
 }

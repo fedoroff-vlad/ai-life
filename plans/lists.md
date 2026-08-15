@@ -106,13 +106,25 @@ auto-save posture is safe. Decide-only, **no writes**.
 - Scenario: **a malformed model reply never breaks capture**
   WHEN the LLM returns non-JSON THEN `extract` returns an empty list (best-effort), never throws.
 
-#### LI-b2 — wire the write into `CaptureService` (deferred, next)
-Lift LI-a's `MarkdownChecklist` (+ find-or-create-list-by-title) into a shared home (`libs/platform-common`,
-the "second consumer lifts it" rule — memory-service is the second consumer), then add a best-effort
-`captureListItems` output to `CaptureService`: for each candidate, find-or-create the `type=list` note by
-title (default `список покупок`), append via `MarkdownChecklist`, `NoteService.update`, and push a notifier
-ack ("➕ добавил «молоко» в список покупок"). Dedup an already-present item (LI-a's idempotent add). Flag-gated;
-E2E over real `/v1/capture`.
+#### LI-b2 — wire the write into `CaptureService` ✅ DONE (LI-b2a [PR470](https://github.com/fedoroff-vlad/ai-life/pull/470) lift · LI-b2b [PR471](https://github.com/fedoroff-vlad/ai-life/pull/471) wire)
+LI-a's `MarkdownChecklist` was lifted to `libs/platform-common` (`common.list.MarkdownChecklist`, the
+"second consumer lifts it" rule — memory-service is the second consumer; LI-b2a). Then a best-effort
+`captureListItems` output was added to `CaptureService`: for each candidate, find-or-create the `type=list`
+note by title (default `список покупок`, `NoteService.findByTypeAndTitle` — bounded, never misses behind the
+paged list cap), append via `MarkdownChecklist`, `NoteService.create`/`update`, and push a "➕ добавил …"
+notifier ack (**auto-save + notify**). An item already on the list is a silent no-op (idempotent add).
+Flag-gated by `memory.ambient-capture.enabled`. New list notes are household-shared (`ownerId=null`,
+`source=ambient`).
+
+- Scenario: **a keyword-free buy intent creates the list**
+  WHEN "надо купить молоко" and no `type=list` "список покупок" note exists (ambient on)
+  THEN a household-shared `type=list` note is created with body `- [ ] молоко` and the owner gets a "➕ …" ack.
+- Scenario: **a second item appends to the same list**
+  WHEN "ещё нужен хлеб" and the list holds `- [ ] молоко` THEN the note is updated to hold both.
+- Scenario: **an item already on the list is a silent no-op**
+  WHEN the item is already present THEN nothing is written and no ack is pushed.
+- Scenario: **ambient off → nothing happens**
+  WHEN `memory.ambient-capture.enabled=false` THEN the extractor isn't even called.
 
 ### LI-c — travel packing-list as a list note (deferred)
 Let travel's `PackingListComposer` emit its result as a `type=list` note so the owner can then check
@@ -130,3 +142,11 @@ items off through LI-a. Folds #438's output onto this tier without moving the ge
   tolerance, empty-on-junk, blank-item drop, blank-text-skips-LLM (mirror `NoteWorthinessExtractorTest`).
 - **LI-b1 golden (opt-in)** `GoldenListIntentExtractorTest` — the real model emits an item for a buy /
   running-low message and **nothing** for small-talk or a past purchase (the auto-save safety check).
+- **LI-b2 unit** `CaptureServiceTest` (+6) — absent-list creates a household-shared `type=list`/`source=ambient`
+  note + notifies, null list → default shopping list, existing list appends via update, already-present item is
+  a silent no-op, ambient-off never calls the extractor, a write failure never breaks capture.
+- **LI-b2 integration (Testcontainers)** the list cases in `AmbientCaptureIntegrationTest` — over the real
+  `/v1/capture` boundary into Postgres: a buy intent creates the list note, a second item appends to the
+  same note, the same item twice stays one entry. (Kept in the existing ambient IT rather than a new
+  `@SpringBootTest` class — another context would add a Hikari pool against the one Testcontainers Postgres
+  and exhaust connections across the module's ~dozen IT contexts.)
