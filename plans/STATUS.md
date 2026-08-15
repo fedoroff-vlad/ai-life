@@ -4,19 +4,17 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: lists LI-b2 — wire the ambient list write into `CaptureService`.** LI-b2a lifted
-  `MarkdownChecklist` → `libs/platform-common` ([PR470](https://github.com/fedoroff-vlad/ai-life/pull/470),
-  also fixed a latent CI bug: `libs/sharing` was missing from the ci.yml pre-install list → now guarded by
-  check-consistency check 6). LI-b2b ([PR471](https://github.com/fedoroff-vlad/ai-life/pull/471)) adds
-  `captureListItems` to `CaptureService`: keyword-free add-intent → find-or-create the `type=list` note
-  (default `список покупок`) → append via `MarkdownChecklist` → notifier ack (**auto-save + notify**),
-  flag-gated by `ambient-capture.enabled`, idempotent. WHEN/THEN → [lists.md](lists.md) §LI-b2. With this
-  **lists LI-b (ambient capture) is complete**; only **LI-c** (travel packing-list-as-note) stays deferred.
-- **lists LI-b1 is DONE** (ambient list-intent detection, [PR468](https://github.com/fedoroff-vlad/ai-life/pull/468),
-  2026-08-15). **lists LI-a is DONE** (explicit list ops, [PR466](https://github.com/fedoroff-vlad/ai-life/pull/466),
-  2026-08-15): a `type=list` `memory.note` with a CommonMark task-list body maintained by `notes-agent`
-  (`list-manager` SKILL + `ListManager` + `MarkdownChecklist`, `add`/`check`/`clear`/`show`). Detail →
-  [HISTORY.md](HISTORY.md) / [lists.md](lists.md). **LI-c** travel packing-list-as-note stays deferred.
+- **No slice in flight. lists LI-b (ambient capture) is COMPLETE.** LI-b1 detection
+  ([PR468](https://github.com/fedoroff-vlad/ai-life/pull/468)) + LI-b2a `MarkdownChecklist` lift to
+  `libs/platform-common` ([PR470](https://github.com/fedoroff-vlad/ai-life/pull/470); also fixed a latent
+  CI bug — `libs/sharing` missing from the ci.yml pre-install list → now guarded by check-consistency
+  check 6) + LI-b2b `captureListItems` in `CaptureService`
+  ([PR471](https://github.com/fedoroff-vlad/ai-life/pull/471)): a keyword-free add-intent
+  ("надо купить молоко") → find-or-create the `type=list` note (default `список покупок`) → append via
+  `MarkdownChecklist` → notifier ack (**auto-save + notify**), flag-gated by `ambient-capture.enabled`,
+  idempotent. Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md). With LI-a (explicit ops, #466) +
+  LI-b, the **lists capability is complete**; only **LI-c** (travel packing-list emitted as a `type=list`
+  note) stays deferred. **Pick the next item from `## Next`.**
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
