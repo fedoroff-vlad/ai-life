@@ -187,14 +187,28 @@ class SkillClassifierTest {
     }
 
     @Test
-    void buildPromptWithNoToolsOrChoicesStillHasToolAndChatShapes() {
-        String prompt = classifier.buildPrompt("Intro.", List.of(), List.of(), null);
+    void buildPromptWithNoToolsOmitsTheToolSectionShapeAndRule() {
+        // A skills-only agent (no MCP tools) must not advertise tools it can't dispatch — the tool
+        // section, the tool shape, and the tool-specific missing-argument rule are all gated out; only
+        // the chat shape (and any choices) remain. notes-agent is the first skills-only consumer (#475).
+        String prompt = classifier.buildPrompt(
+                "Intro.", List.of(), choices, "Decide: run a flow, or just talk?");
+
+        assertThat(prompt).doesNotContain("Available tools:");
+        assertThat(prompt).doesNotContain("{\"action\":\"tool\"");
+        assertThat(prompt).doesNotContain("lacks required arguments for a tool");
+        // The choice + chat shapes are still there, and the chat guidance survives.
+        assertThat(prompt).contains("  {\"action\":\"skill\",\"name\":\"<skill-name>\"}");
+        assertThat(prompt).contains("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}");
+        assertThat(prompt).contains("If they're just chatting, use action=chat");
+    }
+
+    @Test
+    void buildPromptWithToolsKeepsTheToolSectionShapeAndRule() {
+        String prompt = classifier.buildPrompt("Intro.", tools, choices, "Decide?");
 
         assertThat(prompt).contains("Available tools:\n");
         assertThat(prompt).contains("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}");
-        assertThat(prompt).contains("  {\"action\":\"chat\",\"text\":\"<reply to the user>\"}");
-        // No choices → no extra shape lines between tool and chat.
-        assertThat(prompt).doesNotContain("\"action\":\"report\"");
-        assertThat(prompt).doesNotContain("\"action\":\"skill\"");
+        assertThat(prompt).contains("lacks required arguments for a tool");
     }
 }

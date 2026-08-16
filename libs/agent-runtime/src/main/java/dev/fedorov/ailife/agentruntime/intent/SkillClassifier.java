@@ -113,14 +113,21 @@ public final class SkillClassifier {
                               String decidePrompt, List<String> extraRules) {
         StringBuilder sb = new StringBuilder();
         sb.append(intro).append("\n\n");
-        sb.append("Available tools:\n");
-        for (ToolSpec t : tools) {
-            sb.append("- ").append(t.name()).append(": ").append(t.description());
-            String schema = t.inputSchema();
-            if (schema != null && !schema.isBlank()) {
-                sb.append("\n  inputSchema: ").append(schema);
+        // A skills-only agent (no MCP tools) must not advertise the tool section or the tool shape —
+        // it only confuses the model into emitting {"action":"tool",…} it can never dispatch (notes-agent,
+        // the first skills-only consumer, mis-routed recall to chat until this was gated). finance/tasks
+        // (tools present) get the identical prompt as before.
+        boolean hasTools = tools != null && !tools.isEmpty();
+        if (hasTools) {
+            sb.append("Available tools:\n");
+            for (ToolSpec t : tools) {
+                sb.append("- ").append(t.name()).append(": ").append(t.description());
+                String schema = t.inputSchema();
+                if (schema != null && !schema.isBlank()) {
+                    sb.append("\n  inputSchema: ").append(schema);
+                }
+                sb.append('\n');
             }
-            sb.append('\n');
         }
         for (Choice c : choices) {
             if (c.promptBlock() != null && !c.promptBlock().isBlank()) {
@@ -133,7 +140,9 @@ public final class SkillClassifier {
         }
         sb.append("Reply with strict JSON ONLY. No markdown fences, no commentary, no extra prose.\n");
         sb.append("Use ONE of these shapes:\n");
-        sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
+        if (hasTools) {
+            sb.append("  {\"action\":\"tool\",\"name\":\"<tool-name>\",\"args\":{...}}\n");
+        }
         for (Choice c : choices) {
             if (c.shapeExample() != null && !c.shapeExample().isBlank()) {
                 sb.append("  ").append(c.shapeExample()).append('\n');
@@ -147,9 +156,12 @@ public final class SkillClassifier {
                 }
             }
         }
-        sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
-        sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
-        sb.append("arguments. If they're just chatting, use action=chat with a helpful reply.\n");
+        if (hasTools) {
+            sb.append("If the user's message lacks required arguments for a tool, use action=chat ");
+            sb.append("and ask the user (in their language) for the missing piece — do NOT invent ");
+            sb.append("arguments. ");
+        }
+        sb.append("If they're just chatting, use action=chat with a helpful reply.\n");
         return sb.toString();
     }
 

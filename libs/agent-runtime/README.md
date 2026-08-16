@@ -87,7 +87,11 @@ multi-step flows/skills, or reply in chat. It owns the two halves the finance an
   prompt: the agent's `intro`, the tool list (name + description + inputSchema), each `Choice`'s prompt
   block, the `decidePrompt` question, then the strict-JSON contract (the `tool` shape, each choice's
   shape, the `chat` shape), any agent-specific `extraRules`, and the missing-argument rule. The shapes
-  advertised here are exactly the ones `parse` accepts — they evolve together. `extraRules` is the slot
+  advertised here are exactly the ones `parse` accepts — they evolve together. **A skills-only agent
+  (empty `tools`)** gets no tool section, no `tool` shape, and no tool-specific missing-argument rule —
+  advertising a tool it can't dispatch only pushed small models to emit an undispatchable
+  `{"action":"tool"}` (notes-agent, the first skills-only consumer, mis-routed to chat until this was
+  gated; #475). Agents with tools get the identical prompt as before. `extraRules` is the slot
   for domain constraints the shared scaffold can't own: each string is appended **verbatim** (caller
   owns its trailing newline) **after** the shape list and **before** the shared missing-argument rule
   — the exact position finance's enum-pinning rule (stop a 7B inventing action values) occupied before
