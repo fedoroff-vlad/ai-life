@@ -10,9 +10,13 @@ import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
+import dev.fedorov.ailife.agentruntime.http.MemoryClient;
+import dev.fedorov.ailife.common.list.MarkdownChecklist;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.note.NoteDto;
+import dev.fedorov.ailife.contracts.note.WriteNoteRequest;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
 import dev.fedorov.ailife.contracts.travel.TripDto;
 import dev.fedorov.ailife.contracts.weather.ClimateNormals;
@@ -25,8 +29,11 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The packing-list flow (PK-a, #438): a cue-routed <b>"что взять с собой"</b> → a deterministic categorized
@@ -52,21 +59,31 @@ public class PackingFlow {
             "Создайте поездку («создай поездку в …»), чтобы я учёл направление и сезон в списке.";
     private static final String WEATHER_UNKNOWN =
             "Погоду для направления уточнить не удалось — список без привязки к сезону.";
+    /** The LI-a-nameable handle the saved packing list lives under (a {@code type=list} note title). */
+    private static final String LIST_TYPE = "list";
+    private static final String PACKING_LIST_TITLE = "список вещей";
+    private static final int LIST_SCAN_LIMIT = 500;   // notes to scan when resolving the list by title
+    private static final String SAVED_LINE =
+            "Сохранил в список «" + PACKING_LIST_TITLE
+                    + "» — можно вычёркивать пункты (например «вычеркни зонт из списка вещей»).";
 
     private final TripWalletClient wallet;
     private final TravelProfileClient profiles;
     private final GeocodeClient geocode;
     private final ClimateClient climate;
     private final DeliverablePublisher publisher;
+    private final MemoryClient memory;
     private final AgentManifest manifest;
 
     public PackingFlow(TripWalletClient wallet, TravelProfileClient profiles, GeocodeClient geocode,
-                       ClimateClient climate, DeliverablePublisher publisher, AgentManifest manifest) {
+                       ClimateClient climate, DeliverablePublisher publisher, MemoryClient memory,
+                       AgentManifest manifest) {
         this.wallet = wallet;
         this.profiles = profiles;
         this.geocode = geocode;
         this.climate = climate;
         this.publisher = publisher;
+        this.memory = memory;
         this.manifest = manifest;
     }
 
@@ -145,13 +162,80 @@ public class PackingFlow {
                 restTypes(profile), profile.companions(), childAges(profile), info.band(), info.wet());
         PackingList list = PackingListComposer.compose(ctx);
         String text = renderText(tripOpt, list);
-        return publishBoard(msg, tripOpt, list)
-                .map(link -> reply(withLink(text, link)))
-                .defaultIfEmpty(reply(text))
+        return saveAsList(msg, flatItems(list))
+                .flatMap(saved -> publishBoard(msg, tripOpt, list)
+                        .map(link -> reply(finalText(text, link, saved)))
+                        .defaultIfEmpty(reply(finalText(text, null, saved)))
+                        .onErrorResume(e -> {
+                            log.warn("packing board store failed: {}", e.toString());
+                            return Mono.just(reply(finalText(text, null, saved)));
+                        }));
+    }
+
+    // --- LI-c: mirror the list onto the note tier so LI-a can check items off ---
+
+    /**
+     * Best-effort: upsert the packing list as a household-shared {@code type=list} note titled
+     * «{@value #PACKING_LIST_TITLE}» so the owner can then check items off through LI-a. Find-or-create
+     * by title (re-asking replaces the body with a fresh, all-unchecked list); soft-fails to {@code false}
+     * so a memory-service outage never blocks the plain reply or the board.
+     *
+     * @return {@code true} when the note was written (drives the "saved to list" reply line).
+     */
+    private Mono<Boolean> saveAsList(NormalizedMessage msg, List<String> items) {
+        if (items.isEmpty()) {
+            return Mono.just(false);
+        }
+        String body = checklistBody(items);
+        return memory.listNotes(msg.householdId(), LIST_SCAN_LIMIT)
+                .flatMap(notes -> {
+                    Optional<NoteDto> existing = notes.stream().filter(PackingFlow::isPackingList).findFirst();
+                    Mono<NoteDto> write = existing
+                            .map(n -> memory.updateNote(n.id(), updateRequest(n, body)))
+                            .orElseGet(() -> memory.note(createRequest(msg, body)));
+                    return write.map(n -> true).defaultIfEmpty(false);
+                })
                 .onErrorResume(e -> {
-                    log.warn("packing board store failed: {}", e.toString());
-                    return Mono.just(reply(text));
+                    log.warn("packing list-note save failed: {}", e.toString());
+                    return Mono.just(false);
                 });
+    }
+
+    /** Flatten every category's items into one deduped, category-ordered list (the composer also dedups). */
+    private static List<String> flatItems(PackingList list) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (Category c : list.categories()) {
+            seen.addAll(c.items());
+        }
+        return new ArrayList<>(seen);
+    }
+
+    /** A flat CommonMark checklist (one {@code - [ ]} line per item) — the LI-a-managed body form. */
+    private static String checklistBody(List<String> items) {
+        MarkdownChecklist cl = MarkdownChecklist.parse(null);
+        for (String item : items) {
+            cl = cl.add(item);
+        }
+        return cl.render();
+    }
+
+    private static boolean isPackingList(NoteDto n) {
+        return LIST_TYPE.equalsIgnoreCase(n.type())
+                && n.title() != null
+                && n.title().trim().toLowerCase(Locale.ROOT).equals(PACKING_LIST_TITLE);
+    }
+
+    private WriteNoteRequest createRequest(NormalizedMessage msg, String body) {
+        return new WriteNoteRequest(
+                msg.householdId(), null,                 // household-shared, like the LI-a grocery list
+                PACKING_LIST_TITLE, LIST_TYPE, List.of(LIST_TYPE), manifest.name(), null, body, null);
+    }
+
+    private WriteNoteRequest updateRequest(NoteDto note, String body) {
+        String source = (note.source() == null || note.source().isBlank()) ? manifest.name() : note.source();
+        return new WriteNoteRequest(
+                note.householdId(), note.ownerId(), note.title(), LIST_TYPE,
+                note.tags(), source, note.personId(), body, note.frontmatter());
     }
 
     // --- rendering ---
@@ -236,6 +320,12 @@ public class PackingFlow {
 
     private static String withLink(String text, String link) {
         return (link == null || link.isBlank()) ? text : text + "\n\nОткрыть список: " + link;
+    }
+
+    /** The reply text: the list, the optional board link, and the LI-c "saved to list" ack when written. */
+    private static String finalText(String text, String link, boolean saved) {
+        String t = withLink(text, link);
+        return saved ? t + "\n\n" + SAVED_LINE : t;
     }
 
     private static TravelProfileDto emptyProfile(NormalizedMessage msg) {

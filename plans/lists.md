@@ -126,9 +126,34 @@ Flag-gated by `memory.ambient-capture.enabled`. New list notes are household-sha
 - Scenario: **ambient off → nothing happens**
   WHEN `memory.ambient-capture.enabled=false` THEN the extractor isn't even called.
 
-### LI-c — travel packing-list as a list note (deferred)
-Let travel's `PackingListComposer` emit its result as a `type=list` note so the owner can then check
-items off through LI-a. Folds #438's output onto this tier without moving the generator.
+### LI-c — travel packing-list as a list note ✅ DONE
+Let travel's `PackingFlow` (#438, PK-a) emit its result as a `type=list` note so the owner can then check
+items off through LI-a. Folds #438's output onto this tier without moving the generator: the composer is
+unchanged; `PackingFlow` best-effort **upserts** a household-shared `type=list` note titled **«список
+вещей»** (the LI-a-nameable handle) whose body is a **flat** `MarkdownChecklist` of every packing item
+(the composer already globally dedups; category headers are dropped — LI-a operates on flat checklists,
+the HTML board keeps the categorized view). Find-or-create by title (re-asking "что взять" **replaces** the
+body with a fresh, all-unchecked list); the write is best-effort and soft-fails to the plain reply, never
+blocking the board. Second consumer of note list/update → those two methods are lifted onto the shared
+`agent-runtime` `MemoryClient` (alongside `note`/`getNote`), same "second consumer lifts it" rule as
+`MarkdownChecklist` in LI-b2a.
+
+- Scenario: **a packing list is saved as a manageable list note**
+  WHEN the owner asks "что взять с собой" and no `type=list` «список вещей» note exists
+  THEN a household-shared `type=list` note titled «список вещей» is created with a `- [ ]` line per packing
+  item and the reply says the list was saved (asserted by `PackingFlowTest`).
+- Scenario: **re-asking replaces the saved list in place**
+  WHEN a «список вещей» note already exists and the owner asks for a packing list again
+  THEN that note is updated (`PUT`, same id) to the fresh checklist rather than a duplicate note being
+  created (asserted by `PackingFlowTest`).
+- Scenario: **the owner then checks items off through LI-a**
+  WHEN the saved «список вещей» note exists and the owner says "вычеркни зонт из списка вещей"
+  THEN LI-a's `ListManager` resolves that `type=list` note by title and marks the item done — no travel
+  code involved (the note is a plain LI-a list; covered by the existing LI-a `ListManagerTest`).
+- Scenario: **the note write soft-fails**
+  WHEN memory-service is unreachable while packing
+  THEN the owner still gets the text list + HTML board and only the "saved to list" line is omitted
+  (asserted by `PackingFlowTest`).
 
 ## Verification
 - **Unit** `MarkdownChecklistTest` — parse/add/dedup/check/clear/render on the `- [ ]`/`- [x]` form,

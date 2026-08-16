@@ -5,6 +5,7 @@ import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.travel.TripDto;
 import dev.fedorov.ailife.contracts.weather.ClimateNormals;
 import dev.fedorov.ailife.contracts.weather.GeoLocation;
@@ -47,15 +48,18 @@ class PackingFlowTest {
     static MockWebServer mcpTravel;
     static MockWebServer mcpWeather;
     static MockWebServer mediaService;
+    static MockWebServer memoryService;
 
     @BeforeAll
     static void start() throws Exception {
         mcpTravel = new MockWebServer();
         mcpWeather = new MockWebServer();
         mediaService = new MockWebServer();
+        memoryService = new MockWebServer();
         mcpTravel.start();
         mcpWeather.start();
         mediaService.start();
+        memoryService.start();
     }
 
     @AfterAll
@@ -63,6 +67,7 @@ class PackingFlowTest {
         mcpTravel.shutdown();
         mcpWeather.shutdown();
         mediaService.shutdown();
+        memoryService.shutdown();
     }
 
     @DynamicPropertySource
@@ -76,7 +81,7 @@ class PackingFlowTest {
         r.add("travel-agent.mcp-travel-search-url", () -> "http://localhost:1");
         r.add("travel-agent.orchestrator-url", () -> "http://localhost:1");
         r.add("travel-agent.mcp-chart-render-url", () -> "http://localhost:1");
-        r.add("travel-agent.memory-service-url", () -> "http://localhost:1");
+        r.add("travel-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:1");
         r.add("spring.ai.mcp.client.enabled", () -> "false");
     }
@@ -85,11 +90,18 @@ class PackingFlowTest {
     @Autowired ObjectMapper json;
 
     static final AtomicReference<String> boardBody = new AtomicReference<>();
+    static final AtomicReference<String> noteMethod = new AtomicReference<>();
+    static final AtomicReference<String> notePath = new AtomicReference<>();
+    static final AtomicReference<String> noteBody = new AtomicReference<>();
 
     @BeforeEach
     void reset() {
         boardBody.set(null);
+        noteMethod.set(null);
+        notePath.set(null);
+        noteBody.set(null);
         mediaService.setDispatcher(mediaOk());
+        memoryService.setDispatcher(memory(null));   // GET list empty → the packing note is created
     }
 
     /** Active trip → destination's season (hot January in Пхукет) drives the list; board link returned. */
@@ -137,6 +149,50 @@ class PackingFlowTest {
         IntentResponse resp = post("packing list");
         assertThat(resp.text()).contains("Список вещей для поездки «Пхукет»");
         assertThat(resp.text()).doesNotContain("Открыть список:");
+    }
+
+    // --- LI-c: the list is mirrored onto the note tier so LI-a can check items off ---
+
+    /** No «список вещей» note yet → one is CREATED as a flat type=list checklist + the reply acks it. */
+    @Test
+    void savesPackingListAsManageableListNote() {
+        mcpTravel.setDispatcher(travelStore(tripTo("Пхукет", LocalDate.of(2026, 1, 15))));
+        mcpWeather.setDispatcher(weather(28.0, 20.0));
+
+        IntentResponse resp = post("что взять с собой");
+        assertThat(resp.text()).contains("Сохранил в список «список вещей»");
+        assertThat(noteMethod.get()).as("expected a create (POST)").isEqualTo("POST");
+        assertThat(noteBody.get())
+                .contains("\"type\":\"list\"")
+                .contains("\"title\":\"список вещей\"")
+                .contains("- [ ] ");   // a flat CommonMark checklist body
+    }
+
+    /** An existing «список вещей» note → the body is REPLACED in place (PUT same id), not duplicated. */
+    @Test
+    void reAskReplacesExistingListNoteInPlace() {
+        mcpTravel.setDispatcher(travelStore(tripTo("Пхукет", LocalDate.of(2026, 1, 15))));
+        mcpWeather.setDispatcher(weather(28.0, 20.0));
+        UUID existingId = UUID.randomUUID();
+        memoryService.setDispatcher(memory(listNote(existingId, "список вещей")));
+
+        IntentResponse resp = post("что взять с собой");
+        assertThat(resp.text()).contains("Сохранил в список «список вещей»");
+        assertThat(noteMethod.get()).as("expected an update (PUT)").isEqualTo("PUT");
+        assertThat(notePath.get()).contains(existingId.toString());
+    }
+
+    /** memory-service down → the owner still gets the list + board; only the "saved" ack is dropped. */
+    @Test
+    void noteWriteSoftFailsToPlainReply() {
+        mcpTravel.setDispatcher(travelStore(tripTo("Пхукет", LocalDate.of(2026, 1, 15))));
+        mcpWeather.setDispatcher(weather(28.0, 20.0));
+        memoryService.setDispatcher(serverError());
+
+        IntentResponse resp = post("что взять с собой");
+        assertThat(resp.text()).contains("Список вещей для поездки «Пхукет»")
+                .contains("Открыть список:")
+                .doesNotContain("Сохранил в список");
     }
 
     // --- dispatchers ---
@@ -194,6 +250,42 @@ class PackingFlowTest {
                 return new MockResponse().setResponseCode(204);
             }
         };
+    }
+
+    /**
+     * memory-service: {@code GET /v1/notes} returns the given note (or an empty array), and a create
+     * ({@code POST /v1/notes}) / replace ({@code PUT /v1/notes/{id}}) captures its method/path/body and
+     * echoes a {@link NoteDto}. Stands in for the LI-c list-note upsert.
+     */
+    private Dispatcher memory(NoteDto existing) {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath();
+                String method = request.getMethod();
+                try {
+                    if (path != null && path.startsWith("/v1/notes")) {
+                        if ("GET".equals(method)) {
+                            return jsonResponse(existing == null ? "[]"
+                                    : "[" + json.writeValueAsString(existing) + "]");
+                        }
+                        // POST (create) or PUT (replace) — capture and echo a note back.
+                        noteMethod.set(method);
+                        notePath.set(path);
+                        noteBody.set(request.getBody().readUtf8());
+                        return jsonResponse(json.writeValueAsString(
+                                listNote(UUID.randomUUID(), "список вещей")));
+                    }
+                    return new MockResponse().setResponseCode(404);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
+
+    private static NoteDto listNote(UUID id, String title) {
+        return new NoteDto(id, UUID.randomUUID(), null, title, "list", List.of("list"),
+                "travel", null, "- [ ] паспорт", null, Instant.now(), Instant.now());
     }
 
     private Dispatcher mediaOk() {
