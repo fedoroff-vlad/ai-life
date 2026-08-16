@@ -76,6 +76,7 @@ class NoteFinderTest {
         UUID noteId = UUID.randomUUID();
         UUID linkedId = UUID.randomUUID();
 
+        enqueueRouting("note-finder");   // NotesIntentRouter classification (#475) precedes the distil
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"подарок маме\"}", "stop", new LlmUsage(20, 8, 28)))));
         // recall → one note-scoped hit carrying the refId back-pointer
@@ -101,9 +102,9 @@ class NoteFinderTest {
                 .contains("Связано")
                 .contains("Мама");
 
-        // The distil went through llm-gateway with the SKILL system prompt + the user text.
-        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
-        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
+        // Two llm-gateway turns: NotesIntentRouter classification then the NoteFinder distil.
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // distil
 
         // memory-service saw: recall → get note → backlinks, in that order.
         RecordedRequest recallReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
@@ -119,6 +120,7 @@ class NoteFinderTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueueRouting("note-finder");   // NotesIntentRouter classification (#475) precedes the distil
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"страховка\"}", "stop", new LlmUsage(12, 5, 17)))));
         memoryService.enqueue(jsonResponse("[]"));   // recall finds nothing
@@ -150,5 +152,11 @@ class NoteFinderTest {
 
     private static MockResponse jsonResponse(String body) {
         return new MockResponse().setHeader("content-type", "application/json").setBody(body);
+    }
+
+    private void enqueueRouting(String skill) {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}",
+                "stop", new LlmUsage(10, 4, 14)))));
     }
 }

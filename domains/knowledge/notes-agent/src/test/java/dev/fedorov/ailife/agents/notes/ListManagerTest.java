@@ -184,11 +184,24 @@ class ListManagerTest {
     // ---- helpers ------------------------------------------------------------------------
 
     private void enqueueOp(String op, String list, String item) {
+        // First LLM turn = NotesIntentRouter classification (#475) → route to list-manager;
+        // second = the list-manager op classification the flow itself does.
+        enqueueRouting("list-manager");
         String itemJson = item == null ? "" : ",\"item\":\"" + item + "\"";
         String content = "{\"op\":\"" + op + "\",\"list\":\"" + list + "\"" + itemJson + "}";
         try {
             llmGateway.enqueue(jsonResponse(json.writeValueAsString(
                     new LlmChatResponse("mock-large", content, "stop", new LlmUsage(20, 8, 28)))));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void enqueueRouting(String skill) {
+        try {
+            llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                    "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}",
+                    "stop", new LlmUsage(10, 4, 14)))));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -43,7 +43,16 @@ Slices (per the ≤5-file rule) — **all shipped 2026-07-29**:
 3. ✅ Migrate `tasks-agent` — intent skills collapse into one `skill` `Choice` (one action, many skills; the
    LLM names the skill in `FlowCall.node.name`). Byte-identical prompt (no `extraRules` — no enum-pinning).
    `IntentRouterTest` + `GoldenInboxClarifyTest` green.
-   *(Other agents use direct invocation — no router — so nothing to migrate there.)*
+
+**Slice 4+ — the cue-routed agents ([#475](https://github.com/fedoroff-vlad/ai-life/issues/475), epic
+[#479](https://github.com/fedoroff-vlad/ai-life/issues/479), in progress).** The earlier claim that "other
+agents use direct invocation — no router" was wrong: **8 agents** (briefing / creator / docs / notes / chef
+/ nutritionist / stylist / travel) carried a hardcoded `*_CUES` keyword heuristic in their `IntentController`
+— a second, dumber routing hop that misses paraphrases. They migrate onto the same `SkillClassifier`, one PR
+each, deleting the cue sets. **notes-agent is done** (`NotesIntentRouter`, the first *skills-only* consumer —
+which surfaced the `SkillClassifier` skills-only prompt fix, #481). Genuinely single-skill agents
+(`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the guardrail. Remaining: the
+other 7.
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a
