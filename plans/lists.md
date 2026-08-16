@@ -78,7 +78,7 @@ Ops: `add` · `check` (check off / mark done) · `clear` (empty the list) · `sh
   WHEN the op is `check`/`clear`/`show` and no matching list exists
   THEN nothing is written and the reply says the list wasn't found (no empty note is created).
 
-### LI-b — ambient list capture (keyword-free)
+### LI-b — ambient list capture (keyword-free) ✅ DONE (LI-b1 + LI-b2)
 Fill a list *without* a keyword: "надо купить молоко" / "заканчивается кофе" → append to the grocery
 list. This is the ambient half — it must run in the always-on capture path (`memory-service.CaptureService`,
 plans/ambient-capture.md), because with no keyword the orchestrator never routes the message to
