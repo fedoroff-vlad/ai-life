@@ -87,6 +87,11 @@ class E2ENotesCaptureRecallFlowTest {
         String body = "Любит пионы в горшке, не срезку. [[Мама]]";
 
         // ---- Phase 1: capture ------------------------------------------------------------------
+        // First LLM turn = NotesIntentRouter classification (#475) → route to note-writer.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"note-writer\"}",
+                "stop", new LlmUsage(15, 6, 21)))));
+        // Second LLM turn = NoteWriter structuring the note.
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large",
                 "{\"title\":\"" + title + "\",\"type\":\"person\",\"tags\":[\"подарок\"],\"body\":\"" + body + "\"}",
@@ -102,7 +107,8 @@ class E2ENotesCaptureRecallFlowTest {
         assertThat(captureResp).isNotNull();
         assertThat(captureResp.text()).contains("Запомнил").contains(title);
 
-        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // structuring
         RecordedRequest saveReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(saveReq.getPath()).isEqualTo("/v1/notes");
         JsonNode saveBody = json.readTree(saveReq.getBody().readUtf8());
@@ -111,6 +117,11 @@ class E2ENotesCaptureRecallFlowTest {
         assertThat(saveBody.path("source").asString()).isEqualTo("user");
 
         // ---- Phase 2: recall — the note is recovered via the semantic path ---------------------
+        // First LLM turn = NotesIntentRouter classification (#475) → route to note-finder.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"note-finder\"}",
+                "stop", new LlmUsage(15, 6, 21)))));
+        // Second LLM turn = NoteFinder distilling the recall query.
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"подарок маме\"}", "stop", new LlmUsage(20, 8, 28)))));
         memoryService.enqueue(jsonResponse(json.writeValueAsString(List.of(
@@ -126,7 +137,8 @@ class E2ENotesCaptureRecallFlowTest {
         assertThat(recallResp).isNotNull();
         assertThat(recallResp.text()).contains(title).contains("Любит пионы");
 
-        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // distil
         RecordedRequest recallReq = memoryService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(recallReq.getPath()).isEqualTo("/v1/memories/recall");
         assertThat(recallReq.getBody().readUtf8()).contains("подарок маме");

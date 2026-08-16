@@ -57,7 +57,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/notes/intent` | orchestrator entry. "что я думал про …" cue → `note-finder` recall; "…список…" / "вычеркни …" cue → `list-manager` op (LI-a); "запомни …" cue → `note-writer` capture; else the chat fallback. |
+| POST | `/agents/notes/intent` | orchestrator entry. `NotesIntentRouter` classifies the message via the shared `SkillClassifier` (#475) into one intent skill — `note-finder` recall / `list-manager` op (LI-a) / `note-writer` capture — or the chat fallback. Routing SSOT is each skill's SKILL.md description (a paraphrase outside the old keyword cues routes correctly); every stage soft-fails to chat. |
 | POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); unknown flow → graceful reply. |
 | POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
@@ -97,6 +97,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `approve/AmbientApprover` — AC-4 resume: parse the `pendingAction.note` (a ready `WriteNoteRequest`), and on an affirmative reply write it (`source=ambient`) via `NoteClient.create`, else drop; both clear the lock. Soft-fails to a friendly reply.
-- `web/IntentController` — recall cue → find, list cue → lists (LI-a), capture cue → write, else chat; `web/ManifestController`.
+- `intent/NotesIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared `agent-runtime` `SkillClassifier` offers the three intent skills as one `skill` choice (their SKILL.md descriptions are the routing SSOT) → dispatch to `NoteFinder`/`ListManager`/`NoteWriter`, or the `NotesChat` fallback (blank / unknown-skill / non-JSON / LLM error all soft-fail to chat). Replaced the old keyword-cue heuristic.
+- `web/IntentController` — thin: delegates `/intent` to `NotesIntentRouter`; `web/ManifestController`.
 - `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`).
 - `web/TriggerController` — `POST /agents/notes/triggers/{kind}`; `notes.resurface` → `NoteResurfacer` (202), unbound kind → 404.

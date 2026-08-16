@@ -70,6 +70,7 @@ class NoteWriterTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueueRouting("note-writer");   // NotesIntentRouter classification (#475) precedes the structuring
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large",
                 "{\"title\":\"Мама — что любит\",\"type\":\"person\",\"tags\":[\"подарок\",\"мама\"],"
@@ -87,8 +88,9 @@ class NoteWriterTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Запомнил").contains("Мама — что любит");
 
-        // The distil went through llm-gateway with the SKILL system prompt + the user text.
-        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        // Two llm-gateway turns: NotesIntentRouter classification, then the NoteWriter structuring.
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);                     // structuring
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("пионы");
 
@@ -110,6 +112,7 @@ class NoteWriterTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueueRouting("note-writer");   // NotesIntentRouter classification (#475) precedes the structuring
         // Model returns unparseable prose → the writer falls back to the user's own text.
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "sorry, I could not do that", "stop", new LlmUsage(5, 5, 10)))));
@@ -141,5 +144,11 @@ class NoteWriterTest {
 
     private static MockResponse jsonResponse(String body) {
         return new MockResponse().setHeader("content-type", "application/json").setBody(body);
+    }
+
+    private void enqueueRouting(String skill) {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}",
+                "stop", new LlmUsage(10, 4, 14)))));
     }
 }
