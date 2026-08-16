@@ -191,6 +191,56 @@ public class MemoryClient {
     }
 
     /**
+     * List the household's notes ({@code GET /v1/notes?householdId=…&limit=…}). The list-note path
+     * (lists LI-c) scans these to resolve a {@code type=list} note by title (find-or-create), the same
+     * shape notes-agent's local {@code NoteClient.list} uses — lifted here as the second consumer.
+     * Soft-fails to an empty list on any error / {@link #NOTE_TIMEOUT}, same posture as {@link #recall}.
+     */
+    public Mono<List<NoteDto>> listNotes(UUID householdId, int limit) {
+        if (householdId == null) {
+            return Mono.just(List.of());
+        }
+        return http.get()
+                .uri(uri -> uri.path("/v1/notes")
+                        .queryParam("householdId", householdId)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToFlux(NoteDto.class)
+                .collectList()
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("note list failed for household={}: {}", householdId, e.toString());
+                    return Mono.just(List.of());
+                });
+    }
+
+    /**
+     * Replace the mutable fields of an existing note ({@code PUT /v1/notes/{id}}) — the write half of the
+     * find-or-create list upsert (lists LI-c re-writes a {@code type=list} note's checklist body in place
+     * rather than creating a duplicate). Soft-fails to empty on any error / {@link #NOTE_TIMEOUT}, so a
+     * memory-service outage never sinks the caller's primary write, same posture as {@link #note}.
+     */
+    public Mono<NoteDto> updateNote(UUID id, WriteNoteRequest req) {
+        if (id == null || req == null || req.householdId() == null
+                || req.title() == null || req.title().isBlank()) {
+            return Mono.empty();
+        }
+        return http.put()
+                .uri("/v1/notes/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .retrieve()
+                .bodyToMono(NoteDto.class)
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("note update failed for id={} household={}: {}",
+                            id, req.householdId(), e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /**
      * The read half of the note seam: resolve a note by id ({@code GET /v1/notes/{id}}). An agent that
      * recalls a note hit ({@code {kind:note, refId}}) fetches the note here to read its own
      * {@code frontmatter} back-pointer and reach the domain row it was seeded from (SB-5 finder path).

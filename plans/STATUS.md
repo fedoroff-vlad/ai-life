@@ -4,17 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **No slice in flight. lists LI-b (ambient capture) is COMPLETE.** LI-b1 detection
-  ([PR468](https://github.com/fedoroff-vlad/ai-life/pull/468)) + LI-b2a `MarkdownChecklist` lift to
-  `libs/platform-common` ([PR470](https://github.com/fedoroff-vlad/ai-life/pull/470); also fixed a latent
-  CI bug — `libs/sharing` missing from the ci.yml pre-install list → now guarded by check-consistency
-  check 6) + LI-b2b `captureListItems` in `CaptureService`
-  ([PR471](https://github.com/fedoroff-vlad/ai-life/pull/471)): a keyword-free add-intent
-  ("надо купить молоко") → find-or-create the `type=list` note (default `список покупок`) → append via
-  `MarkdownChecklist` → notifier ack (**auto-save + notify**), flag-gated by `ambient-capture.enabled`,
-  idempotent. Detail → [HISTORY.md](HISTORY.md) / [lists.md](lists.md). With LI-a (explicit ops, #466) +
-  LI-b, the **lists capability is complete**; only **LI-c** (travel packing-list emitted as a `type=list`
-  note) stays deferred. **Pick the next item from `## Next`.**
+- **No slice in flight. lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
+  (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
+  **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
+  вещей» note (flat `MarkdownChecklist` body, find-or-create by title, re-ask replaces) so the owner then
+  checks items off through LI-a with no travel code involved. Second consumer of note list/update →
+  `listNotes`/`updateNote` lifted onto the shared `agent-runtime` `MemoryClient`. Detail →
+  [HISTORY.md](HISTORY.md) / [lists.md](lists.md) §LI-c. **Pick the next item from `## Next`.**
 - **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
   TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
   free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
@@ -66,10 +62,10 @@ _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migr
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
 Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294.
-**Lists capability** (owner idea, 2026-08-14) — now specced + in flight, see `## Now` + [lists.md](lists.md):
+**Lists capability** (owner idea, 2026-08-14) — **COMPLETE** (LI-a + LI-b + LI-c), see [lists.md](lists.md):
 grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
-**notes-agent**. LI-a (explicit ops) in flight; **LI-b** ambient keyword-free capture (rides
-[ambient-capture.md](ambient-capture.md)) + **LI-c** subsume #438 packing-list-as-note stay deferred. (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
+**notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list
+mirrored as a `type=list` note. Detail → [HISTORY.md](HISTORY.md). (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
 

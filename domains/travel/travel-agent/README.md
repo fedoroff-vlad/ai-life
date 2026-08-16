@@ -44,7 +44,11 @@ attachment is checked first (an unambiguous import), then the text cues:
   soft-fails: no active trip → a profile-only generic list + a nudge to create one; no destination/date or a
   climate hiccup → the climate-driven items drop and the list notes the weather is unconfirmed; a render
   hiccup → text-only. Reuses the wallet/planner clients (`TripWalletClient`, `TravelProfileClient`,
-  `GeocodeClient`, `ClimateClient`) — no new store, client, or contract.
+  `GeocodeClient`, `ClimateClient`) — no new store, client, or contract. **LI-c** ([lists.md](../../../plans/lists.md)):
+  the flow also best-effort **mirrors the list onto the note tier** — it upserts a household-shared
+  `type=list` note titled «список вещей» (a flat `MarkdownChecklist` body via `MemoryClient.listNotes`/
+  `note`/`updateNote`, find-or-create by title, re-asking replaces it) so the owner can then check items off
+  through notes-agent's LI-a; the note write soft-fails to the plain reply.
 - **trip-planner** (TR-d) `gather → synthesize` flow: a plan-a-trip cue → resolve the profile (self →
   household-default → empty) → one **FAST** scope extract (named destination + month) → geocode the
   destination → **gather in parallel** on the shared `Coordinator`: the household **budget** and **free
@@ -116,7 +120,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 | `ORCHESTRATOR_URL` | `http://orchestrator:8083` | the hub the TR-d planner reaches to invoke the `finance`/`calendar` `brief` action. |
 | `TRAVEL_AGENT_MCP_CLIENT_ENABLED` | `true` | toggle the Spring AI MCP-SSE client (off in dev/degraded envs). |
 | `TRAVEL_AGENT_MEMORY_RECALL_K` | `5` | memory-recall depth for the shared agent-runtime clients. |
-| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | the shared agent-runtime platform clients (`MEMORY_SERVICE_URL` also backs the EX-c finance spend-signal note write). |
+| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | the shared agent-runtime platform clients (`MEMORY_SERVICE_URL` backs the EX-c finance spend-signal note write and the LI-c packing-list note upsert). |
 
 ## Key classes
 
@@ -140,10 +144,11 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   flags. Pure Java, never the LLM (a correctness/privacy boundary).
 - `http/TripWalletClient` — the `mcp-travel /internal/trips/*` store calls (create / active / funding /
   exchange / expense / ledger / close).
-- `flow/PackingFlow` (PK-a) — the packing-list flow: resolve active trip (optional) + profile → derive the
+- `flow/PackingFlow` (PK-a, +LI-c) — the packing-list flow: resolve active trip (optional) + profile → derive the
   season band from the trip's destination+month (geocode→climate, soft-fail) → `PackingListComposer` →
-  reply + HTML packing board via `DeliverablePublisher`. Reuses `TripWalletClient`/`TravelProfileClient`/
-  `GeocodeClient`/`ClimateClient`; no new client.
+  reply + HTML packing board via `DeliverablePublisher`; **LI-c** also best-effort upserts the list as a
+  `type=list` «список вещей» note (`MemoryClient`) for LI-a check-off. Reuses `TripWalletClient`/
+  `TravelProfileClient`/`GeocodeClient`/`ClimateClient`/`MemoryClient`; no new client.
 - `flow/PackingListComposer` (PK-a) — the **deterministic** seed-and-combine list engine (essentials +
   `ClimateBand` clothing/footwear + rest-type activity gear + children items, globally deduped in category
   order). Pure Java, never the LLM; nested `PackingContext`/`PackingList`/`Category`/`ClimateBand`.
