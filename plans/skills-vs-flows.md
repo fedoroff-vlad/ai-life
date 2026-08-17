@@ -49,10 +49,14 @@ Slices (per the ≤5-file rule) — **all shipped 2026-07-29**:
 agents use direct invocation — no router" was wrong: **8 agents** (briefing / creator / docs / notes / chef
 / nutritionist / stylist / travel) carried a hardcoded `*_CUES` keyword heuristic in their `IntentController`
 — a second, dumber routing hop that misses paraphrases. They migrate onto the same `SkillClassifier`, one PR
-each, deleting the cue sets. **notes-agent is done** (`NotesIntentRouter`, the first *skills-only* consumer —
-which surfaced the `SkillClassifier` skills-only prompt fix, #481). Genuinely single-skill agents
-(`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the guardrail. Remaining: the
-other 7.
+each, deleting the cue sets. **Done: notes-agent** (`NotesIntentRouter`, the first *skills-only* consumer —
+which surfaced the `SkillClassifier` skills-only prompt fix, #481) **and creator-agent**
+(`CreatorIntentRouter`; established that a hub-invoked skill with empty `triggers` — `greeting-drafter` — is
+excluded from the route set by advertising only the explicitly-routable skills). Genuinely single-skill
+agents (`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the guardrail.
+**Remaining 6:** briefing / docs / chef / nutritionist / stylist / travel. Once the router shape has settled
+across these, lift the near-identical per-agent `*IntentRouter` into a shared `agent-runtime` component
+(second-consumer-lifts rule — deferred until the shape is stable to avoid a premature abstraction).
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a

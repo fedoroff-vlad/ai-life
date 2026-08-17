@@ -105,7 +105,8 @@ class ContentStrategistTest {
                     "url": "https://www.reddit.com/r/x/1/", "summary": "story" } ]
                 """));
 
-        // One synthesis turn.
+        // Routing turn (CreatorIntentRouter, #475) then one synthesis turn.
+        enqueueRouting("content-strategist");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large",
                 "Сейчас в нише горячо.\nТренд: idioms.\nИдея: short про git.\nДрафт: ...",
@@ -130,8 +131,9 @@ class ContentStrategistTest {
                 .contains("Сейчас в нише горячо.")
                 .contains("/v1/media/" + mediaId);
 
-        // The synthesis carried the niche + the gathered corpus from all three sources.
-        RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);
+        // Two llm-gateway turns: routing classification, then the synthesis carrying niche + corpus.
+        assertThat(llmGateway.takeRequest(3, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);                     // synthesis
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         String llmBody = llmReq.getBody().readUtf8();
         assertThat(llmBody)
@@ -181,6 +183,7 @@ class ContentStrategistTest {
                 """));
         mcpReddit.enqueue(new MockResponse().setResponseCode(500));
 
+        enqueueRouting("content-strategist");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "План готов.\nИдея 1.\nИдея 2.", "stop", new LlmUsage(40, 30, 70)))));
         // Persist the (two-source) gather + the draft piece (CR-e).
@@ -199,7 +202,8 @@ class ContentStrategistTest {
         assertThat(resp.text()).contains("План готов.").contains("/v1/media/" + mediaId);
 
         // The synthesis ran with the two healthy sources; the failed one was simply omitted.
-        RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);
+        assertThat(llmGateway.takeRequest(3, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);                     // synthesis
         String body = llmReq.getBody().readUtf8();
         assertThat(body).contains("Web hit").contains("YT hit");
     }
@@ -213,5 +217,11 @@ class ContentStrategistTest {
 
     private static MockResponse jsonResponse(String body) {
         return new MockResponse().setHeader("content-type", "application/json").setBody(body);
+    }
+
+    private void enqueueRouting(String skill) {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}",
+                "stop", new LlmUsage(10, 4, 14)))));
     }
 }

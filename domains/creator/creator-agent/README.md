@@ -40,7 +40,9 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
 ## Endpoints
 
 - `POST /agents/creator/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's
-  entry point. Profile cue → creator-profiler; trend/ideas/draft cue → content-strategist; else chat.
+  entry point. `CreatorIntentRouter` classifies via the shared `SkillClassifier` (#475) into
+  `creator-profiler` / `content-strategist` (their SKILL.md descriptions are the routing SSOT) or the chat
+  fallback; `greeting-drafter` is hub-invoked (CR-g) and deliberately not a route. Soft-fails to chat.
 - `GET /agents/creator/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 - `POST /agents/creator/actions/draft_greeting` (body `AgentActionRequest`, args `{person, occasion?}`)
   → `AgentActionResult` `{greeting, model}` — the inter-agent action the calendar birthday wake
@@ -89,8 +91,11 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   uniform `TrendHit`.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (stores the rendered HTML board); `@Bean` (source `creator`) wired in `config/OutboundHttpConfig`.
 - `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `ContentStrategist` builds the content-plan `Doc` (synthesis + provenance links) and hands it off. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
-- `web/IntentController` — `POST /agents/creator/intent` (profile cue → profiler; trend cue →
-  strategist; else chat).
+- `intent/CreatorIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared
+  `SkillClassifier` advertises the two routable intent skills (`creator-profiler`/`content-strategist`) as
+  one `skill` choice and dispatches to `CreatorProfiler`/`ContentStrategist`, else the `CreatorChat`
+  fallback (`greeting-drafter` is hub-invoked, excluded). Replaced the old keyword-cue heuristic.
+- `web/IntentController` — thin: delegates `POST /agents/creator/intent` to `CreatorIntentRouter`.
 - `web/ManifestController` — `GET /agents/creator/manifest`.
 
 ## Skills

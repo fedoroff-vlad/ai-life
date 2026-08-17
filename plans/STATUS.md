@@ -4,12 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: architecture epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing (1/8).**
-  `notes-agent` migrated off its `*_CUES` keyword heuristic to the shared `agent-runtime` `SkillClassifier`
-  (`NotesIntentRouter`: the 3 intent skills as one `skill` choice, SKILL.md descriptions the routing SSOT;
-  soft-fails to chat). Adds a routing golden (`GoldenNotesRoutingTest`, real-model parity). **Remaining 7
-  cue-routed agents** (briefing/creator/docs/chef/nutritionist/stylist/travel) queued — one PR each. Detail
-  → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+- **In flight: architecture epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing (2/8).**
+  `notes-agent` + `creator-agent` migrated off their `*_CUES` keyword heuristic to the shared
+  `agent-runtime` `SkillClassifier` (a per-agent `*IntentRouter`: routable intent skills as one `skill`
+  choice, SKILL.md descriptions the routing SSOT; soft-fails to chat), each with a real-model routing golden.
+  creator established the hub-invoked-skill exclusion (`greeting-drafter`). **Remaining 6** (briefing/docs/
+  chef/nutritionist/stylist/travel) — one PR each; then lift the shared router (deferred until the shape
+  settles). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список

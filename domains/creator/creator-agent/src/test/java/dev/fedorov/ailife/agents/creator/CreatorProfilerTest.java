@@ -73,6 +73,7 @@ class CreatorProfilerTest {
         var draftJson = "{\"scope\": \"self\", \"niche\": \"English for IT\", \"audience\": \"junior devs\", "
                 + "\"tone\": \"friendly-expert\", \"platforms\": [\"youtube\", \"reddit\"], "
                 + "\"guardrails\": {\"noClickbait\": true}, \"notes\": \"ru/en\"}";
+        enqueueRouting("creator-profiler");   // CreatorIntentRouter classification (#475) precedes the extract
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(30, 15, 45)))));
         mcpCreator.enqueue(jsonResponse(json.writeValueAsString(new CreatorProfileDto(
@@ -88,8 +89,9 @@ class CreatorProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("ваш профиль").contains("English for IT");
 
-        // The extract went through llm-gateway with the SKILL as system prompt + the user text.
-        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        // Two llm-gateway turns: CreatorIntentRouter classification, then the CreatorProfiler extract.
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);                     // extract
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8())
                 .contains("strict JSON")
@@ -110,6 +112,7 @@ class CreatorProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueueRouting("creator-profiler");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\": \"household\", \"niche\": \"family brand\"}",
                 "stop", new LlmUsage(20, 10, 30)))));
@@ -124,7 +127,8 @@ class CreatorProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("общий профиль");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // routing
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract (drain both — shared recorded queue)
         // household scope → ownerId omitted (null = household-default).
         RecordedRequest setReq = mcpCreator.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
@@ -136,10 +140,11 @@ class CreatorProfilerTest {
     void notAProfileRepliesWithoutWriting() throws Exception {
         UUID householdId = UUID.randomUUID();
 
+        enqueueRouting("creator-profiler");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"error\": \"not a profile\"}", "stop", new LlmUsage(10, 5, 15)))));
 
-        // A profile cue routes here, but the SKILL decides it isn't actually a profile.
+        // The classifier routes to creator-profiler, but the SKILL decides it isn't actually a profile.
         var msg = new NormalizedMessage(UUID.randomUUID(), householdId, MessageScope.PRIVATE,
                 "мой контент не заходит — что делать?", List.of(), "telegram", "92", Instant.now());
 
@@ -147,7 +152,8 @@ class CreatorProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // routing
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract (drain both — shared recorded queue)
         assertThat(mcpCreator.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
@@ -156,6 +162,12 @@ class CreatorProfilerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    private void enqueueRouting(String skill) {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}",
+                "stop", new LlmUsage(10, 4, 14)))));
     }
 
     private static MockResponse jsonResponse(String body) {
