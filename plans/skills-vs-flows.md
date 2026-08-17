@@ -54,9 +54,16 @@ which surfaced the `SkillClassifier` skills-only prompt fix, #481) **and creator
 (`CreatorIntentRouter`; established that a hub-invoked skill with empty `triggers` — `greeting-drafter` — is
 excluded from the route set by advertising only the explicitly-routable skills). Genuinely single-skill
 agents (`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the guardrail.
-**Remaining 6:** briefing / docs / chef / nutritionist / stylist / travel. Once the router shape has settled
-across these, lift the near-identical per-agent `*IntentRouter` into a shared `agent-runtime` component
-(second-consumer-lifts rule — deferred until the shape is stable to avoid a premature abstraction).
+**NEXT (owner-decided 2026-08-17): lift the shared router FIRST, then the remaining 6.** The two per-agent
+`*IntentRouter`s (`NotesIntentRouter` + `CreatorIntentRouter`) are near-identical — the shape has settled
+enough over 2 consumers (skills-only prompt via #481; explicit routable set excluding hub-invoked skills).
+So before copying it a 3rd time, **lift a shared `SkillRouter` into `libs/agent-runtime`** (LLM turn +
+classify + soft-fail-to-chat, driven by an agent-supplied dispatch map `{skillName → flow}` + chat fallback
++ intro/decide), and **retrofit notes + creator onto it** (re-run both routing goldens). Then migrate the
+**remaining 6** — briefing / docs / chef / nutritionist / stylist / travel — on the shared router, one PR
+each. **Note:** `chef` has effectively one intent skill (`recipe-finder`) → likely stays direct-invoke by
+the single-skill guardrail (check on approach). Genuinely single-skill agents (`researcher` / `calendar` /
+`coach` / `coordinator`) already stay direct-invoke.
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a
