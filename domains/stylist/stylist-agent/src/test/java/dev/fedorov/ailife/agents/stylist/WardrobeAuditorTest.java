@@ -102,6 +102,8 @@ class WardrobeAuditorTest {
                 + "{\"name\":\"logo tee\",\"verdict\":\"remove\",\"reason\":\"спорит с вашим типом\"}],"
                 + "\"hero\":[\"navy coat\"],\"systemicPattern\":\"Часто берёте трендовое не своё.\","
                 + "\"palette\":[{\"hex\":\"#042C53\",\"name\":\"deep blue\"}]}";
+        // Two LLM turns now (#475): the StylistIntentRouter classifies (→ wardrobe-auditor), then the synthesis.
+        enqueuePick("wardrobe-auditor");
         llm.enqueue(new MockResponse().setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse("mock-llm", audit, "stop", null))));
         mediaService.enqueue(new MockResponse().setHeader("content-type", "application/json")
@@ -133,8 +135,9 @@ class WardrobeAuditorTest {
     }
 
     @Test
-    void emptyWardrobeInvitesToCatalogue() {
+    void emptyWardrobeInvitesToCatalogue() throws Exception {
         itemsJson = "[]";
+        enqueuePick("wardrobe-auditor");                     // router classify → wardrobe-auditor
         var msg = new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
                 "ревизия гардероба", List.of(), "telegram", "93", Instant.now());
 
@@ -146,5 +149,12 @@ class WardrobeAuditorTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("гардероб");
         assertThat(resp.text()).doesNotContain("/v1/media/");
+    }
+
+    /** The StylistIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llm.enqueue(new MockResponse().setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-llm", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop", null))));
     }
 }

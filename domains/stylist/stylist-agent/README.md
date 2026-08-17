@@ -25,15 +25,18 @@ attachment** by the caption text:
   `mcp-wardrobe` (`/internal/item`), storing the photo's media id (the default, since the owner
   bulk-loads the wardrobe).
 
-A non-photo message with a **capsule cue** ("собери капсулу", "что надеть") → `flow/StylistAdvisor`
-(ST-e): gather the wardrobe + style profile + trends (mcp-web) + season on the shared `Coordinator`
-→ one LLM synthesis → render a capsule HTML page (embedding the garment photos) → store → link.
-Other non-photo messages fall back to chat (`chat/StylistChat`). The capabilities are bound over SSE
-for future LLM-driven tool selection; the deterministic flows call them over HTTP `/internal/*`
-passthroughs. **Render-format seam** lives in the shared **`libs/doc-render`** (`DocRenderer`): HTML
-now, a PDF renderer drops in behind the same interface later. An audit-cue text ("ревизия гардероба")
-→ `flow/WardrobeAuditor`; a gap-cue text ("что докупить") → `flow/GapAnalyst`. **Stylist MVP (ST-a..e)
-+ Phase 2 editorial boards (ST-f..k) + image-gen binding (ST-m) + env theming (ST-n) complete.**
+A **non-photo message** is classified by an LLM router (`intent/StylistIntentRouter` over the shared
+`SkillClassifier`, #475) into one of three text intents — `capsule-advisor` → `flow/StylistAdvisor`
+(ST-e: gather the wardrobe + style profile + trends (mcp-web) + season on the shared `Coordinator` →
+one LLM synthesis → render a capsule HTML page embedding the garment photos → store → link),
+`wardrobe-auditor` → `flow/WardrobeAuditor` (audit board), `gap-analyst` → `flow/GapAnalyst` (gap
+board) — or a plain chat reply (`chat/StylistChat`). Each skill's SKILL.md description is the routing
+SSOT (replaced the old `AUDIT_CUES`/`GAP_CUES`/`CAPSULE_CUES` keyword heuristic). The capabilities are
+bound over SSE for future LLM-driven tool selection; the deterministic flows call them over HTTP
+`/internal/*` passthroughs. **Render-format seam** lives in the shared **`libs/doc-render`**
+(`DocRenderer`): HTML now, a PDF renderer drops in behind the same interface later. **Stylist MVP
+(ST-a..e) + Phase 2 editorial boards (ST-f..k) + image-gen binding (ST-m) + env theming (ST-n)
+complete.**
 Deferred: real GPU image-gen engine + virtual try-on, marketplace buy-links, PDF.
 
 ## Port: `8102` (`STYLIST_AGENT_PORT`)
@@ -74,8 +77,14 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
 - `config/OutboundHttpConfig` — `mcpWardrobe/mcpMediaProcessing/mcpWeb/mcpImageGen` WebClients (for
   the flows) + the `profile/notifier/memory` qualified beans the shared runtime clients pick up.
 - `web/ManifestController` — `GET /agents/stylist/manifest`.
-- `web/IntentController` — `POST /agents/stylist/intent`; routes a photo to analyse-me (caption
-  cues / body params) or the catalogue flow, a capsule-cue text to the advisor, else the chat fallback.
+- `web/IntentController` — `POST /agents/stylist/intent`; a photo pre-check routes an attachment to
+  analyse-me (caption cues / body params) or the catalogue flow (both deterministic — a photo is an
+  ingest, not a text intent); a non-photo message delegates to `intent/StylistIntentRouter`.
+- `intent/StylistIntentRouter` — the LLM text router (#475): a thin binding over the shared
+  `agent-runtime` `SkillRouter` with a three-flow dispatch map (`wardrobe-auditor` → audit,
+  `gap-analyst` → gap, `capsule-advisor` → capsule) + the `StylistChat` fallback. Replaced the old
+  `AUDIT_CUES`/`GAP_CUES`/`CAPSULE_CUES` keyword heuristic; SKILL.md descriptions are the routing SSOT.
+  The photo-gated skills (`wardrobe-cataloguer`/`style-analyst`) are left out of the map.
 - `chat/StylistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt) for non-photo
   messages; replaced branch-by-branch as the real flows land.
 - `catalogue/WardrobeCataloguer` — the wardrobe-catalogue flow: garment photo → `caption` extract

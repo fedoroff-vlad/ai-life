@@ -77,7 +77,12 @@ shared `skills/nutrition/*` classpath) is excluded from the map. New routing gol
 `BriefingIntentRouter` over the shared router, a **2-flow** dispatch map (`briefing-composer` → digest,
 `briefing-profiler` → preferences). No carve-out needed: a briefing request is always a text intent, so
 `IntentController` is a thin passthrough (no attachment/read-scope pre-check). New routing golden green vs
-qwen3:8b (82s). **NEXT: chef / stylist / travel.** **Note:** `chef` has effectively one intent skill
+qwen3:8b (82s). **Also done: `stylist-agent` ✅ (2026-08-17)** — its `AUDIT_CUES`/`GAP_CUES`/`CAPSULE_CUES`
+keyword heuristic replaced by `StylistIntentRouter` over the shared router, a **3-flow** dispatch map
+(`wardrobe-auditor` → audit / `gap-analyst` → gap / `capsule-advisor` → capsule). The **photo pre-check**
+(analyse-me vs catalogue on an image attachment) stays deterministic in `IntentController`, so the two
+photo-gated skills (`wardrobe-cataloguer`/`style-analyst`) are excluded from the map. New routing golden
+green vs qwen3:8b (86s). **NEXT: chef / travel.** **Note:** `chef` has effectively one intent skill
 (`recipe-finder`) → likely stays direct-invoke by the single-skill guardrail (check on approach). Genuinely
 single-skill agents (`researcher` / `calendar` / `coach` / `coordinator`) already stay direct-invoke.
 
