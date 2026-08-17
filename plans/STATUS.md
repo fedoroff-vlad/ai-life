@@ -25,9 +25,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   HISTORY 2026-08-17). **`stylist-agent` migrated too** (`StylistIntentRouter`, 3 text intents:
   wardrobe-auditor → audit / gap-analyst → gap / capsule-advisor → capsule; the analyse-me-vs-catalogue
   photo split stays a deterministic pre-check in `IntentController`, so the 2 photo-gated skills are excluded
-  from the map; new routing golden green vs qwen3:8b → HISTORY 2026-08-17). **NEXT: migrate the remaining 2
-  cue-routed agents onto the shared router, one PR each** — chef / travel (chef likely stays direct-invoke —
-  single skill; check on approach). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+  from the map; new routing golden green vs qwen3:8b → HISTORY 2026-08-17). **`chef-agent` migrated too**
+  (owner-decided single-skill guardrail check → chose the router: chef has one skill `recipe-finder` but a
+  real recipe-vs-chat decision, so `ChefIntentRouter` single-skill map + `ChefChat` fallback replaces
+  `RECIPE_CUES`; the `recommend_recipes` hub action bypasses the router; new routing golden green vs qwen3:8b
+  → HISTORY 2026-08-17). **NEXT: migrate the last cue-routed agent — travel — onto the shared router.**
+  Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список

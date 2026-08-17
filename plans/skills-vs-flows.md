@@ -82,9 +82,15 @@ keyword heuristic replaced by `StylistIntentRouter` over the shared router, a **
 (`wardrobe-auditor` → audit / `gap-analyst` → gap / `capsule-advisor` → capsule). The **photo pre-check**
 (analyse-me vs catalogue on an image attachment) stays deterministic in `IntentController`, so the two
 photo-gated skills (`wardrobe-cataloguer`/`style-analyst`) are excluded from the map. New routing golden
-green vs qwen3:8b (86s). **NEXT: chef / travel.** **Note:** `chef` has effectively one intent skill
-(`recipe-finder`) → likely stays direct-invoke by the single-skill guardrail (check on approach). Genuinely
-single-skill agents (`researcher` / `calendar` / `coach` / `coordinator`) already stay direct-invoke.
+green vs qwen3:8b (86s). **Also done: `chef-agent` ✅ (2026-08-17)** — owner-decided (single-skill guardrail
+checked, chose the router): chef has one intent skill (`recipe-finder`) but a *real* recipe-vs-chat decision,
+and its `RECIPE_CUES` heuristic was exactly the paraphrase-misroute weakness #475 targets — so it migrated to
+`ChefIntentRouter` over the shared router with a **single-skill** dispatch map (`recipe-finder` →
+`RecipeFinder`) + `ChefChat` fallback, rather than becoming researcher-style direct-invoke. The
+`recommend_recipes` hub action (nutritionist → chef) is not an intent, so it bypasses the router. New routing
+golden green vs qwen3:8b (63s). **NEXT: travel** (the last cue-routed agent). Genuinely single-skill agents
+with *no* in-agent decision (`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the
+guardrail.
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a

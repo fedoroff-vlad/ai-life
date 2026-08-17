@@ -14,7 +14,8 @@ the **ration → recipes hub action** (CH-b2):
 - **CH-a — scaffold. DONE.** Manifest endpoint + `chat/ChefChat` fallback (one LLM turn, AGENT.md as
   system prompt). Binds `mcp-nutrition` + `mcp-web` over SSE (future LLM-driven tool selection; the
   deterministic flow calls them over `/internal/*` HTTP passthroughs).
-- **CH-b1 — recipe flow (direct). DONE.** A recipe-cue message ("рецепт", "что приготовить") →
+- **CH-b1 — recipe flow. DONE.** A recipe request (classified by `intent/ChefIntentRouter` over the
+  shared `SkillClassifier`, #475 — replaced the old `RECIPE_CUES` keyword heuristic) →
   `flow/RecipeFinder`: search recipes via `mcp-web` (`/internal/search`, biased to recipe sources) →
   one LLM synthesis via the `recipe-finder` SKILL → render an HTML **recipe card** (the synthesized
   text as sections + the **real recipe links from the search hits**, never LLM-invented URLs) via the
@@ -30,7 +31,8 @@ the **ration → recipes hub action** (CH-b2):
 ## Endpoints
 
 - `POST /agents/chef/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's entry
-  point. A recipe-cue message → the recipe flow; otherwise the chat fallback.
+  point. An LLM classifier (`ChefIntentRouter`) routes a recipe request → the recipe flow; otherwise the
+  chat fallback. The `recipe-finder` SKILL.md description is the routing SSOT.
 - `POST /agents/chef/actions/{action}` (body `AgentActionRequest`) → `AgentActionResult` — the
   inter-agent hub entry. `recommend_recipes` (args `{request}`) → a recipe card `{link, summary}`;
   invoked by the nutritionist's NU-g over the orchestrator (ration → recipes).
@@ -67,7 +69,11 @@ the **ration → recipes hub action** (CH-b2):
 - `http/WebSearchClient` — `POST /internal/search` on mcp-web (recipe search).
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered card); `@Bean` (source `chef`) wired in `config/OutboundHttpConfig`.
 - `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`); `RecipeFinder` builds the card `Doc` and hands it off. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
-- `web/IntentController` — `POST /intent` (recipe cue → recipe flow; else chat).
+- `web/IntentController` — `POST /intent`; a thin passthrough that delegates to `intent/ChefIntentRouter`.
+- `intent/ChefIntentRouter` — the LLM router (#475): a thin binding over the shared `agent-runtime`
+  `SkillRouter` with a single-skill dispatch map (`recipe-finder` → `RecipeFinder`) + the `ChefChat`
+  fallback. Replaced the old `RECIPE_CUES` keyword heuristic; the `recipe-finder` SKILL.md description is
+  the routing SSOT. (The `recommend_recipes` hub action is not an intent, so it bypasses this router.)
 - `web/ManifestController` — `GET /manifest`.
 
 ## Skills
