@@ -109,6 +109,30 @@ into this library: `ToolSpec(name, description, inputSchema)` — the agent maps
 `promptBlock` is sourced from the flow's SKILL.md `description` (keeping SKILL.md the routing SSOT,
 finishing PR#339). Output `Decision` is a sealed `ToolCall | FlowCall | Chat`.
 
+## SkillRouter (the shared skills-only router)
+The LLM round-trip + dispatch wrapper **around** `SkillClassifier` for agents whose only routing choice
+is "run one of my intent skills, or just chat" (no directly-routable MCP tools). Lifted from the
+per-agent `*IntentRouter`s that `notes-agent` and `creator-agent` ran near-identically (Bucket 1 slice
+4+, #475 / epic #479) once the shape settled over those two consumers — before a third copy. The agent
+constructs one per-agent (it is **not** an auto-wired bean; it needs agent-specific config) and supplies
+only its own parts via the constructor:
+
+- an ordered **dispatch map** `{skillName → flow}` (`Map<String, Function<NormalizedMessage, Mono<IntentResponse>>>`).
+  Its **key set is the route set**: a loaded skill absent from the map (e.g. creator's hub-invoked
+  `greeting-drafter`) is neither advertised in the prompt nor dispatched — the "exclude a hub-invoked
+  skill" case needs no extra plumbing. Insertion order = the order skills appear in the prompt.
+- a **chat fallback** (`Function<NormalizedMessage, Mono<IntentResponse>>`) — the conversational reply
+  every soft-fail lands on;
+- the `intro` + `decidePrompt` framing lines for `buildPrompt`.
+
+`route(msg)` → classify → dispatch the named flow, or the chat fallback. **Total by construction**: a
+blank message (skips the LLM), no routable skill loaded (skips the LLM), an unknown/hub-only skill name,
+non-routing prose, a `tool` decision (skills-only → none dispatchable), or an LLM error all soft-fail to
+the chat fallback. `buildClassifierPrompt()` is public so a `@GoldenLlmTest` can replay the exact prompt.
+Each routable skill's SKILL.md `description` (looked up in the `SkillRegistry`) is what the classifier
+sees — SKILL.md stays the routing SSOT. Consumers: `notes-agent`'s `NotesIntentRouter` (3 flows) and
+`creator-agent`'s `CreatorIntentRouter` (2 flows; `greeting-drafter` excluded), each now a thin binding.
+
 ## Configuration (`agent.*`)
 | Property | Default | Purpose |
 |---|---|---|
@@ -136,6 +160,7 @@ finishing PR#339). Output `Decision` is a sealed `ToolCall | FlowCall | Chat`.
 - `actuate/SkillInfoContributor` — `InfoContributor` that adds the `skills.*` detail to `/actuator/info`.
 - `coordinate/Coordinator` — `coordinate(...)` gather→synthesize scaffold; `coordinate/CoordinationResult` is its `(text, gathered, llmModel)` outcome. Soft-fails per gather step.
 - `intent/SkillClassifier` — the shared in-agent router: `buildPrompt(...)` + `parse(...) → Decision`. Nested value types `ToolSpec` / `Choice` (inputs) and the sealed `Decision` = `ToolCall | FlowCall | Chat` (output). Pure (only `ObjectMapper`); lifted from the finance/tasks `IntentRouter`s (#358, Bucket 1). See the section above.
+- `intent/SkillRouter` — the shared **skills-only** router (LLM round-trip + dispatch **around** `SkillClassifier`): `route(msg) → Mono<IntentResponse>` + public `buildClassifierPrompt()`. Constructed per-agent with an ordered `{skillName → flow}` dispatch map (its key set = the route set), a chat fallback, and intro/decide framing; total (every soft-fail → chat). Lifted from the notes/creator `*IntentRouter`s (#475, Bucket 1 slice 4+). See the section above.
 - `brief/BriefResponder` — the reusable `brief` read-action: `answer(request)` / `answer(request, extraGather)` recall the agent's second brain for `args.question` (plus any domain gather the agent adds), run one FAST `Coordinator` synthesis under a read-only instruction, and return `AgentActionResult{agent, answer, llmModel?}`. Missing question → structured `ok=false`. Wired as a bean; an agent opts in with `register("brief", briefResponder::answer)`.
 - `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 - `web/AgentActionController` — abstract base for an agent's `POST /agents/<name>/actions/{action}` endpoint: `register(action, handler)` in the subclass ctor + `dispatch(action, request)` applies the shared envelope (unknown-action → structured `ok=false`; handler failure → `"<action> failed: <msg>"` logged with `requestedBy`). Subclasses stay `@RestController`s (the path literal carries the agent name) and only hold per-action business logic.

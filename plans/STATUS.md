@@ -4,15 +4,17 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: architecture epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing (2/8).**
-  `notes-agent` + `creator-agent` migrated off their `*_CUES` keyword heuristic to the shared
-  `agent-runtime` `SkillClassifier` (a per-agent `*IntentRouter`: routable intent skills as one `skill`
-  choice, SKILL.md descriptions the routing SSOT; soft-fails to chat), each with a real-model routing golden.
-  creator established the hub-invoked-skill exclusion (`greeting-drafter`). **NEXT (owner-decided 2026-08-17,
-  do in a fresh session): lift a shared `SkillRouter` into `libs/agent-runtime` + retrofit notes+creator
-  (re-run both routing goldens) BEFORE the remaining 6** (briefing/docs/chef/nutritionist/stylist/travel;
-  chef likely stays direct-invoke — single skill). Detail + the exact lift shape →
-  [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+- **In flight: architecture epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing.**
+  `notes-agent` + `creator-agent` migrated off their `*_CUES` keyword heuristic to LLM classification, and
+  the near-identical per-agent `*IntentRouter`s are now **lifted into the shared `agent-runtime`
+  `intent/SkillRouter`** (skills-only wrapper around `SkillClassifier`: LLM round-trip + classify +
+  soft-fail-to-chat, driven by an agent-supplied ordered `{skillName → flow}` dispatch map whose key set IS
+  the route set — so a hub-invoked skill like creator's `greeting-drafter` is excluded by simply being
+  absent from the map; SKILL.md descriptions the routing SSOT). Both agents are thin bindings now; unit
+  tests + both routing goldens replay green vs qwen3:8b (→ HISTORY 2026-08-17). **NEXT: migrate the
+  remaining 6 cue-routed agents onto the shared router, one PR each** — briefing / docs / chef /
+  nutritionist / stylist / travel (chef likely stays direct-invoke — single skill; check on approach).
+  Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
