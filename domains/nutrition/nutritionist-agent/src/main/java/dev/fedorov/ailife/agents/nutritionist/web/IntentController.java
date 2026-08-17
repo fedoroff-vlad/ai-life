@@ -1,11 +1,8 @@
 package dev.fedorov.ailife.agents.nutritionist.web;
 
-import dev.fedorov.ailife.agents.nutritionist.analysis.NutritionAnalyst;
 import dev.fedorov.ailife.agents.nutritionist.basket.BasketBreakdown;
-import dev.fedorov.ailife.agents.nutritionist.chat.NutritionistChat;
-import dev.fedorov.ailife.agents.nutritionist.flow.MealPlanner;
 import dev.fedorov.ailife.agents.nutritionist.foodlog.FoodLogger;
-import dev.fedorov.ailife.agents.nutritionist.profile.DietProfiler;
+import dev.fedorov.ailife.agents.nutritionist.intent.NutritionIntentRouter;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -20,91 +17,41 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Hit by the orchestrator when intent routing selects {@code nutritionist}. The NU-c food-log flow:
+ * Hit by the orchestrator when intent routing selects {@code nutritionist}:
  * <ul>
  *   <li>a photo attachment with a basket cue ("продукты", "корзина", "чек", "закупка") →
  *       {@link BasketBreakdown#breakdownPhoto} (basket photo → КБЖУ + good/watch/cut → HTML report);</li>
  *   <li>any other photo attachment → {@link FoodLogger#logPhoto} (meal photo → caption extract → log);</li>
- *   <li>a typed message with a diet-profile cue ("моя цель…", "у меня аллергия…", "ккал в день…") →
- *       {@link DietProfiler#setProfile} (one LLM extract → upsert the profile);</li>
- *   <li>a typed message with an analysis cue ("разбор питания", "как я питаюсь") →
- *       {@link NutritionAnalyst#analyse} (gather meals + profile → synthesis → HTML board);</li>
- *   <li>a typed message with a ration cue ("составь рацион", "план питания", "закупиться в Ленте") →
- *       {@link MealPlanner#plan} (gather profiles + meals + store → multi-person ration + shopping list);
- *       a family cue ("на всю семью", "наш рацион") makes the read union across the personal ∪ shared
- *       households (ADR-0002 slice 6b), else the own cut;</li>
- *   <li>a typed message with a basket cue ("разбери продукты", "корзина") →
- *       {@link BasketBreakdown#breakdownText} (typed list → КБЖУ + good/watch/cut → HTML report);</li>
- *   <li>a typed message with a food-log cue ("съел…", "на обед…", "запиши…") → {@link FoodLogger#logText}
- *       (one LLM extract → log);</li>
- *   <li>otherwise → the {@link NutritionistChat} fallback.</li>
+ *   <li>otherwise → {@link NutritionIntentRouter}, which classifies the text (via the shared
+ *       {@code SkillClassifier}) into one of the five intent flows — diet profile / nutrition analysis /
+ *       ration plan / basket breakdown / meal log — or a plain chat reply.</li>
  * </ul>
- * The cue split is a deterministic keyword heuristic — good enough for the MVP, MockWebServer-testable,
- * and replaceable by an LLM classifier later. The ration cue is checked before the basket cue so a
- * "stock up at Lenta" planning request wins over basket breakdown. The automatic grocery-receipt
+ * The photo check comes first (a photo is unambiguously an ingest, not a text intent, so it stays a
+ * deterministic pre-check rather than an LLM classification; the basket-vs-meal photo split is likewise a
+ * deterministic keyword on the attachment path). The typed-message keyword-cue heuristic this controller
+ * used to carry was replaced by the LLM classifier in skills-vs-flows Bucket 1 (#475), so the routing SSOT
+ * is each intent skill's SKILL.md description; the family/own read-scope for the ration stays a
+ * deterministic cue inside the planner flow ({@link NutritionIntentRouter}). The automatic grocery-receipt
  * fan-out (finance → nutrition off the bus) is the IA slice.
  */
 @RestController
 @RequestMapping("/agents/nutritionist")
 public class IntentController {
 
-    private static final Set<String> PROFILE_CUES = Set.of(
-            "моя цель", "мои цели", "цель по", "ккал в день", "калорий в день", "у меня аллергия",
-            "аллергия на", "я вегетар", "я веган", "халяль", "без глютена", "без лактозы",
-            "установи цель", "мой профиль", "профиль питания", "мои ограничения",
-            "my goal", "my goals", "i'm allergic", "set my diet", "kcal a day", "kcal per day",
-            "i'm vegan", "i'm vegetarian", "diet goal");
-
-    private static final Set<String> ANALYSIS_CUES = Set.of(
-            "разбор питания", "разбор рациона", "проанализируй питание", "проанализируй рацион",
-            "анализ питания", "анализ рациона", "как я питаюсь", "как я ем", "оцени моё питание",
-            "оцени мое питание", "что с моим питанием",
-            "analyse my nutrition", "analyze my nutrition", "nutrition analysis", "how am i eating",
-            "review my diet", "analyse my diet", "analyze my diet");
-
-    private static final Set<String> RATION_CUES = Set.of(
-            "рацион", "составь рацион", "план питания", "меню на", "составь меню", "что нам есть",
-            "что приготовить на неделю", "закупиться", "закупиться в", "закупка на", "что нам приготовить",
-            "spisok pokupok na", "meal plan", "weekly menu", "make a ration", "ration", "stock up",
-            "shopping plan", "what should we eat", "what to cook this week");
-
-    /**
-     * Family-scope cues (ADR-0002 slice 6b): when a ration request carries one of these, the ration reads
-     * across the member's personal ∪ shared households, not just their own. Absent → the default (own) cut,
-     * mirroring finance/tasks (shared is on explicit request, never by default).
-     */
-    private static final Set<String> FAMILY_CUES = Set.of(
-            "на всю семью", "на семью", "для семьи", "для всей семьи", "наш рацион", "наше меню",
-            "семейный рацион", "семейное меню", "семейный план", "нам всем", "на нас всех", "на всех нас",
-            "for the family", "for all of us", "family meal plan", "whole family", "our ration",
-            "our meal plan", "family ration");
-
     private static final Set<String> BASKET_CUES = Set.of(
             "продукт", "корзин", "закуп", "чек", "покупк", "список покупок", "разбери корзину",
             "разбери продукты", "что купить", "купил продукты", "купила продукты",
             "groceries", "grocery", "shopping list", "basket", "receipt", "break down my groceries");
 
-    private static final Set<String> LOG_CUES = Set.of(
-            "съел", "съела", "поел", "поела", "я ел", "я ела", "перекус",
-            "на завтрак", "на обед", "на ужин", "на полдник", "запиши", "записать",
-            "log meal", "log my", "i ate", "i had", "for breakfast", "for lunch", "for dinner");
-
-    private final FoodLogger foodLogger;
-    private final DietProfiler dietProfiler;
-    private final NutritionAnalyst nutritionAnalyst;
-    private final MealPlanner mealPlanner;
     private final BasketBreakdown basketBreakdown;
-    private final NutritionistChat chat;
+    private final FoodLogger foodLogger;
+    private final NutritionIntentRouter router;
 
-    public IntentController(FoodLogger foodLogger, DietProfiler dietProfiler,
-                            NutritionAnalyst nutritionAnalyst, MealPlanner mealPlanner,
-                            BasketBreakdown basketBreakdown, NutritionistChat chat) {
-        this.foodLogger = foodLogger;
-        this.dietProfiler = dietProfiler;
-        this.nutritionAnalyst = nutritionAnalyst;
-        this.mealPlanner = mealPlanner;
+    public IntentController(BasketBreakdown basketBreakdown, FoodLogger foodLogger,
+                            NutritionIntentRouter router) {
         this.basketBreakdown = basketBreakdown;
-        this.chat = chat;
+        this.foodLogger = foodLogger;
+        this.router = router;
     }
 
     @PostMapping("/intent")
@@ -115,22 +62,7 @@ public class IntentController {
                     ? basketBreakdown.breakdownPhoto(message, image.get().storageUri())
                     : foodLogger.logPhoto(message, image.get().storageUri());
         }
-        if (isMatch(message.text(), PROFILE_CUES)) {
-            return dietProfiler.setProfile(message);
-        }
-        if (isMatch(message.text(), ANALYSIS_CUES)) {
-            return nutritionAnalyst.analyse(message);
-        }
-        if (isMatch(message.text(), RATION_CUES)) {
-            return mealPlanner.plan(message, isMatch(message.text(), FAMILY_CUES));
-        }
-        if (isMatch(message.text(), BASKET_CUES)) {
-            return basketBreakdown.breakdownText(message);
-        }
-        if (isMatch(message.text(), LOG_CUES)) {
-            return foodLogger.logText(message);
-        }
-        return chat.reply(message);
+        return router.route(message);
     }
 
     private static boolean isMatch(String text, Set<String> cues) {

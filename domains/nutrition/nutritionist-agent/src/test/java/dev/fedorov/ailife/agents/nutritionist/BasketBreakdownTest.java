@@ -214,6 +214,8 @@ class BasketBreakdownTest {
         UUID userId = UUID.randomUUID();
         UUID storedId = UUID.randomUUID();
 
+        // Two LLM turns now (#475): the NutritionIntentRouter classifies (→ basket-analyst), then the breakdown extracts.
+        enqueuePick("basket-analyst");
         // GET /internal/diet-profile → none set (404).
         mcpNutrition.enqueue(new MockResponse().setResponseCode(404));
         // llm extract+breakdown.
@@ -236,7 +238,8 @@ class BasketBreakdownTest {
 
         mcpNutrition.takeRequest(2, TimeUnit.SECONDS); // profile 404
 
-        // the extract went through llm-gateway with the SKILL system prompt + the list.
+        // First the router classify, then the extract went through llm-gateway with the SKILL system prompt.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("молоко, чипсы");
@@ -273,6 +276,13 @@ class BasketBreakdownTest {
         // no basket save, no board upload.
         assertThat(mcpNutrition.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mediaService.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    /** The NutritionIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private BasketDto basketEcho(UUID householdId, UUID userId, String mediaId) {

@@ -69,8 +69,9 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
 
 - `POST /agents/nutritionist/intent` (body `NormalizedMessage`) → `IntentResponse` — the
   orchestrator's entry point. A photo with a basket cue → basket breakdown; any other photo →
-  food-log; a profile cue → diet-profiler; an analysis cue → nutrition-analysis; a ration cue →
-  ration + shopping list; a basket cue → basket breakdown; a food-log cue → food-log; else chat.
+  food-log (deterministic pre-check); otherwise the `NutritionIntentRouter` LLM-classifies the text
+  into one of the five intent flows — diet-profiler / nutrition-analysis / ration / basket breakdown /
+  food-log — or the chat fallback (#475, replacing the `*_CUES` keyword heuristic).
 - `GET /agents/nutritionist/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
 - `POST /internal/basket-event` (body `BasketCapturedEvent`) → 202 — the IA-b fan-out entry;
   mcp-nutrition's bus consumer forwards a `basket.captured` event here, the agent runs the breakdown
@@ -145,9 +146,14 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
 - `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered HTML); `@Bean` (source `nutritionist`) wired in `config/OutboundHttpConfig`.
 - `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`) used by `NutritionAnalyst` / `MealPlanner` / `BasketBreakdown`. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
-- `web/IntentController` — `POST /intent` (basket-cue photo → basket; photo → food-log; profile cue →
-  diet-profiler; analysis cue → nutrition-analysis; ration cue → ration; basket cue → basket;
-  food-log cue → food-log; else chat).
+- `intent/NutritionIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475):
+  the text-intent router for the five flows (`diet-profiler`/`nutrition-analyst`/`meal-planner`/
+  `basket-analyst`/`meal-logger`). `recipe-finder` (chef's skill, loaded from the shared
+  `skills/nutrition/*` classpath) is left out of the dispatch map → excluded from the route set; the
+  `FAMILY_CUES` ration read-scope stays a deterministic keyword match inside the `meal-planner` dispatch
+  lambda (a read-breadth choice, never a routing/privacy decision → kept off the LLM classifier).
+- `web/IntentController` — `POST /intent`: basket-cue photo → basket, any other photo → food-log
+  (deterministic pre-check); otherwise delegates to `NutritionIntentRouter`.
 - `web/ManifestController` — `GET /manifest`.
 
 ## Skills

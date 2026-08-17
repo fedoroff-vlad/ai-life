@@ -72,6 +72,8 @@ class DietProfilerTest {
 
         var draftJson = "{\"scope\": \"self\", \"goal_kcal\": 2000, \"goal_protein_g\": 140, "
                 + "\"restrictions\": [\"no-nuts\"], \"notes\": \"cutting\"}";
+        // Two LLM turns now (#475): the NutritionIntentRouter classifies (→ diet-profiler), then DietProfiler extracts.
+        enqueuePick("diet-profiler");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(30, 15, 45)))));
         mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(new DietProfileDto(
@@ -85,7 +87,8 @@ class DietProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("ваш профиль").contains("2000");
 
-        // The extract went through llm-gateway with the SKILL as system prompt + the user text.
+        // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8())
@@ -107,6 +110,7 @@ class DietProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("diet-profiler");                        // router classify → diet-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\": \"household\", \"restrictions\": [\"halal\"]}",
                 "stop", new LlmUsage(20, 10, 30)))));
@@ -121,7 +125,8 @@ class DietProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("семьи");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract
         // household scope → ownerId omitted (null = household-default).
         RecordedRequest setReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
@@ -133,6 +138,7 @@ class DietProfilerTest {
     void notAProfileRepliesWithoutWriting() throws Exception {
         UUID householdId = UUID.randomUUID();
 
+        enqueuePick("diet-profiler");                        // router classify → diet-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"error\": \"not a profile\"}", "stop", new LlmUsage(10, 5, 15)))));
 
@@ -143,7 +149,8 @@ class DietProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract (→ error, no write)
         assertThat(mcpNutrition.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
 
@@ -152,6 +159,13 @@ class DietProfilerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The NutritionIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static MockResponse jsonResponse(String body) {

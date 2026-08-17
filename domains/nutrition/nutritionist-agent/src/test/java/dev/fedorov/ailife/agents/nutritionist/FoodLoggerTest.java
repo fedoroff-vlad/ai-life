@@ -124,6 +124,8 @@ class FoodLoggerTest {
         UUID userId = UUID.randomUUID();
 
         var draftJson = "{\"description\": \"овсянка с бананом\", \"kcal\": 420, \"protein_g\": 12}";
+        // Two LLM turns now (#475): the NutritionIntentRouter classifies (→ meal-logger), then FoodLogger extracts.
+        enqueuePick("meal-logger");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(30, 15, 45)))));
         mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(new MealLogDto(
@@ -137,7 +139,8 @@ class FoodLoggerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Записал").contains("овсянка");
 
-        // The extract went through llm-gateway with the SKILL as system prompt + the user text.
+        // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8())
@@ -170,6 +173,13 @@ class FoodLoggerTest {
         // Caption was attempted; no meal write happened.
         mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mcpNutrition.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    /** The NutritionIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private IntentResponse post(NormalizedMessage msg) {
