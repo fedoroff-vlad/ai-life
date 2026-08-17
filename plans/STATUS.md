@@ -4,33 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **In flight: architecture epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing.**
-  `notes-agent` + `creator-agent` migrated off their `*_CUES` keyword heuristic to LLM classification, and
-  the near-identical per-agent `*IntentRouter`s are now **lifted into the shared `agent-runtime`
-  `intent/SkillRouter`** (skills-only wrapper around `SkillClassifier`: LLM round-trip + classify +
-  soft-fail-to-chat, driven by an agent-supplied ordered `{skillName → flow}` dispatch map whose key set IS
-  the route set — so a hub-invoked skill like creator's `greeting-drafter` is excluded by simply being
-  absent from the map; SKILL.md descriptions the routing SSOT). Both agents are thin bindings now; unit
-  tests + both routing goldens replay green vs qwen3:8b (→ HISTORY 2026-08-17). **`docs-agent` migrated
-  too** (`DocsIntentRouter`: the photo-ingest stays a deterministic pre-check in `IntentController`, the
-  `doc-finder` text intent routes via the shared `SkillRouter`, `doc-archiver` excluded as attachment-gated,
-  the `FAMILY_CUES` read-scope kept a deterministic cue inside the finder lambda; new routing golden green →
-  HISTORY 2026-08-17). **`nutritionist-agent` migrated too** (`NutritionIntentRouter`, 5 text intents:
-  diet-profiler/nutrition-analyst/meal-planner/basket-analyst/meal-logger; the basket/meal photo split stays
-  a deterministic pre-check in `IntentController`, `recipe-finder` excluded as chef's skill, the `FAMILY_CUES`
-  ration read-scope kept a deterministic cue inside the meal-planner lambda; new routing golden green →
-  HISTORY 2026-08-17). **`briefing-agent` migrated too** (`BriefingIntentRouter`, 2 text intents:
-  briefing-composer → digest / briefing-profiler → preferences; no carve-out — a briefing request is always
-  a text intent, so `IntentController` is a thin passthrough; new routing golden green vs qwen3:8b →
-  HISTORY 2026-08-17). **`stylist-agent` migrated too** (`StylistIntentRouter`, 3 text intents:
-  wardrobe-auditor → audit / gap-analyst → gap / capsule-advisor → capsule; the analyse-me-vs-catalogue
-  photo split stays a deterministic pre-check in `IntentController`, so the 2 photo-gated skills are excluded
-  from the map; new routing golden green vs qwen3:8b → HISTORY 2026-08-17). **`chef-agent` migrated too**
-  (owner-decided single-skill guardrail check → chose the router: chef has one skill `recipe-finder` but a
-  real recipe-vs-chat decision, so `ChefIntentRouter` single-skill map + `ChefChat` fallback replaces
-  `RECIPE_CUES`; the `recommend_recipes` hub action bypasses the router; new routing golden green vs qwen3:8b
-  → HISTORY 2026-08-17). **NEXT: migrate the last cue-routed agent — travel — onto the shared router.**
-  Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+- **arch epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing — ✅ DONE
+  (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist / briefing / stylist / chef
+  / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
+  `intent/SkillRouter`; every keyword router deleted. **Bucket 1 is now fully complete** (finance + tasks
+  were the original two). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1 + per-agent HISTORY rows
+  (2026-08-17). **Remaining #479 threads** (pick next): shared personalization-profile capability
+  [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) (ADR first), prove agent-led multi-domain
+  coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477), reconcile empty `shared/skills/`
+  doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478); + the model-gated Bucket 2 cutover
+  [#369](https://github.com/fedoroff-vlad/ai-life/issues/369).
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список

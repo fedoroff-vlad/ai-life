@@ -1,8 +1,10 @@
 # Skills vs flows — the in-agent refactor track
 
-> **Status (2026-07-30): Bucket 1 ✅ COMPLETE (#363/#365 + slice 3); Bucket 2 pilot — validate-only half ✅
-> (#360, `finance FinancialAdvisor`); the model-gated production cutover stays deferred (Mac).** Both routing
-> agents (finance, tasks) now share one `agent-runtime` `SkillClassifier`.
+> **Status (2026-08-17): Bucket 1 ✅ FULLY COMPLETE — all 10 in-agent routers share one `agent-runtime`
+> classifier.** The original finance + tasks (#363/#365 + slice 3) plus the 8 cue-routed agents (#475: notes /
+> creator / docs / nutritionist / briefing / stylist / chef / travel) now classify in-agent via the shared
+> `SkillClassifier`/`SkillRouter`; every `*_CUES` keyword router is deleted. Bucket 2 pilot — validate-only
+> half ✅ (#360, `finance FinancialAdvisor`); the model-gated production cutover (#369) stays deferred (Mac).
 > Model- and hardware-independent. Sparked by wrapping the WORK agent with skills (opencode + `SKILL.md`, in
 > the `coding-agent` repo) → "how much of that pattern applies to ai-life?"
 
@@ -88,9 +90,24 @@ and its `RECIPE_CUES` heuristic was exactly the paraphrase-misroute weakness #47
 `ChefIntentRouter` over the shared router with a **single-skill** dispatch map (`recipe-finder` →
 `RecipeFinder`) + `ChefChat` fallback, rather than becoming researcher-style direct-invoke. The
 `recommend_recipes` hub action (nutritionist → chef) is not an intent, so it bypasses the router. New routing
-golden green vs qwen3:8b (63s). **NEXT: travel** (the last cue-routed agent). Genuinely single-skill agents
-with *no* in-agent decision (`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the
-guardrail.
+golden green vs qwen3:8b (63s). **Also done: `travel-agent` ✅ (2026-08-17) — the last of the eight.** Its
+`PROFILE_CUES`/`WALLET_CUES`/`PACKING_CUES`/`PLAN_CUES` heuristic replaced by `TravelIntentRouter` over the
+shared router with a **4-flow** dispatch map (`travel-profiler`/`trip-wallet`/`packing-list`/`trip-composer`).
+Two carve-outs: the **route-file attachment** import stays a deterministic pre-check in `IntentController`
+(a file is an import, not a text intent), and the **map-link** import folds into the router's chat fallback
+(a bare link with no classified intent → `RouteFlow.handleLink`, else `TravelChat`), so "хочу на море
+`<link>`" still classifies to `trip-composer`. **Owner-decided (Choice A):** packing (`PackingFlow`, a
+deterministic list with no synthesis) gained a **routing-descriptor `packing-list` SKILL.md** + AGENT.md
+entry so it becomes a 4th routable intent — this is the agent whose packing paraphrase ("а что кинуть в
+чемодан") is #475's motivating misroute, now classified correctly. New routing golden green vs qwen3:8b
+(97s).
+
+**✅ Bucket 1 COMPLETE (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist /
+briefing / stylist / chef / travel) now classify in-agent via the shared `SkillClassifier`/`SkillRouter`;
+every `*_CUES` keyword router is deleted. Genuinely single-skill agents with *no* in-agent decision
+(`researcher` / `calendar` / `coach` / `coordinator`) stay direct-invoke by the guardrail. finance + tasks
+were the original two (slices 2–3). The only remaining skills-vs-flows thread is the model-gated **Bucket 2**
+production cutover (#369).
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a

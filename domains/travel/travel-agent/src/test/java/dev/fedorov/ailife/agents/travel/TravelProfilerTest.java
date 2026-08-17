@@ -80,6 +80,8 @@ class TravelProfilerTest {
 
         String draftJson = "{\"scope\":\"self\",\"homeBase\":\"Москва\",\"restTypes\":[\"beach\"],"
                 + "\"companions\":\"family\",\"childAges\":[4],\"budgetAmount\":200000,\"budgetCurrency\":\"RUB\"}";
+        // Two LLM turns now (#475): the TravelIntentRouter classifies (→ travel-profiler), then the extract.
+        enqueuePick("travel-profiler");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(40, 20, 60)))));
         mcpWeather.enqueue(jsonResponse(json.writeValueAsString(
@@ -97,7 +99,8 @@ class TravelProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("ваши настройки").contains("Москва");
 
-        // The extract went through llm-gateway with the SKILL as system prompt + the user text.
+        // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("Москв");
@@ -130,6 +133,7 @@ class TravelProfilerTest {
         // The model returns one valid + one invalid rest type, and an invalid companions value.
         String draftJson = "{\"scope\":\"self\",\"homeBase\":\"Berlin\","
                 + "\"restTypes\":[\"beach\",\"safari\"],\"companions\":\"squad\"}";
+        enqueuePick("travel-profiler");                // router classify → travel-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(30, 15, 45)))));
         mcpWeather.enqueue(jsonResponse(json.writeValueAsString(
@@ -145,7 +149,8 @@ class TravelProfilerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract
         mcpWeather.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest setReq = mcpTravel.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
@@ -160,6 +165,7 @@ class TravelProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("travel-profiler");                // router classify → travel-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\":\"household\",\"restTypes\":[\"family\",\"beach\"],\"companions\":\"family\"}",
                 "stop", new LlmUsage(20, 10, 30)))));
@@ -174,7 +180,8 @@ class TravelProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("общие настройки");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract
         // No home base stated → geocode is skipped entirely.
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         // household scope → ownerId omitted (null = household-default).
@@ -188,6 +195,7 @@ class TravelProfilerTest {
     void notATravelProfileRepliesWithoutWriting() throws Exception {
         UUID householdId = UUID.randomUUID();
 
+        enqueuePick("travel-profiler");                // router classify → travel-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"error\": \"not a travel profile\"}", "stop", new LlmUsage(10, 5, 15)))));
 
@@ -198,7 +206,8 @@ class TravelProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract (→ error, no write)
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mcpTravel.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
@@ -208,6 +217,7 @@ class TravelProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("travel-profiler");                // router classify → travel-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\":\"self\",\"homeBase\":\"Нигдетаун\",\"restTypes\":[\"city\"]}",
                 "stop", new LlmUsage(15, 8, 23)))));
@@ -224,7 +234,8 @@ class TravelProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("координаты");   // warns coords couldn't be resolved
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // extract
         mcpWeather.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest setReq = mcpTravel.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
@@ -237,6 +248,13 @@ class TravelProfilerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The TravelIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static MockResponse jsonResponse(String body) {
