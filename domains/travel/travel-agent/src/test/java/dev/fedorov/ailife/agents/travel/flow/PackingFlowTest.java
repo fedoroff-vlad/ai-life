@@ -4,6 +4,8 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
+import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.note.NoteDto;
 import dev.fedorov.ailife.contracts.travel.TripDto;
@@ -49,6 +51,7 @@ class PackingFlowTest {
     static MockWebServer mcpWeather;
     static MockWebServer mediaService;
     static MockWebServer memoryService;
+    static MockWebServer llm;
 
     @BeforeAll
     static void start() throws Exception {
@@ -56,10 +59,12 @@ class PackingFlowTest {
         mcpWeather = new MockWebServer();
         mediaService = new MockWebServer();
         memoryService = new MockWebServer();
+        llm = new MockWebServer();
         mcpTravel.start();
         mcpWeather.start();
         mediaService.start();
         memoryService.start();
+        llm.start();
     }
 
     @AfterAll
@@ -68,6 +73,7 @@ class PackingFlowTest {
         mcpWeather.shutdown();
         mediaService.shutdown();
         memoryService.shutdown();
+        llm.shutdown();
     }
 
     @DynamicPropertySource
@@ -82,7 +88,8 @@ class PackingFlowTest {
         r.add("travel-agent.orchestrator-url", () -> "http://localhost:1");
         r.add("travel-agent.mcp-chart-render-url", () -> "http://localhost:1");
         r.add("travel-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
-        r.add("ailife.llm-client.base-url", () -> "http://localhost:1");
+        // #475: the only LLM call the packing flow makes is the router classify turn → point at a real mock.
+        r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llm.getPort());
         r.add("spring.ai.mcp.client.enabled", () -> "false");
     }
 
@@ -102,6 +109,7 @@ class PackingFlowTest {
         noteBody.set(null);
         mediaService.setDispatcher(mediaOk());
         memoryService.setDispatcher(memory(null));   // GET list empty → the packing note is created
+        llm.setDispatcher(routerPick("packing-list"));   // #475: the router classify turn → packing-list
     }
 
     /** Active trip → destination's season (hot January in Пхукет) drives the list; board link returned. */
@@ -196,6 +204,21 @@ class PackingFlowTest {
     }
 
     // --- dispatchers ---
+
+    /** llm-gateway: the only LLM call the packing flow makes is the router classify turn (#475) → the pick. */
+    private Dispatcher routerPick(String skill) {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                try {
+                    return jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                            "mock", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                            new LlmUsage(20, 8, 28))));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
 
     /**
      * mcp-travel: {@code GET /internal/trips/active} returns the given trip (or 204 when null), and

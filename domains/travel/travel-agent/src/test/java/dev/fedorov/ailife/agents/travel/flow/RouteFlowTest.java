@@ -4,6 +4,8 @@ import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
+import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.travel.RouteDto;
 import dev.fedorov.ailife.contracts.travel.TripDto;
@@ -52,19 +54,23 @@ class RouteFlowTest {
 
     static MockWebServer mcpTravel;
     static MockWebServer mediaService;
+    static MockWebServer llm;
 
     @BeforeAll
     static void start() throws Exception {
         mcpTravel = new MockWebServer();
         mediaService = new MockWebServer();
+        llm = new MockWebServer();
         mcpTravel.start();
         mediaService.start();
+        llm.start();
     }
 
     @AfterAll
     static void stop() throws Exception {
         mcpTravel.shutdown();
         mediaService.shutdown();
+        llm.shutdown();
     }
 
     @DynamicPropertySource
@@ -79,7 +85,9 @@ class RouteFlowTest {
         r.add("travel-agent.orchestrator-url", () -> "http://localhost:1");
         r.add("travel-agent.mcp-chart-render-url", () -> "http://localhost:1");
         r.add("travel-agent.memory-service-url", () -> "http://localhost:1");
-        r.add("ailife.llm-client.base-url", () -> "http://localhost:1");
+        // #475: a non-attachment message goes through the router classify turn; a bare map link is a "chat"
+        // decision → the router's fallback runs the map-link import. Attachment tests bypass the router.
+        r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llm.getPort());
         r.add("spring.ai.mcp.client.enabled", () -> "false");
     }
 
@@ -98,6 +106,7 @@ class RouteFlowTest {
         boardBody.set(null);
         fileBytes.set(GPX.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mediaService.setDispatcher(media(false));
+        llm.setDispatcher(routerChat());   // #475: the router classify turn → chat → map-link fallback runs
     }
 
     @Test
@@ -170,6 +179,21 @@ class RouteFlowTest {
     }
 
     // --- dispatchers ---
+
+    /** llm-gateway: the router classify turn (#475) for a non-attachment message → a chat decision, so the
+     *  {@code TravelIntentRouter} falls back to the deterministic map-link import. */
+    private Dispatcher routerChat() {
+        return new Dispatcher() {
+            @Override public MockResponse dispatch(RecordedRequest request) {
+                try {
+                    return jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                            "mock", "{\"action\":\"chat\"}", "stop", new LlmUsage(10, 5, 15))));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
 
     /** mcp-travel: GET /internal/trips/active (toggle) + POST /internal/routes (echo a stored RouteDto). */
     private Dispatcher travelStore(boolean hasActiveTrip) {

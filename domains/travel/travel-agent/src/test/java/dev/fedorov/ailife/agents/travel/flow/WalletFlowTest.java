@@ -223,13 +223,21 @@ class WalletFlowTest {
 
     // --- dispatchers ---
 
-    /** llm-gateway: the WalletExtractor turn — always return the given action JSON as the content. */
+    /**
+     * llm-gateway: two turns now (#475). The {@link dev.fedorov.ailife.agents.travel.intent.TravelIntentRouter}
+     * classify turn comes first (detected by the router prompt marker) → route it to {@code trip-wallet}; the
+     * following {@code WalletExtractor} turn returns the given action JSON.
+     */
     private Dispatcher llmAction(String actionJson) {
         return new Dispatcher() {
             @Override public MockResponse dispatch(RecordedRequest request) {
                 try {
+                    String body = request.getBody().readUtf8();
+                    String content = body.contains("routing a message for the travel agent")
+                            ? "{\"action\":\"skill\",\"name\":\"trip-wallet\"}"
+                            : actionJson;
                     return jsonResponse(json.writeValueAsString(new LlmChatResponse(
-                            "mock", actionJson, "stop", new LlmUsage(20, 10, 30))));
+                            "mock", content, "stop", new LlmUsage(20, 10, 30))));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

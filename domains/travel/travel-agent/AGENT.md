@@ -11,6 +11,7 @@ skills:
   - travel-profiler
   - trip-composer
   - trip-wallet
+  - packing-list
 intents:
   - example: Мы семья с ребёнком 4 года, любим пляж и спокойный отдых, летаем из Москвы
     description: Set or update the per-person travel preferences (home base, rest types, companions, budget hint).

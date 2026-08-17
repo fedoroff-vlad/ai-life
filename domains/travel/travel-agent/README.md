@@ -12,7 +12,11 @@ orchestrator as `travel`. **Never books or pays** — proposes options and provi
 ## Status (TR-f2 planner + EX-b/EX-c trip wallet + RT-c route import + PK-a packing list)
 
 Six flows behind the intent split (**route file** → preferences → wallet → packing → plan → chat). A `file`
-attachment is checked first (an unambiguous import), then the text cues:
+attachment is checked first (an unambiguous import) in `web/IntentController`; every non-attachment message
+is then classified by an LLM router (`intent/TravelIntentRouter` over the shared `SkillClassifier`, #475 —
+replaced the old `PROFILE_CUES`/`WALLET_CUES`/`PACKING_CUES`/`PLAN_CUES` keyword lists) into one of the four
+text-intent skills, with each skill's SKILL.md description the routing SSOT; a bare **map link** with no
+classified intent folds into the router's chat fallback (RT-d2 import), else a plain chat reply:
 
 - **route-import** (RT-c/RT-d2) `file|link → store → board` flow: a `file` attachment (a route/itinerary
   sent as a document) **or** a **map link in the message text** (Google/Yandex/OSM/`geo:`, RT-d2) → for a
@@ -25,8 +29,8 @@ attachment is checked first (an unambiguous import), then the text cues:
   (`goo.gl`, `yandex.ru/maps/-/…` — need `mcp-browser`, TR-f3) soft-fail with a friendly message pointing at
   sending a GPX/KML file; the board soft-fails to text-only. KMZ bytes are base64-encoded into the store's
   `content` (RT-b). The agent parses owner-supplied bytes/URLs only — it never fetches a remote map or
-  transmits the file. The map-link check runs **after** the plan/wallet cues, so "хочу на море `<link>`"
-  still plans while a bare link pins the place.
+  transmits the file. The map-link import folds into the router's chat fallback, so "хочу на море `<link>`"
+  is classified as `trip-composer` (plans) while a bare link with no intent pins the place.
 
 - **travel-profiler** (TR-c) write path: a preferences cue → one llm-gateway extract via the
   `travel-profiler` SKILL → geocode the stated home-base city via `mcp-weather /internal/geocode`
@@ -68,7 +72,8 @@ attachment is checked first (an unambiguous import), then the text cues:
     **deep links** into both the `trip-composer` synthesis context and the board (a link per offer). The
     capability is **owner-key-gated**: with no Travelpayouts key it reports `unconfigured` and the planner
     **degrades to the MVP plan** + tells the owner live search isn't set up. Still **never books** — options
-    + links only. Routing cues for the live ask live in `web/IntentController` (`PLAN_CUES`).
+    + links only. The live ask ("найди билеты", "подбери отель") is classified to `trip-composer` by the
+    router (the FAST scope's `live` flag then decides), no longer a `PLAN_CUES` keyword.
   - **TR-e HTML travel board (closer):** the synthesis is rendered to an HTML board — the plan text as a
     section, the gathered web sources as grounded provenance links, and the destination's **climate-by-month
     curve** as a line chart (rendered by the shared `mcp-chart-render` capability) — via the shared
@@ -102,7 +107,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 
 | method | path | body | purpose |
 |--------|------|------|---------|
-| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow.handle` (route import); else preferences cue → `travel-profiler`; wallet cue → `WalletFlow`; packing cue → `PackingFlow` (PK-a); plan-a-trip cue → `trip-composer`; else a **map link** in the text → `RouteFlow.handleLink` (RT-d2); else → chat fallback. |
+| POST | `/agents/travel/intent` | `NormalizedMessage` | reactive entrypoint: a `file` attachment → `RouteFlow.handle` (route import, a controller pre-check); else the LLM `TravelIntentRouter` (#475) classifies the text → `travel-profiler` / `trip-wallet` (`WalletFlow`) / `packing-list` (`PackingFlow`, PK-a) / `trip-composer`; a bare **map link** with no classified intent → `RouteFlow.handleLink` (RT-d2, via the router's chat fallback); else → chat fallback. |
 | GET | `/agents/travel/manifest` | — | the `AgentManifest` (AGENT.md frontmatter) the orchestrator scrapes for routing. |
 
 ## Env
@@ -156,7 +161,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `handleLink` (a map URL → `maplink`) → resolve the active trip → `importRoute` → route board (point count
   + distance + OpenStreetMap map link) via `DeliverablePublisher`. `http/RouteImportClient`
   (`mcp-travel /internal/routes`) + `http/MediaFetchClient` (`media-service GET /v1/media/{id}`, reuses the
-  `mediaServiceWebClient`). `IntentController.mapLink` detects a Google/Yandex/OSM/`geo:` URL in the text.
+  `mediaServiceWebClient`). `TravelIntentRouter.mapLink` detects a Google/Yandex/OSM/`geo:` URL in the text (the router's chat fallback imports a bare link).
 - `flow/TripComposer` — the TR-d/TR-e/TR-f2 `gather → synthesize` planner: profile resolve → FAST scope
   extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
   web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
@@ -169,8 +174,15 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `http/ChartRenderClient` (`mcp-chart-render` `/internal/render` for the board's climate chart) +
   `http/TravelSearchClient` (`mcp-travel-search` resolve-place/search-flights/search-hotels, TR-f2).
 - `chat/TravelChat` — conversational fallback for non-config, non-plan messages.
-- `web/IntentController` (`/agents/travel/intent`, cue split) + `web/ManifestController`
+- `web/IntentController` (`/agents/travel/intent`) — a `file`-attachment pre-check → `RouteFlow.handle`;
+  every non-attachment message delegates to `intent/TravelIntentRouter`. `web/ManifestController`
   (`/agents/travel/manifest`).
+- `intent/TravelIntentRouter` (#475) — the LLM text router: a thin binding over the shared `agent-runtime`
+  `SkillRouter` with a four-flow dispatch map (`travel-profiler` → `TravelProfiler`, `trip-wallet` →
+  `WalletFlow`, `packing-list` → `PackingFlow`, `trip-composer` → `TripComposer`) + a chat fallback that
+  imports a bare map link (`RouteFlow.handleLink`) before a plain `TravelChat` reply. Replaced the old
+  `*_CUES` keyword lists; SKILL.md descriptions are the routing SSOT.
 - `AGENT.md` (manifest) + `../skills/travel-profiler/SKILL.md` (the extract prompt) +
   `../skills/trip-composer/SKILL.md` (the synthesis prompt) + `../skills/trip-wallet/SKILL.md` (the EX-b
-  wallet-action extract prompt).
+  wallet-action extract prompt) + `../skills/packing-list/SKILL.md` (a routing-descriptor for the
+  deterministic `PackingFlow`, #475 — no synthesis body).

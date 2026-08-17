@@ -477,18 +477,29 @@ class TripComposerTest {
         return node;
     }
 
-    /** llm-gateway: the FAST scope extract carries the scope prompt; everything else is the synthesis. */
+    /**
+     * llm-gateway: three turns now (#475). The {@link dev.fedorov.ailife.agents.travel.intent.TravelIntentRouter}
+     * classify turn comes first (detected by the router prompt marker) → route to {@code trip-composer}; then
+     * the FAST scope extract (its own prompt marker); everything else is the synthesis.
+     */
     private Dispatcher llm(String scopeJson, String synthesisText) {
         return new Dispatcher() {
             @Override public MockResponse dispatch(RecordedRequest request) {
                 String b = request.getBody().readUtf8();
+                if (b.contains("routing a message for the travel agent")) {
+                    return content("{\"action\":\"skill\",\"name\":\"trip-composer\"}");
+                }
                 boolean isScope = b.contains("extract trip parameters");
                 if (!isScope) {
                     synthBody.set(b);   // capture the synthesis request for assertions
                 }
+                return content(isScope ? scopeJson : synthesisText);
+            }
+
+            private MockResponse content(String text) {
                 try {
                     return jsonResponse(json.writeValueAsString(new LlmChatResponse(
-                            "mock", isScope ? scopeJson : synthesisText, "stop", new LlmUsage(50, 20, 70))));
+                            "mock", text, "stop", new LlmUsage(50, 20, 70))));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
