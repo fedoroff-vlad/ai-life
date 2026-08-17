@@ -113,6 +113,8 @@ class StylistAdvisorTest {
                 new WardrobeItemDto(UUID.randomUUID(), householdId, null, "white shirt", "top",
                         "white", "cotton", "plain", "all-season", "smart", null, Instant.now())));
         mcpWeb.enqueue(json("{\"query\":\"x\",\"hits\":[]}"));
+        // Two LLM turns now (#475): the StylistIntentRouter classifies (→ capsule-advisor), then the synthesis.
+        enqueuePick("capsule-advisor");
         llm.enqueue(json(json.writeValueAsString(new LlmChatResponse(
                 "mock-llm", "Капсула на зиму.\nLook 1: navy coat + white shirt.", "stop", null))));
         imageGen.enqueue(json(json.writeValueAsString(new ImageGenResult(illustrationId, "stub"))));
@@ -136,7 +138,8 @@ class StylistAdvisorTest {
         RecordedRequest searchReq = mcpWeb.takeRequest(2, TimeUnit.SECONDS);
         assertThat(searchReq.getPath()).isEqualTo("/internal/search");
 
-        // The synthesis carried the gathered wardrobe in its context.
+        // First the router classify, then the synthesis carried the gathered wardrobe in its context.
+        llm.takeRequest(2, TimeUnit.SECONDS);                 // router classify
         RecordedRequest chatReq = llm.takeRequest(2, TimeUnit.SECONDS);
         assertThat(chatReq.getPath()).isEqualTo("/v1/chat");
         JsonNode chatBody = json.readTree(chatReq.getBody().readUtf8());
@@ -160,9 +163,10 @@ class StylistAdvisorTest {
     }
 
     @Test
-    void emptyWardrobeInvitesToCatalogueWithoutSynthesis() {
+    void emptyWardrobeInvitesToCatalogueWithoutSynthesis() throws Exception {
         itemsJson = "[]";
         UUID householdId = UUID.randomUUID();
+        enqueuePick("capsule-advisor");                       // router classify → capsule-advisor
 
         var msg = new NormalizedMessage(
                 UUID.randomUUID(), householdId, MessageScope.PRIVATE, "что мне надеть сегодня",
@@ -177,6 +181,12 @@ class StylistAdvisorTest {
         assertThat(resp.text()).contains("гардероб");
         // No synthesis, no store on an empty wardrobe.
         assertThat(resp.text()).doesNotContain("/v1/media/");
+    }
+
+    /** The StylistIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llm.enqueue(json(json.writeValueAsString(new LlmChatResponse(
+                "mock-llm", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop", null))));
     }
 
     private static MockResponse json(String body) {

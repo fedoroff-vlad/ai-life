@@ -98,6 +98,8 @@ class GapAnalystTest {
                 + "\"coverageBefore\":\"52%\",\"coverageAfter\":\"88%\","
                 + "\"focusAreas\":[\"public speaking\",\"travel\"],"
                 + "\"palette\":[{\"hex\":\"#042C53\",\"name\":\"deep blue\"}]}";
+        // Two LLM turns now (#475): the StylistIntentRouter classifies (→ gap-analyst), then the synthesis.
+        enqueuePick("gap-analyst");
         llm.enqueue(new MockResponse().setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse("mock-llm", gap, "stop", null))));
         mediaService.enqueue(new MockResponse().setHeader("content-type", "application/json")
@@ -125,5 +127,12 @@ class GapAnalystTest {
                 .contains("Не покупать").contains("micro mini skirt")
                 .contains("Фокус")
                 .contains("#042C53");
+    }
+
+    /** The StylistIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llm.enqueue(new MockResponse().setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-llm", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop", null))));
     }
 }

@@ -2,10 +2,7 @@ package dev.fedorov.ailife.agents.stylist.web;
 
 import dev.fedorov.ailife.agents.stylist.analyse.AnalyseMe;
 import dev.fedorov.ailife.agents.stylist.catalogue.WardrobeCataloguer;
-import dev.fedorov.ailife.agents.stylist.chat.StylistChat;
-import dev.fedorov.ailife.agents.stylist.flow.GapAnalyst;
-import dev.fedorov.ailife.agents.stylist.flow.StylistAdvisor;
-import dev.fedorov.ailife.agents.stylist.flow.WardrobeAuditor;
+import dev.fedorov.ailife.agents.stylist.intent.StylistIntentRouter;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -20,19 +17,22 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Hit by the orchestrator when intent routing selects {@code stylist}. A photo attachment routes to
- * one of two flows by the caption text:
+ * Hit by the orchestrator when intent routing selects {@code stylist}:
  * <ul>
- *   <li>"analyse me" cues (or stated body params) → {@link AnalyseMe} (ST-d) — build the style profile;</li>
- *   <li>otherwise → {@link WardrobeCataloguer} (ST-c) — catalogue the garment (the default, since the
- *       owner bulk-uploads the wardrobe).</li>
+ *   <li>a photo attachment with an "analyse me" cue (or stated body params) → {@link AnalyseMe} (ST-d) —
+ *       build the style profile;</li>
+ *   <li>any other photo attachment → {@link WardrobeCataloguer} (ST-c) — catalogue the garment (the
+ *       default, since the owner bulk-uploads the wardrobe);</li>
+ *   <li>otherwise → {@link StylistIntentRouter}, which classifies the text (via the shared
+ *       {@code SkillClassifier}) into one of the three text-intent flows — wardrobe audit / gap analysis /
+ *       outfit capsule — or a plain chat reply.</li>
  * </ul>
- * A non-photo message with a capsule cue → the {@link StylistAdvisor} capsule flow (ST-e);
- * otherwise it falls back to chat ({@link StylistChat}).
- *
- * <p>The route splits are deterministic keyword heuristics on the text — good enough for the MVP
- * (a self-photo almost always comes with "проанализируй меня" / body params; a capsule ask says
- * "что надеть" / "собери капсулу"), MockWebServer-testable, and replaceable by an LLM classifier later.
+ * The photo check comes first (a photo is unambiguously a catalogue/analyse ingest, not a text intent, so
+ * it stays a deterministic pre-check rather than an LLM classification; the analyse-vs-catalogue split is
+ * likewise a deterministic keyword on the caption). The typed-message keyword-cue heuristic this controller
+ * used to carry ({@code AUDIT_CUES}/{@code GAP_CUES}/{@code CAPSULE_CUES}) was replaced by the LLM
+ * classifier in skills-vs-flows Bucket 1 (#475), so the routing SSOT is each intent skill's SKILL.md
+ * description.
  */
 @RestController
 @RequestMapping("/agents/stylist")
@@ -44,34 +44,14 @@ public class IntentController {
             "analyse me", "analyze me", "my style", "colour type", "color type",
             "body shape", "height", "weight");
 
-    private static final Set<String> AUDIT_CUES = Set.of(
-            "ревизи", "разбор гардероб", "разбери гардероб", "разбери мой гардероб",
-            "что оставить", "что убрать", "что выбросить", "почисти гардероб", "audit");
-
-    private static final Set<String> GAP_CUES = Set.of(
-            "что докупить", "что купить", "чего не хватает", "что добавить", "список покупок",
-            "пробел", "докупить", "gap", "what to buy", "shopping list");
-
-    private static final Set<String> CAPSULE_CUES = Set.of(
-            "капсул", "что надеть", "что мне надеть", "собери", "собрать", "образ", "лук",
-            "наряд", "во что одеться", "outfit", "what to wear", "capsule", "look");
-
     private final WardrobeCataloguer cataloguer;
     private final AnalyseMe analyseMe;
-    private final WardrobeAuditor auditor;
-    private final GapAnalyst gapAnalyst;
-    private final StylistAdvisor advisor;
-    private final StylistChat chat;
+    private final StylistIntentRouter router;
 
-    public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe,
-                            WardrobeAuditor auditor, GapAnalyst gapAnalyst,
-                            StylistAdvisor advisor, StylistChat chat) {
+    public IntentController(WardrobeCataloguer cataloguer, AnalyseMe analyseMe, StylistIntentRouter router) {
         this.cataloguer = cataloguer;
         this.analyseMe = analyseMe;
-        this.auditor = auditor;
-        this.gapAnalyst = gapAnalyst;
-        this.advisor = advisor;
-        this.chat = chat;
+        this.router = router;
     }
 
     @PostMapping("/intent")
@@ -83,16 +63,7 @@ public class IntentController {
                     ? analyseMe.analyse(message, mediaId)
                     : cataloguer.catalogue(message, mediaId);
         }
-        if (isMatch(message.text(), AUDIT_CUES)) {
-            return auditor.audit(message);
-        }
-        if (isMatch(message.text(), GAP_CUES)) {
-            return gapAnalyst.analyse(message);
-        }
-        if (isMatch(message.text(), CAPSULE_CUES)) {
-            return advisor.advise(message);
-        }
-        return chat.reply(message);
+        return router.route(message);
     }
 
     private static boolean isMatch(String text, Set<String> cues) {
