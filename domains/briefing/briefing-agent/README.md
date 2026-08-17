@@ -39,8 +39,9 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 ## Endpoints
 
 - `POST /agents/briefing/intent` (body `NormalizedMessage`) → `IntentResponse` — the orchestrator's
-  entry point. Digest cue → briefing-composer (reply = digest text + HTML board link); preferences cue
-  → briefing-profiler; else chat.
+  entry point. An LLM classifier (`BriefingIntentRouter` over the shared `SkillClassifier`, #475) routes
+  the message: digest intent → briefing-composer (reply = digest text + HTML board link); preferences
+  intent → briefing-profiler; else chat. Each skill's SKILL.md description is the routing SSOT.
 - `POST /agents/briefing/triggers/{kind}` (body `AgentWakeRequest`) → 202 — the proactive wake entry
   (BR-f). `kind = briefing.digest`: compose the digest for the payload's `ownerId` + deliver via notifier.
 - `GET /agents/briefing/manifest` → `AgentManifest` — scraped by the orchestrator on startup.
@@ -69,8 +70,13 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - `config/OutboundHttpConfig` — one `clone()`d `WebClient` per dependency (`mcpBriefing`, `mcpWeather`,
   `mcpWeb`, `mcpCaldav`, `mcpFinance`, `mediaService`) + the `MediaStoreClient` / `DeliverablePublisher`
   beans (BR-e board); the shared `profile/notifier/memory` clients come from `agent-runtime`.
-- `web/IntentController` — `POST /agents/briefing/intent`; digest cue → composer, preferences cue →
-  profiler, else chat.
+- `web/IntentController` — `POST /agents/briefing/intent`; a thin passthrough that delegates to
+  `intent/BriefingIntentRouter`. (No attachment/read-scope pre-check to keep here — a briefing request is
+  always a text intent.)
+- `intent/BriefingIntentRouter` — the LLM router (#475): a thin binding over the shared `agent-runtime`
+  `SkillRouter` with a two-flow dispatch map (`briefing-composer` → digest, `briefing-profiler` →
+  preferences) + the `BriefingChat` fallback. Replaced the old `DIGEST_CUES`/`PROFILE_CUES` keyword
+  heuristic; SKILL.md descriptions are the routing SSOT.
 - `web/TriggerController` — `POST /agents/briefing/triggers/{kind}` (BR-f); `briefing.digest` → reuse the
   composer digest flow → deliver via notifier (owner, or household fan-out when no `ownerId`).
 - `web/ManifestController` — `GET /agents/briefing/manifest`.

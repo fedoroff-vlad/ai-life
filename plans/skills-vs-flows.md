@@ -73,7 +73,11 @@ classifier). New routing golden green vs qwen3:8b. **Also done: `nutritionist-ag
 the basket/meal photo split stays a deterministic pre-check in `IntentController`, the `FAMILY_CUES` ration
 read-scope stays a deterministic cue inside the `meal-planner` lambda, and `recipe-finder` (chef's, on the
 shared `skills/nutrition/*` classpath) is excluded from the map. New routing golden green vs qwen3:8b.
-**NEXT: briefing / chef / stylist / travel.** **Note:** `chef` has effectively one intent skill
+**Also done: `briefing-agent` ✅ (2026-08-17)** — its `DIGEST_CUES`/`PROFILE_CUES` heuristic replaced by
+`BriefingIntentRouter` over the shared router, a **2-flow** dispatch map (`briefing-composer` → digest,
+`briefing-profiler` → preferences). No carve-out needed: a briefing request is always a text intent, so
+`IntentController` is a thin passthrough (no attachment/read-scope pre-check). New routing golden green vs
+qwen3:8b (82s). **NEXT: chef / stylist / travel.** **Note:** `chef` has effectively one intent skill
 (`recipe-finder`) → likely stays direct-invoke by the single-skill guardrail (check on approach). Genuinely
 single-skill agents (`researcher` / `calendar` / `coach` / `coordinator`) already stay direct-invoke.
 

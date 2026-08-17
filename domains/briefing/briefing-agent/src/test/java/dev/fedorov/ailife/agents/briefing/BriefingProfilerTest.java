@@ -80,6 +80,8 @@ class BriefingProfilerTest {
         String draftJson = "{\"scope\":\"self\",\"location\":\"Москва\",\"interests\":[\"AI\",\"finance\"],"
                 + "\"sections\":[\"weather\",\"agenda\",\"finance\",\"news\"],\"scheduleTime\":\"08:00\","
                 + "\"scheduleEnabled\":true}";
+        // Two LLM turns now (#475): the BriefingIntentRouter classifies (→ briefing-profiler), then BriefingProfiler extracts.
+        enqueuePick("briefing-profiler");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", draftJson, "stop", new LlmUsage(40, 20, 60)))));
         mcpWeather.enqueue(jsonResponse(json.writeValueAsString(
@@ -97,7 +99,8 @@ class BriefingProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("ваши настройки").contains("Москва");
 
-        // The extract went through llm-gateway with the SKILL as system prompt + the user text.
+        // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("Москве");
@@ -127,6 +130,7 @@ class BriefingProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("briefing-profiler");                    // router classify → briefing-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\":\"household\",\"sections\":[\"weather\",\"news\"],\"scheduleEnabled\":true}",
                 "stop", new LlmUsage(20, 10, 30)))));
@@ -141,7 +145,8 @@ class BriefingProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("общие настройки");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract
         // No location stated → geocode is skipped entirely.
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         // household scope → ownerId omitted (null = household-default).
@@ -155,10 +160,11 @@ class BriefingProfilerTest {
     void notABriefingProfileRepliesWithoutWriting() throws Exception {
         UUID householdId = UUID.randomUUID();
 
+        enqueuePick("briefing-profiler");                    // router classify → briefing-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"error\": \"not a briefing profile\"}", "stop", new LlmUsage(10, 5, 15)))));
 
-        // A cue ("по утрам") routes here, but the SKILL decides it isn't actually a briefing config.
+        // The router routes to the profiler, but the SKILL decides it isn't actually a briefing config.
         NormalizedMessage msg = new NormalizedMessage(UUID.randomUUID(), householdId, MessageScope.PRIVATE,
                 "по утрам я бегаю в парке", List.of(), "telegram", "72", Instant.now());
 
@@ -166,7 +172,8 @@ class BriefingProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract (→ error, no write)
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mcpBriefing.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
     }
@@ -176,6 +183,7 @@ class BriefingProfilerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("briefing-profiler");                    // router classify → briefing-profiler
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"scope\":\"self\",\"location\":\"Нигдетаун\",\"scheduleEnabled\":true}",
                 "stop", new LlmUsage(15, 8, 23)))));
@@ -192,7 +200,8 @@ class BriefingProfilerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("координаты");   // warns coords couldn't be resolved
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract
         mcpWeather.takeRequest(2, TimeUnit.SECONDS);
         RecordedRequest setReq = mcpBriefing.takeRequest(2, TimeUnit.SECONDS);
         JsonNode body = json.readTree(setReq.getBody().readUtf8());
@@ -205,6 +214,13 @@ class BriefingProfilerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The BriefingIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static MockResponse jsonResponse(String body) {
