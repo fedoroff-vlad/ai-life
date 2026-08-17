@@ -19,9 +19,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   diet-profiler/nutrition-analyst/meal-planner/basket-analyst/meal-logger; the basket/meal photo split stays
   a deterministic pre-check in `IntentController`, `recipe-finder` excluded as chef's skill, the `FAMILY_CUES`
   ration read-scope kept a deterministic cue inside the meal-planner lambda; new routing golden green →
-  HISTORY 2026-08-17). **NEXT: migrate the remaining 4 cue-routed agents onto the shared router, one PR
-  each** — briefing / chef / stylist / travel (chef likely stays direct-invoke — single skill; check on
-  approach). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+  HISTORY 2026-08-17). **`briefing-agent` migrated too** (`BriefingIntentRouter`, 2 text intents:
+  briefing-composer → digest / briefing-profiler → preferences; no carve-out — a briefing request is always
+  a text intent, so `IntentController` is a thin passthrough; new routing golden green vs qwen3:8b →
+  HISTORY 2026-08-17). **NEXT: migrate the remaining 3 cue-routed agents onto the shared router, one PR
+  each** — chef / stylist / travel (chef likely stays direct-invoke — single skill; check on approach).
+  Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список

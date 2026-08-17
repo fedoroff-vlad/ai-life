@@ -124,6 +124,8 @@ class BriefingComposerTest {
         orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend1))));
         mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("AI", List.of(
                 new WebSearchHit("AI breakthrough", "https://example.com/ai", "A new model shipped."))))));
+        // Two LLM turns now (#475): the BriefingIntentRouter classifies (→ briefing-composer), then the synthesis.
+        enqueuePick("briefing-composer");
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Доброе утро! Погода ясная, есть встречи и расходы.", "stop",
                 new LlmUsage(200, 80, 280)))));
@@ -144,7 +146,8 @@ class BriefingComposerTest {
         RecordedRequest mediaReq = mediaService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mediaReq.getPath()).isEqualTo("/v1/media");
 
-        // The one synthesis turn carried every gathered section (weather + agenda + finance + news).
+        // First the router classify, then the one synthesis turn carried every gathered section.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         String body = llmReq.getBody().readUtf8();
@@ -170,6 +173,7 @@ class BriefingComposerTest {
         spend2.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
                 UUID.randomUUID(), "Transport", "RUB", new BigDecimal("300.00"), 2))));
         orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend2))));
+        enqueuePick("briefing-composer");                    // router classify → briefing-composer
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Сегодня: приём и расходы на транспорт.", "stop",
                 new LlmUsage(120, 40, 160)))));
@@ -189,6 +193,7 @@ class BriefingComposerTest {
         assertThat(mcpWeather.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mcpWeb.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
 
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         String body = llmReq.getBody().readUtf8();
         assertThat(body).contains("Dentist").contains("Transport");
@@ -199,6 +204,13 @@ class BriefingComposerTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The BriefingIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static Dispatcher fixedJson(String body) {
