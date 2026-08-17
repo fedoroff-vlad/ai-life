@@ -81,6 +81,8 @@ class NutritionAnalystTest {
         UUID userId = UUID.randomUUID();
         UUID storedId = UUID.randomUUID();
 
+        // The NutritionIntentRouter classifies first (#475) → nutrition-analyst, then the analysis flow runs.
+        enqueuePick("nutrition-analyst");
         // GET /internal/meals → two logged meals.
         mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(List.of(
                 new MealLogDto(UUID.randomUUID(), householdId, userId, Instant.now(), "text",
@@ -119,7 +121,8 @@ class NutritionAnalystTest {
         RecordedRequest profileReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(profileReq.getPath()).startsWith("/internal/diet-profile");
 
-        // the synthesis carried the SKILL + the gathered meals + profile in the context.
+        // the synthesis carried the SKILL + the gathered meals + profile in the context (after the router classify).
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         String llmBody = llmReq.getBody().readUtf8();
@@ -140,6 +143,7 @@ class NutritionAnalystTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        enqueuePick("nutrition-analyst");                    // router classify → nutrition-analyst
         // GET /internal/meals → empty log.
         mcpNutrition.enqueue(jsonResponse("[]"));
 
@@ -150,7 +154,8 @@ class NutritionAnalystTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("дневник").contains("пусто");
 
-        // only the meals fetch happened — no profile gather, no LLM, no store.
+        // the router classified (1 LLM call), then only the meals fetch — no profile gather, no synthesis, no store.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest mealsReq = mcpNutrition.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mealsReq.getPath()).startsWith("/internal/meals");
         assertThat(mcpNutrition.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
@@ -163,6 +168,13 @@ class NutritionAnalystTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The NutritionIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static MockResponse jsonResponse(String body) {

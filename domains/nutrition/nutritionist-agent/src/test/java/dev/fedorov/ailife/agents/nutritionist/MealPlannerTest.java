@@ -117,6 +117,7 @@ class MealPlannerTest {
 
         mcpNutrition.setDispatcher(nutritionDispatcher(householdId, userId, true));
         mcpWeb.setDispatcher(searchDispatcher());
+        enqueuePick("meal-planner");                          // router classify (#475) → meal-planner
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large",
                 "Сбалансированный план на неделю для семьи.\nРацион: завтрак — каша...\n"
@@ -159,7 +160,8 @@ class MealPlannerTest {
         assertThat(searchReq.getPath()).isEqualTo("/internal/search");
         assertThat(searchReq.getBody().readUtf8()).contains("лент");
 
-        // the synthesis carried the SKILL + the gathered profiles/meals/store in the context.
+        // the synthesis (after the router classify) carried the SKILL + the gathered profiles/meals/store.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         String llmBody = llmReq.getBody().readUtf8();
@@ -183,6 +185,7 @@ class MealPlannerTest {
         UUID storedId = UUID.randomUUID();
 
         mcpNutrition.setDispatcher(nutritionDispatcher(householdId, userId, false));
+        enqueuePick("meal-planner");                          // router classify (#475) → meal-planner
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "План на неделю.\nСписок покупок: ...", "stop",
                 new LlmUsage(150, 90, 240)))));
@@ -205,8 +208,9 @@ class MealPlannerTest {
         // no store named → no web search call.
         assertThat(mcpWeb.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
 
-        // synthesis + store still happened, and the chef was still invoked.
-        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
+        // the router classify then the synthesis both hit llm-gateway; store still happened; chef still invoked.
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");   // router classify
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");   // synthesis
         assertThat(mediaService.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/media");
         assertThat(orchestrator.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/agents/invoke");
     }
@@ -221,6 +225,7 @@ class MealPlannerTest {
         mcpNutrition.setDispatcher(familyNutritionDispatcher(userId));
         // profile-service resolves the member's household set: personal ∪ shared (ADR-0002 slice 6b read).
         profileService.enqueue(jsonResponse("[\"" + personalHh + "\",\"" + sharedHh + "\"]"));
+        enqueuePick("meal-planner");                          // router classify (#475) → meal-planner
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Семейный план на неделю.\nСписок покупок: ...", "stop",
                 new LlmUsage(180, 100, 280)))));
@@ -352,6 +357,13 @@ class MealPlannerTest {
             paths.add(req.getPath());
         }
         return paths;
+    }
+
+    /** The NutritionIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private IntentResponse post(NormalizedMessage msg) {

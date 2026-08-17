@@ -15,9 +15,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   too** (`DocsIntentRouter`: the photo-ingest stays a deterministic pre-check in `IntentController`, the
   `doc-finder` text intent routes via the shared `SkillRouter`, `doc-archiver` excluded as attachment-gated,
   the `FAMILY_CUES` read-scope kept a deterministic cue inside the finder lambda; new routing golden green →
-  HISTORY 2026-08-17). **NEXT: migrate the remaining 5 cue-routed agents onto the shared router, one PR
-  each** — briefing / chef / nutritionist / stylist / travel (chef likely stays direct-invoke — single
-  skill; check on approach). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+  HISTORY 2026-08-17). **`nutritionist-agent` migrated too** (`NutritionIntentRouter`, 5 text intents:
+  diet-profiler/nutrition-analyst/meal-planner/basket-analyst/meal-logger; the basket/meal photo split stays
+  a deterministic pre-check in `IntentController`, `recipe-finder` excluded as chef's skill, the `FAMILY_CUES`
+  ration read-scope kept a deterministic cue inside the meal-planner lambda; new routing golden green →
+  HISTORY 2026-08-17). **NEXT: migrate the remaining 4 cue-routed agents onto the shared router, one PR
+  each** — briefing / chef / stylist / travel (chef likely stays direct-invoke — single skill; check on
+  approach). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
