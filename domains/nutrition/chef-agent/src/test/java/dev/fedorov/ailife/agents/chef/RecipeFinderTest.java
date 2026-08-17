@@ -92,6 +92,8 @@ class RecipeFinderTest {
         UUID userId = UUID.randomUUID();
         UUID storedId = UUID.randomUUID();
 
+        // Two LLM turns now (#475): the ChefIntentRouter classifies (→ recipe-finder), then the synthesis.
+        enqueuePick("recipe-finder");
         mcpWeb.enqueue(jsonResponse(json.writeValueAsString(new WebSearchResult("курица рецепт", List.of(
                 new WebSearchHit("Курица с рисом", "https://food.ru/recipes/chicken-rice", "за 30 минут"),
                 new WebSearchHit("Куриный суп", "https://food.ru/recipes/chicken-soup", "наваристый"))))));
@@ -114,7 +116,8 @@ class RecipeFinderTest {
         assertThat(searchReq.getPath()).isEqualTo("/internal/search");
         assertThat(searchReq.getBody().readUtf8()).contains("рецепт");
 
-        // the synthesis carried the SKILL + the search hits in the context.
+        // First the router classify, then the synthesis carried the SKILL + the search hits in the context.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);   // router classify
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         String llmBody = llmReq.getBody().readUtf8();
@@ -140,6 +143,7 @@ class RecipeFinderTest {
         UUID userId = UUID.randomUUID();
         UUID storedId = UUID.randomUUID();
 
+        enqueuePick("recipe-finder");                  // router classify → recipe-finder
         mcpWeb.enqueue(jsonResponse(json.writeValueAsString(new WebSearchResult("рагу рецепт", List.of()))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Не нашёл рецептов в сети, но вот простое рагу.", "stop",
@@ -155,6 +159,7 @@ class RecipeFinderTest {
         assertThat(resp.text()).contains("Рецепты").contains(storedId.toString());
 
         mcpWeb.takeRequest(2, TimeUnit.SECONDS);   // search happened
+        llmGateway.takeRequest(2, TimeUnit.SECONDS); // router classify
         llmGateway.takeRequest(2, TimeUnit.SECONDS); // synthesis happened
         RecordedRequest mediaReq = mediaService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mediaReq.getPath()).isEqualTo("/v1/media");
@@ -216,6 +221,13 @@ class RecipeFinderTest {
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
                 .exchange().expectStatus().isOk()
                 .expectBody(IntentResponse.class).returnResult().getResponseBody();
+    }
+
+    /** The ChefIntentRouter's classify turn (#475) that routes the text to {@code skill} before its flow runs. */
+    private void enqueuePick(String skill) throws Exception {
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"" + skill + "\"}", "stop",
+                new LlmUsage(20, 8, 28)))));
     }
 
     private static MockResponse jsonResponse(String body) {
