@@ -28,7 +28,8 @@ private); **7b (read)** widens "find my X" to the member's personal ∪ shared h
   `frontmatter={kind:document, refId}`, seeded under the resolved household) so it lands in the one store
   every agent reads and memory-service auto-seeds it into recall (SB-2) → confirm what was filed. The note
   seed soft-fails: the document is already saved + text-searchable.
-- **Search (D-d, +SB-5 recall, +7b sharing)** — a "find my X" cue → `doc-finder`: one llm-gateway turn
+- **Search (D-d, +SB-5 recall, +7b sharing)** — the `DocsIntentRouter` classifies the text intent (find
+  vs chat) via the shared `agent-runtime` `SkillRouter` (#475), then `doc-finder`: one llm-gateway turn
   with the `doc-finder` SKILL distils a search query + optional docType filter → **resolve the household
   set** (default = own; an explicit "наши документы"/family cue widens to the member's personal ∪ shared
   households via `ProfileSharingClient.households`) → **two searches in parallel, each unioned across the
@@ -46,7 +47,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/docs/intent` | orchestrator entry. Image attachment → `doc-archiver` ingest; "find my X" cue → `doc-finder` search; else the chat fallback. |
+| POST | `/agents/docs/intent` | orchestrator entry. Image attachment → `doc-archiver` ingest (deterministic pre-check); otherwise the `DocsIntentRouter` LLM-classifies the text → `doc-finder` search or the chat fallback (#475). |
 | GET | `/agents/docs/manifest` | the manifest the orchestrator scrapes on startup. |
 
 ## Skills
@@ -112,5 +113,10 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   (own = envelope; shared = personal ∪ shared via `ProfileSharingClient.households`, degrading to envelope)
   + `searchUnion(...)` fans the trigram search across the set.
 - `chat/DocsChat` — the open-question fallback (AGENT.md system prompt).
-- `web/IntentController` — image attachment → archive, "find my X" cue → search (a `FAMILY_CUES` match
-  widens to personal ∪ shared), else chat; `web/ManifestController`.
+- `intent/DocsIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475): the
+  text-intent router (find vs chat) for docs. Its dispatch map holds only `doc-finder` (`doc-archiver` is
+  attachment-gated, excluded like creator's hub-invoked skill); the `FAMILY_CUES` family/own read-scope
+  stays a deterministic keyword match applied inside the finder dispatch lambda (a read-breadth choice,
+  never a routing/privacy decision → kept off the LLM classifier).
+- `web/IntentController` — image attachment → archive (deterministic pre-check); otherwise delegates to
+  `DocsIntentRouter`; `web/ManifestController`.

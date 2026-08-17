@@ -163,6 +163,10 @@ class E2EDocsIngestSearchFlowTest {
         assertThat(seedBody.path("frontmatter").path("refId").asString()).isEqualTo(docId.toString());
 
         // ---- Phase 2: search — recovered only via the semantic recall (trigram returns nothing) -----
+        // Two LLM turns now: the DocsIntentRouter classifies the text intent (#475), then DocFinder distils
+        // the query. The router picks doc-finder; the finder distils the search query.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"doc-finder\"}", "stop", new LlmUsage(20, 8, 28)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"договор аренды\"}", "stop", new LlmUsage(30, 12, 42)))));
         mcpDocs.enqueue(jsonResponse("[]"));                         // trigram search: no literal match
@@ -181,6 +185,8 @@ class E2EDocsIngestSearchFlowTest {
                 .contains("Договор аренды")
                 .contains("https://media.example/v1/media/" + mediaId);
 
+        // Both LLM turns hit /v1/chat: the router classify, then the finder query distil.
+        assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");
         // mcp-docs sees the trigram search first, then the getDocument resolving the note's refId.
         RecordedRequest searchReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);

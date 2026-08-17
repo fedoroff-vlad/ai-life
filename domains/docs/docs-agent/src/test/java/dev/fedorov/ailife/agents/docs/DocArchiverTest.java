@@ -193,6 +193,11 @@ class DocArchiverTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        // Two LLM turns for a plain-text no-attachment message now (#475): the DocsIntentRouter classifies
+        // (→ chat), then DocsChat generates the reply. The router's chat text is not reused — the agent's
+        // DocsChat produces the actual answer (same as notes/creator).
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"chat\",\"text\":\"ok\"}", "stop", new LlmUsage(15, 6, 21)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "Пришлите фото документа, и я сохраню его в архив.", "stop",
                 new LlmUsage(20, 12, 32)))));
@@ -204,7 +209,8 @@ class DocArchiverTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("архив");
 
-        // Chat used the LLM, but neither OCR nor the archive were touched.
+        // Both the router classify and the chat reply used the LLM, but neither OCR nor the archive were touched.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(mcpMediaProcessing.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mcpDocs.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();

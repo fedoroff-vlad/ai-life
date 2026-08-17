@@ -11,10 +11,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   soft-fail-to-chat, driven by an agent-supplied ordered `{skillName → flow}` dispatch map whose key set IS
   the route set — so a hub-invoked skill like creator's `greeting-drafter` is excluded by simply being
   absent from the map; SKILL.md descriptions the routing SSOT). Both agents are thin bindings now; unit
-  tests + both routing goldens replay green vs qwen3:8b (→ HISTORY 2026-08-17). **NEXT: migrate the
-  remaining 6 cue-routed agents onto the shared router, one PR each** — briefing / docs / chef /
-  nutritionist / stylist / travel (chef likely stays direct-invoke — single skill; check on approach).
-  Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
+  tests + both routing goldens replay green vs qwen3:8b (→ HISTORY 2026-08-17). **`docs-agent` migrated
+  too** (`DocsIntentRouter`: the photo-ingest stays a deterministic pre-check in `IntentController`, the
+  `doc-finder` text intent routes via the shared `SkillRouter`, `doc-archiver` excluded as attachment-gated,
+  the `FAMILY_CUES` read-scope kept a deterministic cue inside the finder lambda; new routing golden green →
+  HISTORY 2026-08-17). **NEXT: migrate the remaining 5 cue-routed agents onto the shared router, one PR
+  each** — briefing / chef / nutritionist / stylist / travel (chef likely stays direct-invoke — single
+  skill; check on approach). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
