@@ -76,6 +76,10 @@ class DocFinderTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        // Two LLM turns now (#475): the DocsIntentRouter classifies the intent (→ doc-finder), then
+        // DocFinder distils the query.
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"doc-finder\"}", "stop", new LlmUsage(20, 8, 28)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"договор аренды\",\"docType\":\"contract\"}", "stop",
                 new LlmUsage(30, 12, 42)))));
@@ -91,7 +95,9 @@ class DocFinderTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Договор аренды").contains("https://media.example/v1/media/media-9");
 
-        // The distil went through llm-gateway with the SKILL system prompt + the user text.
+        // First the router classify, then the finder distil went through llm-gateway with the SKILL prompt.
+        RecordedRequest routerReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(routerReq.getPath()).isEqualTo("/v1/chat");
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
         assertThat(llmReq.getBody().readUtf8()).contains("strict JSON").contains("договор аренды");
@@ -110,6 +116,9 @@ class DocFinderTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        // Router classify (→ doc-finder), then the finder distil (#475).
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"doc-finder\"}", "stop", new LlmUsage(20, 8, 28)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"страховка\"}", "stop", new LlmUsage(15, 6, 21)))));
         mcpDocs.enqueue(jsonResponse("[]"));
@@ -121,7 +130,8 @@ class DocFinderTest {
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Ничего не нашёл");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);       // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);       // finder distil
         RecordedRequest searchReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
         // No docType named → the filter is omitted from the query string.
         assertThat(searchReq.getPath()).doesNotContain("docType=");
@@ -133,6 +143,9 @@ class DocFinderTest {
         UUID sharedHh = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
+        // Router classify (→ doc-finder), then the finder distil (#475).
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"action\":\"skill\",\"name\":\"doc-finder\"}", "stop", new LlmUsage(20, 8, 28)))));
         llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
                 "mock-large", "{\"query\":\"гарантия\"}", "stop", new LlmUsage(20, 8, 28)))));
         // households union: the member's personal + one shared household (ADR-0002 slice 7b read path).
@@ -155,7 +168,8 @@ class DocFinderTest {
                 .contains("Гарантия на ноутбук")
                 .contains("Гарантия на холодильник");
 
-        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);       // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);       // finder distil
         // the household set was resolved for the acting user.
         RecordedRequest householdsReq = profileService.takeRequest(2, TimeUnit.SECONDS);
         assertThat(householdsReq.getPath()).contains("/households").contains(userId.toString());

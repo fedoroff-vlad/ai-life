@@ -63,10 +63,15 @@ soft-fail-to-chat, driven by an agent-supplied **ordered `{skillName → flow}` 
 plumbing — creator just leaves `greeting-drafter` out of the map (replacing its `ROUTABLE` allowlist). Notes
 + creator are now thin bindings with unchanged ctor signatures, so their unit tests + both routing goldens
 replay untouched (goldens re-run green vs qwen3:8b); new `SkillRouterTest` covers the shared logic.
-**NEXT: migrate the remaining 6** — briefing / docs / chef / nutritionist / stylist / travel — onto the
-shared router, one PR each. **Note:** `chef` has effectively one intent skill (`recipe-finder`) → likely
-stays direct-invoke by the single-skill guardrail (check on approach). Genuinely single-skill agents
-(`researcher` / `calendar` / `coach` / `coordinator`) already stay direct-invoke.
+**Migrating the remaining 6, one PR each. Done: `docs-agent` ✅ (2026-08-17)** — its `FIND_CUES` heuristic
+replaced by `DocsIntentRouter` over the shared router; two docs carve-outs preserved: the photo-ingest
+stays a deterministic pre-check in `IntentController` (attachment = ingest, not a text intent → `doc-archiver`
+excluded from the map, like creator's hub-invoked skill) and the `FAMILY_CUES` family/own read-scope stays a
+deterministic cue inside the finder dispatch lambda (a read-breadth choice, never routing/privacy → off the
+classifier). New routing golden green vs qwen3:8b. **NEXT: briefing / chef / nutritionist / stylist /
+travel.** **Note:** `chef` has effectively one intent skill (`recipe-finder`) → likely stays direct-invoke by
+the single-skill guardrail (check on approach). Genuinely single-skill agents (`researcher` / `calendar` /
+`coach` / `coordinator`) already stay direct-invoke.
 
 ### Bucket 2 — flow-class → executable `SKILL.md` recipe (MODEL-GATED)
 Evolve **advisory/synthesis** flows (`FinancialAdvisor`, coach `Reflector`) from a Java class into a
