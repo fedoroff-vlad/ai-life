@@ -72,6 +72,17 @@ Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-we
 grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
 **notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list
 mirrored as a `type=list` note. Detail → [HISTORY.md](HISTORY.md). (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
+**Assistant hardening / road-test** (owner direction 2026-08-16: daily-drive it as a reliable personal
+assistant *before* any autonomy/actuation) — **epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)**
+is the SSOT; order: prerequisite 24/7 instance [#483](https://github.com/fedoroff-vlad/ai-life/issues/483)
+(blocked) → transparency/no-silent-failures [#485](https://github.com/fedoroff-vlad/ai-life/issues/485) +
+routing reliability [#484](https://github.com/fedoroff-vlad/ai-life/issues/484) (rides #475) → CRUD/undo
+[#486](https://github.com/fedoroff-vlad/ai-life/issues/486) → proactive-UX
+[#487](https://github.com/fedoroff-vlad/ai-life/issues/487) + memory-quality
+[#488](https://github.com/fedoroff-vlad/ai-life/issues/488) → multimodal/reply-UX
+[#489](https://github.com/fedoroff-vlad/ai-life/issues/489) + family-onboarding
+[#490](https://github.com/fedoroff-vlad/ai-life/issues/490). Jarvis-style autonomy (smart-home #192,
+coordination #477) deferred until this is done.
 **Architecture hardening** (2026-08-16 review) — **epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479)** is the SSOT; items (ROI order): in-agent routing → shared `SkillClassifier` for the 8 cue-routed agents [#475](https://github.com/fedoroff-vlad/ai-life/issues/475); factor the 5× personalization-profile pattern into a shared capability (ADR first) [#476](https://github.com/fedoroff-vlad/ai-life/issues/476); prove real agent-led multi-domain coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477); reconcile empty `shared/skills/` doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478). Bucket 2 cutover #369 (above) is the model-gated fifth thread.
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
