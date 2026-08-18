@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
@@ -151,8 +152,11 @@ public class MealPlanner {
                                                     + "\n\nРацион и список покупок: " + link + recipes, result.llmModel())))
                                     .onErrorResume(e -> {
                                         log.warn("ration render/store failed: {}", e.toString());
-                                        // Still hand back the textual plan if the page couldn't be stored.
-                                        return Mono.just(reply(result.text(), result.llmModel()));
+                                        // Still hand back the textual plan, but say the board is missing
+                                        // rather than pretend a full delivery (#485, no silent failures).
+                                        return Mono.just(reply(DegradedNotice.append(result.text(),
+                                                "не смог собрать HTML-доску сейчас — прислал план только текстом, попробуйте позже"),
+                                                result.llmModel()));
                                     }));
                 })
                 .onErrorResume(e -> {
