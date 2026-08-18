@@ -4,16 +4,14 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **Now: misroute-repair (road-test [#484](https://github.com/fedoroff-vlad/ai-life/issues/484)) — F2 in
-  flight (loop complete).** Under road-test epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
-  Half of #484 (per-agent routing goldens) was already delivered by #475 — all 10 routing agents have a
-  `Golden<Agent>RoutingTest`. The remaining **misroute-repair loop** is now built. Spec + WHEN/THEN →
-  [stage4.md](stage4.md) §Track F. **F1 ✅ (PR#502, 2026-08-18)** — conversation-service remembers
-  `last_route_{agent,text}` (→ HISTORY). **F2 (this PR, `feat/misroute-repair-f2-classifier`):** orchestrator
-  records last-route after a fresh specialist dispatch + `LlmIntentClassifier` takes a `PriorRoute` correction
-  context so "не то, я про задачи" re-classifies to the corrected intent; `routing-correction` logged (F3
-  subsumed — no separate slice); `GoldenMisrouteRepairTest` green vs qwen3:8b. **On merge → move to HISTORY,
-  #484 closeable** (both halves done).
+- **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
+  ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
+  substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
+  [stage4.md](stage4.md) §Track F. **Pick the next item** — road-test epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) queue (transparency/no-silent-failures
+  [#485](https://github.com/fedoroff-vlad/ai-life/issues/485), CRUD/undo
+  [#486](https://github.com/fedoroff-vlad/ai-life/issues/486), …), or an arch-#479 thread, or a future agent
+  (see `## Next`).
 - **arch epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing — ✅ DONE
   (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist / briefing / stylist / chef
   / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
