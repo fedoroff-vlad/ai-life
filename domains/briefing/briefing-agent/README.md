@@ -28,8 +28,9 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - **BR-e — HTML digest board. DONE.** The synthesis is rendered to an HTML board via the shared
   `libs/doc-render` (`DeliverablePublisher` → the synthesized text as a section + the gathered news
   headlines as grounded provenance links), stored in media-service, and the open-link is appended to
-  the reply. A render/store hiccup soft-fails to the text-only reply. Same board seam as
-  creator/chef/nutrition.
+  the reply. A render/store hiccup soft-fails to a text-only reply that carries a discreet `⚠️`
+  degraded-state notice (`agent-runtime` `DegradedNotice`, road-test #485) rather than a silent
+  full-looking digest. Same board seam as creator/chef/nutrition.
 - **BR-f (trigger receiver) — DONE.** A `briefing.digest` wake from scheduler-service (via orchestrator)
   reuses the same `BriefingComposer` digest flow (empty user text) and delivers the result via
   notifier-service — to the profile owner when the payload names one, else to every household user.
