@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -52,8 +53,9 @@ import java.util.UUID;
  * the text report.
  *
  * <p>No spending this month → a friendly invite (no LLM call, no board). A
- * render/store failure still hands back the textual narrative; any other failure
- * degrades to a friendly message.
+ * render/store failure still hands back the textual narrative, with a discreet
+ * {@code ⚠️} degraded-state note ({@link DegradedNotice}, #485) so the missing report
+ * board is never silent; any other failure degrades to a friendly message.
  */
 @Component
 public class MonthlyReporter {
@@ -149,8 +151,10 @@ public class MonthlyReporter {
                                         + "\n\nПолный отчёт: " + link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("monthly-report render/store failed: {}", e.toString());
-                            // Still hand back the narrative if the board couldn't be stored.
-                            return Mono.just(new ReportResult(result.text(), result.llmModel()));
+                            // Still hand back the narrative, honestly flagged (#485) — no silent drop.
+                            return Mono.just(new ReportResult(DegradedNotice.append(result.text(),
+                                    "не смог собрать HTML-отчёт сейчас — показал только текстом, попробуйте позже"),
+                                    result.llmModel()));
                         }));
     }
 

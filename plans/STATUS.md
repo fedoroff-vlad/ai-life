@@ -4,21 +4,12 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#485 transparency — IN FLIGHT (rolling out "no silent failures").** The reusable
-  `agent-runtime` `DegradedNotice.append(text, note)` primitive (trailing `⚠️ …` block) surfaces a discreet
-  degraded-state note when a best-effort board render/store soft-fails, instead of a silent text-only reply.
-  Rolled out (merged) to: `briefing-agent` (PR#505) · `nutritionist-agent` `NutritionAnalyst`+`MealPlanner`
-  (PR#506) · `travel-agent` `WalletFlow`(tally+close)+`TripComposer` (PR#507) + `RouteFlow`+`PackingFlow`
-  (PR#508, all four travel boards now honest) · `creator-agent` `ContentStrategist` (PR#509, content-plan
-  board; also hardened the shared-MockWebServer test isolation) · `chef-agent` `RecipeFinder` (PR#511,
-  recipe-card board; the note rides the direct reply's `fullText`, not the CH-b2 inter-agent sub-result) ·
-  `stylist-agent` ×4 boards `StylistAdvisor`(capsule)+`WardrobeAuditor`+`GapAnalyst`+`AnalyseMe` (this PR,
-  all four HTML boards now degrade to text with a `⚠️` note on render/store failure; AnalyseMe's raw
-  parenthetical note switched to the shared `DegradedNotice` primitive; also hardened the shared-static
-  MockWebServer test isolation with a `@BeforeEach` drain). Per-flow copy, no shared helper (each flow's
-  success text/link-label/summary differ; only the failure branch is common). Doctrine + WHEN/THEN →
-  [architecture.md](architecture.md) §Principles ("Soft-fail, but never silently"). **Remaining #485:**
-  finance reports; then "why did you do that" trace + finance/calendar sanity spot-checks. Epic queue →
+- **road-test §#485 transparency — board-store rollout ✅ DONE; two threads remain.** The reusable
+  `agent-runtime` `DegradedNotice.append(text, note)` primitive (trailing `⚠️ …` block) is now wired into
+  **every** deliverable agent's board render/store soft-fail (briefing/nutrition/travel/creator/chef/stylist
+  + finance reports — timeline → [HISTORY.md](HISTORY.md), doctrine + WHEN/THEN →
+  [architecture.md](architecture.md) §Principles "Soft-fail, but never silently"). **Remaining #485 threads
+  (pick next):** the "why did you do that" trace, and finance/calendar sanity spot-checks. Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state

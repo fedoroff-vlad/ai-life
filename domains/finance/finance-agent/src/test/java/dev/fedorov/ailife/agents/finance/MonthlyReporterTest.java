@@ -176,6 +176,38 @@ class MonthlyReporterTest {
     }
 
     @Test
+    void boardStoreFailureDegradesToTextWithNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID chartId = UUID.randomUUID();
+
+        mcpFinance.enqueue(jsonResponse("[{\"categoryName\":\"Food\",\"currency\":\"EUR\","
+                + "\"spent\":300.00,\"txCount\":12}]"));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Еда — основная статья.", "stop", new LlmUsage(10, 5, 15)))));
+        chartRender.enqueue(jsonResponse(json.writeValueAsString(new ChartResult(chartId, "java2d"))));
+        // The board upload 500s → degrade to the textual narrative with a ⚠️ note, no fake link.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "отчёт за месяц", List.of(), "telegram", "12", Instant.now());
+
+        MonthlyReporter.ReportResult result = reporter.report(msg).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text())
+                .contains("Еда — основная статья.")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("Полный отчёт");
+
+        // Drain every server this test drove so no request bleeds into the next (shared servers).
+        mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        chartRender.takeRequest(2, TimeUnit.SECONDS);
+        mediaService.takeRequest(2, TimeUnit.SECONDS);
+    }
+
+    @Test
     void emptyMonthInvitesWithoutSynthesis() throws Exception {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
