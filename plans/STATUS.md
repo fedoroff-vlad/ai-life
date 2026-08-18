@@ -4,6 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **road-test §#485 transparency — IN FLIGHT (slice 1 of "no silent failures").** First vertical slice:
+  a reusable `agent-runtime` `DegradedNotice.append(text, note)` primitive (trailing `⚠️ …` block, null/blank-safe)
+  + its first consumer — `briefing-agent`'s board-store fallback now surfaces a discreet degraded notice
+  instead of a silent text-only digest. Doctrine + WHEN/THEN → [architecture.md](architecture.md) §Principles
+  ("Soft-fail, but never silently"). **Next slices of #485:** wire the other deliverable/memory best-effort
+  paths (creator/chef/nutrition boards, note-write mirrors), then "why did you do that" trace + finance/calendar
+  sanity spot-checks. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
   substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +

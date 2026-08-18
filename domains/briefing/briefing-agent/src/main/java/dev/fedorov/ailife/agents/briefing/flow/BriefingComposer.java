@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
@@ -51,7 +52,8 @@ import java.util.Set;
  * runs <b>one</b> {@code briefing-composer} LLM synthesis on the shared {@link Coordinator}, and (4)
  * renders the synthesis into an HTML digest board (the synthesized text as a section + the news links as
  * grounded provenance) via the shared {@link DeliverablePublisher}, stores it in media-service, and
- * appends the open-link to the reply (BR-e). A store failure soft-fails to the text-only reply.
+ * appends the open-link to the reply (BR-e). A store failure soft-fails to a text-only reply that
+ * carries a discreet ⚠️ degraded-state notice (#485), not a silent full-looking digest.
  *
  * <p><b>Token economy is structural:</b> steps 1–2 are plain HTTP (no model cost); only step 3 hits the
  * LLM, synthesizing a pre-gathered corpus rather than "browsing". Per-source soft-fail is built into the
@@ -162,9 +164,12 @@ public class BriefingComposer {
                 .flatMap(r -> publishBoard(msg, today, r.text(), r.gathered())
                         .map(link -> reply(withLink(r.text(), link), r.llmModel()))
                         .onErrorResume(e -> {
-                            // A media/render hiccup must not sink the digest — hand back the text alone.
+                            // A media/render hiccup must not sink the digest — hand back the text, but say
+                            // the board is missing rather than pretend a full digest (#485, no silent failures).
                             log.warn("briefing board store failed: {}", e.toString());
-                            return Mono.just(reply(r.text(), r.llmModel()));
+                            return Mono.just(reply(DegradedNotice.append(r.text(),
+                                    "не смог собрать HTML-доску сейчас — брифинг только текстом, попробуйте позже"),
+                                    r.llmModel()));
                         }))
                 .onErrorResume(e -> {
                     log.warn("briefing synthesis failed: {}", e.toString());

@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.briefing.flow;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -197,6 +198,46 @@ class BriefingComposerTest {
         RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
         String body = llmReq.getBody().readUtf8();
         assertThat(body).contains("Dentist").contains("Transport");
+    }
+
+    @Test
+    void mediaStoreFailureSurfacesDegradedNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // Modelled on the no-profile path (agenda + finance only — no weather/news gather, so no extra
+        // MockWebServer footprint) but the board store fails (media-service 500). The digest must survive
+        // as text and honestly say the board is missing, not pretend a full digest (#485).
+        mcpBriefing.setDispatcher(notFound());
+        mcpCaldav.setDispatcher(fixedJson(json.writeValueAsString(List.of(new CalendarEventDto(
+                UUID.randomUUID(), householdId, "personal", "uid-3", "Standup", null, null,
+                Instant.parse("2026-07-02T07:00:00Z"), Instant.parse("2026-07-02T07:15:00Z"),
+                null, List.of(), null)))));
+        ObjectNode spend = json.createObjectNode();
+        spend.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Groceries", "RUB", new BigDecimal("1234.50"), 3))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend))));
+        enqueuePick("briefing-composer");
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Доброе утро! Есть встречи и расходы.", "stop", new LlmUsage(200, 80, 280)))));
+        // Board upload fails.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "собери мне брифинг на сегодня", List.of(), "telegram", "82", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // Text preserved, honest degraded notice present, and no fake board link.
+        assertThat(resp.text())
+                .contains("Доброе утро! Есть встречи и расходы.")
+                .contains(DegradedNotice.MARKER)
+                .doesNotContain("/v1/media/");
+
+        // Drain this test's two llm-gateway requests (classify + synthesis) so the shared static
+        // MockWebServer's recorded-request queue stays balanced for the other methods (mirrors them).
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
     }
 
     private IntentResponse post(NormalizedMessage msg) {
