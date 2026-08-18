@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.flow;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -189,7 +190,19 @@ class WalletFlowTest {
 
         IntentResponse resp = post("подведи итог");
         assertThat(resp.text()).contains("Кошелёк поездки «Тайланд»").contains("Всего осталось");
-        assertThat(resp.text()).doesNotContain("Открыть кошелёк:");
+        // Honest about the missing board (#485), and no fake link.
+        assertThat(resp.text()).contains(DegradedNotice.MARKER).doesNotContain("Открыть кошелёк:");
+    }
+
+    @Test
+    void closeBoardHiccupFallsBackToTextOnlyWithNotice() {
+        llmGateway.setDispatcher(llmAction("{\"action\":\"close\"}"));
+        mcpTravel.setDispatcher(walletStore(true));
+        mediaService.setDispatcher(serverError());   // close board store down → text-only + notice
+
+        IntentResponse resp = post("закрой поездку");
+        assertThat(resp.text()).contains("Поездка «Тайланд» закрыта").contains("Потрачено ≈ 35820 RUB");
+        assertThat(resp.text()).contains(DegradedNotice.MARKER).doesNotContain("Открыть кошелёк:");
     }
 
     @Test

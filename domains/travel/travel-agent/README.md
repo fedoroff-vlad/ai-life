@@ -78,7 +78,9 @@ classified intent folds into the router's chat fallback (RT-d2 import), else a p
     section, the gathered web sources as grounded provenance links, and the destination's **climate-by-month
     curve** as a line chart (rendered by the shared `mcp-chart-render` capability) — via the shared
     `DeliverablePublisher` (render → store in media-service → link); the open-link is appended to the reply.
-    Chart and board are soft-failed independently: a render/store hiccup ships the text-only plan. The
+    Chart and board are soft-failed independently: a board render/store hiccup ships the text-only plan
+    with a discreet `⚠️` degraded-state notice (`agent-runtime` `DegradedNotice`, road-test #485), not a
+    silent full-looking reply. The
     full 12-month climate curve is fetched for the board and also grounds the season verdict. Same board
     seam as briefing/finance.
 
@@ -90,7 +92,8 @@ classified intent folds into the router's chat fallback (RT-d2 import), else a p
   naming it. A **tally** reads the raw ledger and runs the deterministic `TripLedger` — per-currency
   remaining + a single **₽ total** by the owner's stated acquisition rates, unset-rate currencies flagged
   "курс не задан" — then renders an HTML **wallet board** via the shared `DeliverablePublisher`
-  (soft-failing to text-only on a render hiccup). An on-site exchange is one paired op (source outflow +
+  (a render hiccup soft-fails to text-only with a discreet `⚠️` degraded-state notice — `DegradedNotice`,
+  road-test #485 — on both the tally and close boards). An on-site exchange is one paired op (source outflow +
   acquired inflow) so the ₽ tally never double-counts; **balance math is deterministic Java, never the
   LLM**; there is **no "who owes whom"** — one family budget, no settlement.
   A **close** action (EX-c — "закрой поездку", "заверши поездку", "close/finish the trip") wraps a

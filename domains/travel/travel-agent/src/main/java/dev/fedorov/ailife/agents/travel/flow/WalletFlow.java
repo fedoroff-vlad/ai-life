@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.travel.flow;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agents.travel.flow.WalletExtractor.WalletAction;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
@@ -32,7 +33,8 @@ import java.util.List;
  * household's <b>active trip</b> (most recent non-closed) without the owner naming it. A tally reads the
  * raw ledger from {@code mcp-travel} (EX-a) and runs the deterministic {@link TripLedger} — per-currency
  * remaining + the owner-rate ₽ total, unset-rate currencies flagged — then renders an HTML <b>wallet
- * board</b> via the shared {@link DeliverablePublisher} (soft-failing to text-only on a render hiccup).
+ * board</b> via the shared {@link DeliverablePublisher} (a render hiccup soft-fails to text-only with a
+ * discreet ⚠️ degraded-state notice, #485, not a silent full-looking reply).
  *
  * <p>A {@code close} action (EX-c) wraps a finished trip: final tally → {@code closeTrip} in the store →
  * deposit a finance <b>spend-signal</b> note (the trip's ₽ spend) into the shared second brain via
@@ -49,6 +51,9 @@ public class WalletFlow {
     private static final String NO_TRIP =
             "Сначала создайте поездку — например: «создай поездку в Тайланд». Потом можно записывать "
             + "валюту, обмены и траты и спрашивать «сколько осталось».";
+    /** Discreet notice when the wallet board couldn't be rendered/stored (#485, no silent failures). */
+    private static final String BOARD_DEGRADED =
+            "не смог собрать HTML-доску кошелька сейчас — показал итог только текстом, попробуйте позже";
 
     private final WalletExtractor extractor;
     private final TripWalletClient wallet;
@@ -146,7 +151,7 @@ public class WalletFlow {
                             .defaultIfEmpty(reply(text))
                             .onErrorResume(e -> {
                                 log.warn("wallet board store failed: {}", e.toString());
-                                return Mono.just(reply(text));
+                                return Mono.just(reply(DegradedNotice.append(text, BOARD_DEGRADED)));
                             });
                 })
                 .switchIfEmpty(Mono.just(reply("У поездки «" + trip.title() + "» пока нет записей."))));
@@ -204,7 +209,7 @@ public class WalletFlow {
                 .defaultIfEmpty(reply(text))
                 .onErrorResume(e -> {
                     log.warn("wallet close board store failed: {}", e.toString());
-                    return Mono.just(reply(text));
+                    return Mono.just(reply(DegradedNotice.append(text, BOARD_DEGRADED)));
                 });
     }
 
