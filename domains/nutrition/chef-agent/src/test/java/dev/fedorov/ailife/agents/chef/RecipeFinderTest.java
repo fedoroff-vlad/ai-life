@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.chef;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -167,6 +168,30 @@ class RecipeFinderTest {
         assertThat(mediaReq.getBody().readUtf8())
                 .contains("Рецепты")
                 .doesNotContain("class=\"links\"");
+    }
+
+    @Test
+    void boardHiccupHandsBackTheCardWithADegradedNote() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        enqueuePick("recipe-finder");                  // router classify → recipe-finder
+        mcpWeb.enqueue(jsonResponse(json.writeValueAsString(new WebSearchResult("курица рецепт", List.of(
+                new WebSearchHit("Курица с рисом", "https://food.ru/recipes/chicken-rice", "за 30 минут"))))));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Подобрал два рецепта с курицей.", "stop", new LlmUsage(80, 50, 130)))));
+        mediaService.enqueue(new MockResponse().setResponseCode(500));   // board store 500 → text-only
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "что приготовить из курицы?", List.of(), "telegram", "202", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // The textual card survives, honestly flagged, and no fake "Рецепты: <link>" board link.
+        assertThat(resp.text())
+                .contains("Подобрал два рецепта")
+                .contains(DegradedNotice.MARKER)
+                .doesNotContain("Рецепты:");
     }
 
     @Test
