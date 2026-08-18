@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.nutritionist;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -254,6 +255,33 @@ class MealPlannerTest {
         assertThat(paths).anyMatch(p -> p.startsWith("/internal/diet-profile") && p.contains("ownerId=" + userId));
         assertThat(paths).filteredOn(p -> p.startsWith("/internal/diet-profile") && !p.contains("ownerId="))
                 .hasSize(2); // one household-default per household in the set
+    }
+
+    @Test
+    void boardStoreFailureSurfacesDegradedNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // The ration synthesises fine but the board store fails (media-service 500) — chef is never reached
+        // (it runs only after a stored board). The plan must still ship as text and honestly say the board
+        // is missing, not pretend a full delivery (#485, no silent failures).
+        mcpNutrition.setDispatcher(nutritionDispatcher(householdId, userId, false));
+        enqueuePick("meal-planner");                          // router classify (#475) → meal-planner
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Индивидуальный план на неделю. Белка добавьте на ужин.", "stop",
+                new LlmUsage(150, 90, 240)))));
+        mediaService.enqueue(new MockResponse().setResponseCode(500));   // board store down
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "составь рацион на неделю", List.of(), "telegram", "123", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text())
+                .contains("Белка добавьте")                  // the plan text is preserved
+                .contains(DegradedNotice.MARKER)             // honest degraded-state notice
+                .doesNotContain("Рацион и список покупок:")  // no fake board link line
+                .doesNotContain("Рецепты от шефа");          // chef not reached on a store failure
     }
 
     /** Routes the parallel mcp-nutrition gather by path: self profile / household profile / meals. */

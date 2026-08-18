@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.nutritionist;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -161,6 +162,45 @@ class NutritionAnalystTest {
         assertThat(mcpNutrition.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(llmGateway.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         assertThat(mediaService.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void boardStoreFailureSurfacesDegradedNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // Same happy gather + synthesis, but the board store fails (media-service 500). The analysis must
+        // still reach the user as text — and honestly say the board is missing, not pretend a full
+        // delivery (#485, no silent failures).
+        enqueuePick("nutrition-analyst");
+        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(List.of(
+                new MealLogDto(UUID.randomUUID(), householdId, userId, Instant.now(), "text",
+                        "овсянка с бананом", null, 420, new BigDecimal("12"), new BigDecimal("8"),
+                        new BigDecimal("70"), null, Instant.now())))));
+        mcpNutrition.enqueue(jsonResponse(json.writeValueAsString(new DietProfileDto(
+                UUID.randomUUID(), householdId, userId, 2000, new BigDecimal("140"), null, null,
+                json.readTree("[\"no-nuts\"]"), null, "cutting", Instant.now()))));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Питаетесь сбалансированно, но белка маловато.", "stop",
+                new LlmUsage(120, 60, 180)))));
+        mediaService.enqueue(new MockResponse().setResponseCode(500));   // board store down
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "сделай разбор питания", List.of(), "telegram", "92", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text())
+                .contains("белка маловато")          // the analysis text is preserved
+                .contains(DegradedNotice.MARKER)     // honest degraded-state notice
+                .doesNotContain("Полный разбор");    // no fake board link line
+
+        // Drain this test's requests so the shared static MockWebServers stay balanced for the others.
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // synthesis
+        mcpNutrition.takeRequest(2, TimeUnit.SECONDS);        // meals
+        mcpNutrition.takeRequest(2, TimeUnit.SECONDS);        // profile
+        mediaService.takeRequest(2, TimeUnit.SECONDS);        // failed board upload
     }
 
     private IntentResponse post(NormalizedMessage msg) {

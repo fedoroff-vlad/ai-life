@@ -25,8 +25,10 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
   я питаюсь") → gather recent meals (`GET /internal/meals`) + the diet profile (`GET
   /internal/diet-profile`) on the shared `Coordinator` → one LLM synthesis via the `nutrition-analyst`
   SKILL (intake vs goals, deficits/excesses, recommendations) → render an HTML board via the shared
-  `libs/doc-render` → store in media-service → reply with a link. Empty food log → an invite to log
-  first (no LLM call). `analysis/NutritionAnalyst`.
+  `libs/doc-render` → store in media-service → reply with a link. A render/store hiccup ships the
+  analysis text with a discreet `⚠️` degraded-state notice (`agent-runtime` `DegradedNotice`, road-test
+  #485), not a silent full-looking reply. Empty food log → an invite to log first (no LLM call).
+  `analysis/NutritionAnalyst`.
 - **NU-f — basket breakdown (direct). DONE.** A grocery basket sent straight to the nutritionist as
   a **photo** with a basket cue ("продукты", "корзина", "чек") → `mcp-media-processing` caption, or a
   **typed list** ("разбери продукты", "список покупок") → one LLM turn — both via the `basket-analyst`
@@ -60,7 +62,9 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
   rendered it invokes the chef** (`recommend_recipes`) over the orchestrator hub
   (the shared `OrchestratorInvokeClient` → `/v1/agents/invoke`) and folds the returned recipe-card link into
   the reply (CH-b2, gift-recommender→finance shape) — soft-failed, so a chef outage just drops the
-  recipes line. `flow/MealPlanner`. **ADR-0002 slice 6b:** a **family cue** ("на всю семью", "наш
+  recipes line. A render/store hiccup ships the ration text with a discreet `⚠️` degraded-state notice
+  (`agent-runtime` `DegradedNotice`, road-test #485), not a silent full-looking reply (the chef step is
+  never reached on a store failure). `flow/MealPlanner`. **ADR-0002 slice 6b:** a **family cue** ("на всю семью", "наш
   рацион") makes the gather union diet profiles + recent meals across the member's personal ∪ shared
   households via `read/MealReads`; the default (own) reads just the sender's household. Mirrors finance's
   `SpendingReads` / tasks' `TaskReads` (own by default, shared on explicit request).
