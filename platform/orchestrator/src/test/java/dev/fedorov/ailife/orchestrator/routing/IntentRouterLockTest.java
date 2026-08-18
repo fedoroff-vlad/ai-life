@@ -48,7 +48,7 @@ class IntentRouterLockTest {
 
     private static ConversationStateDto lockedTo(String agent, tools.jackson.databind.JsonNode pending) {
         return new ConversationStateDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "telegram", agent, pending, Instant.now().plusSeconds(600), Instant.now());
+                "telegram", agent, pending, null, null, Instant.now().plusSeconds(600), Instant.now());
     }
 
     @Test
