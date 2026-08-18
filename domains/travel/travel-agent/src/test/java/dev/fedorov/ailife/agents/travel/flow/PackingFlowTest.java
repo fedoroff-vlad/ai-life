@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.flow;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -156,7 +157,8 @@ class PackingFlowTest {
 
         IntentResponse resp = post("packing list");
         assertThat(resp.text()).contains("Список вещей для поездки «Пхукет»");
-        assertThat(resp.text()).doesNotContain("Открыть список:");
+        // Honest about the missing board (#485), and no fake board link.
+        assertThat(resp.text()).contains(DegradedNotice.MARKER).doesNotContain("Открыть список:");
     }
 
     // --- LI-c: the list is mirrored onto the note tier so LI-a can check items off ---

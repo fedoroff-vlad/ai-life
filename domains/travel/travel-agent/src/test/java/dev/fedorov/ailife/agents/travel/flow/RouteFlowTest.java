@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.flow;
 
 import dev.fedorov.ailife.contracts.agent.Attachment;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -175,7 +176,8 @@ class RouteFlowTest {
 
         IntentResponse resp = postFile();
         assertThat(resp.text()).contains("Импортировал маршрут «Прогулка»").contains("На карте:");
-        assertThat(resp.text()).doesNotContain("Открыть на доске:");
+        // Honest about the missing board (#485), and no fake board link.
+        assertThat(resp.text()).contains(DegradedNotice.MARKER).doesNotContain("Открыть на доске:");
     }
 
     // --- dispatchers ---
