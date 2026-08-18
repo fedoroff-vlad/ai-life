@@ -20,8 +20,10 @@ the **ration → recipes hub action** (CH-b2):
   one LLM synthesis via the `recipe-finder` SKILL → render an HTML **recipe card** (the synthesized
   text as sections + the **real recipe links from the search hits**, never LLM-invented URLs) via the
   shared `libs/doc-render` → store in media-service → reply with a link. Empty search → the skill
-  falls back to a couple of simple dishes (no links). Token economy is structural (search = HTTP,
-  only the synthesis hits the LLM).
+  falls back to a couple of simple dishes (no links). A render/store soft-fail still hands back the
+  textual card, appending a discreet `⚠️` degraded-state note (`DegradedNotice`,
+  [#485](https://github.com/fedoroff-vlad/ai-life/issues/485)) so the missing board is never silent.
+  Token economy is structural (search = HTTP, only the synthesis hits the LLM).
 - **CH-b2 — ration → recipes over the hub. DONE.** `web/ActionController` exposes
   `POST /agents/chef/actions/recommend_recipes` — the orchestrator forwards it when the nutritionist's
   NU-g ration flow **invokes the chef** (ration → recipes, the gift-recommender→finance shape). It

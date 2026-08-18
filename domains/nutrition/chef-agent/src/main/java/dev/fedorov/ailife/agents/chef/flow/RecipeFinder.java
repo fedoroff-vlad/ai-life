@@ -8,6 +8,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -38,7 +39,9 @@ import java.util.UUID;
  *
  * <p><b>Token economy is structural:</b> the search is plain HTTP (no model cost); only the synthesis
  * hits the LLM. Empty search → the skill falls back to a couple of simple dishes (no links). Every
- * stage degrades to a friendly message on failure.
+ * stage degrades to a friendly message on failure; a render/store soft-fail still hands back the
+ * textual card, flagged with a discreet {@code ⚠️} degraded-state note ({@link DegradedNotice}, #485)
+ * so the missing board is never silent.
  *
  * <p>The core {@link #recommend} serves both entry points: the direct intent path (CH-b1, wrapped as
  * an {@link IntentResponse}) and the inter-agent action (CH-b2) the nutritionist's ration flow (NU-g)
@@ -133,10 +136,13 @@ public class RecipeFinder {
                         .map(link -> new RecipeOutcome(DeliverablePublisher.summary(result.text(), "Подобрал рецепты под ваш запрос."), result.text(), link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("recipe render/store failed: {}", e.toString());
-                            // Still hand back the textual card if the page couldn't be stored.
+                            // Still hand back the textual card if the page couldn't be stored — but flag the
+                            // missing board on the direct reply (#485) instead of degrading silently.
+                            String degraded = DegradedNotice.append(result.text(),
+                                    "не смог собрать HTML-карточку с рецептами сейчас — показал только текстом, попробуйте позже");
                             return Mono.just(new RecipeOutcome(
                                     DeliverablePublisher.summary(result.text(), "Подобрал рецепты под ваш запрос."),
-                                    result.text(), null, result.llmModel()));
+                                    degraded, null, result.llmModel()));
                         }));
     }
 
