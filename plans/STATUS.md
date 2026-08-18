@@ -9,10 +9,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   degraded-state note when a best-effort board render/store soft-fails, instead of a silent text-only reply.
   Rolled out (merged) to: `briefing-agent` (PR#505) · `nutritionist-agent` `NutritionAnalyst`+`MealPlanner`
   (PR#506) · `travel-agent` `WalletFlow`(tally+close)+`TripComposer` (PR#507) + `RouteFlow`+`PackingFlow`
-  (PR#508, all four travel boards now honest). Slice 4 (in flight): `creator-agent` `ContentStrategist` —
-  the content-plan board's render/store soft-fail now appends the `⚠️` degraded note instead of a silent
-  text-only reply (also hardened the shared-MockWebServer test isolation). Per-flow copy, no shared helper
-  (each flow's success text/link-label/summary differ; only the failure branch is common). Doctrine +
+  (PR#508, all four travel boards now honest) · `creator-agent` `ContentStrategist` (PR#509, content-plan
+  board; also hardened the shared-MockWebServer test isolation). Per-flow copy, no shared helper (each
+  flow's success text/link-label/summary differ; only the failure branch is common). Doctrine +
   WHEN/THEN → [architecture.md](architecture.md) §Principles ("Soft-fail, but never silently").
   **Remaining #485:** chef / stylist ×4 / finance reports; then "why did you do that" trace +
   finance/calendar sanity spot-checks. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
