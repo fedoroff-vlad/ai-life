@@ -81,6 +81,35 @@ public class ConversationStateClient {
                 });
     }
 
+    /**
+     * Record the agent a fresh message was routed to plus its text (misroute-repair #484), with a
+     * short correction-window TTL and no lock. Consulted while classifying the next turn. Soft-fail →
+     * completes empty (a lost last-route just means the next correction classifies normally).
+     */
+    public Mono<Void> recordLastRoute(UUID householdId, UUID userId, String channel,
+                                      String agent, String text) {
+        if (!props.isEnabled() || householdId == null || userId == null
+                || channel == null || channel.isBlank()) {
+            return Mono.empty();
+        }
+        var req = new SetConversationStateRequest(
+                householdId, userId, channel, null, null, agent, text,
+                props.getCorrectionWindowSeconds());
+        return http.put()
+                .uri("/v1/conversation-state")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(TIMEOUT)
+                .then()
+                .onErrorResume(e -> {
+                    log.warn("conversation-state last-route record failed for household={} user={}: {}",
+                            householdId, userId, e.toString());
+                    return Mono.empty();
+                });
+    }
+
     /** Clear any lock for this conversation (resolved). Soft-fail → completes empty. */
     public Mono<Void> clear(UUID householdId, UUID userId, String channel) {
         if (!props.isEnabled() || householdId == null || userId == null
