@@ -14,6 +14,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -105,6 +106,18 @@ class YearReporterTest {
     @Autowired YearReporter reporter;
     @Autowired ObjectMapper json;
 
+    /** Shared static servers + the shared {@code chartBodies} capture → reset between tests so a prior
+     *  test's chart renders and recorded requests can't leak into the next test's assertions. */
+    @BeforeEach
+    void resetShared() throws Exception {
+        chartBodies.clear();
+        for (MockWebServer s : List.of(mcpFinance, llmGateway, chartRender, mediaService)) {
+            while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // drain the recorded-request log
+            }
+        }
+    }
+
     @Test
     void gathersYearAndTrendRendersTwoChartsAndLinks() throws Exception {
         UUID householdId = UUID.randomUUID();
@@ -156,6 +169,30 @@ class YearReporterTest {
                 .contains(BAR_CHART_ID.toString())
                 .contains(LINE_CHART_ID.toString())
                 .contains("Расходы по категориям");
+    }
+
+    @Test
+    void boardStoreFailureDegradesToTextWithNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        int year = Instant.now().atZone(java.time.ZoneOffset.UTC).getYear();
+
+        llmGateway.enqueue(json(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "За " + year + " год больше всего ушло на еду.",
+                "stop", new LlmUsage(60, 30, 90)))));
+        // The board upload 500s → degrade to the textual narrative with a ⚠️ note, no fake link.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "отчёт за год", List.of(), "telegram", "13", Instant.now());
+
+        var result = reporter.report(msg).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text())
+                .contains("больше всего ушло на еду")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("Полный отчёт");
     }
 
     private static MockResponse json(String body) {
