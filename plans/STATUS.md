@@ -8,12 +8,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `agent-runtime` `DegradedNotice.append(text, note)` primitive (trailing `⚠️ …` block) surfaces a discreet
   degraded-state note when a best-effort board render/store soft-fails, instead of a silent text-only reply.
   Rolled out (merged) to: `briefing-agent` (PR#505) · `nutritionist-agent` `NutritionAnalyst`+`MealPlanner`
-  (PR#506) · `travel-agent` `WalletFlow`(tally+close)+`TripComposer` (PR#507). Slice 3b (in flight): travel
-  `RouteFlow` + `PackingFlow` — completes all four travel boards. Per-flow copy, no shared helper (each
-  flow's success text/link-label/summary differ; only the failure branch is common). Doctrine + WHEN/THEN →
-  [architecture.md](architecture.md) §Principles ("Soft-fail, but never silently"). **Remaining #485:**
-  creator / chef / stylist ×4 / finance reports; then "why did you do that" trace + finance/calendar sanity
-  spot-checks. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  (PR#506) · `travel-agent` `WalletFlow`(tally+close)+`TripComposer` (PR#507) + `RouteFlow`+`PackingFlow`
+  (PR#508, all four travel boards now honest). Slice 4 (in flight): `creator-agent` `ContentStrategist` —
+  the content-plan board's render/store soft-fail now appends the `⚠️` degraded note instead of a silent
+  text-only reply (also hardened the shared-MockWebServer test isolation). Per-flow copy, no shared helper
+  (each flow's success text/link-label/summary differ; only the failure branch is common). Doctrine +
+  WHEN/THEN → [architecture.md](architecture.md) §Principles ("Soft-fail, but never silently").
+  **Remaining #485:** chef / stylist ×4 / finance reports; then "why did you do that" trace +
+  finance/calendar sanity spot-checks. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
   substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
