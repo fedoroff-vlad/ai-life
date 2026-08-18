@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -34,7 +35,9 @@ import java.util.UUID;
  * audit (verdicts by garment name, hero names, systemic pattern, power palette) → build the board
  * (verdict grid with the garment photos matched back by name, gold hero row, palette swatches,
  * "Системная ошибка" section) → store in media-service → reply summary + link. Empty wardrobe → an
- * invite to catalogue. Synthesis/parse failure → a friendly message.
+ * invite to catalogue. Synthesis/parse failure → a friendly message. A render/store failure still
+ * hands back the textual summary, with a discreet {@code ⚠️} degraded-state note
+ * ({@link DegradedNotice}, #485) so the missing board is never silent.
  */
 @Component
 public class WardrobeAuditor {
@@ -105,7 +108,10 @@ public class WardrobeAuditor {
                             .map(link -> reply(summary(audit) + "\n\nРевизия: " + link, result.llmModel()))
                             .onErrorResume(e -> {
                                 log.warn("audit render/store failed: {}", e.toString());
-                                return Mono.just(reply(summary(audit), result.llmModel()));
+                                // Hand back the textual summary, honestly flagged (#485) — no silent drop.
+                                return Mono.just(reply(DegradedNotice.append(summary(audit),
+                                        "не смог собрать HTML-доску ревизии сейчас — показал только текстом, попробуйте позже"),
+                                        result.llmModel()));
                             });
                 });
     }

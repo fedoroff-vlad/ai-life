@@ -12,9 +12,11 @@ import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -99,6 +101,22 @@ class StylistAdvisorTest {
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
 
+    /** Shared static servers → reset the queue-based ones and drain every recorded-request log between
+     *  tests so a test that doesn't {@code takeRequest} everything it hits can't leak stale requests into
+     *  the next test's {@code takeRequest}. mcpWardrobe keeps its path-based dispatcher (only drained). */
+    @BeforeEach
+    void resetServers() throws Exception {
+        mcpWeb.setDispatcher(new QueueDispatcher());
+        imageGen.setDispatcher(new QueueDispatcher());
+        llm.setDispatcher(new QueueDispatcher());
+        mediaService.setDispatcher(new QueueDispatcher());
+        for (MockWebServer s : List.of(mcpWardrobe, mcpWeb, imageGen, llm, mediaService)) {
+            while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // drain
+            }
+        }
+    }
+
     @Test
     void capsuleRequestGathersSynthesizesAndReturnsHtmlLink() throws Exception {
         UUID householdId = UUID.randomUUID();
@@ -160,6 +178,39 @@ class StylistAdvisorTest {
         assertThat(uploadBody).contains("text/html").contains("<!DOCTYPE html>")
                 .contains("/v1/media/" + imageId)
                 .contains("/v1/media/" + illustrationId);
+    }
+
+    @Test
+    void boardStoreFailureDegradesToTextWithNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID illustrationId = UUID.randomUUID();
+
+        itemsJson = json.writeValueAsString(List.of(
+                new WardrobeItemDto(UUID.randomUUID(), householdId, null, "navy coat", "outerwear",
+                        "navy", "wool", "plain", "winter", "smart", null, Instant.now())));
+        mcpWeb.enqueue(json("{\"query\":\"x\",\"hits\":[]}"));
+        enqueuePick("capsule-advisor");
+        llm.enqueue(json(json.writeValueAsString(new LlmChatResponse(
+                "mock-llm", "Капсула на зиму.\nLook 1: navy coat.", "stop", null))));
+        imageGen.enqueue(json(json.writeValueAsString(new ImageGenResult(illustrationId, "stub"))));
+        // The board upload 500s → the reply degrades to the textual capsule with a ⚠️ note, no fake link.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(
+                userId, householdId, MessageScope.PRIVATE, "собери капсулу на зиму",
+                List.of(), "telegram", "95", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/stylist/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text())
+                .contains("Капсула на зиму")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("https://files.example.test/v1/media/");
     }
 
     @Test

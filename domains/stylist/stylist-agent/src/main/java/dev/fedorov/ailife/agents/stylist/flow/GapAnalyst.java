@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.docrender.Doc;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -35,6 +36,8 @@ import java.util.Map;
  * → build the board (coverage subtitle, "Что докупить" / "Не покупать" / "Фокус" sections, palette)
  * → store → reply summary + link. **Marketplace buy-links stay deferred** (separate line). Runs even
  * on an empty wardrobe (the essentials become the gaps). Synthesis/parse failure → friendly message.
+ * A render/store failure still hands back the textual summary, with a discreet {@code ⚠️}
+ * degraded-state note ({@link DegradedNotice}, #485) so the missing board is never silent.
  */
 @Component
 public class GapAnalyst {
@@ -98,7 +101,10 @@ public class GapAnalyst {
                             .map(link -> reply(summary(gap) + "\n\nЧто докупить: " + link, result.llmModel()))
                             .onErrorResume(e -> {
                                 log.warn("gap render/store failed: {}", e.toString());
-                                return Mono.just(reply(summary(gap), result.llmModel()));
+                                // Hand back the textual summary, honestly flagged (#485) — no silent drop.
+                                return Mono.just(reply(DegradedNotice.append(summary(gap),
+                                        "не смог собрать HTML-доску списка покупок сейчас — показал только текстом, попробуйте позже"),
+                                        result.llmModel()));
                             });
                 });
     }

@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agents.stylist.http.StyleProfileClient;
 import dev.fedorov.ailife.docrender.Doc;
@@ -34,7 +35,9 @@ import java.util.UUID;
  * {@code mcp-wardrobe}'s {@code POST /internal/profile} (keyed on household+owner=the user) → render
  * the full board through the {@link DocRenderer} seam → store it in media-service → reply with a
  * short summary plus a link the user can open on any device. Any stage failing degrades to a friendly
- * message; the board renders only the sections the analysis actually filled.
+ * message; the board renders only the sections the analysis actually filled. A render/store failure
+ * (the profile is already saved) still hands back the summary, with a discreet {@code ⚠️}
+ * degraded-state note ({@link DegradedNotice}, #485) so the missing board is never silent.
  */
 @Component
 public class AnalyseMe {
@@ -86,8 +89,10 @@ public class AnalyseMe {
                         .map(link -> reply(summary(draft) + "\n\nПодробный анализ: " + link, model))
                         .onErrorResume(e -> {
                             log.warn("analysis render/store failed: {}", e.toString());
-                            return Mono.just(reply(summary(draft)
-                                    + "\n\n(HTML-страницу анализа сохранить не удалось — попробуйте позже.)", model));
+                            // The profile is saved; hand back the summary, honestly flagged (#485).
+                            return Mono.just(reply(DegradedNotice.append(summary(draft),
+                                    "не смог собрать HTML-страницу анализа сейчас — показал только текстом, попробуйте позже"),
+                                    model));
                         }))
                 .onErrorResume(e -> {
                     log.warn("set_style_profile failed: {}", e.toString());
