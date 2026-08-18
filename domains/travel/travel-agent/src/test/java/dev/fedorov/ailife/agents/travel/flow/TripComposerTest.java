@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.travel.flow;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -335,7 +336,8 @@ class TripComposerTest {
 
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
-        assertThat(resp.text()).isEqualTo("План поездки в Турцию готов.");
+        // Plan text preserved + an honest ⚠️ degraded-state notice (#485); no fake board link.
+        assertThat(resp.text()).startsWith("План поездки в Турцию готов.").contains(DegradedNotice.MARKER);
         assertThat(resp.text()).doesNotContain("Открыть план поездки:").doesNotContain("/v1/media/");
     }
 

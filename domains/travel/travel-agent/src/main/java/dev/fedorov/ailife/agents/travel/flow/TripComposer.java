@@ -7,6 +7,7 @@ import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.node.StringNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -84,8 +85,9 @@ import java.util.Set;
  * plan text as a section, the gathered web sources as grounded provenance links, and the destination's
  * <b>climate-by-month curve</b> as a chart (rendered by the shared {@code mcp-chart-render} capability) —
  * via the shared {@link DeliverablePublisher} (render → store in media-service → link), with the open-link
- * appended to the reply. Both the chart and the board are <b>soft-failed</b>: a render/store hiccup ships
- * the text-only plan. Same board seam as briefing/finance.
+ * appended to the reply. Both the chart and the board are <b>soft-failed</b>: a board render/store hiccup
+ * ships the text-only plan with a discreet ⚠️ degraded-state notice (#485), not a silent full-looking
+ * reply. Same board seam as briefing/finance.
  */
 @Component
 public class TripComposer {
@@ -246,9 +248,12 @@ public class TripComposer {
                             .map(link -> reply(withLink(text, link), r.llmModel()))
                             .defaultIfEmpty(reply(text, r.llmModel()))
                             .onErrorResume(e -> {
-                                // A media/render hiccup must not sink the plan — hand back the text alone.
+                                // A media/render hiccup must not sink the plan — hand back the text, but say
+                                // the board is missing rather than pretend a full delivery (#485).
                                 log.warn("trip board store failed: {}", e.toString());
-                                return Mono.just(reply(text, r.llmModel()));
+                                return Mono.just(reply(DegradedNotice.append(text,
+                                        "не смог собрать HTML-доску плана сейчас — показал план только текстом, попробуйте позже"),
+                                        r.llmModel()));
                             });
                 })
                 .onErrorResume(e -> {
