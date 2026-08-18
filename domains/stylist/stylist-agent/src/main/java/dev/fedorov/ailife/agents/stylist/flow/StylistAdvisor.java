@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.stylist.http.ImageGenClient;
 import dev.fedorov.ailife.agents.stylist.http.WardrobeReadClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
@@ -40,7 +41,9 @@ import java.util.Optional;
  * photos) through the {@link DocRenderer} seam, stored in media-service, and returned as a link.
  *
  * <p>Per-step soft-fail (a trends/profile outage just drops that constraint). An empty wardrobe →
- * an invite to catalogue first (no LLM call). Synthesis failure → a friendly message.
+ * an invite to catalogue first (no LLM call). Synthesis failure → a friendly message. A render/store
+ * failure still hands back the textual capsule, with a discreet {@code ⚠️} degraded-state note
+ * ({@link DegradedNotice}, #485) so the missing board is never silent.
  */
 @Component
 public class StylistAdvisor {
@@ -117,8 +120,10 @@ public class StylistAdvisor {
                                 + "\n\nКапсула: " + link, result.llmModel()))
                         .onErrorResume(e -> {
                             log.warn("capsule render/store failed: {}", e.toString());
-                            // Still hand back the textual capsule if the page couldn't be stored.
-                            return Mono.just(reply(result.text(), result.llmModel()));
+                            // Still hand back the textual capsule, honestly flagged (#485) — no silent drop.
+                            return Mono.just(reply(DegradedNotice.append(result.text(),
+                                    "не смог собрать HTML-доску капсулы сейчас — показал только текстом, попробуйте позже"),
+                                    result.llmModel()));
                         }));
     }
 

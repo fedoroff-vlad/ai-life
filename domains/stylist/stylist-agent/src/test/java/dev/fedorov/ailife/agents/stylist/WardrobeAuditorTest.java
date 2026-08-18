@@ -10,9 +10,11 @@ import dev.fedorov.ailife.contracts.wardrobe.WardrobeItemDto;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -85,6 +87,20 @@ class WardrobeAuditorTest {
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
 
+    /** Shared static servers → reset the queue-based ones and drain every recorded-request log between
+     *  tests so a test that doesn't {@code takeRequest} everything it hits can't leak stale requests into
+     *  the next test's {@code takeRequest}. mcpWardrobe keeps its path-based dispatcher (only drained). */
+    @BeforeEach
+    void resetServers() throws Exception {
+        llm.setDispatcher(new QueueDispatcher());
+        mediaService.setDispatcher(new QueueDispatcher());
+        for (MockWebServer s : List.of(mcpWardrobe, llm, mediaService)) {
+            while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // drain
+            }
+        }
+    }
+
     @Test
     void auditVerdictsRenderTheBoardWithPhotosAndDiagnosis() throws Exception {
         UUID householdId = UUID.randomUUID();
@@ -132,6 +148,37 @@ class WardrobeAuditorTest {
                 .contains("Hero pieces")
                 .contains("Системная ошибка")
                 .contains("#042C53");
+    }
+
+    @Test
+    void boardStoreFailureDegradesToTextWithNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        itemsJson = json.writeValueAsString(List.of(
+                new WardrobeItemDto(UUID.randomUUID(), householdId, null, "navy coat", "outerwear",
+                        "navy", "wool", "plain", "winter", "smart", null, Instant.now())));
+        String audit = "{\"verdicts\":[{\"name\":\"navy coat\",\"verdict\":\"keep\",\"reason\":\"герой\"}],"
+                + "\"hero\":[\"navy coat\"],\"systemicPattern\":\"—\"}";
+        enqueuePick("wardrobe-auditor");
+        llm.enqueue(new MockResponse().setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse("mock-llm", audit, "stop", null))));
+        // The board upload 500s → the reply degrades to the textual summary with a ⚠️ note, no fake link.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "сделай ревизию гардероба", List.of(), "telegram", "94", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/stylist/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text())
+                .contains("Ревизия гардероба готова")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("/v1/media/");
     }
 
     @Test

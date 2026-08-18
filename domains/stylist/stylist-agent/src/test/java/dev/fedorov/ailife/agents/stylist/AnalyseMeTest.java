@@ -11,9 +11,11 @@ import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.wardrobe.StyleProfileDto;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -71,6 +73,19 @@ class AnalyseMeTest {
 
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
+
+    /** Shared static servers → reset the dispatchers and drain every recorded-request log between tests
+     *  so a test that doesn't {@code takeRequest} everything it hits can't leak stale requests into the
+     *  next test's {@code takeRequest}. Keeps the tests order-independent. */
+    @BeforeEach
+    void resetServers() throws Exception {
+        for (MockWebServer s : List.of(mediaProcessing, mcpWardrobe, mediaService)) {
+            s.setDispatcher(new QueueDispatcher());
+            while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // drain
+            }
+        }
+    }
 
     @Test
     void selfPhotoWithParamsBuildsProfileAndReturnsHtmlLink() throws Exception {
@@ -153,6 +168,44 @@ class AnalyseMeTest {
                 .contains("Чего избегать")
                 .contains("Стиль-коды")
                 .contains("Emphasise the waist");           // final direction
+    }
+
+    @Test
+    void boardStoreFailureDegradesToSummaryWithNotice() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String mediaId = UUID.randomUUID().toString();
+
+        var profileJson = "{\"personType\": \"classic\", \"bodyShape\": \"hourglass\", "
+                + "\"colourType\": \"winter\", \"suitableFabrics\": [\"wool\"]}";
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new CaptionResult(profileJson, "mock-vision"))));
+        // Profile save succeeds…
+        mcpWardrobe.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new StyleProfileDto(
+                        UUID.randomUUID(), householdId, userId, "classic", "hourglass", "winter",
+                        json.readTree("[\"wool\"]"), null, null, null, null,
+                        UUID.fromString(mediaId), Instant.now()))));
+        // …but the board upload 500s → degrade to the summary with a ⚠️ note, no fake link.
+        mediaService.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(
+                userId, householdId, MessageScope.PRIVATE, "проанализируй меня",
+                List.of(new Attachment("image", "image/jpeg", mediaId, null)),
+                "telegram", "82", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/stylist/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.text())
+                .contains("Готов анализ вашего стиля")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("/v1/media/");
     }
 
     @Test
