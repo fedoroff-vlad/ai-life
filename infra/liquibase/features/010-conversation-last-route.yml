@@ -1,0 +1,25 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 010-conversation-last-route
+      author: ai-life
+      comment: |
+        Misroute-repair (road-test #484): remember the last agent a fresh message
+        was routed to, plus that message's text, so a correction on the next turn
+        ("не то, я про задачи") re-classifies with the prior route as context instead
+        of being treated as an unrelated message. Distinct from route_lock (an open
+        question awaiting a reply) — last_route is set after a *resolved* reply and is
+        only consulted while classifying. Both share the row's expires_at TTL: when a
+        turn only records last_route (no lock), the orchestrator sets a short TTL so
+        the correction window ages out on its own.
+      changes:
+        - addColumn:
+            schemaName: core
+            tableName: conversation_state
+            columns:
+              - column:
+                  name: last_route_agent
+                  type: varchar(64)
+              - column:
+                  name: last_route_text
+                  type: text

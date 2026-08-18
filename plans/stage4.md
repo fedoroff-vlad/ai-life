@@ -150,6 +150,34 @@ the hub (C1), the `Coordinator` (D1), conversation-state (A). Slices:
   is the confidence-aware escalation for the read/synthesis path. Detail →
   [coordinator-agent README](../domains/assistant/coordinator-agent/README.md).
 
+## Track F — misroute-repair (road-test [#484](https://github.com/fedoroff-vlad/ai-life/issues/484))
+Daily-use reliability: when the classifier picks the wrong intent, the owner should fix it in **one short
+turn** ("не то, я про задачи") without re-typing the request. Extends the conversation-state substrate
+(Track A) with a **last-route** memory: after a fresh (non-locked) reply the orchestrator records the
+agent it routed to + the original text (short TTL); on the next turn, if that last-route is fresh, the
+classifier re-decides **with the prior route as context** (approach chosen 2026-08-18: correction-aware
+classifier, *not* a separate detector hop or `*_CUES` keywords — one classifier turn, paraphrase-robust).
+`routeLock` still takes priority (an open question resumes; last-route is only consulted while classifying).
+
+**Slices (≤5 files each):**
+- **F1 ✅** — conversation-service remembers last-route: `last_route_{agent,text}` columns + `set()` writes
+  them + contract DTOs (storage only; orchestrator untouched, still green).
+- **F2** — orchestrator records last-route after a fresh dispatch + `LlmIntentClassifier` takes an optional
+  prior-route context so a correction re-routes; golden/E2E on the repair turn.
+- **F3** (if F2 exceeds the file budget) — log the correction as a routing-quality signal (agent_from →
+  agent_to + phrasing), seed for later tuning.
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **misroute corrected in one turn.** WHEN the owner replies "не то, я имел в виду … / я про
+  задачи" right after a reply → THEN the orchestrator re-classifies that turn with the prior route as
+  context and routes to the corrected intent, instead of treating it as a fresh unrelated message.
+- Scenario: **last-route ages out.** WHEN the correction window (short TTL) has elapsed since the last
+  routing → THEN the next message classifies normally (no stale prior-route context leaks in).
+- Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
+  resumes that agent as today; last-route is not consulted.
+- Scenario: **correction logged.** WHEN a correction re-routes to a different agent → THEN it is at least
+  logged as a routing-quality signal (agent_from → agent_to + phrasing).
+
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
 - New domain agents (chef, researcher, stylist, creator, …) — **Stage 6+**. (creator may be pulled

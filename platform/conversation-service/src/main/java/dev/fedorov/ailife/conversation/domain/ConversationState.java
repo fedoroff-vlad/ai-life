@@ -38,6 +38,12 @@ public class ConversationState {
     @Column(name = "pending_action", columnDefinition = "jsonb")
     private JsonNode pendingAction;
 
+    @Column(name = "last_route_agent")
+    private String lastRouteAgent;
+
+    @Column(name = "last_route_text")
+    private String lastRouteText;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -71,7 +77,7 @@ public class ConversationState {
 
     public ConversationStateDto toDto() {
         return new ConversationStateDto(id, householdId, userId, channel,
-                routeLock, pendingAction, expiresAt, updatedAt);
+                routeLock, pendingAction, lastRouteAgent, lastRouteText, expiresAt, updatedAt);
     }
 
     public UUID getId() { return id; }
@@ -82,6 +88,10 @@ public class ConversationState {
     public void setRouteLock(String routeLock) { this.routeLock = routeLock; }
     public JsonNode getPendingAction() { return pendingAction; }
     public void setPendingAction(JsonNode pendingAction) { this.pendingAction = pendingAction; }
+    public String getLastRouteAgent() { return lastRouteAgent; }
+    public void setLastRouteAgent(String lastRouteAgent) { this.lastRouteAgent = lastRouteAgent; }
+    public String getLastRouteText() { return lastRouteText; }
+    public void setLastRouteText(String lastRouteText) { this.lastRouteText = lastRouteText; }
     public Instant getExpiresAt() { return expiresAt; }
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 }

@@ -43,6 +43,8 @@ public class ConversationStateService {
                         UUID.randomUUID(), req.householdId(), req.userId(), req.channel()));
         row.setRouteLock(req.routeLock());
         row.setPendingAction(req.pendingAction());
+        row.setLastRouteAgent(req.lastRouteAgent());
+        row.setLastRouteText(req.lastRouteText());
         row.setExpiresAt(Instant.now().plusSeconds(ttl));
         return repo.save(row).toDto();
     }

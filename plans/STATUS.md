@@ -4,6 +4,15 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **Now: misroute-repair (road-test [#484](https://github.com/fedoroff-vlad/ai-life/issues/484)) — F1 in
+  flight.** Under road-test epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491). Half of #484
+  (per-agent routing goldens) was already delivered by #475 — all 10 routing agents have a
+  `Golden<Agent>RoutingTest`. Remaining = the **misroute-repair loop**: correction "не то, я про задачи" →
+  re-classify with the prior route as context (approach: correction-aware classifier, not `*_CUES`). Spec +
+  WHEN/THEN → [stage4.md](stage4.md) §Track F. **F1 (this PR, `feat/misroute-repair-last-route`):**
+  conversation-service now remembers `last_route_{agent,text}` (storage + contract + `set()` write); orchestrator
+  untouched. **Next: F2** (orchestrator records last-route on fresh dispatch + correction-aware re-classify +
+  golden/E2E), then F3 (routing-quality log, if F2 over budget).
 - **arch epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing — ✅ DONE
   (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist / briefing / stylist / chef
   / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
