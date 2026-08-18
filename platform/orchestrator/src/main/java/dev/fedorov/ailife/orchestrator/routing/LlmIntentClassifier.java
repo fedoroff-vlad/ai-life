@@ -38,12 +38,21 @@ import java.util.Set;
  * "capture to inbox") and reserve {@code echo} for greetings / small talk. The
  * deterministic fallbacks (LLM error, un-parseable output, no remote agents) stay
  * {@code echo} — those mean "couldn't classify", not "user wants something captured".
+ *
+ * <p>Misroute-repair (road-test #484): {@link #classify(NormalizedMessage, PriorRoute)} takes an
+ * optional {@link PriorRoute} — the agent the previous fresh message was routed to plus that message's
+ * text. When present, a third system message tells the model that if THIS turn is the user correcting
+ * that routing ("не то, я про задачи"), it should pick the corrected agent rather than re-picking the
+ * prior one. It is still a single classify turn — no keyword heuristic, paraphrase-robust.
  */
 @Component
 public class LlmIntentClassifier {
 
     private static final Logger log = LoggerFactory.getLogger(LlmIntentClassifier.class);
     private static final String ECHO = "echo";
+
+    /** The last fresh routing for a conversation, passed in so a correction turn re-routes (#484). */
+    public record PriorRoute(String agent, String originalText) {}
 
     private final LlmClient llm;
     private final MemoryClient memory;
@@ -68,6 +77,10 @@ public class LlmIntentClassifier {
     }
 
     public Mono<String> classify(NormalizedMessage message) {
+        return classify(message, null);
+    }
+
+    public Mono<String> classify(NormalizedMessage message, PriorRoute priorRoute) {
         if (knownAgents.size() == 1) {
             // Only echo is registered — no remote agents discovered. Don't bother
             // recalling either: echo doesn't read context.
@@ -75,11 +88,15 @@ public class LlmIntentClassifier {
         }
         return memory.recall(message.householdId(), message.userId(), message.text())
                 .flatMap(hits -> {
-                    List<LlmMessage> chat = new ArrayList<>(3);
+                    List<LlmMessage> chat = new ArrayList<>(4);
                     chat.add(LlmMessage.system(systemPrompt));
                     String contextBlock = renderMemories(hits);
                     if (contextBlock != null) {
                         chat.add(LlmMessage.system(contextBlock));
+                    }
+                    String correctionBlock = renderCorrection(priorRoute);
+                    if (correctionBlock != null) {
+                        chat.add(LlmMessage.system(correctionBlock));
                     }
                     chat.add(LlmMessage.user(message.text()));
                     LlmChatRequest req = LlmChatRequest.of(LlmChannel.FAST, chat);
@@ -89,6 +106,23 @@ public class LlmIntentClassifier {
                     log.warn("intent classification failed, falling back to {}: {}", ECHO, e.toString());
                     return Mono.just(ECHO);
                 });
+    }
+
+    /** {@code null} when there is no prior route to consider — avoids an empty system message. */
+    private static String renderCorrection(PriorRoute priorRoute) {
+        if (priorRoute == null || priorRoute.agent() == null || priorRoute.agent().isBlank()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("The user's previous message was routed to agent '").append(priorRoute.agent()).append("'.");
+        if (priorRoute.originalText() != null && !priorRoute.originalText().isBlank()) {
+            sb.append(" That request was: \"").append(priorRoute.originalText()).append("\".");
+        }
+        sb.append(" If THIS message is the user correcting that routing (e.g. \"не то\", \"не это\", ");
+        sb.append("\"я про задачи\", \"no, I meant …\"), pick the agent they are steering toward — do NOT ");
+        sb.append("reply '").append(priorRoute.agent()).append("' again unless they clearly re-affirm it. ");
+        sb.append("If this message is unrelated to the previous one, classify it normally.");
+        return sb.toString();
     }
 
     /** {@code null} when no memories to inject — avoids an empty system message. */

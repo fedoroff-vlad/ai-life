@@ -137,7 +137,7 @@ class GoldenRoutingTest {
      * sync with each {@code AGENT.md} frontmatter (name + description + intent examples). The classifier
      * prompt is built from these, so they must mirror the deployed agents for the test to be faithful.
      */
-    private static Map<String, AgentManifest> realManifests() {
+    static Map<String, AgentManifest> realManifests() {
         Map<String, AgentManifest> m = new LinkedHashMap<>();
         m.put("calendar", manifest("calendar",
                 "Manages calendar events, birthdays, anniversaries, and time-based reminders for a household. Owns CalDAV (Radicale) writes via mcp-caldav; reads from the local events_cache mirror.",

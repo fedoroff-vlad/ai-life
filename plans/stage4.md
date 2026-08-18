@@ -162,10 +162,10 @@ classifier, *not* a separate detector hop or `*_CUES` keywords — one classifie
 **Slices (≤5 files each):**
 - **F1 ✅** — conversation-service remembers last-route: `last_route_{agent,text}` columns + `set()` writes
   them + contract DTOs (storage only; orchestrator untouched, still green).
-- **F2** — orchestrator records last-route after a fresh dispatch + `LlmIntentClassifier` takes an optional
-  prior-route context so a correction re-routes; golden/E2E on the repair turn.
-- **F3** (if F2 exceeds the file budget) — log the correction as a routing-quality signal (agent_from →
-  agent_to + phrasing), seed for later tuning.
+- **F2 ✅** — orchestrator records last-route after a fresh specialist dispatch + `LlmIntentClassifier` takes
+  an optional `PriorRoute` context so a correction re-routes; `GoldenMisrouteRepairTest` proves a real model
+  honours the correction (and leaves an unrelated message alone). **F3 folded in** — the routing-quality
+  signal is a one-line `routing-correction` log in `IntentRouter`, no separate slice needed.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **misroute corrected in one turn.** WHEN the owner replies "не то, я имел в виду … / я про

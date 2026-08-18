@@ -79,6 +79,54 @@ class LlmIntentClassifierTest {
     }
 
     @Test
+    void priorRouteInjectsACorrectionSystemMessage() {
+        var props = new AgentRegistryProperties();
+        props.setCatchAllAgent("tasks");
+        var classifier = new LlmIntentClassifier(llm, memory, registry, props);
+        when(memory.recall(any(), any(), any())).thenReturn(Mono.just(List.of()));
+        AtomicReference<LlmChatRequest> seen = new AtomicReference<>();
+        when(llm.chat(any(LlmChatRequest.class))).thenAnswer(inv -> {
+            seen.set(inv.getArgument(0));
+            return Mono.just(reply("tasks"));
+        });
+
+        var prior = new LlmIntentClassifier.PriorRoute("calendar", "запиши купить молоко");
+        StepVerifier.create(classifier.classify(msg("не то, это задача"), prior))
+                .expectNext("tasks")
+                .verifyComplete();
+
+        String correction = seen.get().messages().stream()
+                .filter(m -> m.role() == LlmRole.SYSTEM)
+                .map(LlmMessage::content)
+                .filter(c -> c.contains("previous message was routed"))
+                .findFirst().orElse("");
+        assertThat(correction).contains("agent 'calendar'");
+        assertThat(correction).contains("запиши купить молоко");
+        assertThat(correction).contains("do NOT");
+    }
+
+    @Test
+    void noPriorRouteInjectsNoCorrectionMessage() {
+        var props = new AgentRegistryProperties();
+        props.setCatchAllAgent("tasks");
+        var classifier = new LlmIntentClassifier(llm, memory, registry, props);
+        when(memory.recall(any(), any(), any())).thenReturn(Mono.just(List.of()));
+        AtomicReference<LlmChatRequest> seen = new AtomicReference<>();
+        when(llm.chat(any(LlmChatRequest.class))).thenAnswer(inv -> {
+            seen.set(inv.getArgument(0));
+            return Mono.just(reply("tasks"));
+        });
+
+        StepVerifier.create(classifier.classify(msg("напомни позвонить врачу"), null))
+                .expectNext("tasks")
+                .verifyComplete();
+
+        boolean anyCorrection = seen.get().messages().stream()
+                .anyMatch(m -> m.content() != null && m.content().contains("previous message was routed"));
+        assertThat(anyCorrection).isFalse();
+    }
+
+    @Test
     void noCatchAllKeepsEchoAsTheOnlyFallback() {
         var props = new AgentRegistryProperties(); // catchAllAgent = "" (default)
         var classifier = new LlmIntentClassifier(llm, memory, registry, props);

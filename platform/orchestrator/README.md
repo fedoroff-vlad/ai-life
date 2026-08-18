@@ -32,6 +32,16 @@ soft-fail — a confirmation that can't be persisted just won't survive, never a
 Toggle with `orchestrator.conversation.enabled`. (Agents only start producing `pendingAction` /
 exposing `/resume` in the per-flow A4 slices — until then this is latent.)
 
+**Misroute-repair (road-test #484):** after a fresh specialist reply with no open question, the
+orchestrator records the chosen agent + the message text to conversation-service as `last_route` (a
+short `orchestrator.conversation.correction-window-seconds` TTL, default 180s; echo turns are never
+recorded). On the next turn — when there is **no** active lock — that `last_route` is passed into the
+classifier as a `PriorRoute`, so a correction ("не то, я про задачи") re-classifies **with the prior
+route as context** and routes to the corrected intent instead of being treated as a fresh message. It
+stays one classify turn (no keyword heuristic, paraphrase-robust). A correction that lands on a
+different agent is logged as a `routing-correction` signal (agent_from → agent_to + phrasing).
+`routeLock` still takes priority — an open question resumes and last-route is not consulted.
+
 **Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
 that captures any *actionable* message matching no specialized domain — the GTD
 "anything not calendar/finance → inbox" fallback. When set to a registered agent the
@@ -78,6 +88,7 @@ ORCHESTRATOR_MEMORY_RECALL_K=3
 ORCHESTRATOR_CATCH_ALL_AGENT=tasks   # actionable-unmatched → this agent; empty = echo-only
 CONVERSATION_SERVICE_URL=http://conversation-service:8089
 ORCHESTRATOR_CONVERSATION_ENABLED=true   # route-lock check before classify; false = always classify
+ORCHESTRATOR_CONVERSATION_CORRECTION_WINDOW_SECONDS=180  # TTL of a recorded last_route for misroute-repair (#484)
 ```
 
 ## Run locally
@@ -112,6 +123,9 @@ asserting *structure, not text* — crisp domain messages reach the right agent 
 message resolves to a known agent name. Opt-in (`@Tag("golden")` +
 `@EnabledIfEnvironmentVariable(GOLDEN_LLM)`), **skipped in CI**. Run instructions live in
 the test's javadoc; it's the top-of-spine companion to finance-agent's `GoldenRoutingTest`.
+`routing/GoldenMisrouteRepairTest` is the sibling for misroute-repair (#484): same gating, it proves a
+real model honours a `PriorRoute` correction (re-routes "не то, это задача"; leaves an unrelated message
+alone). Both reuse `GoldenRoutingTest.realManifests()`.
 
 ## Key classes
 - `OrchestratorApplication`.
@@ -123,8 +137,8 @@ the test's javadoc; it's the top-of-spine companion to finance-agent's `GoldenRo
 - `agent/AgentRegistry` — name → `Agent` map; backs both routing and wake dispatch.
 - `memory/MemoryProperties` — `orchestrator.memory.{enabled, url, recall-k}`.
 - `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`). Also `observe(...)` — fire-and-forget POST `/v1/observations` (memory-from-chat producer), soft-fail, off the response path.
-- `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision.
-- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty. Lenient parsing + echo fallback.
+- `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision; owns the route-lock lifecycle and the misroute-repair last-route recording + `PriorRoute` hand-off (#484).
+- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty, and a `PriorRoute` correction message as a third (#484). Lenient parsing + echo fallback. `classify(msg)` = `classify(msg, null)`.
 - `web/IntentController` — `POST /v1/intent`.
 - `web/AgentWakeController` — `POST /v1/agents/wake`.
 - `web/AgentInvokeController` — `POST /v1/agents/invoke`; inter-agent sync, forwards to the target agent's `/actions/<action>` (`Agent.invoke` / `RemoteAgent.invoke`).
