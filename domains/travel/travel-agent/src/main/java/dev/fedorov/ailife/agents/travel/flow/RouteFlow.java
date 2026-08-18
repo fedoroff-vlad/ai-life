@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.flow;
 
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.travel.http.MediaFetchClient;
 import dev.fedorov.ailife.agents.travel.http.RouteImportClient;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
@@ -122,7 +123,8 @@ public class RouteFlow {
                 .defaultIfEmpty(reply(text))
                 .onErrorResume(e -> {
                     log.warn("route board store failed: {}", e.toString());
-                    return Mono.just(reply(text));
+                    return Mono.just(reply(DegradedNotice.append(text,
+                            "не смог собрать HTML-доску маршрута сейчас — показал только текстом, попробуйте позже")));
                 });
     }
 

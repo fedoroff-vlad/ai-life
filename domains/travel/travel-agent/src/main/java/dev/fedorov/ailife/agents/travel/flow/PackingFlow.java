@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.travel.flow;
 
 import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.Category;
 import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.ClimateBand;
 import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.PackingContext;
@@ -168,7 +169,8 @@ public class PackingFlow {
                         .defaultIfEmpty(reply(finalText(text, null, saved)))
                         .onErrorResume(e -> {
                             log.warn("packing board store failed: {}", e.toString());
-                            return Mono.just(reply(finalText(text, null, saved)));
+                            return Mono.just(reply(DegradedNotice.append(finalText(text, null, saved),
+                                    "не смог собрать HTML-доску списка сейчас — показал только текстом, попробуйте позже")));
                         }));
     }
 

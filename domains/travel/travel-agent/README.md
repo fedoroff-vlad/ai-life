@@ -27,7 +27,8 @@ classified intent folds into the router's chat fallback (RT-d2 import), else a p
   distance, an **OpenStreetMap map link** built from the first point — a plain URL, no external call) via
   the shared `DeliverablePublisher` → reply. Unknown formats, empty files and unparseable **short links**
   (`goo.gl`, `yandex.ru/maps/-/…` — need `mcp-browser`, TR-f3) soft-fail with a friendly message pointing at
-  sending a GPX/KML file; the board soft-fails to text-only. KMZ bytes are base64-encoded into the store's
+  sending a GPX/KML file; a board render/store hiccup soft-fails to text-only with a discreet `⚠️`
+  degraded-state notice (`agent-runtime` `DegradedNotice`, road-test #485). KMZ bytes are base64-encoded into the store's
   `content` (RT-b). The agent parses owner-supplied bytes/URLs only — it never fetches a remote map or
   transmits the file. The map-link import folds into the router's chat fallback, so "хочу на море `<link>`"
   is classified as `trip-composer` (plans) while a bare link with no intent pins the place.
@@ -46,8 +47,9 @@ classified intent folds into the router's chat fallback (RT-d2 import), else a p
   **packing board** via the shared `DeliverablePublisher`. The list is **deterministic Java, never the LLM**
   (a correctness boundary like the wallet's `TripLedger`; also why PK-a needs no golden). Every source
   soft-fails: no active trip → a profile-only generic list + a nudge to create one; no destination/date or a
-  climate hiccup → the climate-driven items drop and the list notes the weather is unconfirmed; a render
-  hiccup → text-only. Reuses the wallet/planner clients (`TripWalletClient`, `TravelProfileClient`,
+  climate hiccup → the climate-driven items drop and the list notes the weather is unconfirmed; a board
+  render/store hiccup → text-only with a discreet `⚠️` degraded-state notice (`DegradedNotice`, #485).
+  Reuses the wallet/planner clients (`TripWalletClient`, `TravelProfileClient`,
   `GeocodeClient`, `ClimateClient`) — no new store, client, or contract. **LI-c** ([lists.md](../../../plans/lists.md)):
   the flow also best-effort **mirrors the list onto the note tier** — it upserts a household-shared
   `type=list` note titled «список вещей» (a flat `MarkdownChecklist` body via `MemoryClient.listNotes`/
@@ -169,7 +171,8 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   extract (destination + month + `live`) → parallel gather (finance/calendar `brief`, 12-month climate,
   web search, **+ TR-f2 live flight/hotel options when `live`**) → one `trip-composer` synthesis → the
   TR-e HTML board (climate-by-month chart + plan + option deep links + provenance links) via
-  `DeliverablePublisher`, open-link appended to the reply (soft-failed to text-only). Live options are
+  `DeliverablePublisher`, open-link appended to the reply (a board hiccup soft-fails to text-only with a
+  discreet `⚠️` degraded-state notice, #485). Live options are
   ranked min-transfers→price, flagged over-budget, and degrade to the MVP plan when the capability is
   `unconfigured`.
 - `http/TravelProfileClient` (upsert/resolve `mcp-travel`) + `http/GeocodeClient` (`mcp-weather` geocode)
