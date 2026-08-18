@@ -8,6 +8,7 @@ import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.creator.http.CreatorCacheClient;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
 import dev.fedorov.ailife.agents.creator.http.TrendGatherClient;
@@ -46,7 +47,8 @@ import java.util.Set;
  *
  * <p>Token economy is structural: the gather is plain HTTP (no model cost); only the synthesis hits
  * the LLM. No niche (no profile + empty message) → an invite to set a profile (no LLM call). A
- * render/store failure still hands back the textual plan.
+ * render/store failure still hands back the textual plan, with a discreet {@code ⚠️} degraded-state
+ * note ({@link DegradedNotice}, #485) so the missing board is never silent.
  */
 @Component
 public class ContentStrategist {
@@ -137,7 +139,9 @@ public class ContentStrategist {
                                         + "\n\nПолный контент-план: " + link, result.llmModel()))
                                 .onErrorResume(e -> {
                                     log.warn("content-plan render/store failed: {}", e.toString());
-                                    return Mono.just(reply(result.text(), result.llmModel()));
+                                    return Mono.just(reply(DegradedNotice.append(result.text(),
+                                            "не смог собрать HTML-доску контент-плана сейчас — показал только текстом, попробуйте позже"),
+                                            result.llmModel()));
                                 })));
     }
 

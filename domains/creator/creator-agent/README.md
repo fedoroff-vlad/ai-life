@@ -22,7 +22,8 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   SKILL → fresh trends + post ideas + ready drafts + per-platform format recs → rendered as an HTML
   content-plan board via `libs/doc-render` (with a provenance links section built from the gathered
   hits) → stored in media-service → reply with the link. `flow/ContentStrategist`. Per-source
-  soft-fail; render/store failure still returns the textual plan.
+  soft-fail; a render/store failure still returns the textual plan, appending a discreet `⚠️`
+  degraded-state note (`DegradedNotice`, [#485](https://github.com/fedoroff-vlad/ai-life/issues/485)) so the missing board is never silent.
 - **CR-e — trend cache persist. DONE.** After the synthesis, the flow persists the run into
   `mcp-creator`: the gathered `TrendHit` corpus → `POST /internal/trends` in one batch (the cache
   dedups per `(owner, url)`), and the synthesized plan → `POST /internal/content-piece` as a `draft`,

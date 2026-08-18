@@ -13,8 +13,10 @@ import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.QueueDispatcher;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,6 +59,21 @@ class ContentStrategistTest {
         mcpReddit = new MockWebServer(); mcpReddit.start();
         llmGateway = new MockWebServer(); llmGateway.start();
         media = new MockWebServer(); media.start();
+    }
+
+    /** Reset each shared server between tests — the servers (and their ports, wired once into the Spring
+     *  context) are shared across all tests, so a fresh {@link QueueDispatcher} drops any responses a prior
+     *  test left unqueued and draining the recorded-request log drops requests a prior test never asserted
+     *  on (a test that doesn't {@code takeRequest} every server it hits would otherwise leak stale requests
+     *  into the next test's {@code takeRequest}). Keeps the tests order-independent. */
+    @BeforeEach
+    void resetServers() throws Exception {
+        for (MockWebServer s : List.of(mcpCreator, mcpWeb, mcpYoutube, mcpReddit, llmGateway, media)) {
+            s.setDispatcher(new QueueDispatcher());
+            while (s.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // drain the recorded-request log so it starts empty
+            }
+        }
     }
 
     @AfterAll
@@ -206,6 +223,44 @@ class ContentStrategistTest {
         RecordedRequest llmReq = llmGateway.takeRequest(3, TimeUnit.SECONDS);                     // synthesis
         String body = llmReq.getBody().readUtf8();
         assertThat(body).contains("Web hit").contains("YT hit");
+    }
+
+    @Test
+    void boardHiccupStillHandsBackThePlanWithADegradedNote() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // No profile → niche from the request text.
+        mcpCreator.enqueue(new MockResponse().setResponseCode(404));
+        mcpCreator.enqueue(new MockResponse().setResponseCode(404));
+
+        mcpWeb.enqueue(jsonResponse("""
+                { "query": "q", "hits": [
+                  { "title": "Web hit", "url": "https://e.com/a", "snippet": "s" } ] }
+                """));
+        mcpYoutube.enqueue(jsonResponse("[]"));
+        mcpReddit.enqueue(jsonResponse("[]"));
+
+        enqueueRouting("content-strategist");
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "План готов.\nИдея 1.", "stop", new LlmUsage(40, 30, 70)))));
+        // Persist ok, but the board upload 500s → the reply degrades to text-only with a ⚠️ note.
+        mcpCreator.enqueue(jsonResponse("[]"));
+        mcpCreator.enqueue(jsonResponse(json.writeValueAsString(new ContentPieceDto(
+                UUID.randomUUID(), householdId, userId, "draft", null, "Контент-план: подкасты",
+                "body", null, null, "new", null, Instant.now()))));
+        media.enqueue(new MockResponse().setResponseCode(500));
+
+        var msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE,
+                "дай идеи для постов про подкасты", List.of(), "telegram", "103", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        // The textual plan survives, honestly flagged, and no fake board link.
+        assertThat(resp.text())
+                .contains("План готов.")
+                .contains(dev.fedorov.ailife.agentruntime.transparency.DegradedNotice.MARKER)
+                .doesNotContain("Полный контент-план:");
     }
 
     private IntentResponse post(NormalizedMessage msg) {
