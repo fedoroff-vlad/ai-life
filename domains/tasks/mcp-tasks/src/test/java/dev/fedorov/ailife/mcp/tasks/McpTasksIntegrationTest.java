@@ -524,6 +524,23 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
                 .bodyValue(new AddTaskInput(h, null, null, null, null))
                 .exchange()
                 .expectStatus().isBadRequest();
+
+        // DELETE /internal/task/{id} reverses the capture (the undo primitive's reversal, #486/H3):
+        // returns the deleted row, then 404 once it's gone.
+        TaskItemDto deleted = client.delete()
+                .uri("/internal/task/{id}", captured.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TaskItemDto.class)
+                .returnResult().getResponseBody();
+        assertThat(deleted).isNotNull();
+        assertThat(deleted.id()).isEqualTo(captured.id());
+        assertThat(deleted.title()).isEqualTo("купить молоко");
+
+        client.delete()
+                .uri("/internal/task/{id}", captured.id())
+                .exchange()
+                .expectStatus().isNotFound();
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

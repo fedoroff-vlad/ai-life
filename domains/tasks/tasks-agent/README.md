@@ -26,6 +26,7 @@ in dev/degraded environments.
 | POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture`), or a chat reply (`IntentRouter`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
 | POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
+| POST | `/agents/tasks/actions/{action}` | inter-agent action (C1 envelope). `undo` reverses a just-captured task by deleting it — the "отмени последнее" reversal (#486/H3) |
 | GET  | `/actuator/health`              | liveness |
 
 ## Config (env vars)
@@ -95,7 +96,13 @@ in dev/degraded environments.
   task with no explicit household/personal signal defaults to the owner's learned choice for the same
   signal profile once the tally is deep + decisive, else the static household-task rule; explicit choices
   are recorded. Both best-effort — routing mechanism unchanged. Mirrors calendar / finance.
+- `web/ActionController` — the inter-agent action envelope (`POST /agents/tasks/actions/{action}`,
+  extends `agent-runtime`'s `AgentActionController`). Registers `undo` (#486/H3, Track H — tasks is the
+  reference producer): reverses a just-captured task by deleting it via `DeleteTaskClient`, returning a
+  user-facing `{message}` confirmation; a missing/already-deleted task → an honest `ok=false`.
 - `http/AddTaskClient` — `POST /internal/task` passthrough (capture under a resolved household).
+- `http/DeleteTaskClient` — `DELETE /internal/task/{id}` passthrough (the undo reversal — delete the
+  just-captured task, #486/H3).
 - `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
   (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
   `/internal/link-event` via `LinkEventClient`. Always returns an `AgentActionResult`; calendar
