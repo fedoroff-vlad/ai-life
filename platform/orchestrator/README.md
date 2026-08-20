@@ -42,6 +42,16 @@ stays one classify turn (no keyword heuristic, paraphrase-robust). A correction 
 different agent is logged as a `routing-correction` signal (agent_from → agent_to + phrasing).
 `routeLock` still takes priority — an open question resumes and last-route is not consulted.
 
+**"Why did you do that" trace (road-test #485, Track G):** the same remembered `last_route` also backs a
+transparency answer. When a turn asks why/how the previous request was handled ("почему ты так сделал", "как
+ты это понял"), the classifier — which already has the prior route as context — returns the reserved
+`explain` outcome (offered **only** while a prior route exists), and the orchestrator answers it from the
+remembered route via `ExplainResponder` (a one-sentence trace naming the agent + why it fit, phrased in the
+user's language) **instead of dispatching** to a domain agent. An explain turn does **not** overwrite
+`last_route`, so a later correction still repairs the original route, and it leaks no payload. Scope is the
+routing decision the orchestrator owns; enriching it with each agent's own sources-read/action-written is the
+follow-on G2 slice. See [plans/stage4.md](../../plans/stage4.md) §Track G.
+
 **Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
 that captures any *actionable* message matching no specialized domain — the GTD
 "anything not calendar/finance → inbox" fallback. When set to a registered agent the
@@ -137,8 +147,9 @@ alone). Both reuse `GoldenRoutingTest.realManifests()`.
 - `agent/AgentRegistry` — name → `Agent` map; backs both routing and wake dispatch.
 - `memory/MemoryProperties` — `orchestrator.memory.{enabled, url, recall-k}`.
 - `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`). Also `observe(...)` — fire-and-forget POST `/v1/observations` (memory-from-chat producer), soft-fail, off the response path.
-- `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision; owns the route-lock lifecycle and the misroute-repair last-route recording + `PriorRoute` hand-off (#484).
-- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty, and a `PriorRoute` correction message as a third (#484). Lenient parsing + echo fallback. `classify(msg)` = `classify(msg, null)`.
+- `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision; owns the route-lock lifecycle, the misroute-repair last-route recording + `PriorRoute` hand-off (#484), and the Track-G `explain` branch (answers a "why did you do that" turn via `ExplainResponder` without dispatching or overwriting last-route).
+- `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty, and a `PriorRoute` correction/explain message as a third (#484 / Track G #485). Lenient parsing + echo fallback; `explain` is a reserved outcome accepted by `normalize`. `classify(msg)` = `classify(msg, null)`.
+- `routing/ExplainResponder` — phrases the Track-G routing trace (agent + why it fit) in the user's language via the DEFAULT channel from the remembered `PriorRoute`; never invents the agent's internal steps, leaks no IDs/payloads. Reply agent id = `explain`.
 - `web/IntentController` — `POST /v1/intent`.
 - `web/AgentWakeController` — `POST /v1/agents/wake`.
 - `web/AgentInvokeController` — `POST /v1/agents/invoke`; inter-agent sync, forwards to the target agent's `/actions/<action>` (`Agent.invoke` / `RemoteAgent.invoke`).

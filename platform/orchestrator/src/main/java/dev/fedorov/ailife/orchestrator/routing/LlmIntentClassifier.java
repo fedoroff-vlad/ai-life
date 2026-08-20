@@ -44,6 +44,11 @@ import java.util.Set;
  * text. When present, a third system message tells the model that if THIS turn is the user correcting
  * that routing ("не то, я про задачи"), it should pick the corrected agent rather than re-picking the
  * prior one. It is still a single classify turn — no keyword heuristic, paraphrase-robust.
+ *
+ * <p>"Why did you do that" trace (road-test #485, Track G): the same {@link PriorRoute} block also offers a
+ * reserved {@code explain} outcome — when THIS turn asks why/how the previous request was handled
+ * ("почему ты так сделал"), the model replies {@code explain} and {@link IntentRouter} answers it via
+ * {@link ExplainResponder} instead of dispatching. Offered only when a prior route exists.
  */
 @Component
 public class LlmIntentClassifier {
@@ -121,7 +126,10 @@ public class LlmIntentClassifier {
         sb.append(" If THIS message is the user correcting that routing (e.g. \"не то\", \"не это\", ");
         sb.append("\"я про задачи\", \"no, I meant …\"), pick the agent they are steering toward — do NOT ");
         sb.append("reply '").append(priorRoute.agent()).append("' again unless they clearly re-affirm it. ");
-        sb.append("If this message is unrelated to the previous one, classify it normally.");
+        sb.append("Alternatively, if THIS message is the user asking WHY or HOW you handled that previous ");
+        sb.append("request (e.g. \"почему ты так сделал\", \"как ты это понял\", \"why did you route it ");
+        sb.append("there\"), reply exactly '").append(ExplainResponder.EXPLAIN).append("' instead of an ");
+        sb.append("agent name. If this message is unrelated to the previous one, classify it normally.");
         return sb.toString();
     }
 
@@ -149,6 +157,10 @@ public class LlmIntentClassifier {
             firstNonAlpha++;
         }
         String head = candidate.substring(0, firstNonAlpha);
+        // 'explain' is a reserved routing outcome (Track G): the router answers it from the remembered
+        // last-route instead of dispatching to a domain agent. Only ever produced when a PriorRoute was
+        // offered, so it can't leak into a fresh turn; if it somehow does, the router degrades it to echo.
+        if (ExplainResponder.EXPLAIN.equals(head)) return ExplainResponder.EXPLAIN;
         return knownAgents.contains(head) ? head : ECHO;
     }
 

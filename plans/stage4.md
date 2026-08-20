@@ -178,6 +178,45 @@ classifier, *not* a separate detector hop or `*_CUES` keywords — one classifie
 - Scenario: **correction logged.** WHEN a correction re-routes to a different agent → THEN it is at least
   logged as a routing-quality signal (agent_from → agent_to + phrasing).
 
+## Track G — "why did you do that" trace (road-test [#485](https://github.com/fedoroff-vlad/ai-life/issues/485))
+Daily-use trust: right after a reply the owner should be able to ask **why the assistant handled it that
+way** and get one honest sentence — not silence, not a black box. Piggybacks on the same conversation-state
+substrate as Track F: the last fresh routing is already remembered (`last_route`), so a follow-up "почему ты
+так сделал / как ты это понял" is a **meta-query about the prior route**. The classifier — which already
+receives that route as `PriorRoute` context (#484) — gains one more reserved outcome `explain`, offered
+**only when a `PriorRoute` is present**; the orchestrator answers it deterministically from the remembered
+route instead of dispatching to a domain agent. Keyword-free (classifier-detected, paraphrase-robust), same
+doctrine as Track F. This is the user-facing half of the #485 transparency doctrine (the degraded-notice half
+lives in [architecture.md](architecture.md) §Principles "Soft-fail, but never silently").
+
+**Scope of the trace.** G1 explains the **routing** decision the orchestrator genuinely owns — which agent
+handled the prior turn and the request that steered there — phrased in the user's language via the LLM, with
+**no internal payloads leaked** (it names the agent + paraphrases the request, nothing more). Enriching it
+with each agent's own **sources read / action written** (brief/recall/write) is a follow-on (**G2**) where
+agents contribute a short trace line via `IntentResponse`, rolled out per agent (reference consumer first,
+like #485's board-store rollout); not G1, which would otherwise touch every agent.
+
+**Slices (≤5 files each):**
+- **G1** — orchestrator-only, no schema/contract change (reuses the remembered `last_route`): `explain`
+  reserved classifier outcome (only offered inside the `PriorRoute` block) + an `ExplainResponder` that
+  phrases the routing trace in the user's language via the LLM + an `IntentRouter` branch that returns it
+  without dispatching to a domain agent or overwriting `last_route`.
+- **G2 (next)** — agents contribute a one-line "что прочитал / что записал" into `IntentResponse`; the
+  orchestrator remembers it with `last_route` and folds it into the explain answer. Per-agent rollout.
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **owner asks why.** WHEN the owner replies "почему ты так сделал / как ты это понял" right after
+  a fresh specialist reply → THEN the assistant returns a one-sentence trace naming the agent that handled
+  the prior turn and why it was chosen, without routing that meta-query to a domain agent.
+- Scenario: **nothing to explain.** WHEN there is no fresh prior route (correction window elapsed, or the
+  first message of a conversation) → THEN "почему …" classifies normally — no stale `explain` — degrading to
+  echo or its real intent.
+- Scenario: **explain doesn't disturb state.** WHEN an explain turn is answered → THEN it does not overwrite
+  `last_route` (a subsequent correction still repairs the *original* route) and leaks no payload from the
+  prior turn.
+- Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
+  resumes that agent; explain is not consulted (same precedence as Track F).
+
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
 - New domain agents (chef, researcher, stylist, creator, …) — **Stage 6+**. (creator may be pulled

@@ -35,13 +35,15 @@ class IntentRouterLockTest {
 
     private final LlmIntentClassifier classifier = mock(LlmIntentClassifier.class);
     private final ConversationStateClient conversationState = mock(ConversationStateClient.class);
+    private final ExplainResponder explainResponder = mock(ExplainResponder.class);
     private final Agent calendar = mock(Agent.class);
     private final Agent finance = mock(Agent.class);
     private final Agent echo = mock(Agent.class);
     private final Map<String, Agent> agents = Map.of("calendar", calendar, "finance", finance, "echo", echo);
     private final ObjectMapper json = new ObjectMapper();
 
-    private final IntentRouter router = new IntentRouter(agents, classifier, conversationState);
+    private final IntentRouter router =
+            new IntentRouter(agents, classifier, conversationState, explainResponder);
 
     private static NormalizedMessage msg() {
         return new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
@@ -171,6 +173,44 @@ class IntentRouterLockTest {
         assertThat(prior.getValue().originalText()).isEqualTo("запиши купить молоко");
         // …and the corrected route is itself recorded, so a further correction still works.
         verify(conversationState).recordLastRoute(any(), any(), eq("telegram"), eq("finance"), any());
+    }
+
+    @Test
+    void explainTurnAnswersFromPriorRouteWithoutDispatchingOrRecording() {
+        // Last turn routed a request to finance; now the owner asks "почему ты так сделал?".
+        when(conversationState.activeState(any(), any(), any()))
+                .thenReturn(Mono.just(lastRoutedTo("finance", "сколько я потратил на еду")));
+        when(classifier.classify(any(), any())).thenReturn(Mono.just("explain"));
+        when(explainResponder.explain(any(), any()))
+                .thenReturn(Mono.just(new IntentResponse("explain", "Это ушло финансовому агенту.", "m")));
+
+        StepVerifier.create(router.route(msg()))
+                .assertNext(r -> assertThat(r.agent()).isEqualTo("explain"))
+                .verifyComplete();
+
+        // Answered from the remembered prior route — no domain agent dispatched…
+        ArgumentCaptor<LlmIntentClassifier.PriorRoute> prior =
+                ArgumentCaptor.forClass(LlmIntentClassifier.PriorRoute.class);
+        verify(explainResponder).explain(any(), prior.capture());
+        assertThat(prior.getValue().agent()).isEqualTo("finance");
+        verify(finance, never()).handle(any());
+        // …and the meta-query does NOT overwrite last-route (a later correction still repairs the original).
+        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void explainWithoutPriorRouteFallsThroughToEcho() {
+        // No fresh prior route → an 'explain' outcome has nothing to explain; it degrades to echo.
+        when(conversationState.activeState(any(), any(), any())).thenReturn(Mono.empty());
+        when(classifier.classify(any(), isNull())).thenReturn(Mono.just("explain"));
+        when(echo.handle(any())).thenReturn(Mono.just(new IntentResponse("echo", "hi", "m")));
+
+        StepVerifier.create(router.route(msg()))
+                .assertNext(r -> assertThat(r.agent()).isEqualTo("echo"))
+                .verifyComplete();
+
+        verify(explainResponder, never()).explain(any(), any());
+        verify(echo).handle(any());
     }
 
     @Test
