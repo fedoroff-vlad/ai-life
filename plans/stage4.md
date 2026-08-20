@@ -232,6 +232,95 @@ like #485's board-store rollout); not G1, which would otherwise touch every agen
 - Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
   resumes that agent; explain is not consulted (same precedence as Track F).
 
+## Track H — CRUD/undo (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
+Daily-use completeness: the MVP domains are strong on *create/read* but daily use immediately needs
+**edit / delete / correct / undo** — and a wrong capture with no easy fix is worse than no capture. #486
+has **two halves**, shipped independently, smallest holes first:
+
+1. **The cross-cutting "отмени последнее / undo" primitive** (highest-leverage single item) — the last
+   *mutating* action per conversation is reversible with one phrase.
+2. **Per-domain edit/delete/correct holes** — each domain gains the missing lifecycle ops on its own
+   intent path (not the cross-cutting primitive).
+
+### H.1 — the undo primitive (mirror of Track F/G)
+The primitive is a **near-exact mirror of the misroute-repair (F) / why-trace (G) machinery** — same
+conversation-state substrate, same "reserved classifier outcome answered by the orchestrator, not
+dispatched" shape, same agent-led doctrine. It reuses the existing **C1 inter-agent `invoke` primitive**
+(`Agent.invoke` → `RemoteAgent` → the agent's `/actions/<action>`) for the reversal — **no new `Agent`
+interface method**.
+
+**Substrate:**
+- **conversation-state** already remembers `last_route` + `last_route_trace`. Add a sibling
+  **`last_mutation`** = `{ agent, undo_payload (JSONB, opaque), description }`. Unlike `last_route` (which
+  every fresh specialist turn overwrites), `last_mutation` is written **only by a terminal mutating write**
+  and cleared when undone — so a plain read/echo turn between the write and "отмени последнее" leaves it
+  intact. A short TTL guards staleness. The `undo_payload` is **internal** (holds the ids/inverse-op the
+  recording agent needs) and never surfaced; only `description` is user-facing.
+- an agent's **`IntentResponse` gains an optional undo handle** — mirror of `withTrace`: `withUndo(UndoHandle)`
+  where `UndoHandle = { description, action (JsonNode the agent reverses with) }`. An agent opts in on its
+  **terminal write path** only (reads / no-ops / deferrals / failures attach none → nothing to undo).
+- the **classifier gains a reserved `undo` outcome**, offered **only when a `last_mutation` exists** (a new
+  `Undoable` context passed into `classify`, mirroring `PriorRoute` — it carries the `description` so the
+  model recognises "отмени последнее / верни как было / нет, убери это" as an undo of *that* action).
+- the **orchestrator** (`IntentRouter`) records `resp.undo()` into `last_mutation` on a fresh terminal write,
+  and on the `undo` outcome dispatches the recording agent's `invoke("undo", payload)`, surfaces the agent's
+  confirmation (or its honest "это нельзя отменить"), then clears `last_mutation`. When nothing is recorded
+  it answers a deterministic "нечего отменять" instead of silently no-op'ing. `routeLock` still wins (an open
+  question resumes); an undo turn does **not** overwrite `last_route`.
+
+**Slices (≤5 files each):**
+- **H1** — storage half (orchestrator behaviour untouched, like #484 F1 / #485 G2a): conversation-service
+  remembers `last_mutation` (migration `012`: `last_mutation_{agent,payload,desc}` on
+  `core.conversation_state`) + `SetConversationStateRequest`/`ConversationStateDto` gain the nullable fields
+  + entity/service `recordLastMutation`/`clearMutation`. Proven by the conversation-service repository test.
+- **H2** — orchestrator wiring + primitive (primitive-then-rollout, like #485 G2b): `IntentResponse` gains
+  the `UndoHandle` + `withUndo`; `LlmIntentClassifier` gains the reserved `undo` outcome inside a new
+  `Undoable` block (offered only when a `last_mutation` is present); `IntentRouter` records the handle on a
+  fresh write, and on `undo` dispatches `invoke("undo", payload)` + surfaces the result + clears the handle,
+  with a deterministic "nothing to undo" reply. No agent produces a handle yet — proven by orchestrator unit
+  tests with a stub agent.
+- **H3** — first real producer + reversal: `tasks-agent`'s `task-capture` attaches `withUndo` on a
+  successful capture, and tasks-agent implements `/actions/undo` reversing via `mcp-tasks` (soft-delete the
+  just-captured task; add the `mcp-tasks` delete passthrough if absent). E2E: capture → "отмени последнее" →
+  task gone; a golden proves a real model emits the `undo` outcome. (Mirror #485 G2c.)
+- **H-rollout** — `withUndo` + `/actions/undo` extended to every user-facing write agent, one small PR each
+  (same cadence as the #485 G2-rollout): finance (delete the added transaction / restore the prior amount),
+  notes (delete the note / remove the just-added list item), calendar (cancel the just-created event). Each
+  reverses its own terminal write; agents with no reversible reply-path write attach none.
+
+### H.2 — per-domain edit/delete/correct holes (parallel line)
+Independent of the undo substrate: each domain fills its lifecycle holes on **its own** in-agent
+`SkillRouter` path (a new edit/delete skill + the `mcp-*` update/delete passthrough), gated by the
+**destructive-delete confirm** (reuses Track A's pending-action/`/resume` gate) — **not** the cross-cutting
+`undo` classifier outcome. Smallest / highest-daily-use holes first:
+- **finance** — edit/delete a logged expense; fix a mis-categorised or wrong-amount transaction
+  ("поменяй сумму последней траты на 1500", "удали трату про X").
+- **tasks** — delete/rename a task; move its state back; edit due/project.
+- **notes** — fix/delete a wrong note; rename/remove one list item (LI-a already has add/check/clear).
+- **calendar** — move/cancel an event via chat.
+Target resolution is by context ("последней", or by description) — **no id required**. A destructive delete
+confirms first and is itself undoable where feasible (soft-delete + restore).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **undo the last mutation.** WHEN the owner says "отмени последнее / верни как было" right after a
+  mutating write whose agent attached an undo handle → THEN the orchestrator dispatches the inverse to the
+  recording agent, the write is reversed, and it confirms — no id needed.
+- Scenario: **nothing to undo.** WHEN no fresh undoable mutation exists (none recorded, TTL elapsed, or the
+  last turn was a read) → THEN the assistant says there is nothing to undo (or classifies "отмени …" as its
+  real intent) — never a silent no-op.
+- Scenario: **irreversible action.** WHEN the last action is truly irreversible → THEN the assistant says so
+  honestly instead of pretending it undid something.
+- Scenario: **undo doesn't disturb routing state.** WHEN an undo turn is answered → THEN it does not overwrite
+  `last_route` (a later correction still repairs the original route) and clears only the consumed
+  `last_mutation`.
+- Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
+  resumes that agent; undo is not consulted (same precedence as F/G).
+- Scenario: **edit without an id.** WHEN the owner says "поменяй сумму последней траты на 1500 / удали задачу
+  про X / исправь заметку …" → THEN the domain resolves the target from context and applies the edit/delete,
+  confirming.
+- Scenario: **destructive delete confirms.** WHEN a delete is destructive → THEN it confirms first (reuses the
+  pending-action confirm gate) and is itself undoable where feasible (soft-delete + restore).
+
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
 - New domain agents (chef, researcher, stylist, creator, …) — **Stage 6+**. (creator may be pulled
