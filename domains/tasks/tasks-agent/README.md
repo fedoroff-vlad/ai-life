@@ -82,6 +82,10 @@ in dev/degraded environments.
   это личное или общее?" via `libs/sharing`'s `SharingConfirm` (returning a `pendingAction` so the
   orchestrator locks). The reply routes to `ResumeController` → `SharingConfirm.resume` → `finishCapture`,
   which captures the stashed task into the chosen household and records the answer as the learn signal.
+  **Why-trace (#485 / Track G2c — tasks is the reference producer):** a *successful* capture attaches a
+  payload-free `IntentResponse.trace` ("wrote: captured a task to the personal/shared list", no title) via
+  `CaptureResult.trace` → `IntentController` `withTrace`, so a later "почему ты так сделал" answer can name
+  what the agent did. A deferred/failed turn leaves it null (the explain answer falls back to routing-only).
 - `sharing/TasksSharingPolicy` — tasks' `DefaultSharingPolicy`: a household/shared-list task (chore,
   shared shopping, involves another member) defaults to the shared household, a personal todo to
   private. The only "what is shared here" logic tasks owns; the routing mechanism lives in `libs/sharing`.

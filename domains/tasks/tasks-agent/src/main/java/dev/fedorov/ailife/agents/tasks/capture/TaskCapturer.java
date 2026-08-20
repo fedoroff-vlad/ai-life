@@ -131,7 +131,8 @@ public class TaskCapturer {
     /** Capture a task under a resolved household and confirm; {@code shared} only shapes the reply text. */
     private Mono<CaptureResult> captureInto(UUID household, String title, String note, boolean shared, String model) {
         return tasks.add(new AddTaskInput(household, null, title, note, SOURCE))
-                .map(dto -> new CaptureResult(summary(dto.title(), shared), model));
+                .map(dto -> new CaptureResult(summary(dto.title(), shared), model, null,
+                        "wrote: captured a task to the " + (shared ? "shared" : "personal") + " list"));
     }
 
     /** Build the deferred "личное или общее?" ask, stashing the plan so {@link #finishCapture} can capture it. */
@@ -208,13 +209,20 @@ public class TaskCapturer {
     }
 
     /**
-     * The chat reply (a short confirmation) plus the model that produced the plan, and an optional
+     * The chat reply (a short confirmation) plus the model that produced the plan, an optional
      * {@code pendingAction} — non-null when the capture was deferred to ask "личное или общее?" (DS-N), which
-     * {@code IntentController} threads into the {@code IntentResponse} so the orchestrator locks the conversation.
+     * {@code IntentController} threads into the {@code IntentResponse} so the orchestrator locks the conversation
+     * — and an optional payload-free {@code trace} of what was written (why-trace #485/G2c), set only on a
+     * terminal successful capture (a deferred/failed turn leaves it null → the explain answer falls back to
+     * the routing-only trace).
      */
-    public record CaptureResult(String text, String model, JsonNode pendingAction) {
+    public record CaptureResult(String text, String model, JsonNode pendingAction, String trace) {
         public CaptureResult(String text, String model) {
-            this(text, model, null);
+            this(text, model, null, null);
+        }
+
+        public CaptureResult(String text, String model, JsonNode pendingAction) {
+            this(text, model, pendingAction, null);
         }
     }
 }
