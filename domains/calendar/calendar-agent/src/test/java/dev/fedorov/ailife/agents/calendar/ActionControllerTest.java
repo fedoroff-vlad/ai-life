@@ -218,6 +218,69 @@ class ActionControllerTest {
     }
 
     @Test
+    void endBeforeStartIsRejected() {
+        // Sanity spot-check (#485): an event that ends at-or-before it starts is impossible → ok=false,
+        // rejected before any mcp-caldav call (no response enqueued).
+        var args = json.createObjectNode()
+                .put("summary", "Broken slot")
+                .put("dtstart", "2026-07-01T15:00:00Z")
+                .put("dtend", "2026-07-01T14:00:00Z");
+        var req = new AgentActionRequest("calendar", "create_event", UUID.randomUUID(), null, "tasks", args);
+
+        http.post().uri("/agents/calendar/actions/create_event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isFalse();
+                    assertThat(res.error()).contains("end must be after start");
+                });
+    }
+
+    @Test
+    void overlappingEventIsFlaggedAsADoubleBookingWarning() throws Exception {
+        UUID household = UUID.randomUUID();
+        // 1) the create returns the new event, 2) the double-booking read returns an overlapping one.
+        var created = new CalendarEventDto(
+                UUID.randomUUID(), household, "ours", "uid-new", "Team sync",
+                null, null, Instant.parse("2026-07-01T10:00:00Z"),
+                Instant.parse("2026-07-01T11:00:00Z"), null, List.of(), null);
+        mcpCaldav.enqueue(new MockResponse().setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(created)));
+        var existing = new CalendarEventDto(
+                UUID.randomUUID(), household, "ours", "uid-existing", "Стоматолог",
+                null, null, Instant.parse("2026-07-01T10:30:00Z"),
+                Instant.parse("2026-07-01T11:15:00Z"), null, List.of(), null);
+        mcpCaldav.enqueue(new MockResponse().setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(List.of(existing))));
+
+        var args = json.createObjectNode()
+                .put("summary", "Team sync")
+                .put("dtstart", "2026-07-01T10:00:00Z")
+                .put("dtend", "2026-07-01T11:00:00Z");
+        // userId null → no profile-routing call; the envelope household is used directly.
+        var req = new AgentActionRequest("calendar", "create_event", household, null, "tasks", args);
+
+        http.post().uri("/agents/calendar/actions/create_event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("eventUid").asString()).isEqualTo("uid-new");
+                    assertThat(res.result().get("warning").asString())
+                            .contains("⚠️").contains("пересекается").contains("Стоматолог");
+                });
+
+        assertThat(mcpCaldav.takeRequest().getPath()).isEqualTo("/internal/event");        // create
+        assertThat(mcpCaldav.takeRequest().getPath()).startsWith("/internal/events");       // overlap read
+    }
+
+    @Test
     void unknownActionReturnsErrorResult() {
         var req = new AgentActionRequest("calendar", "frobnicate", UUID.randomUUID(), null, "tasks", null);
         http.post().uri("/agents/calendar/actions/frobnicate")
