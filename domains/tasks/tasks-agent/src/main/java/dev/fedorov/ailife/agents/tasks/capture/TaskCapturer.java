@@ -8,6 +8,8 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.tasks.http.AddTaskClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.UndoHandle;
+import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -132,7 +134,19 @@ public class TaskCapturer {
     private Mono<CaptureResult> captureInto(UUID household, String title, String note, boolean shared, String model) {
         return tasks.add(new AddTaskInput(household, null, title, note, SOURCE))
                 .map(dto -> new CaptureResult(summary(dto.title(), shared), model, null,
-                        "wrote: captured a task to the " + (shared ? "shared" : "personal") + " list"));
+                        "wrote: captured a task to the " + (shared ? "shared" : "personal") + " list",
+                        undoHandle(dto)));
+    }
+
+    /**
+     * The undo handle for a just-captured task (#486 / Track H — tasks is the reference producer): a
+     * user-facing description + the opaque task id the {@code /actions/undo} reversal deletes by. Lets the
+     * owner say "отмени последнее" to remove a mis-capture with no id.
+     */
+    private UndoHandle undoHandle(TaskItemDto dto) {
+        ObjectNode action = json.createObjectNode();
+        action.put("taskId", dto.id().toString());
+        return new UndoHandle("задачу «" + dto.title() + "»", action);
     }
 
     /** Build the deferred "личное или общее?" ask, stashing the plan so {@link #finishCapture} can capture it. */
@@ -212,17 +226,21 @@ public class TaskCapturer {
      * The chat reply (a short confirmation) plus the model that produced the plan, an optional
      * {@code pendingAction} — non-null when the capture was deferred to ask "личное или общее?" (DS-N), which
      * {@code IntentController} threads into the {@code IntentResponse} so the orchestrator locks the conversation
-     * — and an optional payload-free {@code trace} of what was written (why-trace #485/G2c), set only on a
-     * terminal successful capture (a deferred/failed turn leaves it null → the explain answer falls back to
-     * the routing-only trace).
+     * — an optional payload-free {@code trace} of what was written (why-trace #485/G2c), and an optional
+     * {@code undo} handle (#486/H3b) — both set only on a terminal successful capture (a deferred/failed turn
+     * leaves them null → the explain answer falls back to routing-only, and there is nothing to undo).
      */
-    public record CaptureResult(String text, String model, JsonNode pendingAction, String trace) {
+    public record CaptureResult(String text, String model, JsonNode pendingAction, String trace, UndoHandle undo) {
         public CaptureResult(String text, String model) {
-            this(text, model, null, null);
+            this(text, model, null, null, null);
         }
 
         public CaptureResult(String text, String model, JsonNode pendingAction) {
-            this(text, model, pendingAction, null);
+            this(text, model, pendingAction, null, null);
+        }
+
+        public CaptureResult(String text, String model, JsonNode pendingAction, String trace) {
+            this(text, model, pendingAction, trace, null);
         }
     }
 }

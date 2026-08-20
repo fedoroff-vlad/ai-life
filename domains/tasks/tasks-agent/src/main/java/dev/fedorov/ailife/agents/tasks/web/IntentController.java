@@ -58,7 +58,8 @@ public class IntentController {
                         return taskCapturer.capture(message)
                                 .map(c -> new IntentResponse(
                                         manifest.name(), c.text(), c.model(), c.pendingAction())
-                                        .withTrace(c.trace()));
+                                        .withTrace(c.trace())
+                                        .withUndo(c.undo()));
                     }
                     return Mono.just(new IntentResponse(manifest.name(), r.text(), r.llmModel()));
                 });

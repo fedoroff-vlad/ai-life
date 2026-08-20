@@ -20,10 +20,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   (first real producer = tasks) split in two:** **H3a ✅ (reversal side)** — mcp-tasks `DELETE
   /internal/task/{id}` passthrough + tasks-agent `DeleteTaskClient` + a `web/ActionController` registering the
   `undo` action (reverse a captured task by deleting it, honest `ok=false` when already gone); proven by
-  `ActionControllerTest` + a DELETE case in `McpTasksIntegrationTest`. **NEXT slice: H3b (producer side)** —
-  `TaskCapturer` attaches `withUndo` on a successful capture (the created task id) + `IntentController`
-  threads it onto the `IntentResponse`, + a classifier `GoldenUndoTest`. Epic queue →
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  `ActionControllerTest` + a DELETE case in `McpTasksIntegrationTest`. **H3b ✅ (producer side)** —
+  `TaskCapturer` attaches an `UndoHandle` (task title + created id) on a successful capture via
+  `CaptureResult.undo` → `IntentController` `.withUndo`; deferred/failed turns leave it null. Proven by
+  `TaskCapturerTest` (handle present on capture / null on the deferred ask) + a real-model `GoldenUndoTest`
+  (opt-in). **The undo primitive is now end-to-end on tasks: capture → "отмени последнее" → task gone.**
+  **NEXT slice: H-rollout** — extend `withUndo` + `/actions/undo` to the next write agent (finance:
+  delete the added transaction / restore prior amount), one small PR each (notes, calendar follow). Then the
+  per-domain **H.2 edit/delete holes**. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

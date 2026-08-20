@@ -86,8 +86,9 @@ class TaskCapturerTest {
         // household-routing: the user's personal + one shared household.
         profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
                 + "\",\"sharedHouseholdIds\":[\"" + sharedHh + "\"]}"));
-        // The captured task echoes back.
-        mcpTasks.enqueue(jsonResponse(json.writeValueAsString(inboxItem(personalHh, "позвонить врачу"))));
+        // The captured task echoes back (with the id the undo handle must reference).
+        TaskItemDto captured = inboxItem(personalHh, "позвонить врачу");
+        mcpTasks.enqueue(jsonResponse(json.writeValueAsString(captured)));
 
         var msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
                 "напомни позвонить врачу", List.of(), "telegram", "1", Instant.now());
@@ -99,6 +100,10 @@ class TaskCapturerTest {
         assertThat(result.model()).isEqualTo("mock-large");
         // why-trace (#485/G2c): a successful capture carries a payload-free "what I wrote" line (no title).
         assertThat(result.trace()).isEqualTo("wrote: captured a task to the personal list");
+        // undo (#486/H3b): a successful capture carries an undo handle naming the task + its id to delete.
+        assertThat(result.undo()).isNotNull();
+        assertThat(result.undo().description()).contains("позвонить врачу");
+        assertThat(result.undo().action().path("taskId").asString()).isEqualTo(captured.id().toString());
 
         // Routing split was read for the acting user.
         RecordedRequest routing = profileService.takeRequest(2, TimeUnit.SECONDS);
@@ -185,8 +190,10 @@ class TaskCapturerTest {
         assertThat(result.pendingAction()).isNotNull();
         assertThat(result.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
         assertThat(mcpTasks.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
-        // Nothing was written yet → no why-trace to fold in (falls back to the routing-only answer).
+        // Nothing was written yet → no why-trace to fold in (falls back to the routing-only answer),
+        // and nothing to undo.
         assertThat(result.trace()).isNull();
+        assertThat(result.undo()).isNull();
     }
 
     @Test
