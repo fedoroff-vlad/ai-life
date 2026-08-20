@@ -87,6 +87,10 @@ in dev/degraded environments.
   payload-free `IntentResponse.trace` ("wrote: captured a task to the personal/shared list", no title) via
   `CaptureResult.trace` → `IntentController` `withTrace`, so a later "почему ты так сделал" answer can name
   what the agent did. A deferred/failed turn leaves it null (the explain answer falls back to routing-only).
+  **Undo (#486 / Track H3b — tasks is the reference producer):** a *successful* capture also attaches an
+  `IntentResponse.undo` handle (`UndoHandle` = "задачу «<title>»" + the created task id) via `CaptureResult.undo`
+  → `IntentController` `withUndo`, so "отмени последнее" reverses it (the orchestrator dispatches it back to
+  `/actions/undo` → `ActionController` → `DeleteTaskClient`). A deferred/failed turn leaves it null.
 - `sharing/TasksSharingPolicy` — tasks' `DefaultSharingPolicy`: a household/shared-list task (chore,
   shared shopping, involves another member) defaults to the shared household, a personal todo to
   private. The only "what is shared here" logic tasks owns; the routing mechanism lives in `libs/sharing`.
