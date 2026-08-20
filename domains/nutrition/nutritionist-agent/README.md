@@ -106,9 +106,11 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
   `profile/notifier/memory` qualified beans back the shared runtime clients.
 - `chat/NutritionistChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `foodlog/FoodLogger` — the food-log flow: photo → caption / typed → LLM extract, both via the
-  `meal-logger` SKILL, write-immediately to `/internal/meal` (attributed to the sender).
+  `meal-logger` SKILL, write-immediately to `/internal/meal` (attributed to the sender). On a successful
+  write it attaches a payload-free `IntentResponse.trace` "wrote: logged a meal" (why-trace #485/G2).
 - `profile/DietProfiler` — the diet-profile flow: typed goals/restrictions → LLM extract via the
-  `diet-profiler` SKILL → upsert via `/internal/diet-profile` (self or household-default).
+  `diet-profiler` SKILL → upsert via `/internal/diet-profile` (self or household-default). A successful
+  write attaches `IntentResponse.trace` "wrote: updated the diet profile" (why-trace #485/G2).
 - `analysis/NutritionAnalyst` — the nutrition-analysis flow: gather recent meals + diet profile on
   the shared `Coordinator` → one LLM synthesis via the `nutrition-analyst` SKILL → render HTML via
   the shared `libs/doc-render` → store in media-service → reply with a link.

@@ -108,7 +108,10 @@ public class FoodLogger {
                 draft.carbsG(),
                 imageMediaId);
         return meals.log(input)
-                .map(saved -> reply(successText(saved.description(), saved.kcal()), model))
+                // why-trace (#485/G2): a logged meal is a write — a payload-free "what I did" line (no dish
+                // name / KБЖУ) for a later "почему ты так сделал" answer. Shared by the text + photo paths.
+                .map(saved -> reply(successText(saved.description(), saved.kcal()), model)
+                        .withTrace("wrote: logged a meal"))
                 .onErrorResume(e -> {
                     log.warn("log_meal write failed: {}", e.toString());
                     return Mono.just(reply("Не смог сохранить приём пищи. Попробуйте позже.", null));
