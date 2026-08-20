@@ -76,6 +76,7 @@ class ListManagerTest {
 
         IntentResponse resp = post(msg(household, user, "добавь молоко в список покупок"));
         assertThat(resp.text()).contains("Создал список").contains("молоко");
+        assertThat(resp.trace()).isEqualTo("wrote: created a list and added an item");   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(memoryService.takeRequest(2, TimeUnit.SECONDS).getPath()).startsWith("/v1/notes?");
@@ -99,6 +100,7 @@ class ListManagerTest {
 
         IntentResponse resp = post(msg(household, user, "добавь хлеб в список покупок"));
         assertThat(resp.text()).contains("Добавил").contains("хлеб");
+        assertThat(resp.trace()).isEqualTo("wrote: added an item to a list");   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(memoryService.takeRequest(2, TimeUnit.SECONDS).getPath()).startsWith("/v1/notes?");
@@ -119,6 +121,7 @@ class ListManagerTest {
 
         IntentResponse resp = post(msg(household, user, "добавь молоко в список покупок"));
         assertThat(resp.text()).contains("уже в списке");
+        assertThat(resp.trace()).as("a no-op add wrote nothing → no trace").isNull();   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(memoryService.takeRequest(2, TimeUnit.SECONDS).getPath()).startsWith("/v1/notes?");
@@ -140,6 +143,7 @@ class ListManagerTest {
 
         IntentResponse resp = post(msg(household, user, "вычеркни яйца из списка покупок"));
         assertThat(resp.text()).contains("Вычеркнул").contains("яйца");
+        assertThat(resp.trace()).isEqualTo("wrote: checked off a list item");   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         memoryService.takeRequest(2, TimeUnit.SECONDS);   // GET list
@@ -159,6 +163,7 @@ class ListManagerTest {
 
         IntentResponse resp = post(msg(household, user, "покажи список покупок"));
         assertThat(resp.text()).contains("молоко").contains("яйца").contains("✅");
+        assertThat(resp.trace()).as("show is a read → no write trace").isNull();   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);
         assertThat(memoryService.takeRequest(2, TimeUnit.SECONDS).getPath()).startsWith("/v1/notes?");

@@ -84,7 +84,9 @@ public class NoteWriter {
                     // + best-effort + off the reply path — the note is already saved, so a scheduler blip
                     // never affects the confirmation.
                     scheduler.ensureResurfaceSchedule(msg.householdId()).subscribe();
-                    return reply(successText(saved.title()), model);
+                    // why-trace (#485/G2): a successful capture is a write — a payload-free "what I did" line
+                    // (no title) so a later "почему ты так сделал" answer can say the note was saved.
+                    return reply(successText(saved.title()), model).withTrace("wrote: saved a note");
                 })
                 .onErrorResume(e -> {
                     log.warn("create note failed: {}", e.toString());
