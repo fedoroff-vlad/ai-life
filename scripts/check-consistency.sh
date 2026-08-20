@@ -112,11 +112,13 @@ fi
 # live in libs/, not scanned) so a hit is unambiguously an agent-side copy.
 # ALLOWLIST: a deliberate cross-domain DOMAIN read (not a capability) that legitimately hits another
 # domain's /internal endpoint — prefer an inter-agent action over the hub, but until then list it here
-# with a why so the guard stays green and still catches real capability copies. Empty today: briefing's
-# old direct finance read (`/internal/spending-by-category`) was moved onto finance-agent's
-# `spend_snapshot` hub action, so no cross-domain /internal read remains.
+# with a why so the guard stays green and still catches real capability copies.
+# - /internal/events — mcp-caldav's calendar-DOMAIN read (not a capability, so nothing to lift into
+#   agent-runtime). calendar-agent reads its OWN domain-MCP for the create_event double-booking sanity
+#   check (#485); briefing-agent reads it cross-domain for the morning digest's calendar section (could
+#   later move onto a calendar `brief`/hub action, like finance's spend read did).
 echo "check 5: capability /internal/* passthrough clients are shared, not per-agent copies"
-ALLOWLIST_URIS=""
+ALLOWLIST_URIS="/internal/events"
 dupes="$(
   for d in domains/*/*-agent; do
     [ -d "$d/src/main" ] || continue
