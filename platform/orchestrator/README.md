@@ -54,6 +54,19 @@ orchestrator persists it as `last_route_trace` and `ExplainResponder` folds it i
 no trace falls back to the routing-only answer (G1). Agents opt in per-agent (`IntentResponse.withTrace`);
 those that haven't yet are unaffected. See [plans/stage4.md](../../plans/stage4.md) §Track G.
 
+**"Отмени последнее" undo (road-test #486, Track H):** an agent's terminal write can attach an
+`IntentResponse.undo` handle (`UndoHandle` = user-facing `description` + opaque internal `action`); the
+orchestrator remembers it as the conversation's `last_mutation` (via `recordLastRoute`, carried **forward**
+across a plain read turn so it survives until consumed). When a turn asks to undo/cancel/revert ("отмени
+последнее", "верни как было"), the classifier returns the reserved `undo` outcome — offered **only** while a
+`last_mutation` exists — and the orchestrator reverses it by dispatching the stored `action` as an `undo`
+inter-agent action to the recording agent's `/actions/undo` (the C1 `invoke` primitive), then surfaces that
+agent's confirmation and clears **only** the consumed mutation (last-route preserved). An honest "нельзя
+отменить" (`AgentActionResult.error`) leaves the mutation in place — never a silent no-op. No `last_mutation`
+→ `undo` is never offered, so "отмени последнее" classifies normally. Agents opt in per-agent
+(`IntentResponse.withUndo` + an `/actions/undo` handler); those that haven't yet are unaffected. See
+[plans/stage4.md](../../plans/stage4.md) §Track H.
+
 **Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
 that captures any *actionable* message matching no specialized domain — the GTD
 "anything not calendar/finance → inbox" fallback. When set to a registered agent the

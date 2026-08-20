@@ -82,20 +82,25 @@ public class ConversationStateClient {
     }
 
     /**
-     * Record the agent a fresh message was routed to plus its text (misroute-repair #484) and an optional
-     * payload-free {@code trace} of what that agent read/wrote (why-trace #485 / Track G), with a short
-     * correction-window TTL and no lock. Consulted while classifying the next turn. Soft-fail → completes
-     * empty (a lost last-route just means the next correction classifies normally / the explain answer
-     * falls back to the routing-only trace).
+     * Record the conversation "tail" of a fresh (unlocked) turn — the agent it was routed to + its text
+     * (misroute-repair #484) and an optional payload-free {@code trace} of what that agent read/wrote
+     * (why-trace #485 / Track G) — <b>together with</b> the last-mutation group ({@code mutAgent} /
+     * {@code mutPayload} / {@code mutDesc}) that backs undo (#486 / Track H), under a short correction-window
+     * TTL and no lock. Both groups ride one clobber-all upsert, so the caller passes the mutation it wants
+     * to persist (its own fresh {@code UndoHandle}, or the prior mutation carried forward across a read turn,
+     * or nulls to clear it). Consulted while classifying the next turn. Soft-fail → completes empty (a lost
+     * tail just means the next correction/undo classifies normally).
      */
     public Mono<Void> recordLastRoute(UUID householdId, UUID userId, String channel,
-                                      String agent, String text, String trace) {
+                                      String agent, String text, String trace,
+                                      String mutAgent, JsonNode mutPayload, String mutDesc) {
         if (!props.isEnabled() || householdId == null || userId == null
                 || channel == null || channel.isBlank()) {
             return Mono.empty();
         }
         var req = new SetConversationStateRequest(
                 householdId, userId, channel, null, null, agent, text, trace,
+                mutAgent, mutPayload, mutDesc,
                 props.getCorrectionWindowSeconds());
         return http.put()
                 .uri("/v1/conversation-state")
