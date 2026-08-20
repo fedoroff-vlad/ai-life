@@ -38,6 +38,12 @@ import java.util.Map;
  * prior route as context and routes to the corrected intent. A correction that lands on a different agent
  * is logged as a routing-quality signal. {@code routeLock} still wins — an open question resumes and
  * last-route is not consulted.
+ *
+ * <p><b>"Why did you do that" trace (road-test #485, Track G):</b> when the classifier returns the reserved
+ * {@code explain} outcome (a "почему ты так сделал" meta-query, only offered while a prior route exists),
+ * the router answers it via {@link ExplainResponder} from the remembered last-route instead of dispatching
+ * to a domain agent — and does <em>not</em> overwrite last-route, so a later correction still repairs the
+ * original route.
  */
 @Component
 public class IntentRouter {
@@ -48,13 +54,16 @@ public class IntentRouter {
     private final Map<String, Agent> agents;
     private final LlmIntentClassifier classifier;
     private final ConversationStateClient conversationState;
+    private final ExplainResponder explainResponder;
 
     public IntentRouter(@Qualifier("agentDispatch") Map<String, Agent> agents,
                         LlmIntentClassifier classifier,
-                        ConversationStateClient conversationState) {
+                        ConversationStateClient conversationState,
+                        ExplainResponder explainResponder) {
         this.agents = agents;
         this.classifier = classifier;
         this.conversationState = conversationState;
+        this.explainResponder = explainResponder;
     }
 
     public Mono<IntentResponse> route(NormalizedMessage message) {
@@ -89,6 +98,16 @@ public class IntentRouter {
                                                      LlmIntentClassifier.PriorRoute priorRoute) {
         return classifier.classify(message, priorRoute)
                 .flatMap(name -> {
+                    // "Why did you do that" (Track G, #485): a meta-query about the prior route is answered
+                    // from the remembered last-route, not dispatched. It leaves last_route untouched so a
+                    // later correction still repairs the ORIGINAL route. If 'explain' ever surfaces without a
+                    // prior route (it shouldn't — only offered inside the PriorRoute block), fall through to
+                    // normal dispatch, where 'explain' is an unknown agent → echo.
+                    if (ExplainResponder.EXPLAIN.equals(name) && priorRoute != null) {
+                        log.debug("explain trace for userId={} prior_agent={}",
+                                message.userId(), priorRoute.agent());
+                        return explainResponder.explain(message, priorRoute);
+                    }
                     Agent target = agents.getOrDefault(name, agents.get(ECHO));
                     log.debug("routed userId={} to agent={}", message.userId(), target.id());
                     logCorrection(priorRoute, target.id(), message);
