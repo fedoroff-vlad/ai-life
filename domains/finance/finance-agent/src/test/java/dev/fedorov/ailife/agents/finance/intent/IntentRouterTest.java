@@ -132,6 +132,39 @@ class IntentRouterTest {
     }
 
     @Test
+    void addTransactionToolContributesAWriteTraceForTheWhyAnswer() {
+        // A successful add_transaction is a WRITE → it carries a payload-free why-trace (#485/G2c-rollout).
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("add_transaction", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"tool\",\"name\":\"add_transaction\",\"args\":{\"amount\":-500}}")));
+        when(dispatcher.dispatch(eq("add_transaction"), eq("{\"amount\":-500}")))
+                .thenReturn("{\"id\":\"t1\"}");
+
+        StepVerifier.create(router.route(msg("потратил 500 на кофе")))
+                .assertNext(r -> {
+                    assertThat(r.invokedTool()).isEqualTo("add_transaction");
+                    assertThat(r.trace()).isEqualTo("wrote: recorded a transaction");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void aReadToolCarriesNoWriteTrace() {
+        // list_transactions is a read → no write trace (the explain answer falls back to routing-only).
+        when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("list_transactions", "x")));
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
+                "{\"action\":\"tool\",\"name\":\"list_transactions\",\"args\":{}}")));
+        when(dispatcher.dispatch(eq("list_transactions"), eq("{}"))).thenReturn("[]");
+
+        StepVerifier.create(router.route(msg("покажи последние траты")))
+                .assertNext(r -> {
+                    assertThat(r.invokedTool()).isEqualTo("list_transactions");
+                    assertThat(r.trace()).isNull();
+                })
+                .verifyComplete();
+    }
+
+    @Test
     void llmPicksChatAndTextFieldPropagatesVerbatim() {
         when(dispatcher.availableToolDefinitions()).thenReturn(List.of(toolDef("import_moneypro_csv", "x")));
         when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(reply("mock-large",
@@ -196,6 +229,7 @@ class IntentRouterTest {
                 .assertNext(r -> {
                     assertThat(r.text()).isEqualTo("Больше всего ушло на еду: 300 EUR.");
                     assertThat(r.invokedTool()).isEqualTo("advice");
+                    assertThat(r.trace()).as("a read flow contributes no write trace").isNull();
                     assertThat(r.llmModel()).isEqualTo("mock-large");
                 })
                 .verifyComplete();
@@ -319,6 +353,7 @@ class IntentRouterTest {
                 .assertNext(r -> {
                     assertThat(r.text()).contains("Кофейни");
                     assertThat(r.invokedTool()).isEqualTo("category");
+                    assertThat(r.trace()).isEqualTo("wrote: updated your spending categories");
                     assertThat(r.llmModel()).isEqualTo("mock-large");
                 })
                 .verifyComplete();
@@ -341,6 +376,7 @@ class IntentRouterTest {
                 .assertNext(r -> {
                     assertThat(r.text()).contains("Тинькофф");
                     assertThat(r.invokedTool()).isEqualTo("account");
+                    assertThat(r.trace()).isEqualTo("wrote: created a finance account");
                     assertThat(r.llmModel()).isEqualTo("mock-large");
                 })
                 .verifyComplete();

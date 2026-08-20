@@ -122,11 +122,14 @@ public class IntentRouter {
                             : monthlyReporter.report(msg, shared).map(r -> new RouterResult(r.text(), "report", r.model()));
                 },
                 "category", (msg, node) -> categoryManager.manage(msg)
-                        .map(r -> new RouterResult(r.text(), "category", r.model())),
+                        .map(r -> new RouterResult(r.text(), "category", r.model(), null,
+                                "wrote: updated your spending categories")),
                 // The account flow may defer + ask "личное или общее?" (item 8, DS-N): thread its
                 // pendingAction through so the orchestrator locks the conversation to finance /resume.
+                // A non-deferred (pendingAction == null) create actually wrote → a why-trace; a defer none.
                 "account", (msg, node) -> accountManager.create(msg)
-                        .map(r -> new RouterResult(r.text(), "account", r.model(), r.pendingAction())));
+                        .map(r -> new RouterResult(r.text(), "account", r.model(), r.pendingAction(),
+                                r.pendingAction() == null ? "wrote: created a finance account" : null)));
     }
 
     public Mono<RouterResult> route(NormalizedMessage msg) {
@@ -169,13 +172,25 @@ public class IntentRouter {
         // ToolCallback.call is blocking (SSE under the hood) — same handling as InternalToolsController.
         return Mono.fromCallable(() -> dispatcher.dispatch(name, argsJson))
                 .subscribeOn(Schedulers.boundedElastic())
-                .map(result -> new RouterResult(result, name, llmModel))
+                // A successful WRITE tool contributes a payload-free why-trace (#485/G2); reads/failures none.
+                .map(result -> new RouterResult(result, name, llmModel, null, writeToolTrace(name)))
                 .onErrorResume(e -> {
                     log.warn("tool dispatch failed for {}: {}", name, e.toString());
                     return Mono.just(new RouterResult(
                             "Не удалось вызвать инструмент «" + name + "»: " + e.getMessage(),
                             name, llmModel));
                 });
+    }
+
+    /**
+     * The payload-free why-trace for a successful WRITE tool, or null for a read/unknown tool (#485/G2).
+     * Only the writing MCP tools finance routes to directly get one; the rest carry no trace, so the
+     * explain answer falls back to the routing-only line.
+     */
+    private static String writeToolTrace(String toolName) {
+        // Only add_transaction is an unconditional write. import_moneypro_csv has a dry-run mode (writes
+        // nothing), so a coarse tool-name trace would lie there — left out on purpose.
+        return "add_transaction".equals(toolName) ? "wrote: recorded a transaction" : null;
     }
 
     /** Map the wired MCP tools to the classifier's domain-agnostic {@link ToolSpec}s at the call site. */
@@ -299,12 +314,24 @@ public class IntentRouter {
      *   общее?"); {@link IntentController} threads it into the {@code
      *   IntentResponse} so the orchestrator route-locks the conversation. Null
      *   for every other outcome.</li>
+     *   <li>{@code trace} — optional payload-free "what I wrote" line for the
+     *   "why did you do that" answer (#485 / Track G2). Set only on a terminal
+     *   WRITE outcome (a recorded transaction, a created account, a category
+     *   change); null for reads (advice/report/invest), chat, deferrals, and
+     *   failures. {@link IntentController} threads it via
+     *   {@code IntentResponse.withTrace}.</li>
      * </ul>
      */
-    public record RouterResult(String text, String invokedTool, String llmModel, JsonNode pendingAction) {
-        /** Back-compat for the common "no pending action" outcome (tool / chat / non-deferring flows). */
+    public record RouterResult(String text, String invokedTool, String llmModel, JsonNode pendingAction,
+                               String trace) {
+        /** Back-compat for the common "no pending action" outcome (tool / chat / non-deferring reads). */
         public RouterResult(String text, String invokedTool, String llmModel) {
-            this(text, invokedTool, llmModel, null);
+            this(text, invokedTool, llmModel, null, null);
+        }
+
+        /** Back-compat for a deferring flow (pending action, no write trace yet). */
+        public RouterResult(String text, String invokedTool, String llmModel, JsonNode pendingAction) {
+            this(text, invokedTool, llmModel, pendingAction, null);
         }
     }
 }

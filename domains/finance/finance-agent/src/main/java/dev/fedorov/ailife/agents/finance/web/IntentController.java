@@ -68,7 +68,10 @@ public class IntentController {
         return router.route(message)
                 // pendingAction is non-null only when a flow deferred to ask (item 8, DS-N — the account
                 // flow's "личное или общее?"); it locks the conversation to finance /resume.
-                .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel(), r.pendingAction()));
+                // trace is a payload-free "what I wrote" line on a terminal write (#485/G2), for the
+                // orchestrator's "почему ты так сделал" answer; null (→ routing-only) for reads/chat/defer.
+                .map(r -> new IntentResponse(manifest.name(), r.text(), r.llmModel(), r.pendingAction())
+                        .withTrace(r.trace()));
     }
 
     private static Optional<Attachment> attachment(NormalizedMessage message, String kind) {
