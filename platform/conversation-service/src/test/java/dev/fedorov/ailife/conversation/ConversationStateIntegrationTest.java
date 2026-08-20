@@ -96,6 +96,29 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void lastMutationRoundTripsWithItsOpaquePayload() {
+        UUID user = UUID.randomUUID();
+        // A terminal write records the last mutation so "отмени последнее" can reverse it (#486/H1):
+        // an agent, an opaque internal handle to reverse with, and a short user-facing description.
+        ObjectNode undo = json.createObjectNode();
+        undo.put("action", "delete_task");
+        undo.put("taskId", "t-123");
+        ConversationStateDto set = service.set(new SetConversationStateRequest(
+                householdId, user, "telegram", null, null, null, null, null,
+                "tasks", undo, "задачу «купить молоко»", 600L));
+        assertThat(set.lastMutationAgent()).isEqualTo("tasks");
+        assertThat(set.lastMutationPayload().path("taskId").asString()).isEqualTo("t-123");
+        assertThat(set.lastMutationDesc()).isEqualTo("задачу «купить молоко»");
+
+        assertThat(service.getActive(householdId, user, "telegram"))
+                .get().satisfies(s -> {
+                    assertThat(s.lastMutationAgent()).isEqualTo("tasks");
+                    assertThat(s.lastMutationPayload().path("action").asString()).isEqualTo("delete_task");
+                    assertThat(s.lastMutationDesc()).isEqualTo("задачу «купить молоко»");
+                });
+    }
+
+    @Test
     void expiredStateIsNotReturned() {
         UUID user = UUID.randomUUID();
         // ttl in the past → already expired on read.

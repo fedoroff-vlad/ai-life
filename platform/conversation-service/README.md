@@ -30,6 +30,18 @@ wrote). It rides the same row + TTL as last-route; the orchestrator folds it int
 сделал" answer. Storage only here — the orchestrator wiring + the per-agent trace contribution land in the
 G2 orchestrator/agent slices; a turn that carries no trace simply leaves it null.
 
+**last-mutation (CRUD/undo #486 / Track H):** a separate group — `lastMutationAgent` +
+`lastMutationPayload` (jsonb, opaque) + `lastMutationDesc` — records the last *mutating* action so
+"отмени последнее" can reverse it. `lastMutationAgent` is the agent that performed the write,
+`lastMutationPayload` is the internal handle it reverses with (ids / inverse-op — **never surfaced**),
+`lastMutationDesc` is the short user-facing line ("добавленную трату 1500 ₽"). Unlike last-route (which
+every fresh specialist turn overwrites), last-mutation is written only by a terminal write and cleared
+when undone, so a plain read turn between the write and the undo leaves it intact — the orchestrator
+carries the untouched group forward on other writes (the `set` upsert is clobber-all: a field left null
+clears it). Storage only here; the reserved `undo` classifier outcome + the agent-led reversal land in the
+H2 orchestrator slice + the per-agent H3/H-rollout slices. All null when the conversation has no undoable
+mutation.
+
 **Consumers:** the **orchestrator** reads the lock before classifying and clears it after a resolved
 resume (`IntentRouter`); agents (**tasks-agent** inbox-clarify, **notes-agent** ambient-approve) set a
 `pendingAction` on their reply so the orchestrator locks. **memory-service also sets a lock out-of-band**
@@ -63,7 +75,8 @@ Expiry is enforced on read (a stale lock reads as absent); no sweeper needed for
 - `ConversationServiceApplication`.
 - `domain/ConversationState` + `ConversationStateRepository` — JPA over `core.conversation_state`
   (unique on `(household_id, user_id, channel)`; `pending_action` is `jsonb`; `last_route_agent` /
-  `last_route_text` back misroute-repair; `last_route_trace` backs the why-trace #485/G2).
+  `last_route_text` back misroute-repair; `last_route_trace` backs the why-trace #485/G2;
+  `last_mutation_{agent,payload,desc}` back the CRUD/undo primitive #486/H1).
 - `domain/ConversationStateService` — `set` (upsert + TTL), `getActive` (unexpired only),
   `clear`. Expiry checked on read.
 - `web/ConversationStateController` — the REST surface above.
@@ -77,3 +90,5 @@ Expiry is enforced on read (a stale lock reads as absent); no sweeper needed for
   adds `last_route_agent` / `last_route_text` (misroute-repair #484).
 - [011-conversation-last-route-trace.yml](../../infra/liquibase/features/011-conversation-last-route-trace.yml) —
   adds `last_route_trace` (why-trace #485 / Track G2).
+- [012-conversation-last-mutation.yml](../../infra/liquibase/features/012-conversation-last-mutation.yml) —
+  adds `last_mutation_{agent,payload,desc}` (CRUD/undo primitive #486 / Track H1).

@@ -42,6 +42,8 @@
     <include file="features/010-conversation-last-route.yml" relativeToChangelogFile="true"/>
     <!-- 011 why-trace G2 (#485): last_route_trace on core.conversation_state. -->
     <include file="features/011-conversation-last-route-trace.yml" relativeToChangelogFile="true"/>
+    <!-- 012 CRUD/undo H1 (#486): last_mutation_{agent,payload,desc} on core.conversation_state. -->
+    <include file="features/012-conversation-last-mutation.yml" relativeToChangelogFile="true"/>
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>
