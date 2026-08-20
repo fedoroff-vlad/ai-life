@@ -1,4 +1,5 @@
--- Mirrors infra/liquibase/features/{001-core, 009-conversation-state, 010-conversation-last-route}.yml minimally.
+-- Mirrors infra/liquibase/features/{001-core, 009-conversation-state, 010-conversation-last-route,
+-- 011-conversation-last-route-trace, 012-conversation-last-mutation}.yml minimally.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -20,6 +21,9 @@ CREATE TABLE IF NOT EXISTS core.conversation_state (
     last_route_agent varchar(64),
     last_route_text  text,
     last_route_trace text,
+    last_mutation_agent   text,
+    last_mutation_payload jsonb,
+    last_mutation_desc    text,
     expires_at      timestamptz NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now(),
