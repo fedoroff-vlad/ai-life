@@ -4,13 +4,20 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **road-test §#486 CRUD/undo — Track H DESIGN LANDED, coding not started.** The full track is specced in
+  [stage4.md](stage4.md) §Track H: (H.1) the cross-cutting **"отмени последнее / undo" primitive** — a near-exact
+  mirror of Track F/G (a `last_mutation` handle on conversation-state + a reserved `undo` classifier outcome +
+  agent-led reversal over the existing C1 `invoke`/`/actions/undo`, **no new `Agent` method**), sliced
+  H1 (storage) → H2 (orchestrator+primitive) → H3 (first producer = tasks) → H-rollout; plus (H.2) the
+  **per-domain edit/delete/correct holes** (finance/tasks/notes/calendar) on each domain's own SkillRouter path.
+  WHEN/THEN acceptance criteria are in the plan. **NEXT slice: H1** — conversation-service stores `last_mutation`
+  (storage-only, ≤5 files, mirrors #484 F1 / #485 G2a). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
   spot-checks** (future-dated receipt, end-before-start / double-booking). Detail → [HISTORY.md](HISTORY.md);
   doctrine → [architecture.md](architecture.md) §Principles (soft-fail + sanity spot-checks) + [stage4.md](stage4.md)
-  §Track G. **Next road-test item (pick next): CRUD/undo [#486](https://github.com/fedoroff-vlad/ai-life/issues/486)**
-  — edit/undo the last action; epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  §Track G.
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
   substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
