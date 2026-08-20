@@ -86,7 +86,8 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   is `other`/unreadable the policy abstains → `resolve` returns `NeedsConfirm` → the archive is deferred (not
   saved) and the agent asks "«…» — личное или общее?" via the shared `SharingConfirm`, stashing the OCR corpus +
   metadata draft; `finishArchive` (from `ResumeController`) files it into the chosen household on the reply +
-  learns.
+  learns. **Why-trace (#485/G2):** a successful archive attaches a payload-free `IntentResponse.trace`
+  "wrote: archived a document"; a DS-N defer and failures set none (→ the explain answer falls back to routing-only).
 - `web/ResumeController` — `POST /agents/docs/resume` (docs' **first** resume surface, added by DS-N). Hit by
   the orchestrator when the user replies to the route-locked docs confirm; dispatches `sharing-confirm` →
   `SharingConfirm.resume` with `DocArchiver::finishArchive`. A null `pendingAction` clears the lock.

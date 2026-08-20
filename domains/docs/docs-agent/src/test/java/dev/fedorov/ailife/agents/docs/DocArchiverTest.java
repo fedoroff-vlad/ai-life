@@ -115,6 +115,8 @@ class DocArchiverTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Заархивировал").contains("Договор аренды");
+        // why-trace (#485/G2): a successful archive carries a payload-free "what I wrote" line.
+        assertThat(resp.trace()).isEqualTo("wrote: archived a document");
 
         // OCR ran over the media id.
         RecordedRequest ocrReq = mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
@@ -242,6 +244,8 @@ class DocArchiverTest {
         // It deferred: a pendingAction is returned (→ orchestrator locks), and NOTHING was archived.
         assertThat(resp.pendingAction()).isNotNull();
         assertThat(resp.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
+        // Nothing archived yet → no why-trace (the explain answer falls back to routing-only).
+        assertThat(resp.trace()).isNull();
         assertThat(mcpDocs.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
         // Drain this test's recorded requests so the shared static MockWebServers stay clean for other tests.
         mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);

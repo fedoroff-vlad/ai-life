@@ -118,7 +118,10 @@ public class DocArchiver {
                         case SharingResolution.Resolved rr ->
                                 persist(rr.household() != null ? rr.household() : msg.householdId(),
                                         msg.userId(), mediaId, ocrText, draft)
-                                        .map(saved -> reply(successText(saved.docType(), saved.title()), r.model()))
+                                        // why-trace (#485/G2): a successful archive is a write — a payload-free
+                                        // "what I did" line for a later "почему ты так сделал" answer.
+                                        .map(saved -> reply(successText(saved.docType(), saved.title()), r.model())
+                                                .withTrace("wrote: archived a document"))
                                         .onErrorResume(e -> {
                                             log.warn("save_document failed for media {}: {}", mediaId, e.toString());
                                             return Mono.just(reply(
