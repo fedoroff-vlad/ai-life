@@ -209,9 +209,12 @@ like #485's board-store rollout); not G1, which would otherwise touch every agen
   gains an optional `trace` (+ `withTrace`); `IntentRouter` records `resp.trace()` into `last_route_trace`;
   `PriorRoute` carries it; `ExplainResponder` folds it into the explain answer, falling back to the G1
   routing-only answer when null. No agent produces a trace yet — proven by orchestrator unit tests.
-- **G2c (next)** — first real producer: a reference agent attaches a payload-free `withTrace("read: … ;
-  wrote: …")`; then per-agent rollout across the deliverable agents, one small PR each (same cadence as the
-  #485 board-store `DegradedNotice` rollout).
+- **G2c** — first real producer: `tasks-agent`'s `task-capture` attaches a payload-free
+  `withTrace("wrote: captured a task to the personal/shared list")` on a successful capture (deferred/failed
+  turns leave it null). Proves the seam end-to-end.
+- **G2-rollout (next)** — extend `withTrace` to the other deliverable agents (finance capture, notes/lists,
+  calendar, docs, nutrition, …), one small PR each — same cadence as the #485 board-store `DegradedNotice`
+  rollout. Each attaches a payload-free "read/wrote" line on its terminal write path.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **owner asks why.** WHEN the owner replies "почему ты так сделал / как ты это понял" right after

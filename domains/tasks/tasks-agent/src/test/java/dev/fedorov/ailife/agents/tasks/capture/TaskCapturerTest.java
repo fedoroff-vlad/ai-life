@@ -97,6 +97,8 @@ class TaskCapturerTest {
         assertThat(result).isNotNull();
         assertThat(result.text()).contains("позвонить врачу").doesNotContain("общий список");
         assertThat(result.model()).isEqualTo("mock-large");
+        // why-trace (#485/G2c): a successful capture carries a payload-free "what I wrote" line (no title).
+        assertThat(result.trace()).isEqualTo("wrote: captured a task to the personal list");
 
         // Routing split was read for the acting user.
         RecordedRequest routing = profileService.takeRequest(2, TimeUnit.SECONDS);
@@ -134,6 +136,7 @@ class TaskCapturerTest {
 
         assertThat(result).isNotNull();
         assertThat(result.text()).contains("общий список").contains("вынести мусор");
+        assertThat(result.trace()).isEqualTo("wrote: captured a task to the shared list");
 
         profileService.takeRequest(2, TimeUnit.SECONDS);
         // A shared task lands in the SHARED household.
@@ -182,6 +185,8 @@ class TaskCapturerTest {
         assertThat(result.pendingAction()).isNotNull();
         assertThat(result.pendingAction().path("flow").asString()).isEqualTo("sharing-confirm");
         assertThat(mcpTasks.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+        // Nothing was written yet → no why-trace to fold in (falls back to the routing-only answer).
+        assertThat(result.trace()).isNull();
     }
 
     @Test
