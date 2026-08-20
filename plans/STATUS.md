@@ -16,10 +16,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `Undoable` block (offered only when a `last_mutation` exists); `IntentRouter` records the handle on a fresh
   write (carried forward across a read turn), and on `undo` reverses it via the recording agent's
   `/actions/undo` (C1 `invoke`) + surfaces the confirmation / honest "нельзя отменить" + clears only the
-  consumed mutation (last-route preserved). Proven by 5 new `IntentRouterLockTest` cases with stub agents; no
-  real producer yet. **NEXT slice: H3** — first real producer: `tasks-agent` `task-capture` attaches
-  `withUndo` + implements `/actions/undo` (soft-delete the captured task), with an E2E + a classifier golden.
-  Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  consumed mutation (last-route preserved). Proven by 5 new `IntentRouterLockTest` cases with stub agents. **H3
+  (first real producer = tasks) split in two:** **H3a ✅ (reversal side)** — mcp-tasks `DELETE
+  /internal/task/{id}` passthrough + tasks-agent `DeleteTaskClient` + a `web/ActionController` registering the
+  `undo` action (reverse a captured task by deleting it, honest `ok=false` when already gone); proven by
+  `ActionControllerTest` + a DELETE case in `McpTasksIntegrationTest`. **NEXT slice: H3b (producer side)** —
+  `TaskCapturer` attaches `withUndo` on a successful capture (the created task id) + `IntentController`
+  threads it onto the `IntentResponse`, + a classifier `GoldenUndoTest`. Epic queue →
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
