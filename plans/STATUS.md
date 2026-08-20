@@ -4,15 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#485 transparency — ✅ board-store rollout DONE + "why did you do that" trace G1 DONE
-  (2026-08-20, PR#514); two threads remain.** The `DegradedNotice` `⚠️` primitive covers every deliverable
-  agent's board render/store soft-fail; G1 answers a "почему ты так сделал / как ты это понял" turn from the
-  remembered `last_route` via the orchestrator's `ExplainResponder` (reserved `explain` classifier outcome,
-  no schema/contract change). Detail → [HISTORY.md](HISTORY.md); spec + WHEN/THEN → [stage4.md](stage4.md)
-  §Track G + [architecture.md](architecture.md) §Principles. **Remaining #485 threads (pick next):** **G2** =
-  agents contribute their own sources-read/action-written line into the trace (per-agent rollout, reference
-  consumer first), and finance/calendar sanity spot-checks. Epic queue →
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+- **road-test §#485 transparency — ✅ board-store rollout + "why did you do that" trace G1+G2 (through the
+  first producer) DONE (2026-08-20, PR#514/#516/#517/#518/#519); two threads remain.** The `DegradedNotice`
+  `⚠️` primitive covers every deliverable agent's board soft-fail; the why-trace answers "почему ты так
+  сделал" from the remembered `last_route` (G1: routing trace via `ExplainResponder`; G2: agents fold in a
+  payload-free "read/wrote" line — `tasks-agent` task-capture is the first producer; `GoldenExplainTraceTest`
+  proves `explain` on a real model). Detail → [HISTORY.md](HISTORY.md); spec + WHEN/THEN →
+  [stage4.md](stage4.md) §Track G + [architecture.md](architecture.md) §Principles. **Remaining #485 threads
+  (pick next):** **G2-rollout** = extend `IntentResponse.withTrace` to the other deliverable agents
+  (finance/notes/calendar/docs/nutrition, one small PR each), and finance/calendar sanity spot-checks. Epic
+  queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
   substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
