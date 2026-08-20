@@ -48,9 +48,11 @@ transparency answer. When a turn asks why/how the previous request was handled (
 `explain` outcome (offered **only** while a prior route exists), and the orchestrator answers it from the
 remembered route via `ExplainResponder` (a one-sentence trace naming the agent + why it fit, phrased in the
 user's language) **instead of dispatching** to a domain agent. An explain turn does **not** overwrite
-`last_route`, so a later correction still repairs the original route, and it leaks no payload. Scope is the
-routing decision the orchestrator owns; enriching it with each agent's own sources-read/action-written is the
-follow-on G2 slice. See [plans/stage4.md](../../plans/stage4.md) §Track G.
+`last_route`, so a later correction still repairs the original route, and it leaks no payload. **G2:** when
+the handling agent contributed a payload-free `IntentResponse.trace` ("что прочитал / что записал"), the
+orchestrator persists it as `last_route_trace` and `ExplainResponder` folds it into the answer; a turn with
+no trace falls back to the routing-only answer (G1). Agents opt in per-agent (`IntentResponse.withTrace`);
+those that haven't yet are unaffected. See [plans/stage4.md](../../plans/stage4.md) §Track G.
 
 **Catch-all routing:** `orchestrator.catch-all-agent` (default `tasks`) names the agent
 that captures any *actionable* message matching no specialized domain — the GTD
@@ -149,7 +151,8 @@ alone). Both reuse `GoldenRoutingTest.realManifests()`.
 - `memory/MemoryClient` — reactive POST `/v1/memories/recall` with 500 ms timeout; strict no-throw (errors → `Mono.just(List.of())`). Also `observe(...)` — fire-and-forget POST `/v1/observations` (memory-from-chat producer), soft-fail, off the response path.
 - `routing/IntentRouter` — `NormalizedMessage` → `Agent` decision; owns the route-lock lifecycle, the misroute-repair last-route recording + `PriorRoute` hand-off (#484), and the Track-G `explain` branch (answers a "why did you do that" turn via `ExplainResponder` without dispatching or overwriting last-route).
 - `routing/LlmIntentClassifier` — FAST-channel call with few-shot built from manifest `intents[]`; injects recalled memories as a second system message when non-empty, and a `PriorRoute` correction/explain message as a third (#484 / Track G #485). Lenient parsing + echo fallback; `explain` is a reserved outcome accepted by `normalize`. `classify(msg)` = `classify(msg, null)`.
-- `routing/ExplainResponder` — phrases the Track-G routing trace (agent + why it fit) in the user's language via the DEFAULT channel from the remembered `PriorRoute`; never invents the agent's internal steps, leaks no IDs/payloads. Reply agent id = `explain`.
+- `routing/ExplainResponder` — phrases the Track-G trace (agent + why it fit, plus the agent's own payload-free `PriorRoute.trace` "what it did" line when present) in the user's language via the DEFAULT channel; uses only the facts it is given, leaks no IDs/payloads. Reply agent id = `explain`.
+- `conversation/ConversationStateClient.recordLastRoute` — persists the routed agent + text + the optional `IntentResponse.trace` as `last_route_{agent,text,trace}` (#484 / #485-G2).
 - `web/IntentController` — `POST /v1/intent`.
 - `web/AgentWakeController` — `POST /v1/agents/wake`.
 - `web/AgentInvokeController` — `POST /v1/agents/invoke`; inter-agent sync, forwards to the target agent's `/actions/<action>` (`Agent.invoke` / `RemoteAgent.invoke`).

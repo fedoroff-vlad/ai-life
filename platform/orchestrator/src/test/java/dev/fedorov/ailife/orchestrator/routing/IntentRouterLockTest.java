@@ -57,8 +57,13 @@ class IntentRouterLockTest {
 
     /** A conversation with a recorded last-route (misroute-repair #484) and no active lock. */
     private static ConversationStateDto lastRoutedTo(String agent, String text) {
+        return lastRoutedTo(agent, text, null);
+    }
+
+    /** As {@link #lastRoutedTo(String, String)} but with a remembered agent trace (why-trace #485/G2). */
+    private static ConversationStateDto lastRoutedTo(String agent, String text, String trace) {
         return new ConversationStateDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "telegram", null, null, agent, text, null, Instant.now().plusSeconds(180), Instant.now());
+                "telegram", null, null, agent, text, trace, Instant.now().plusSeconds(180), Instant.now());
     }
 
     @Test
@@ -101,7 +106,7 @@ class IntentRouterLockTest {
         when(conversationState.activeState(any(), any(), any())).thenReturn(Mono.empty());
         when(classifier.classify(any(), any())).thenReturn(Mono.just("finance"));
         when(finance.handle(any())).thenReturn(Mono.just(new IntentResponse("finance", "ok", "m")));
-        when(conversationState.recordLastRoute(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(conversationState.recordLastRoute(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         NormalizedMessage m = msg();
         StepVerifier.create(router.route(m))
@@ -111,9 +116,9 @@ class IntentRouterLockTest {
         // No active state → classify with a null prior route.
         verify(classifier).classify(any(), isNull());
         verify(finance).handle(any());
-        // Fresh specialist turn, no pending action → last-route recorded, no lock/clear.
+        // Fresh specialist turn, no pending action → last-route recorded (no trace contributed), no lock/clear.
         verify(conversationState).recordLastRoute(
-                eq(m.householdId()), eq(m.userId()), eq("telegram"), eq("finance"), eq(m.text()));
+                eq(m.householdId()), eq(m.userId()), eq("telegram"), eq("finance"), eq(m.text()), isNull());
         verify(conversationState, never()).lock(any(), any(), any(), any(), any());
         verify(conversationState, never()).clear(any(), any(), any());
     }
@@ -131,7 +136,7 @@ class IntentRouterLockTest {
 
         verify(conversationState).lock(any(), any(), eq("telegram"), eq("finance"), eq(pending));
         // An open question locks — it does not also record a last-route.
-        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any());
+        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -140,7 +145,7 @@ class IntentRouterLockTest {
                 .thenReturn(Mono.just(lockedTo("ghost-agent", null)));
         when(classifier.classify(any(), any())).thenReturn(Mono.just("finance"));
         when(finance.handle(any())).thenReturn(Mono.just(new IntentResponse("finance", "ok", "m")));
-        when(conversationState.recordLastRoute(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(conversationState.recordLastRoute(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(router.route(msg()))
                 .assertNext(r -> assertThat(r.agent()).isEqualTo("finance"))
@@ -158,7 +163,7 @@ class IntentRouterLockTest {
         // The classifier, given the prior route, re-routes the correction to finance.
         when(classifier.classify(any(), any())).thenReturn(Mono.just("finance"));
         when(finance.handle(any())).thenReturn(Mono.just(new IntentResponse("finance", "ok", "m")));
-        when(conversationState.recordLastRoute(any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(conversationState.recordLastRoute(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(router.route(msg()))
                 .assertNext(r -> assertThat(r.agent()).isEqualTo("finance"))
@@ -172,14 +177,15 @@ class IntentRouterLockTest {
         assertThat(prior.getValue().agent()).isEqualTo("calendar");
         assertThat(prior.getValue().originalText()).isEqualTo("запиши купить молоко");
         // …and the corrected route is itself recorded, so a further correction still works.
-        verify(conversationState).recordLastRoute(any(), any(), eq("telegram"), eq("finance"), any());
+        verify(conversationState).recordLastRoute(any(), any(), eq("telegram"), eq("finance"), any(), any());
     }
 
     @Test
     void explainTurnAnswersFromPriorRouteWithoutDispatchingOrRecording() {
-        // Last turn routed a request to finance; now the owner asks "почему ты так сделал?".
+        // Last turn routed a request to finance and remembered what it did; now the owner asks "почему?".
         when(conversationState.activeState(any(), any(), any()))
-                .thenReturn(Mono.just(lastRoutedTo("finance", "сколько я потратил на еду")));
+                .thenReturn(Mono.just(lastRoutedTo("finance", "сколько я потратил на еду",
+                        "read: finance brief")));
         when(classifier.classify(any(), any())).thenReturn(Mono.just("explain"));
         when(explainResponder.explain(any(), any()))
                 .thenReturn(Mono.just(new IntentResponse("explain", "Это ушло финансовому агенту.", "m")));
@@ -188,14 +194,31 @@ class IntentRouterLockTest {
                 .assertNext(r -> assertThat(r.agent()).isEqualTo("explain"))
                 .verifyComplete();
 
-        // Answered from the remembered prior route — no domain agent dispatched…
+        // Answered from the remembered prior route (agent + its trace) — no domain agent dispatched…
         ArgumentCaptor<LlmIntentClassifier.PriorRoute> prior =
                 ArgumentCaptor.forClass(LlmIntentClassifier.PriorRoute.class);
         verify(explainResponder).explain(any(), prior.capture());
         assertThat(prior.getValue().agent()).isEqualTo("finance");
+        assertThat(prior.getValue().trace()).isEqualTo("read: finance brief");
         verify(finance, never()).handle(any());
         // …and the meta-query does NOT overwrite last-route (a later correction still repairs the original).
-        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any());
+        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void agentContributedTraceIsRecordedWithLastRoute() {
+        // An agent opts into the why-trace by attaching a payload-free line via withTrace (#485/G2).
+        when(conversationState.activeState(any(), any(), any())).thenReturn(Mono.empty());
+        when(classifier.classify(any(), any())).thenReturn(Mono.just("finance"));
+        when(finance.handle(any())).thenReturn(Mono.just(
+                new IntentResponse("finance", "ok", "m").withTrace("read: finance brief; wrote: logged an expense")));
+        when(conversationState.recordLastRoute(any(), any(), any(), any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(router.route(msg())).expectNextCount(1).verifyComplete();
+
+        // The trace rides along with the last-route so a later "почему" can fold it in.
+        verify(conversationState).recordLastRoute(any(), any(), eq("telegram"), eq("finance"), any(),
+                eq("read: finance brief; wrote: logged an expense"));
     }
 
     @Test
@@ -224,6 +247,6 @@ class IntentRouterLockTest {
                 .verifyComplete();
 
         // A correction after small talk is meaningless — echo turns are not remembered.
-        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any());
+        verify(conversationState, never()).recordLastRoute(any(), any(), any(), any(), any(), any());
     }
 }
