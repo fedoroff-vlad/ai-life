@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.finance.http.AccountClient;
 import dev.fedorov.ailife.agents.finance.http.BasketCapturedClient;
 import dev.fedorov.ailife.agentruntime.http.CaptionClient;
@@ -123,7 +124,11 @@ public class ReceiptParser {
             String currency = blankToNull(draft.currency()) != null
                     ? draft.currency() : account.get().currency();
             String confirmText = confirmText(draft, currency, account.get().name());
-            return new IntentResponse(manifest.name(), confirmText, model,
+            // Sanity spot-check (#485): OCR routinely misreads receipt dates (a future year, DD/MM
+            // swap). A future-dated receipt is impossible, so flag it discreetly on the confirm reply
+            // — the owner sees the suspect value before saving, instead of a clean-looking confirm.
+            String reply = DegradedNotice.append(confirmText, futureDateCaution(draft));
+            return new IntentResponse(manifest.name(), reply, model,
                     pendingAction(input, account.get().name()));
         });
     }
@@ -316,6 +321,28 @@ public class ReceiptParser {
 
     private static String text(JsonNode node, String field) {
         return node.hasNonNull(field) ? node.get(field).asString() : null;
+    }
+
+    /**
+     * A discreet caution when the receipt's parsed date is in the future — an impossible value that is
+     * almost always an OCR misread (wrong year, DD/MM swap). Returns {@code null} when the date is absent,
+     * unparseable, or today-or-earlier (nothing to flag). Deterministic, no LLM (a sanity spot-check, #485).
+     */
+    private static String futureDateCaution(Draft draft) {
+        if (draft == null) {
+            return null;
+        }
+        LocalDate date;
+        try {
+            String raw = blankToNull(draft.date());
+            date = raw == null ? null : LocalDate.parse(raw.trim());
+        } catch (Exception e) {
+            return null;
+        }
+        if (date == null || !date.isAfter(LocalDate.now(ZoneOffset.UTC))) {
+            return null;
+        }
+        return "дата на чеке — " + date + ", это в будущем; проверьте, верно ли распозналась.";
     }
 
     private static Instant parseTs(String date) {
