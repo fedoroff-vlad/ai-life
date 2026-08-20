@@ -54,7 +54,7 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
         pending.put("draftAmount", "-4.50");
 
         ConversationStateDto set = service.set(new SetConversationStateRequest(
-                householdId, user, "telegram", "finance", pending, null, null, 600L));
+                householdId, user, "telegram", "finance", pending, null, null, null, 600L));
         assertThat(set.routeLock()).isEqualTo("finance");
         assertThat(set.pendingAction().path("flow").asString()).isEqualTo("receipt-confirm");
         assertThat(set.expiresAt()).isAfter(java.time.Instant.now());
@@ -67,7 +67,7 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
 
         // Upsert: a second set for the same key replaces (no duplicate row, new lock wins).
         ConversationStateDto replaced = service.set(new SetConversationStateRequest(
-                householdId, user, "telegram", "tasks", null, null, null, 600L));
+                householdId, user, "telegram", "tasks", null, null, null, null, 600L));
         assertThat(replaced.id()).isEqualTo(set.id());
         assertThat(replaced.routeLock()).isEqualTo("tasks");
         assertThat(service.getActive(householdId, user, "telegram"))
@@ -77,17 +77,21 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     void lastRouteRoundTripsIndependentlyOfTheLock() {
         UUID user = UUID.randomUUID();
-        // A fresh routing records last_route with no lock (misroute-repair #484).
+        // A fresh routing records last_route + an optional trace with no lock (misroute-repair #484,
+        // why-trace #485/G2). The trace is a short payload-free line of what the agent read/wrote.
         ConversationStateDto set = service.set(new SetConversationStateRequest(
-                householdId, user, "telegram", null, null, "notes", "запиши купить молоко", 600L));
+                householdId, user, "telegram", null, null, "notes", "запиши купить молоко",
+                "wrote: note «купить молоко»", 600L));
         assertThat(set.routeLock()).isNull();
         assertThat(set.lastRouteAgent()).isEqualTo("notes");
         assertThat(set.lastRouteText()).isEqualTo("запиши купить молоко");
+        assertThat(set.lastRouteTrace()).isEqualTo("wrote: note «купить молоко»");
 
         assertThat(service.getActive(householdId, user, "telegram"))
                 .get().satisfies(s -> {
                     assertThat(s.lastRouteAgent()).isEqualTo("notes");
                     assertThat(s.lastRouteText()).isEqualTo("запиши купить молоко");
+                    assertThat(s.lastRouteTrace()).isEqualTo("wrote: note «купить молоко»");
                 });
     }
 
@@ -96,7 +100,7 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
         UUID user = UUID.randomUUID();
         // ttl in the past → already expired on read.
         service.set(new SetConversationStateRequest(
-                householdId, user, "telegram", "finance", null, null, null, -1L));
+                householdId, user, "telegram", "finance", null, null, null, null, -1L));
         assertThat(service.getActive(householdId, user, "telegram")).isEmpty();
     }
 
@@ -104,7 +108,7 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
     void clearRemovesState() {
         UUID user = UUID.randomUUID();
         service.set(new SetConversationStateRequest(
-                householdId, user, "telegram", "finance", null, null, null, 600L));
+                householdId, user, "telegram", "finance", null, null, null, null, 600L));
         service.clear(householdId, user, "telegram");
         assertThat(service.getActive(householdId, user, "telegram")).isEmpty();
     }
@@ -113,7 +117,7 @@ class ConversationStateIntegrationTest extends AbstractPostgresIntegrationTest {
     void restRoundTripPutGetDelete() {
         UUID user = UUID.randomUUID();
         var req = new SetConversationStateRequest(
-                householdId, user, "telegram", "calendar", null, null, null, 600L);
+                householdId, user, "telegram", "calendar", null, null, null, null, 600L);
 
         ResponseEntity<ConversationStateDto> put = http.exchange(
                 url(""), org.springframework.http.HttpMethod.PUT,

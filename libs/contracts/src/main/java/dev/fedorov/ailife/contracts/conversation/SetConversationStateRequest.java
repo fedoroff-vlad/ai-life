@@ -9,9 +9,11 @@ import java.util.UUID;
  * Upsert the control state for one (household, user, channel) conversation: lock the
  * dialog to {@code routeLock} (the agent awaiting a reply) with an opaque
  * {@code pendingAction} to resume, and/or record {@code lastRouteAgent} /
- * {@code lastRouteText} (the last fresh routing, for misroute-repair #484), alive for
- * {@code ttlSeconds}. Replaces any existing row for the same key — a field left null
- * clears it. {@code ttlSeconds} null → the service applies a default.
+ * {@code lastRouteText} (the last fresh routing, for misroute-repair #484) plus an
+ * optional {@code lastRouteTrace} (a short, payload-free line of what that agent read/wrote,
+ * for the "why did you do that" trace #485 / Track G), alive for {@code ttlSeconds}. Replaces
+ * any existing row for the same key — a field left null clears it. {@code ttlSeconds} null →
+ * the service applies a default.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SetConversationStateRequest(
@@ -22,5 +24,6 @@ public record SetConversationStateRequest(
         JsonNode pendingAction,
         String lastRouteAgent,
         String lastRouteText,
+        String lastRouteTrace,
         Long ttlSeconds) {
 }

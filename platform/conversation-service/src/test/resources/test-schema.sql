@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS core.conversation_state (
     pending_action  jsonb,
     last_route_agent varchar(64),
     last_route_text  text,
+    last_route_trace text,
     expires_at      timestamptz NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now(),

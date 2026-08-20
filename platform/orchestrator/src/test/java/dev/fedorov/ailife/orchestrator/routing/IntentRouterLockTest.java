@@ -52,13 +52,13 @@ class IntentRouterLockTest {
 
     private static ConversationStateDto lockedTo(String agent, tools.jackson.databind.JsonNode pending) {
         return new ConversationStateDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "telegram", agent, pending, null, null, Instant.now().plusSeconds(600), Instant.now());
+                "telegram", agent, pending, null, null, null, Instant.now().plusSeconds(600), Instant.now());
     }
 
     /** A conversation with a recorded last-route (misroute-repair #484) and no active lock. */
     private static ConversationStateDto lastRoutedTo(String agent, String text) {
         return new ConversationStateDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                "telegram", null, null, agent, text, Instant.now().plusSeconds(180), Instant.now());
+                "telegram", null, null, agent, text, null, Instant.now().plusSeconds(180), Instant.now());
     }
 
     @Test

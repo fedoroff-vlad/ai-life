@@ -42,7 +42,7 @@ public class ConversationStateClient {
                     .uri("/v1/conversation-state")
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(new SetConversationStateRequest(
-                            householdId, userId, channel, routeLock, pendingAction, null, null, null))
+                            householdId, userId, channel, routeLock, pendingAction, null, null, null, null))
                     .retrieve()
                     .toBodilessEntity()
                     .block();

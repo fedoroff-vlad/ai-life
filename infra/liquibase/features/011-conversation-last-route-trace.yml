@@ -1,0 +1,22 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 011-conversation-last-route-trace
+      author: ai-life
+      comment: |
+        "Why did you do that" trace, slice G2 (road-test #485, Track G): remember a
+        short, payload-free line of what the agent that handled the last fresh turn
+        actually did (what it read / wrote), alongside last_route_{agent,text} from
+        #484. The orchestrator persists it after a resolved reply and folds it into
+        the explain answer when the owner asks "почему ты так сделал". Shares the row's
+        expires_at TTL with last_route (same correction/explain window). Nullable —
+        an agent that contributes no trace leaves it empty and the explain answer falls
+        back to the routing-only trace (G1).
+      changes:
+        - addColumn:
+            schemaName: core
+            tableName: conversation_state
+            columns:
+              - column:
+                  name: last_route_trace
+                  type: text

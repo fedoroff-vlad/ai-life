@@ -40,6 +40,8 @@
     <include file="features/009-conversation-state.yml" relativeToChangelogFile="true"/>
     <!-- 010 misroute-repair (#484): last_route_{agent,text} on core.conversation_state. -->
     <include file="features/010-conversation-last-route.yml" relativeToChangelogFile="true"/>
+    <!-- 011 why-trace G2 (#485): last_route_trace on core.conversation_state. -->
+    <include file="features/011-conversation-last-route-trace.yml" relativeToChangelogFile="true"/>
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>

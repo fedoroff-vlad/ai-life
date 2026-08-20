@@ -65,7 +65,7 @@ public class ConversationStateClient {
             return Mono.empty();
         }
         var req = new SetConversationStateRequest(
-                householdId, userId, channel, routeLock, pendingAction, null, null, null);
+                householdId, userId, channel, routeLock, pendingAction, null, null, null, null);
         return http.put()
                 .uri("/v1/conversation-state")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -93,7 +93,7 @@ public class ConversationStateClient {
             return Mono.empty();
         }
         var req = new SetConversationStateRequest(
-                householdId, userId, channel, null, null, agent, text,
+                householdId, userId, channel, null, null, agent, text, null,
                 props.getCorrectionWindowSeconds());
         return http.put()
                 .uri("/v1/conversation-state")
