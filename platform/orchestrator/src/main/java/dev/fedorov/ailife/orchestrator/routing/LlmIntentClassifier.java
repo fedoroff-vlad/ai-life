@@ -49,6 +49,11 @@ import java.util.Set;
  * reserved {@code explain} outcome — when THIS turn asks why/how the previous request was handled
  * ("почему ты так сделал"), the model replies {@code explain} and {@link IntentRouter} answers it via
  * {@link ExplainResponder} instead of dispatching. Offered only when a prior route exists.
+ *
+ * <p>"Отмени последнее" undo (road-test #486, Track H): a separate {@link Undoable} block offers the reserved
+ * {@code undo} outcome — when THIS turn asks to undo/cancel/revert the last action, the model replies
+ * {@code undo} and {@link IntentRouter} reverses the remembered {@code last_mutation} via that agent's
+ * {@code /actions/undo} instead of dispatching. Offered only when a {@code last_mutation} exists.
  */
 @Component
 public class LlmIntentClassifier {
@@ -67,6 +72,15 @@ public class LlmIntentClassifier {
         public PriorRoute(String agent, String originalText) {
             this(agent, originalText, null);
         }
+    }
+
+    /**
+     * A recent reversible mutation the conversation holds (road-test #486, Track H): its short user-facing
+     * {@code description} ("трату 1500 ₽"). Passed in only when a {@code last_mutation} exists, so the
+     * reserved {@code undo} outcome is offered <em>only</em> when there is genuinely something to undo. Null
+     * otherwise — "отмени последнее" then classifies normally (degrades to echo / its real intent).
+     */
+    public record Undoable(String description) {
     }
 
     private final LlmClient llm;
@@ -92,10 +106,14 @@ public class LlmIntentClassifier {
     }
 
     public Mono<String> classify(NormalizedMessage message) {
-        return classify(message, null);
+        return classify(message, null, null);
     }
 
     public Mono<String> classify(NormalizedMessage message, PriorRoute priorRoute) {
+        return classify(message, priorRoute, null);
+    }
+
+    public Mono<String> classify(NormalizedMessage message, PriorRoute priorRoute, Undoable undoable) {
         if (knownAgents.size() == 1) {
             // Only echo is registered — no remote agents discovered. Don't bother
             // recalling either: echo doesn't read context.
@@ -103,7 +121,7 @@ public class LlmIntentClassifier {
         }
         return memory.recall(message.householdId(), message.userId(), message.text())
                 .flatMap(hits -> {
-                    List<LlmMessage> chat = new ArrayList<>(4);
+                    List<LlmMessage> chat = new ArrayList<>(5);
                     chat.add(LlmMessage.system(systemPrompt));
                     String contextBlock = renderMemories(hits);
                     if (contextBlock != null) {
@@ -112,6 +130,10 @@ public class LlmIntentClassifier {
                     String correctionBlock = renderCorrection(priorRoute);
                     if (correctionBlock != null) {
                         chat.add(LlmMessage.system(correctionBlock));
+                    }
+                    String undoBlock = renderUndoable(undoable);
+                    if (undoBlock != null) {
+                        chat.add(LlmMessage.system(undoBlock));
                     }
                     chat.add(LlmMessage.user(message.text()));
                     LlmChatRequest req = LlmChatRequest.of(LlmChannel.FAST, chat);
@@ -143,6 +165,22 @@ public class LlmIntentClassifier {
         return sb.toString();
     }
 
+    /** {@code null} when there is no undoable mutation — the reserved {@code undo} outcome isn't offered. */
+    private static String renderUndoable(Undoable undoable) {
+        if (undoable == null) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("The user has a recent action that can be undone");
+        if (undoable.description() != null && !undoable.description().isBlank()) {
+            sb.append(": ").append(undoable.description());
+        }
+        sb.append(". If THIS message asks to undo/cancel/revert that last action (e.g. \"отмени ");
+        sb.append("последнее\", \"верни как было\", \"нет, убери это\", \"undo that\"), reply exactly '");
+        sb.append(IntentRouter.UNDO).append("' instead of an agent name. Otherwise classify it normally.");
+        return sb.toString();
+    }
+
     /** {@code null} when no memories to inject — avoids an empty system message. */
     private static String renderMemories(List<RecallMemoryHit> hits) {
         if (hits == null || hits.isEmpty()) return null;
@@ -171,6 +209,10 @@ public class LlmIntentClassifier {
         // last-route instead of dispatching to a domain agent. Only ever produced when a PriorRoute was
         // offered, so it can't leak into a fresh turn; if it somehow does, the router degrades it to echo.
         if (ExplainResponder.EXPLAIN.equals(head)) return ExplainResponder.EXPLAIN;
+        // 'undo' is a reserved routing outcome (Track H): the router reverses the remembered last_mutation
+        // via that agent's /actions/undo. Only offered when an Undoable was present; if it leaks into a turn
+        // with no undoable mutation, the router degrades it to echo.
+        if (IntentRouter.UNDO.equals(head)) return IntentRouter.UNDO;
         return knownAgents.contains(head) ? head : ECHO;
     }
 
