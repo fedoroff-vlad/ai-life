@@ -56,8 +56,18 @@ public class LlmIntentClassifier {
     private static final Logger log = LoggerFactory.getLogger(LlmIntentClassifier.class);
     private static final String ECHO = "echo";
 
-    /** The last fresh routing for a conversation, passed in so a correction turn re-routes (#484). */
-    public record PriorRoute(String agent, String originalText) {}
+    /**
+     * The last fresh routing for a conversation, passed in so a correction turn re-routes (#484). {@code
+     * trace} is the optional payload-free "what the agent read/wrote" line that enriches the explain answer
+     * (#485 / Track G, G2); null when the handling agent contributed none. It is <em>not</em> used for
+     * correction classification — only {@link IntentRouter}'s explain branch reads it.
+     */
+    public record PriorRoute(String agent, String originalText, String trace) {
+        /** Correction context needs only the agent + text; the trace is for the explain branch (#485/G2). */
+        public PriorRoute(String agent, String originalText) {
+            this(agent, originalText, null);
+        }
+    }
 
     private final LlmClient llm;
     private final MemoryClient memory;

@@ -83,7 +83,8 @@ public class IntentRouter {
         if (state.lastRouteAgent() == null || state.lastRouteAgent().isBlank()) {
             return null;
         }
-        return new LlmIntentClassifier.PriorRoute(state.lastRouteAgent(), state.lastRouteText());
+        return new LlmIntentClassifier.PriorRoute(
+                state.lastRouteAgent(), state.lastRouteText(), state.lastRouteTrace());
     }
 
     /** Locked reply → the owning agent's resume; then re-lock or clear based on what it returns. */
@@ -145,7 +146,7 @@ public class IntentRouter {
         }
         if (resp.agent() != null && !ECHO.equals(resp.agent())) {
             return conversationState.recordLastRoute(message.householdId(), message.userId(),
-                            message.sourceChannel(), resp.agent(), message.text())
+                            message.sourceChannel(), resp.agent(), message.text(), resp.trace())
                     .thenReturn(resp);
         }
         return Mono.just(resp);
