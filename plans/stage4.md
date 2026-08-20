@@ -212,9 +212,12 @@ like #485's board-store rollout); not G1, which would otherwise touch every agen
 - **G2c** — first real producer: `tasks-agent`'s `task-capture` attaches a payload-free
   `withTrace("wrote: captured a task to the personal/shared list")` on a successful capture (deferred/failed
   turns leave it null). Proves the seam end-to-end.
-- **G2-rollout (next)** — extend `withTrace` to the other deliverable agents (finance capture, notes/lists,
-  calendar, docs, nutrition, …), one small PR each — same cadence as the #485 board-store `DegradedNotice`
-  rollout. Each attaches a payload-free "read/wrote" line on its terminal write path.
+- **G2-rollout** — `withTrace` extended to every user-facing write agent, one small PR each (same cadence as
+  the #485 board-store `DegradedNotice` rollout): tasks (capture), finance (`add_transaction`/account/
+  category), notes (`NoteWriter` + `ListManager`), docs (`DocArchiver`), nutrition (`FoodLogger` +
+  `DietProfiler`). Each attaches a payload-free "wrote: …" line on its terminal write path; reads / no-ops /
+  deferrals / failures set none. Calendar user-intent is chat-only (event CRUD is inter-agent, not a "почему"
+  turn); the deliverable/read agents (stylist/travel/creator/chef/briefing) have no reply-path write to trace.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **owner asks why.** WHEN the owner replies "почему ты так сделал / как ты это понял" right after
