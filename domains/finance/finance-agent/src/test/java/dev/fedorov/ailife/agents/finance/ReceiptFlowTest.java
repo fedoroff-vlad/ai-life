@@ -114,6 +114,8 @@ class ReceiptFlowTest {
 
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Записать").contains("Starbucks").contains("Main card");
+        // A plausible (past) receipt date → no sanity caution on the confirm (#485).
+        assertThat(resp.text()).doesNotContain("⚠️");
         // The confirm carries a pendingAction so the orchestrator locks the conversation to finance.
         assertThat(resp.pendingAction()).isNotNull();
         assertThat(resp.pendingAction().path("flow").asString()).isEqualTo("receipt-confirm");
@@ -147,6 +149,50 @@ class ReceiptFlowTest {
         assertThat(observeBody.path("text").asString())
                 .contains("вот чек за кофе").contains("Starbucks");
         assertThat(observeBody.path("householdId").asString()).isEqualTo(householdId.toString());
+    }
+
+    @Test
+    void futureDatedReceiptIsFlaggedButStillOffersToSave() throws Exception {
+        // Sanity spot-check (#485): OCR misread the year → a future date. The confirm must flag it
+        // discreetly (⚠️) instead of asking to save a clean-looking but impossible receipt.
+        UUID householdId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        String mediaId = UUID.randomUUID().toString();
+        String futureDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC).plusYears(1).toString();
+
+        var draftJson = "{\"amount\": 4.50, \"currency\": \"EUR\", \"merchant\": \"Starbucks\", \"date\": \""
+                + futureDate + "\"}";
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new CaptionResult(draftJson, "mock-vision"))));
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(List.of(new FinAccountDto(
+                        accountId, householdId, null, "Main card", "card", "EUR",
+                        BigDecimal.ZERO, false, Instant.now())))));
+        memory.enqueue(new MockResponse().setResponseCode(202));
+
+        var msg = new NormalizedMessage(
+                UUID.randomUUID(), householdId, MessageScope.PRIVATE, "вот чек",
+                List.of(new Attachment("image", "image/jpeg", mediaId, null)),
+                "telegram", "56", Instant.now());
+
+        IntentResponse resp = http.post().uri("/agents/finance/intent")
+                .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
+                .exchange().expectStatus().isOk()
+                .expectBody(IntentResponse.class).returnResult().getResponseBody();
+
+        assertThat(resp).isNotNull();
+        // The confirm is still offered (the pendingAction locks the conversation) — we flag, not block.
+        assertThat(resp.text()).contains("Записать").contains("Starbucks");
+        assertThat(resp.pendingAction()).isNotNull();
+        // …but the reply carries the ⚠️ future-date caution naming the suspect date.
+        assertThat(resp.text()).contains("⚠️").contains("в будущем").contains(futureDate);
+
+        // Drain this test's recorded requests so the shared static MockWebServers stay clean.
+        mediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        mcpFinance.takeRequest(2, TimeUnit.SECONDS);
+        memory.takeRequest(2, TimeUnit.SECONDS);
     }
 
     @Test
