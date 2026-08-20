@@ -93,7 +93,8 @@ public class ListManager {
                     yield Mono.just(reply("«" + op.item().trim() + "» уже в списке «" + note.title() + "»."));
                 }
                 yield persist(note, list.add(op.item()))
-                        .map(saved -> reply("Добавил «" + op.item().trim() + "» в «" + note.title() + "»."));
+                        .map(saved -> reply("Добавил «" + op.item().trim() + "» в «" + note.title() + "».")
+                                .withTrace("wrote: added an item to a list"));
             }
             case "check" -> {
                 if (blank(op.item())) {
@@ -106,14 +107,16 @@ public class ListManager {
                     yield Mono.just(reply("«" + op.item().trim() + "» уже вычеркнут в «" + note.title() + "»."));
                 }
                 yield persist(note, list.check(op.item()))
-                        .map(saved -> reply("Вычеркнул «" + op.item().trim() + "» из «" + note.title() + "»."));
+                        .map(saved -> reply("Вычеркнул «" + op.item().trim() + "» из «" + note.title() + "».")
+                                .withTrace("wrote: checked off a list item"));
             }
             case "clear" -> {
                 if (list.isEmpty()) {
                     yield Mono.just(reply("Список «" + note.title() + "» уже пуст."));
                 }
                 yield persist(note, list.clear())
-                        .map(saved -> reply("Очистил список «" + note.title() + "»."));
+                        .map(saved -> reply("Очистил список «" + note.title() + "».")
+                                .withTrace("wrote: cleared a list"));
             }
             case "show" -> Mono.just(reply(renderList(note.title(), list)));
             default -> Mono.just(reply("Не понял, что сделать со списком «" + note.title() + "»."));
@@ -130,7 +133,8 @@ public class ListManager {
             }
             MarkdownChecklist created = MarkdownChecklist.parse(null).add(op.item());
             return notes.create(newListRequest(msg, name, created.render()))
-                    .map(saved -> reply("Создал список «" + name + "» и добавил «" + op.item().trim() + "»."))
+                    .map(saved -> reply("Создал список «" + name + "» и добавил «" + op.item().trim() + "».")
+                            .withTrace("wrote: created a list and added an item"))
                     .onErrorResume(e -> {
                         log.warn("create list failed: {}", e.toString());
                         return Mono.just(reply("Не смог создать список. Попробуйте позже."));
