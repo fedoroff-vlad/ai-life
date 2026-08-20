@@ -45,6 +45,7 @@ public class ConversationStateService {
         row.setPendingAction(req.pendingAction());
         row.setLastRouteAgent(req.lastRouteAgent());
         row.setLastRouteText(req.lastRouteText());
+        row.setLastRouteTrace(req.lastRouteTrace());
         row.setExpiresAt(Instant.now().plusSeconds(ttl));
         return repo.save(row).toDto();
     }

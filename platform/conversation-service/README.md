@@ -24,6 +24,12 @@ the classifier re-routes with the prior route as context. `routeLock` takes prio
 active the reply resumes and last-route is not consulted. Both fields are `NON_NULL`-omitted, so a
 lock-only or last-route-only row carries just the fields it set.
 
+**last-route trace (why-trace #485 / Track G):** an optional third last-route field — `lastRouteTrace` —
+a short, payload-free line of what the agent that handled that fresh turn actually did (what it read /
+wrote). It rides the same row + TTL as last-route; the orchestrator folds it into the "почему ты так
+сделал" answer. Storage only here — the orchestrator wiring + the per-agent trace contribution land in the
+G2 orchestrator/agent slices; a turn that carries no trace simply leaves it null.
+
 **Consumers:** the **orchestrator** reads the lock before classifying and clears it after a resolved
 resume (`IntentRouter`); agents (**tasks-agent** inbox-clarify, **notes-agent** ambient-approve) set a
 `pendingAction` on their reply so the orchestrator locks. **memory-service also sets a lock out-of-band**
@@ -36,7 +42,7 @@ owner's reply is then resolved by notes-agent's `/resume`. The channel it keys o
 
 | method | path | purpose |
 |--------|------|---------|
-| PUT    | `/v1/conversation-state` | upsert the lock + pending action **and/or** last-route (`lastRouteAgent`/`lastRouteText`) (body `SetConversationStateRequest`); TTL'd. A field left null clears it. Returns `ConversationStateDto` |
+| PUT    | `/v1/conversation-state` | upsert the lock + pending action **and/or** last-route (`lastRouteAgent`/`lastRouteText`/`lastRouteTrace`) (body `SetConversationStateRequest`); TTL'd. A field left null clears it. Returns `ConversationStateDto` |
 | GET    | `/v1/conversation-state?householdId=&userId=&channel=` | active (unexpired) state → 200 `ConversationStateDto`, else 204 |
 | DELETE | `/v1/conversation-state?householdId=&userId=&channel=` | clear after resolve → 204 |
 | GET    | `/actuator/health` | liveness |
@@ -57,7 +63,7 @@ Expiry is enforced on read (a stale lock reads as absent); no sweeper needed for
 - `ConversationServiceApplication`.
 - `domain/ConversationState` + `ConversationStateRepository` — JPA over `core.conversation_state`
   (unique on `(household_id, user_id, channel)`; `pending_action` is `jsonb`; `last_route_agent` /
-  `last_route_text` back misroute-repair).
+  `last_route_text` back misroute-repair; `last_route_trace` backs the why-trace #485/G2).
 - `domain/ConversationStateService` — `set` (upsert + TTL), `getActive` (unexpired only),
   `clear`. Expiry checked on read.
 - `web/ConversationStateController` — the REST surface above.
@@ -69,3 +75,5 @@ Expiry is enforced on read (a stale lock reads as absent); no sweeper needed for
   key on `(household_id, user_id, channel)`.
 - [010-conversation-last-route.yml](../../infra/liquibase/features/010-conversation-last-route.yml) —
   adds `last_route_agent` / `last_route_text` (misroute-repair #484).
+- [011-conversation-last-route-trace.yml](../../infra/liquibase/features/011-conversation-last-route-trace.yml) —
+  adds `last_route_trace` (why-trace #485 / Track G2).

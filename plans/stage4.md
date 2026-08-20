@@ -201,8 +201,14 @@ like #485's board-store rollout); not G1, which would otherwise touch every agen
   reserved classifier outcome (only offered inside the `PriorRoute` block) + an `ExplainResponder` that
   phrases the routing trace in the user's language via the LLM + an `IntentRouter` branch that returns it
   without dispatching to a domain agent or overwriting `last_route`.
-- **G2 (next)** — agents contribute a one-line "что прочитал / что записал" into `IntentResponse`; the
-  orchestrator remembers it with `last_route` and folds it into the explain answer. Per-agent rollout.
+- **G2a** — storage half (orchestrator behaviour untouched, like #484 F1): conversation-service remembers a
+  `last_route_trace` alongside `last_route` (migration `011` + `SetConversationStateRequest`/
+  `ConversationStateDto` gain a nullable field + entity/service). The trace is a short, payload-free line of
+  what the handling agent read/wrote.
+- **G2b (next)** — behaviour half: `IntentResponse` gains an optional `trace`; agents contribute a one-line
+  "что прочитал / что записал" (reference consumer first, per-agent rollout); the orchestrator records it
+  into `last_route_trace` and `ExplainResponder` folds it into the explain answer. A turn with no trace
+  falls back to the G1 routing-only answer.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **owner asks why.** WHEN the owner replies "почему ты так сделал / как ты это понял" right after
