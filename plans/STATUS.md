@@ -4,19 +4,15 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#485 transparency — "why did you do that" trace, slice G1 IN FLIGHT.** The routing half is
-  built on the conversation-state substrate (reuses the misroute-repair `last_route`, no schema/contract
-  change): a "почему ты так сделал / как ты это понял" turn is classified to a reserved `explain` outcome
-  (offered only while a prior route exists) and answered by the orchestrator's `ExplainResponder` — a
-  one-sentence trace naming the agent + why it fit, in the user's language, no payload leaked — instead of
-  dispatching. Spec + WHEN/THEN → [stage4.md](stage4.md) §Track G. **Remaining #485 threads (pick next):**
-  **G2** = agents contribute their own sources-read/action-written line into the trace (per-agent rollout),
-  and finance/calendar sanity spot-checks. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
-- **road-test §#485 transparency — board-store rollout ✅ DONE.** The reusable
-  `agent-runtime` `DegradedNotice.append(text, note)` primitive (trailing `⚠️ …` block) is wired into
-  **every** deliverable agent's board render/store soft-fail (briefing/nutrition/travel/creator/chef/stylist
-  + finance reports — timeline → [HISTORY.md](HISTORY.md), doctrine + WHEN/THEN →
-  [architecture.md](architecture.md) §Principles "Soft-fail, but never silently").
+- **road-test §#485 transparency — ✅ board-store rollout DONE + "why did you do that" trace G1 DONE
+  (2026-08-20, PR#514); two threads remain.** The `DegradedNotice` `⚠️` primitive covers every deliverable
+  agent's board render/store soft-fail; G1 answers a "почему ты так сделал / как ты это понял" turn from the
+  remembered `last_route` via the orchestrator's `ExplainResponder` (reserved `explain` classifier outcome,
+  no schema/contract change). Detail → [HISTORY.md](HISTORY.md); spec + WHEN/THEN → [stage4.md](stage4.md)
+  §Track G + [architecture.md](architecture.md) §Principles. **Remaining #485 threads (pick next):** **G2** =
+  agents contribute their own sources-read/action-written line into the trace (per-agent rollout, reference
+  consumer first), and finance/calendar sanity spot-checks. Epic queue →
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
   ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
   substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
