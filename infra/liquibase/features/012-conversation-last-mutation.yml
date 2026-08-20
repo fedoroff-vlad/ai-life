@@ -1,0 +1,30 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 012-conversation-last-mutation
+      author: ai-life
+      comment: |
+        CRUD/undo, slice H1 (road-test #486, Track H): remember the last *mutating*
+        action per conversation so "отмени последнее" can reverse it. A sibling of
+        last_route_{agent,text,trace} (#484/#485): last_mutation_agent is the agent that
+        performed the write, last_mutation_payload (jsonb) is the opaque handle that agent
+        reverses with (ids / inverse-op — internal, never surfaced), last_mutation_desc is
+        the short user-facing description ("добавленную трату 1500 ₽"). Unlike last_route
+        (overwritten on every fresh specialist turn), last_mutation is written only by a
+        terminal write and cleared when undone, so a plain read turn between the write and
+        the undo leaves it intact — the orchestrator carries it forward. Shares the row's
+        expires_at TTL. All nullable — a turn that mutates nothing leaves them empty.
+      changes:
+        - addColumn:
+            schemaName: core
+            tableName: conversation_state
+            columns:
+              - column:
+                  name: last_mutation_agent
+                  type: text
+              - column:
+                  name: last_mutation_payload
+                  type: jsonb
+              - column:
+                  name: last_mutation_desc
+                  type: text

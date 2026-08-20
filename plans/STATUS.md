@@ -10,8 +10,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   agent-led reversal over the existing C1 `invoke`/`/actions/undo`, **no new `Agent` method**), sliced
   H1 (storage) → H2 (orchestrator+primitive) → H3 (first producer = tasks) → H-rollout; plus (H.2) the
   **per-domain edit/delete/correct holes** (finance/tasks/notes/calendar) on each domain's own SkillRouter path.
-  WHEN/THEN acceptance criteria are in the plan. **NEXT slice: H1** — conversation-service stores `last_mutation`
-  (storage-only, ≤5 files, mirrors #484 F1 / #485 G2a). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  WHEN/THEN acceptance criteria are in the plan. **H1 ✅ (storage half)** — conversation-service now stores
+  `last_mutation_{agent,payload,desc}` on `core.conversation_state` (migration `012` + contract fields +
+  entity/service; orchestrator untouched, mirrors #484 F1 / #485 G2a). **NEXT slice: H2** — orchestrator
+  wiring + primitive (`IntentResponse.withUndo` + reserved `undo` classifier outcome + `IntentRouter`
+  records/dispatches/clears, deterministic "nothing to undo"; proven by orchestrator unit tests with a stub).
+  Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

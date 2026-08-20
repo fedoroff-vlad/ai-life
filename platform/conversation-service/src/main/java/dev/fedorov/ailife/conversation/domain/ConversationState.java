@@ -47,6 +47,16 @@ public class ConversationState {
     @Column(name = "last_route_trace")
     private String lastRouteTrace;
 
+    @Column(name = "last_mutation_agent")
+    private String lastMutationAgent;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "last_mutation_payload", columnDefinition = "jsonb")
+    private JsonNode lastMutationPayload;
+
+    @Column(name = "last_mutation_desc")
+    private String lastMutationDesc;
+
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
@@ -81,6 +91,7 @@ public class ConversationState {
     public ConversationStateDto toDto() {
         return new ConversationStateDto(id, householdId, userId, channel,
                 routeLock, pendingAction, lastRouteAgent, lastRouteText, lastRouteTrace,
+                lastMutationAgent, lastMutationPayload, lastMutationDesc,
                 expiresAt, updatedAt);
     }
 
@@ -98,6 +109,12 @@ public class ConversationState {
     public void setLastRouteText(String lastRouteText) { this.lastRouteText = lastRouteText; }
     public String getLastRouteTrace() { return lastRouteTrace; }
     public void setLastRouteTrace(String lastRouteTrace) { this.lastRouteTrace = lastRouteTrace; }
+    public String getLastMutationAgent() { return lastMutationAgent; }
+    public void setLastMutationAgent(String lastMutationAgent) { this.lastMutationAgent = lastMutationAgent; }
+    public JsonNode getLastMutationPayload() { return lastMutationPayload; }
+    public void setLastMutationPayload(JsonNode lastMutationPayload) { this.lastMutationPayload = lastMutationPayload; }
+    public String getLastMutationDesc() { return lastMutationDesc; }
+    public void setLastMutationDesc(String lastMutationDesc) { this.lastMutationDesc = lastMutationDesc; }
     public Instant getExpiresAt() { return expiresAt; }
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 }
