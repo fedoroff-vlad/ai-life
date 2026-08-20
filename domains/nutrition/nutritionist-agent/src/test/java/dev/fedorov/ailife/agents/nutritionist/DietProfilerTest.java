@@ -86,6 +86,7 @@ class DietProfilerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("ваш профиль").contains("2000");
+        assertThat(resp.trace()).isEqualTo("wrote: updated the diet profile");   // why-trace #485/G2
 
         // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
@@ -124,6 +125,7 @@ class DietProfilerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("семьи");
+        assertThat(resp.trace()).isEqualTo("wrote: updated the diet profile");   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract
@@ -148,6 +150,7 @@ class DietProfilerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
+        assertThat(resp.trace()).as("nothing written → no write trace").isNull();   // why-trace #485/G2
 
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // extract (→ error, no write)

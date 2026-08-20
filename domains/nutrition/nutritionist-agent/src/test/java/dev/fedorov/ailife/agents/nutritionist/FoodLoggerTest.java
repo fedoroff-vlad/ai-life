@@ -95,6 +95,7 @@ class FoodLoggerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Записал").contains("куриный салат");
+        assertThat(resp.trace()).isEqualTo("wrote: logged a meal");   // why-trace #485/G2
         assertThat(resp.pendingAction()).isNull(); // write-immediately, no confirm lock
 
         // The caption passthrough got the media id + the SKILL instruction + the user note.
@@ -138,6 +139,7 @@ class FoodLoggerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Записал").contains("овсянка");
+        assertThat(resp.trace()).isEqualTo("wrote: logged a meal");   // why-trace #485/G2
 
         // First the router classify, then the extract went through llm-gateway with the SKILL as system prompt.
         llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
@@ -169,6 +171,7 @@ class FoodLoggerTest {
         IntentResponse resp = post(msg);
         assertThat(resp).isNotNull();
         assertThat(resp.text()).contains("Не понял");
+        assertThat(resp.trace()).as("nothing logged → no write trace").isNull();   // why-trace #485/G2
 
         // Caption was attempted; no meal write happened.
         mediaProcessing.takeRequest(2, TimeUnit.SECONDS);

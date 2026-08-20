@@ -86,7 +86,9 @@ public class DietProfiler {
                 draft.tastes(),
                 draft.notes());
         return profiles.set(input)
-                .map(saved -> reply(successText(household, saved.goalKcal()), model))
+                // why-trace (#485/G2): setting the diet profile is a write — a payload-free "what I did" line.
+                .map(saved -> reply(successText(household, saved.goalKcal()), model)
+                        .withTrace("wrote: updated the diet profile"))
                 .onErrorResume(e -> {
                     log.warn("set_diet_profile write failed: {}", e.toString());
                     return Mono.just(reply("Не смог сохранить профиль питания. Попробуйте позже.", null));
