@@ -137,7 +137,9 @@ message resolves to a known agent name. Opt-in (`@Tag("golden")` +
 the test's javadoc; it's the top-of-spine companion to finance-agent's `GoldenRoutingTest`.
 `routing/GoldenMisrouteRepairTest` is the sibling for misroute-repair (#484): same gating, it proves a
 real model honours a `PriorRoute` correction (re-routes "не то, это задача"; leaves an unrelated message
-alone). Both reuse `GoldenRoutingTest.realManifests()`.
+alone). `routing/GoldenExplainTraceTest` is the sibling for the why-trace (#485 / Track G): with a
+`PriorRoute` present, a "почему / как ты это понял" turn classifies to the reserved `explain` outcome, and
+an ordinary message does not. All three reuse `GoldenRoutingTest.realManifests()`.
 
 ## Key classes
 - `OrchestratorApplication`.
