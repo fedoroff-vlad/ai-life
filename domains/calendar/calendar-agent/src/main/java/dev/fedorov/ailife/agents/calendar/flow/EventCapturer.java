@@ -9,6 +9,8 @@ import dev.fedorov.ailife.agents.calendar.http.CaldavEventClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.UndoHandle;
+import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
 import dev.fedorov.ailife.contracts.calendar.CreateEventInput;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
@@ -111,7 +113,9 @@ public class EventCapturer {
                 .flatMap(household -> caldav.createEvent(new CreateEventInput(
                                 household, plan.summary(), null, null, plan.dtstart(), plan.dtend(),
                                 null, null, null, null))
-                        .map(dto -> reply(confirm(dto.summary(), dto.dtstart()), model)))
+                        // undo (#486/HC-2): attach a handle so "отмени последнее" cancels this event by id.
+                        .map(dto -> reply(confirm(dto.summary(), dto.dtstart()), model)
+                                .withUndo(undoHandle(dto))))
                 .switchIfEmpty(Mono.just(reply("Не понял, в какой календарь записать событие.", model)));
     }
 
@@ -152,6 +156,22 @@ public class EventCapturer {
         } catch (DateTimeParseException e) {
             return null;
         }
+    }
+
+    /**
+     * The undo handle for a just-created event (#486 / Track H.2, HC-2): a user-facing description + the
+     * opaque internal event id (and its summary, carried so the reversal can name it — {@code DELETE
+     * /internal/event/{id}} returns no body) that the {@code /actions/undo} reversal cancels by. Lets the
+     * owner say "отмени последнее" to drop a mis-scheduled event with no id.
+     */
+    private UndoHandle undoHandle(CalendarEventDto dto) {
+        String summary = (dto.summary() != null && !dto.summary().isBlank()) ? dto.summary() : null;
+        ObjectNode action = json.createObjectNode();
+        action.put("eventId", dto.id().toString());
+        if (summary != null) {
+            action.put("summary", summary);
+        }
+        return new UndoHandle(summary != null ? "событие «" + summary + "»" : "событие", action);
     }
 
     private static String confirm(String summary, Instant dtstart) {

@@ -173,6 +173,36 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void internalEventDeletePassthroughRemovesEventAnd404sWhenGone() {
+        // create via the POST passthrough, then cancel via the DELETE passthrough (#486/HC-2 undo reversal).
+        Instant start = Instant.parse("2027-11-05T12:00:00Z");
+        CalendarEventDto created = client().post().uri("/internal/event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new CreateEventInput(
+                        householdId, "Встреча с врачом", null, null,
+                        start, start.plus(1, ChronoUnit.HOURS), null, null, null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+        assertThat(created).isNotNull();
+
+        client().delete().uri("/internal/event/" + created.id())
+                .exchange()
+                .expectStatus().isNoContent();
+
+        Integer after = jdbc.queryForObject(
+                "SELECT count(*) FROM calendar.events_cache WHERE id = ?",
+                Integer.class, created.id());
+        assertThat(after).isEqualTo(0);
+
+        // a second delete (already gone) → 404, so the caller can be honest about "уже удалено".
+        client().delete().uri("/internal/event/" + created.id())
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
     void internalEventsGetReturnsEventsInWindow() {
         Instant start = Instant.parse("2028-03-15T09:00:00Z");
         tools.createEvent(new CreateEventInput(
