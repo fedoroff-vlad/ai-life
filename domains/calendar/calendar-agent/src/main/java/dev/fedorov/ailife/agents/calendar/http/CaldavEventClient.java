@@ -35,6 +35,19 @@ public class CaldavEventClient {
     }
 
     /**
+     * Delete an event by its internal id via mcp-caldav's {@code DELETE /internal/event/{id}} — the undo
+     * reversal (#486/Track H.2, HC-2): calendar-agent's {@code /actions/undo} calls it to cancel a
+     * just-created event. A {@code 204} completes empty; an unknown id (404) or any error propagates so
+     * {@code ActionController.undo} can surface an honest "не нашёл событие для отмены".
+     */
+    public Mono<Void> deleteEvent(UUID id) {
+        return http.delete()
+                .uri("/internal/event/{id}", id)
+                .retrieve()
+                .bodyToMono(Void.class);
+    }
+
+    /**
      * Events in {@code [from, to)} for one household (start within the window, ascending) — the
      * deterministic {@code GET /internal/events} read. Used by the {@code create_event} double-booking
      * sanity spot-check (#485).

@@ -73,10 +73,11 @@ class EventCapturerTest {
     @Test
     void captureCueParsesTimeCreatesEventAndConfirms() throws Exception {
         UUID household = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
         enqueueRouting("event-capture");
         // The capture turn parses summary + start.
         llmGateway.enqueue(chat("{\"summary\":\"Встреча с врачом\",\"dtstart\":\"2026-08-22T15:00:00Z\"}"));
-        var dto = new CalendarEventDto(UUID.randomUUID(), household, "ours", "cal-uid-9",
+        var dto = new CalendarEventDto(eventId, household, "ours", "cal-uid-9",
                 "Встреча с врачом", null, null, Instant.parse("2026-08-22T15:00:00Z"), null, null,
                 List.of(), null);
         mcpCaldav.enqueue(new MockResponse().setHeader("content-type", "application/json")
@@ -89,6 +90,10 @@ class EventCapturerTest {
         assertThat(resp).isNotNull();
         assertThat(resp.agent()).isEqualTo("calendar");
         assertThat(resp.text()).contains("Записал").contains("Встреча с врачом");
+        // undo (#486/HC-2): a successful create attaches a handle so "отмени последнее" can cancel it.
+        assertThat(resp.undo()).isNotNull();
+        assertThat(resp.undo().description()).contains("Встреча с врачом");
+        assertThat(resp.undo().action().path("eventId").asString()).isEqualTo(eventId.toString());
 
         // Two llm-gateway turns: routing classification, then the capture parse.
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");   // routing

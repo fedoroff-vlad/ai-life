@@ -1,5 +1,6 @@
 package dev.fedorov.ailife.agents.calendar.web;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
@@ -64,6 +65,9 @@ public class ActionController extends AgentActionController {
         this.sharing = sharing;
         this.json = json;
         register("create_event", this::createEvent);
+        // "Отмени последнее" reversal (#486, Track H.2 / HC-2): cancel a just-created event by its stored id
+        // and confirm; a missing/already-deleted event surfaces an honest ok=false (never a silent no-op).
+        register("undo", this::undo);
         // Generic read-only cross-agent query (#290, Slice B): the coordinator can ask calendar a
         // focused sub-question and fold the grounded answer into a multi-domain synthesis.
         register("brief", briefResponder::answer);
@@ -73,6 +77,53 @@ public class ActionController extends AgentActionController {
     public Mono<AgentActionResult> action(@PathVariable String action,
                                           @RequestBody AgentActionRequest request) {
         return dispatch(action, request);
+    }
+
+    /** Reverse a just-created event: cancel it by the stored id and confirm with its summary (HC-2). */
+    private Mono<AgentActionResult> undo(AgentActionRequest request) {
+        UUID eventId = uuidArg(request, "eventId");
+        if (eventId == null) {
+            return Mono.just(AgentActionResult.error("undo requires args.eventId"));
+        }
+        String summary = stringArg(request, "summary");
+        return caldav.deleteEvent(eventId)
+                .then(Mono.fromSupplier(() -> {
+                    ObjectNode node = json.createObjectNode();
+                    node.put("message", "Отменил событие"
+                            + (summary != null ? ": «" + summary + "»" : "") + ".");
+                    return AgentActionResult.ok(node);
+                }))
+                .onErrorResume(e -> Mono.just(AgentActionResult.error(
+                        "Не нашёл событие для отмены — возможно, оно уже удалено.")));
+    }
+
+    private static UUID uuidArg(AgentActionRequest request, String field) {
+        JsonNode args = request.args();
+        if (args == null) {
+            return null;
+        }
+        JsonNode v = args.get(field);
+        if (v == null || v.isNull()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(v.asString().trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String stringArg(AgentActionRequest request, String field) {
+        JsonNode args = request.args();
+        if (args == null) {
+            return null;
+        }
+        JsonNode v = args.get(field);
+        if (v == null || v.isNull()) {
+            return null;
+        }
+        String s = v.asString().trim();
+        return s.isEmpty() ? null : s;
     }
 
     private Mono<AgentActionResult> createEvent(AgentActionRequest request) {

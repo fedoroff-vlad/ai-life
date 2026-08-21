@@ -47,9 +47,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `now` for relative dates → resolve household via the shared `SharingResolver` → mcp-caldav
   `/internal/event` → confirm; empty plan asks for the time); the chat + #195 feed-nudge logic moved to
   `CalendarChat`. Proven by `EventCapturerTest` (create + ask-when) + updated `/intent` tests (routing turn).
-  **NEXT: HC-2** (undo a just-created event — mcp-caldav DELETE passthrough + `/actions/undo` + `withUndo`,
-  closes the original calendar-undo goal), then **HC-3** (cancel via chat + destructive-confirm gate) / **HC-4**
-  (move). Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
+  **HC-2 ✅ (undo a just-created event)** — mcp-caldav `DELETE /internal/event/{id}` passthrough (delegates
+  to the existing `deleteEvent` tool) + `CaldavEventClient.deleteEvent` + calendar `/actions/undo` (cancel by
+  the stored id, honest `ok=false` when gone) + `EventCapturer` attaches `withUndo` (event id + summary) on a
+  successful create. **Calendar is now end-to-end: "запиши встречу…" → "отмени последнее" → событие
+  отменено** — closes the original calendar-undo goal. Proven by `ActionControllerTest` (+3 undo cases) +
+  `EventCapturerTest` undo-handle assertion + `McpCaldavIntegrationTest` DELETE passthrough case.
+  **NEXT: HC-3** (cancel an existing event by description via chat + destructive-confirm gate) / **HC-4**
+  (move/reschedule). Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across

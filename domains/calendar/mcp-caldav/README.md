@@ -20,6 +20,7 @@ All tool method descriptions are in English (token economy).
 | method | path              | purpose                                                            |
 |--------|-------------------|--------------------------------------------------------------------|
 | POST   | `/internal/event` | Create an event deterministically (body `CreateEventInput` → `CalendarEventDto`, 400 on bad input). Writes to whatever `householdId` it is handed — mcp-caldav is **tenant-agnostic**; the private/shared → personal/family household routing (ADR-0001 slice 4, `CreateEventInput.sharing`) is resolved upstream by calendar-agent. |
+| DELETE | `/internal/event/{id}` | Cancel an event by its internal id (204 when removed, 404 when already gone). Deterministic passthrough to `deleteEvent`; the undo reversal behind calendar-agent's "отмени последнее" (#486/Track H.2 HC-2). |
 | GET    | `/internal/events?householdId=&from=&to=` | Read events whose start is within `[from, to)` (ISO-8601 instants) → `List<CalendarEventDto>`, ordered by start; reads from cache only. `householdId` is **repeatable** — once for a single household, or several times for the union over a household set (personal ∪ shared — the per-member ICS feed, ADR-0001 slice 5 / #295). |
 | POST   | `/internal/feeds` | Mint a read-only ICS feed token (body `CreateFeedInput{householdId, ownerId?, label}` → `CalendarFeedDto`). Token generated server-side (#195). |
 | GET    | `/internal/feeds/{token}` | Resolve a token → `CalendarFeedDto` (404 if unknown or revoked). Used by `calendar-web`. |
@@ -89,7 +90,7 @@ and runs an end-to-end CRUD flow asserting both the Radicale upstream and the ca
 - `domain/EventMirror` — applies upstream CalDAV op result to the cache row.
 - `tools/CalendarMcpTools` — the 5 `@Tool` methods.
 - `tools/ToolsConfig` — exposes them via `MethodToolCallbackProvider`.
-- `web/InternalEventController` — `POST /internal/event` passthrough to `createEvent` (non-MCP; for deterministic agent callers).
+- `web/InternalEventController` — `POST /internal/event` passthrough to `createEvent` + `DELETE /internal/event/{id}` passthrough to `deleteEvent` (204/404; the undo reversal, #486/HC-2) — non-MCP, for deterministic agent callers.
 - `web/InternalEventsReadController` — `GET /internal/events?householdId&from&to` read passthrough (non-MCP; for `calendar-web`'s read view / ICS feed). `householdId` repeatable → `CalendarMcpTools.listEventsInHouseholds` reads the union over the set (ADR-0001 slice 5 / #295); a single value is back-compatible.
 - `feed/FeedService` + `domain/CalendarFeed` + `domain/CalendarFeedRepository` — read-only ICS feed tokens (#195): mint (server-side secret), resolve (un-revoked), list, revoke.
 - `web/InternalFeedController` — `/internal/feeds` mint / resolve / list / revoke (non-MCP).

@@ -10,6 +10,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +23,7 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,6 +71,19 @@ class ActionControllerTest {
 
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
+
+    @BeforeEach
+    void drain() throws Exception {
+        // The context (and these static MockWebServers) are reused across methods; drain leftover recorded
+        // requests so each test's takeRequest() sees only its own call regardless of method order (a test
+        // that makes a call without takeRequest — e.g. the undo not-found case — would otherwise desync).
+        while (mcpCaldav.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+            // discard
+        }
+        while (profile.takeRequest(50, TimeUnit.MILLISECONDS) != null) {
+            // discard
+        }
+    }
 
     @Test
     void createEventMapsArgsAndReturnsEventUid() throws Exception {
@@ -278,6 +293,68 @@ class ActionControllerTest {
 
         assertThat(mcpCaldav.takeRequest().getPath()).isEqualTo("/internal/event");        // create
         assertThat(mcpCaldav.takeRequest().getPath()).startsWith("/internal/events");       // overlap read
+    }
+
+    @Test
+    void undoCancelsTheEventAndConfirms() throws Exception {
+        UUID eventId = UUID.randomUUID();
+        mcpCaldav.enqueue(new MockResponse().setResponseCode(204));   // DELETE /internal/event/{id}
+
+        var args = json.createObjectNode();
+        args.put("eventId", eventId.toString());
+        args.put("summary", "Встреча с врачом");
+        var req = new AgentActionRequest("calendar", "undo", UUID.randomUUID(), null, "orchestrator", args);
+
+        http.post().uri("/agents/calendar/actions/undo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("message").asString()).contains("Встреча с врачом");
+                });
+
+        RecordedRequest sent = mcpCaldav.takeRequest();
+        assertThat(sent.getMethod()).isEqualTo("DELETE");
+        assertThat(sent.getPath()).isEqualTo("/internal/event/" + eventId);
+    }
+
+    @Test
+    void undoOfAnAlreadyGoneEventIsHonest() {
+        UUID eventId = UUID.randomUUID();
+        mcpCaldav.enqueue(new MockResponse().setResponseCode(404));   // event already cancelled
+
+        var args = json.createObjectNode();
+        args.put("eventId", eventId.toString());
+        var req = new AgentActionRequest("calendar", "undo", UUID.randomUUID(), null, "orchestrator", args);
+
+        http.post().uri("/agents/calendar/actions/undo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isFalse();
+                    assertThat(res.error()).contains("событие");
+                });
+    }
+
+    @Test
+    void undoWithoutEventIdIsError() {
+        var req = new AgentActionRequest("calendar", "undo", UUID.randomUUID(), null, "orchestrator", null);
+        http.post().uri("/agents/calendar/actions/undo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isFalse();
+                    assertThat(res.error()).contains("eventId");
+                });
     }
 
     @Test
