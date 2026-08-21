@@ -38,8 +38,18 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   edges) + a notes `web/ActionController` registering the `undo` action (delete a just-captured note, honest
   `ok=false` when gone) + `NoteWriter` attaches `withUndo` (note id + title) on a successful "запомни …"
   capture; proven by `ActionControllerTest` (4) + a handle assertion in `NoteWriterTest`. **Notes is now
-  end-to-end: capture → "отмени последнее" → note deleted.** **NEXT: calendar rollout** (cancel the
-  just-created event), then the per-domain **H.2 edit/delete holes**. Epic queue →
+  end-to-end: capture → "отмени последнее" → note deleted.** **calendar reframed → H.2 (owner-approved):**
+  calendar had no user-facing write (events came only from the inter-agent `create_event`, tasks→calendar),
+  so the cross-cutting undo primitive had no producer to hang on — "calendar rollout" is really H.2's
+  "create/move/cancel via chat", specced as HC-1…HC-4 in [calendar.md](calendar.md) §H.2. **HC-1 ✅
+  (event capture via chat)** — a `CalendarIntentRouter` (shared `SkillClassifier`, #475) routes "запиши
+  встречу …" to a new `event-capture` skill + `EventCapturer` (LLM parse `{summary,dtstart,dtend?}` with
+  `now` for relative dates → resolve household via the shared `SharingResolver` → mcp-caldav
+  `/internal/event` → confirm; empty plan asks for the time); the chat + #195 feed-nudge logic moved to
+  `CalendarChat`. Proven by `EventCapturerTest` (create + ask-when) + updated `/intent` tests (routing turn).
+  **NEXT: HC-2** (undo a just-created event — mcp-caldav DELETE passthrough + `/actions/undo` + `withUndo`,
+  closes the original calendar-undo goal), then **HC-3** (cancel via chat + destructive-confirm gate) / **HC-4**
+  (move). Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across

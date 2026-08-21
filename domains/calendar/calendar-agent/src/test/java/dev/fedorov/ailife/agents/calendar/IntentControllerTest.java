@@ -53,13 +53,11 @@ class IntentControllerTest {
     @Autowired ObjectMapper json;
 
     @Test
-    void intentRoutesUserMessageToLlmWithManifestSystemPrompt() throws Exception {
-        var fakeLlm = new LlmChatResponse(
-                "mock-large", "Maria's birthday is on May 5.", "stop",
-                new LlmUsage(20, 10, 30));
-        llmGateway.enqueue(new MockResponse()
-                .setHeader("content-type", "application/json")
-                .setBody(json.writeValueAsString(fakeLlm)));
+    void nonEventMessageFallsThroughToChatWithManifestSystemPrompt() throws Exception {
+        // The in-agent router (#475 / Track H.2) now classifies first: a read question routes to `chat`,
+        // then CalendarChat makes the real reply call. Two llm-gateway turns.
+        llmGateway.enqueue(chatResponse("{\"action\":\"chat\",\"text\":\"...\"}"));   // routing → chat
+        llmGateway.enqueue(chatResponse("Maria's birthday is on May 5."));            // CalendarChat reply
 
         var msg = new NormalizedMessage(
                 UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
@@ -78,10 +76,19 @@ class IntentControllerTest {
                     assertThat(r.llmModel()).isEqualTo("mock-large");
                 });
 
-        RecordedRequest llmReq = llmGateway.takeRequest();
-        assertThat(llmReq.getPath()).isEqualTo("/v1/chat");
-        String body = llmReq.getBody().readUtf8();
+        RecordedRequest routing = llmGateway.takeRequest();          // classifier turn
+        assertThat(routing.getPath()).isEqualTo("/v1/chat");
+        assertThat(routing.getBody().readUtf8()).contains("Когда у Маши");   // user text classified
+        RecordedRequest chat = llmGateway.takeRequest();             // chat reply turn
+        String body = chat.getBody().readUtf8();
         assertThat(body).contains("calendar agent");      // AGENT.md body became system prompt
         assertThat(body).contains("Когда у Маши");        // user text passed through
+    }
+
+    private MockResponse chatResponse(String content) throws Exception {
+        return new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", content, "stop", new LlmUsage(20, 10, 30))));
     }
 }

@@ -65,7 +65,12 @@ class IntentFeedAutoIssueTest {
     @Autowired WebTestClient http;
     @Autowired ObjectMapper json;
 
+    /** The router (#475 / Track H.2) classifies first: enqueue a `chat` decision, then the real reply. */
     private void enqueueChat() throws Exception {
+        llmGateway.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new LlmChatResponse(
+                        "mock-large", "{\"action\":\"chat\",\"text\":\"...\"}", "stop", new LlmUsage(8, 3, 11)))));
         llmGateway.enqueue(new MockResponse()
                 .setHeader("content-type", "application/json")
                 .setBody(json.writeValueAsString(new LlmChatResponse(
@@ -106,7 +111,7 @@ class IntentFeedAutoIssueTest {
         mcpCaldav.enqueue(jsonBody(List.of(existing)));               // GET → already has a feed
 
         var msg = new NormalizedMessage(USER, HOUSEHOLD, MessageScope.PRIVATE,
-                "добавь встречу завтра", List.of(), "telegram", "2", Instant.now());
+                "что у меня по выходным?", List.of(), "telegram", "2", Instant.now());
 
         http.post().uri("/agents/calendar/intent")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(msg)
