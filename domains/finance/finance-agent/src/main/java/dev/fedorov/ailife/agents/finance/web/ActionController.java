@@ -7,8 +7,10 @@ import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.finance.http.GiftBudgetClient;
 import dev.fedorov.ailife.agents.finance.http.SpendingClient;
+import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
+import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,15 +49,21 @@ public class ActionController extends AgentActionController {
 
     private final GiftBudgetClient giftBudget;
     private final SpendingClient spending;
+    private final TransactionClient transactions;
     private final ObjectMapper json;
 
     public ActionController(GiftBudgetClient giftBudget, SpendingClient spending,
+                            TransactionClient transactions,
                             BriefResponder briefResponder, ObjectMapper json) {
         super("finance");
         this.giftBudget = giftBudget;
         this.spending = spending;
+        this.transactions = transactions;
         this.json = json;
         register("get_gift_budget", this::getGiftBudget);
+        // "Отмени последнее" reversal (#486, Track H): delete a just-written transaction by its stored id
+        // and confirm; a missing/already-deleted row surfaces an honest ok=false (never a silent no-op).
+        register("undo", this::undo);
         // Structured spend-by-category read over [from,to] for another agent's own synthesis (the
         // briefing digest's finance section). Unlike `brief` this returns the raw rows, not LLM prose —
         // the caller keeps its exact numbers. Read-only, householdId forced from the envelope.
@@ -155,6 +163,49 @@ public class ActionController extends AgentActionController {
         node.put("relationship", relationship);
         node.put("source", "rule");
         return AgentActionResult.ok(node);
+    }
+
+    /** Reverse a just-written transaction: delete it by the stored id and confirm (#486, Track H). */
+    private Mono<AgentActionResult> undo(AgentActionRequest request) {
+        UUID txId = uuidArg(request, "transactionId");
+        if (txId == null) {
+            return Mono.just(AgentActionResult.error("undo requires args.transactionId"));
+        }
+        return transactions.delete(txId)
+                .map(dto -> {
+                    ObjectNode node = json.createObjectNode();
+                    node.put("message", "Удалил трату" + describe(dto) + ".");
+                    return AgentActionResult.ok(node);
+                })
+                .onErrorResume(e -> Mono.just(AgentActionResult.error(
+                        "Не нашёл трату для отмены — возможно, она уже удалена.")));
+    }
+
+    /** A short user-facing tail naming the reversed transaction — its note, else amount + currency. */
+    private static String describe(FinTransactionDto dto) {
+        if (dto.note() != null && !dto.note().isBlank()) {
+            return ": «" + dto.note() + "»";
+        }
+        if (dto.amount() != null && dto.currency() != null) {
+            return " на " + dto.amount().abs().toPlainString() + " " + dto.currency();
+        }
+        return "";
+    }
+
+    private UUID uuidArg(AgentActionRequest request, String field) {
+        JsonNode args = request.args();
+        if (args == null) {
+            return null;
+        }
+        JsonNode v = args.get(field);
+        if (v == null || v.isNull()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(v.asString().trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String relationshipArg(AgentActionRequest request) {

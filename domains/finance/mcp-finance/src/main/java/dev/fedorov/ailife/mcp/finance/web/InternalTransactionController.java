@@ -6,6 +6,7 @@ import dev.fedorov.ailife.mcp.finance.domain.FinTransaction;
 import dev.fedorov.ailife.mcp.finance.domain.FinTransactionRepository;
 import dev.fedorov.ailife.mcp.finance.tools.FinanceMcpTools;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,8 +23,11 @@ import java.util.UUID;
  * {@code transaction.uncategorised} enrichment. The {@code POST} lets an agent
  * write a transaction without going through an LLM-driven MCP tool call — used by
  * the {@code receipt-parser} flow, which has already parsed a concrete
- * {@link AddTransactionInput} from a photo and just needs to persist it. Both
- * mirror {@link InternalBudgetController} / {@link InternalRecurringController}.
+ * {@link AddTransactionInput} from a photo and just needs to persist it. The
+ * {@code DELETE} returns the deleted row — the deterministic reversal behind the
+ * "отмени последнее" undo primitive (road-test #486, Track H): finance-agent's
+ * {@code /actions/undo} calls it to reverse a just-written transaction. Both write
+ * paths mirror {@link InternalBudgetController} / {@link InternalRecurringController}.
  */
 @RestController
 @RequestMapping("/internal/transaction")
@@ -56,6 +60,20 @@ public class InternalTransactionController {
             return ResponseEntity.ok(tools.addTransaction(input));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Deletes a transaction and returns the deleted row, delegating to
+     * {@link FinanceMcpTools#deleteTransaction}. The undo reversal (#486/H): finance-agent's
+     * {@code /actions/undo} calls it to reverse a just-written transaction. Unknown id → 404.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(tools.deleteTransaction(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
         }
     }
 }

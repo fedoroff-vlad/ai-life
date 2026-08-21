@@ -209,6 +209,10 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   so an agent that already holds a concrete `AddTransactionInput` can persist it
   without an LLM-driven MCP tool call. Used by the `receipt-parser` flow once it
   has parsed a draft from a photo. Validation failures → `{"error": "..."}` 400.
+- `DELETE /internal/transaction/{id}` → `FinTransactionDto` (200) | 404. Delegates to the
+  `delete_transaction` tool and returns the deleted row — the deterministic reversal behind the
+  "отмени последнее" undo primitive (road-test #486, Track H): finance-agent's `/actions/undo`
+  calls it to reverse a just-written transaction. Unknown id → 404.
 - `GET /internal/spending-by-category?householdId=<uuid>&from=<iso-instant>&to=<iso-instant>&kind=<opt>`
   → `List<SpendingByCategoryRow>` (200) | 400 on a bad window. Delegates to the
   `spending_by_category` tool (same `[from, to)` window + `kind` default of

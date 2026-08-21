@@ -908,6 +908,21 @@ class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
                         new BigDecimal("-1.00"), "EUR", Instant.now(), "bad", "telegram", null))
                 .exchange()
                 .expectStatus().isBadRequest();
+
+        // DELETE /internal/transaction/{id} reverses the write (the undo primitive's reversal, #486/H):
+        // returns the deleted row, then 404 once it's gone.
+        FinTransactionDto deleted = client.delete()
+                .uri("/internal/transaction/{id}", created.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinTransactionDto.class)
+                .returnResult().getResponseBody();
+        assertThat(deleted).isNotNull();
+        assertThat(deleted.id()).isEqualTo(created.id());
+        assertThat(deleted.note()).isEqualTo("coffee from receipt");
+
+        client.delete().uri("/internal/transaction/{id}", created.id())
+                .exchange().expectStatus().isNotFound();
     }
 
     @Test
