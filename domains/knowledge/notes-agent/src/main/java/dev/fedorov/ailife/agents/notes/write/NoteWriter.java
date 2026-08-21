@@ -9,6 +9,7 @@ import dev.fedorov.ailife.agents.notes.http.SchedulerClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.agent.UndoHandle;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -86,7 +87,10 @@ public class NoteWriter {
                     scheduler.ensureResurfaceSchedule(msg.householdId()).subscribe();
                     // why-trace (#485/G2): a successful capture is a write — a payload-free "what I did" line
                     // (no title) so a later "почему ты так сделал" answer can say the note was saved.
-                    return reply(successText(saved.title()), model).withTrace("wrote: saved a note");
+                    // undo (#486/Track H): attach a handle so "отмени последнее" can delete this note by id.
+                    return reply(successText(saved.title()), model)
+                            .withTrace("wrote: saved a note")
+                            .withUndo(undoHandle(saved));
                 })
                 .onErrorResume(e -> {
                     log.warn("create note failed: {}", e.toString());
@@ -132,6 +136,22 @@ public class NoteWriter {
             }
         }
         return tags.isEmpty() ? null : tags;
+    }
+
+    /**
+     * The undo handle for a just-captured note (#486 / Track H): a user-facing description + the opaque note
+     * id (and its title, carried so the reversal can name it — {@code DELETE /v1/notes/{id}} returns no body)
+     * that the {@code /actions/undo} reversal deletes by. Lets the owner say "отмени последнее" to remove a
+     * mis-capture with no id.
+     */
+    private UndoHandle undoHandle(NoteDto saved) {
+        String title = (saved.title() != null && !saved.title().isBlank()) ? saved.title() : null;
+        var action = json.createObjectNode();
+        action.put("noteId", saved.id().toString());
+        if (title != null) {
+            action.put("title", title);
+        }
+        return new UndoHandle(title != null ? "заметку «" + title + "»" : "заметку", action);
     }
 
     private static String successText(String title) {

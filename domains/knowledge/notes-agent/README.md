@@ -7,10 +7,11 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a)
+## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a + undo H)
 
 Scaffold + the **capture**, **recall**, **proactive-resurfacing**, **ambient-approve** (AC-4 resume),
-and **lists** (LI-a) flows.
+and **lists** (LI-a) flows, plus the **undo** reversal (#486/Track H — "отмени последнее" deletes a
+just-captured note).
 
 - **Lists (LI-a)** — everyday item checklists (a shopping / to-buy / packing list). A "…список…" /
   "вычеркни …" cue → one llm-gateway turn with the `list-manager` SKILL classifies the message into
@@ -59,6 +60,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 |--------|------|---------|
 | POST | `/agents/notes/intent` | orchestrator entry. `NotesIntentRouter` classifies the message via the shared `SkillClassifier` (#475) into one intent skill — `note-finder` recall / `list-manager` op (LI-a) / `note-writer` capture — or the chat fallback. Routing SSOT is each skill's SKILL.md description (a paraphrase outside the old keyword cues routes correctly); every stage soft-fails to chat. |
 | POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); unknown flow → graceful reply. |
+| POST | `/agents/notes/actions/{action}` | inter-agent action envelope (Track C1). `undo` (#486/Track H) reverses a just-captured note: `DELETE /v1/notes/{id}` by the stored handle id, confirming with its title; an already-gone note → honest `ok=false`. |
 | POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
 
@@ -89,11 +91,12 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `NotesAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/NotesAgentProperties` — `notes-agent.*` base URLs (implements `SharedClientProperties`).
 - `config/OutboundHttpConfig` — the `schedulerWebClient` bean (its own base URL; the profile/notifier/memory clients come from `agent-runtime`).
-- `http/NoteClient` — `/v1/notes` create / get / **update** / **list** / backlinks / **resurface** over the shared `memoryServiceWebClient`.
+- `http/NoteClient` — `/v1/notes` create / get / **update** / **list** / **delete** / backlinks / **resurface** over the shared `memoryServiceWebClient`. `delete` (#486/Track H) is the undo reversal — `DELETE /v1/notes/{id}` (memory-service also drops the recall seed + wiki-link edges).
 - `list/ListManager` — LI-a flow: LLM classify (`list-manager` SKILL, temperature 0) → find-or-create the `type=list` note by title → mutate the checklist body (via the shared `common.list.MarkdownChecklist` in `libs/platform-common`) → `POST`/`PUT /v1/notes`; each stage soft-fails. **Why-trace (#485/G2):** the write ops (add / check-off / clear / create-list) attach a payload-free `IntentResponse.trace` ("wrote: …"); reads (show) and no-ops (duplicate/absent) none.
 - `http/SchedulerClient` — R-c: idempotent `ensureResurfaceSchedule(household)` (list → create only if no `notes.resurface` cron yet) over `schedulerWebClient`; best-effort, soft-fails.
 - `flow/NoteResurfacer` — the R-b proactive flow: `NoteClient.resurface` → format a reminder → deliver via notifier (owner if set, else household fan-out); best-effort, no-op when nothing is stale.
-- `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title. On a successful capture it also fires `SchedulerClient.ensureResurfaceSchedule` (R-c, fire-and-forget) and attaches a payload-free `IntentResponse.trace` "wrote: saved a note" (why-trace #485/G2).
+- `write/NoteWriter` — the capture flow: LLM structure (`note-writer` SKILL, temperature=0) → `NoteClient.create`; soft-fails per stage, falls back to the user's words for the title. On a successful capture it also fires `SchedulerClient.ensureResurfaceSchedule` (R-c, fire-and-forget), attaches a payload-free `IntentResponse.trace` "wrote: saved a note" (why-trace #485/G2), and an `IntentResponse.undo` handle (#486/Track H) carrying the note id + title so "отмени последнее" can delete it.
+- `web/ActionController` — the inter-agent action envelope (`AgentActionController`). Registers `undo` (#486/Track H): deletes a just-captured note via `NoteClient.delete` and confirms with its title; an already-gone note → honest `ok=false`.
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `approve/AmbientApprover` — AC-4 resume: parse the `pendingAction.note` (a ready `WriteNoteRequest`), and on an affirmative reply write it (`source=ambient`) via `NoteClient.create`, else drop; both clear the lock. Soft-fails to a friendly reply.
