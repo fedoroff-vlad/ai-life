@@ -28,10 +28,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   **H-rollout in progress (finance):** **finance reversal ✅** — mcp-finance `DELETE
   /internal/transaction/{id}` passthrough + `TransactionClient.delete` + finance `ActionController` registers
   the `undo` action (delete a just-written transaction, honest `ok=false` when gone); proven by
-  `ActionControllerTest` (+2) + a DELETE case in `McpFinanceIntegrationTest`. **NEXT slice: finance producer**
-  — `ReceiptParser.resume` (the confirm write path) attaches `withUndo` (created tx id) so "отмени последнее"
-  reverses a confirmed transaction end-to-end; then notes / calendar. Then the per-domain **H.2 edit/delete
-  holes**. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  `ActionControllerTest` (+2) + a DELETE case in `McpFinanceIntegrationTest`. **finance producer ✅** —
+  `ReceiptParser.resume` (the confirm write) attaches `withUndo` (created tx id); this also required
+  generalizing the orchestrator's `applyLockLifecycle` so a **resume turn that writes reversibly** records the
+  `last_mutation` (clearing the resolved lock in the same upsert) instead of just clearing — so any
+  confirm-then-write is now undoable. Proven by `ReceiptParserTest` + an `IntentRouterLockTest` resume-write
+  case. **Finance is now end-to-end: receipt confirm → "отмени последнее" → transaction deleted.** **NEXT:
+  notes / calendar rollout**, then the per-domain **H.2 edit/delete holes**. Epic queue →
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
