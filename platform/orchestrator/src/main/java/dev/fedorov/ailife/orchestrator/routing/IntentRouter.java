@@ -228,7 +228,9 @@ public class IntentRouter {
      * <p><b>Undo (Track H):</b> a fresh terminal write carries its own {@link IntentResponse#undo()} handle
      * as the new {@code last_mutation}; a fresh turn that mutated nothing (no handle) <em>carries forward</em>
      * the prior mutation from {@code priorState}, so a plain read turn between a write and "отмени последнее"
-     * doesn't erase what's undoable. The two groups are written together (one clobber-all upsert).
+     * doesn't erase what's undoable. The two groups are written together (one clobber-all upsert). A
+     * <em>resolved confirm</em> (a resume turn, e.g. a receipt confirm) that writes carries the same handle —
+     * it is recorded as the new {@code last_mutation} while the resolved lock is cleared in one upsert.
      */
     private Mono<IntentResponse> applyLockLifecycle(NormalizedMessage message, IntentResponse resp,
                                                     boolean cameFromResume, ConversationStateDto priorState) {
@@ -238,6 +240,16 @@ public class IntentRouter {
                     .thenReturn(resp);
         }
         if (cameFromResume) {
+            // A resolved confirm that WROTE something reversible (a receipt confirm → transaction) records
+            // that as the new last_mutation so "отмени последнее" can reverse it; the null route clears the
+            // resolved lock in the same clobber-all upsert. A resolved question that wrote nothing just
+            // clears the lock as before.
+            if (resp.undo() != null) {
+                return conversationState.recordLastRoute(message.householdId(), message.userId(),
+                                message.sourceChannel(), null, null, null,
+                                resp.agent(), resp.undo().action(), resp.undo().description())
+                        .thenReturn(resp);
+            }
             return conversationState.clear(message.householdId(), message.userId(),
                             message.sourceChannel())
                     .thenReturn(resp);

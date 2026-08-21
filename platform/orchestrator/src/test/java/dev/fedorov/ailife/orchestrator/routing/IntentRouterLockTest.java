@@ -382,6 +382,28 @@ class IntentRouterLockTest {
     }
 
     @Test
+    void resumeThatWritesReversiblyRecordsTheMutationInsteadOfClearing() {
+        // A receipt-confirm: the conversation is locked to finance; the affirmative reply resumes and WRITES
+        // a transaction, attaching an undo handle. The resolved lock must clear AND the write become undoable.
+        var pending = json.createObjectNode().put("flow", "receipt-confirm");
+        when(conversationState.activeState(any(), any(), any()))
+                .thenReturn(Mono.just(lockedTo("finance", pending)));
+        var undoPayload = json.createObjectNode().put("transactionId", "tx-1");
+        when(finance.resume(any())).thenReturn(Mono.just(new IntentResponse("finance", "Записал: 1500 ₽.", "m")
+                .withUndo(new UndoHandle("трату 1500 ₽", undoPayload))));
+        when(conversationState.recordLastRoute(any(), any(), any(), any(), any(), any(),
+                any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(router.route(msg())).expectNextCount(1).verifyComplete();
+
+        // Recorded as last_mutation (route null → the resolved lock is cleared in the same upsert);
+        // no separate clear() call.
+        verify(conversationState).recordLastRoute(any(), any(), eq("telegram"), isNull(), isNull(), isNull(),
+                eq("finance"), eq(undoPayload), eq("трату 1500 ₽"));
+        verify(conversationState, never()).clear(any(), any(), any());
+    }
+
+    @Test
     void undoWithUnavailableRecordingAgentIsSurfacedHonestly() {
         // last_mutation names an agent no longer in the dispatch map.
         var state = withMutation(null, null, "ghost", "что-то");

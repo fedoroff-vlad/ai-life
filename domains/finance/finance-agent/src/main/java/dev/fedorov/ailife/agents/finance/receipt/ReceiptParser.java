@@ -15,9 +15,11 @@ import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
+import dev.fedorov.ailife.contracts.agent.UndoHandle;
 import dev.fedorov.ailife.contracts.basket.BasketCapturedEvent;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinAccountDto;
+import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.nutrition.BasketItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,7 +159,8 @@ public class ReceiptParser {
         String accountName = pending.path("accountName").asString("счёт");
         return transactions.add(input)
                 .map(saved -> reply(successText(saved.amount(), saved.currency(),
-                        input.note(), accountName), null))
+                        input.note(), accountName), null)
+                        .withUndo(undoHandle(saved)))
                 .onErrorResume(e -> {
                     log.warn("add_transaction from receipt confirm failed: {}", e.toString());
                     return Mono.just(reply(
@@ -378,6 +381,20 @@ public class ReceiptParser {
 
     private IntentResponse reply(String text, String model) {
         return new IntentResponse(manifest.name(), text, model);
+    }
+
+    /**
+     * The undo handle for a just-written transaction (#486 / Track H): a user-facing description + the
+     * opaque transaction id the {@code /actions/undo} reversal deletes by. Lets the owner say "отмени
+     * последнее" to reverse a confirmed receipt with no id.
+     */
+    private UndoHandle undoHandle(FinTransactionDto saved) {
+        ObjectNode action = json.createObjectNode();
+        action.put("transactionId", saved.id().toString());
+        String desc = (saved.note() != null && !saved.note().isBlank())
+                ? "трату «" + saved.note() + "»"
+                : "трату на " + saved.amount().abs().toPlainString() + " " + saved.currency();
+        return new UndoHandle(desc, action);
     }
 
     private record Draft(BigDecimal amount, String currency, String merchant, String date, String note,
