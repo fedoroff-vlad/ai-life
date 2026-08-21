@@ -22,6 +22,8 @@ import java.util.UUID;
  *   propagated → controller maps to 503).</li>
  *   <li>{@link #add(AddTransactionInput)} — {@code POST /internal/transaction};
  *   used by {@code ReceiptParser} to persist a draft parsed from a photo.</li>
+ *   <li>{@link #delete(UUID)} — {@code DELETE /internal/transaction/{id}}; the undo reversal
+ *   (#486/Track H): {@code ActionController.undo} calls it to reverse a just-written transaction.</li>
  * </ul>
  */
 @Component
@@ -49,6 +51,14 @@ public class TransactionClient {
                 .uri("/internal/transaction")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(input)
+                .retrieve()
+                .bodyToMono(FinTransactionDto.class)
+                .timeout(Duration.ofSeconds(3));
+    }
+
+    public Mono<FinTransactionDto> delete(UUID id) {
+        return http.delete()
+                .uri("/internal/transaction/{id}", id)
                 .retrieve()
                 .bodyToMono(FinTransactionDto.class)
                 .timeout(Duration.ofSeconds(3));

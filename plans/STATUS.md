@@ -25,9 +25,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `CaptureResult.undo` → `IntentController` `.withUndo`; deferred/failed turns leave it null. Proven by
   `TaskCapturerTest` (handle present on capture / null on the deferred ask) + a real-model `GoldenUndoTest`
   (opt-in). **The undo primitive is now end-to-end on tasks: capture → "отмени последнее" → task gone.**
-  **NEXT slice: H-rollout** — extend `withUndo` + `/actions/undo` to the next write agent (finance:
-  delete the added transaction / restore prior amount), one small PR each (notes, calendar follow). Then the
-  per-domain **H.2 edit/delete holes**. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **H-rollout in progress (finance):** **finance reversal ✅** — mcp-finance `DELETE
+  /internal/transaction/{id}` passthrough + `TransactionClient.delete` + finance `ActionController` registers
+  the `undo` action (delete a just-written transaction, honest `ok=false` when gone); proven by
+  `ActionControllerTest` (+2) + a DELETE case in `McpFinanceIntegrationTest`. **NEXT slice: finance producer**
+  — `ReceiptParser.resume` (the confirm write path) attaches `withUndo` (created tx id) so "отмени последнее"
+  reverses a confirmed transaction end-to-end; then notes / calendar. Then the per-domain **H.2 edit/delete
+  holes**. Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

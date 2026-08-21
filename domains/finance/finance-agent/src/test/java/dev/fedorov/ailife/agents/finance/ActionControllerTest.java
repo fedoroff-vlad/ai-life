@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
+import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetResult;
 import dev.fedorov.ailife.contracts.finance.GiftBudgetRuleDto;
 import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
@@ -238,6 +239,51 @@ class ActionControllerTest {
                 .value(res -> {
                     assertThat(res.ok()).isFalse();
                     assertThat(res.error()).contains("from");
+                });
+    }
+
+    @Test
+    void undoDeletesTheTransactionAndConfirms() throws Exception {
+        UUID txId = UUID.randomUUID();
+        mcpFinance.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new FinTransactionDto(
+                        txId, UUID.randomUUID(), UUID.randomUUID(), null, null,
+                        new BigDecimal("-1000.00"), "RUB", Instant.now(), "такси",
+                        "telegram", null, Instant.now()))));
+
+        ObjectNode args = json.createObjectNode();
+        args.put("transactionId", txId.toString());
+        var req = new AgentActionRequest("finance", "undo", UUID.randomUUID(), null, "orchestrator", args);
+
+        http.post().uri("/agents/finance/actions/undo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isTrue();
+                    assertThat(res.result().get("message").asString()).contains("такси");
+                });
+
+        RecordedRequest sent = mcpFinance.takeRequest();
+        assertThat(sent.getMethod()).isEqualTo("DELETE");
+        assertThat(sent.getPath()).isEqualTo("/internal/transaction/" + txId);
+    }
+
+    @Test
+    void undoWithoutTransactionIdIsError() {
+        var req = new AgentActionRequest("finance", "undo", UUID.randomUUID(), null, "orchestrator", null);
+        http.post().uri("/agents/finance/actions/undo")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(AgentActionResult.class)
+                .value(res -> {
+                    assertThat(res.ok()).isFalse();
+                    assertThat(res.error()).contains("transactionId");
                 });
     }
 
