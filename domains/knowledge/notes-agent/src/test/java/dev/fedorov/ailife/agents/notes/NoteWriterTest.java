@@ -89,6 +89,10 @@ class NoteWriterTest {
         assertThat(resp.text()).contains("Запомнил").contains("Мама — что любит");
         // why-trace (#485/G2): a successful capture carries a payload-free "what I wrote" line.
         assertThat(resp.trace()).isEqualTo("wrote: saved a note");
+        // undo (#486/Track H): a successful capture attaches a handle so "отмени последнее" can delete it.
+        assertThat(resp.undo()).isNotNull();
+        assertThat(resp.undo().description()).contains("Мама — что любит");
+        assertThat(resp.undo().action().path("noteId").asString()).isEqualTo(noteId.toString());
 
         // Two llm-gateway turns: NotesIntentRouter classification, then the NoteWriter structuring.
         assertThat(llmGateway.takeRequest(2, TimeUnit.SECONDS).getPath()).isEqualTo("/v1/chat");  // routing

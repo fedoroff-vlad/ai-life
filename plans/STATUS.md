@@ -33,8 +33,13 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   generalizing the orchestrator's `applyLockLifecycle` so a **resume turn that writes reversibly** records the
   `last_mutation` (clearing the resolved lock in the same upsert) instead of just clearing — so any
   confirm-then-write is now undoable. Proven by `ReceiptParserTest` + an `IntentRouterLockTest` resume-write
-  case. **Finance is now end-to-end: receipt confirm → "отмени последнее" → transaction deleted.** **NEXT:
-  notes / calendar rollout**, then the per-domain **H.2 edit/delete holes**. Epic queue →
+  case. **Finance is now end-to-end: receipt confirm → "отмени последнее" → transaction deleted.** **notes
+  rollout ✅** — `NoteClient.delete` (`DELETE /v1/notes/{id}`, which also drops the recall seed + wiki-link
+  edges) + a notes `web/ActionController` registering the `undo` action (delete a just-captured note, honest
+  `ok=false` when gone) + `NoteWriter` attaches `withUndo` (note id + title) on a successful "запомни …"
+  capture; proven by `ActionControllerTest` (4) + a handle assertion in `NoteWriterTest`. **Notes is now
+  end-to-end: capture → "отмени последнее" → note deleted.** **NEXT: calendar rollout** (cancel the
+  just-created event), then the per-domain **H.2 edit/delete holes**. Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across

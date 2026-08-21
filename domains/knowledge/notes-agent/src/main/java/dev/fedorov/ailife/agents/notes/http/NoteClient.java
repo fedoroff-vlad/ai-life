@@ -73,6 +73,22 @@ public class NoteClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
+    /**
+     * Forget a note ({@code DELETE /v1/notes/{id}}) — the deterministic reversal behind the "отмени
+     * последнее" undo primitive (road-test #486, Track H): notes-agent's {@code /actions/undo} calls it to
+     * delete a just-captured note (memory-service also cleans up its recall seed + {@code [[wiki-link]]}
+     * edges). A {@code 204} completes empty; an unknown id (404) or any error propagates so the caller
+     * ({@code ActionController.undo}) can surface an honest "не нашёл заметку для отмены" instead of
+     * pretending it undid something.
+     */
+    public Mono<Void> delete(UUID id) {
+        return http.delete()
+                .uri("/v1/notes/{id}", id)
+                .retrieve()
+                .bodyToMono(Void.class)
+                .timeout(Duration.ofSeconds(10));
+    }
+
     /** The notes that link to this note (SB-3 graph edges) — the "connected notes" of a recall hit. */
     public Mono<NoteBacklinksResponse> backlinks(UUID id) {
         return http.get()
