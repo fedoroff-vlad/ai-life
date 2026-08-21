@@ -57,5 +57,44 @@ Principles: clarify ambiguous time; store tzid from profile; birthdays/anniversa
 - `video-link-analyzer` — via mcp-youtube transcript (or web-search fallback): extract date/subject → confirm → create event with source_ref.
 - (later) `parse-datetime`, `recurrence-rules`, `reminder-format`.
 
+## H.2 — user-facing event CRUD via chat (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
+Until now calendar's `/intent` was **chat-only** — events were created solely by the inter-agent
+`create_event` action (tasks→calendar). Daily use needs the owner to **create / move / cancel** events by
+just chatting ("запиши встречу завтра в 15", "перенеси на 16", "отмени встречу с врачом"). This also gives
+the cross-cutting **undo primitive** its calendar producer (a user-turn create records `last_mutation`, so
+"отмени последнее" cancels it) — the reason "calendar rollout" landed here rather than in the bare undo
+rollout (calendar had no user-facing write to hang an undo handle on).
+
+Built on the shared in-agent `SkillRouter` (#475, same as notes): a `CalendarIntentRouter` classifies the
+message via each intent skill's SKILL.md description into one flow, or the chat fallback (`CalendarChat`,
+which keeps the #195 ICS-feed nudge). mcp-caldav stays tenant-agnostic; the household is resolved by the
+shared `SharingResolver` exactly as `create_event` already does.
+
+**Subslices (≤5 files each):**
+- **HC-1 — event capture (create via chat).** `event-capture` SKILL (strict-JSON `{summary, dtstart,
+  dtend?}`, "now" passed for relative-date resolution) → `EventCapturer` resolves the household + creates via
+  mcp-caldav `/internal/event` → confirms. Router + `CalendarChat` extraction. No undo yet.
+- **HC-2 — undo a just-created event.** mcp-caldav `DELETE /internal/event/{id}` passthrough (delegates to
+  the existing `delete_event` tool) + `CaldavEventClient.delete` + calendar `/actions/undo` + `EventCapturer`
+  attaches `withUndo` (event id + summary). Closes the original "cancel the just-created event" undo goal.
+- **HC-3 — cancel an event via chat + destructive-delete confirm gate.** `event-cancel` SKILL → resolve the
+  target by description / "последнюю" (mcp-caldav search/list) → the pending-action confirm gate (Track A
+  `/resume`) → delete. Confirm-before-delete is a standing calendar principle (above).
+- **HC-4 — move / reschedule via chat.** `event-move` SKILL → resolve target → `UpdateEventInput` via a new
+  `/internal/event/{id}` PUT passthrough (`update_event` tool).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **create by chat.** WHEN the owner says "запиши встречу с врачом завтра в 15:00" → THEN calendar
+  parses the time, creates the event in the resolved household, and confirms naming it (no id, no inter-agent
+  hop).
+- Scenario: **undo the just-created event.** WHEN the owner then says "отмени последнее" → THEN the event is
+  cancelled and it confirms (undo primitive, HC-2).
+- Scenario: **not an event.** WHEN the message isn't an event op ("когда у Маши др?") → THEN it falls through
+  to the chat reply (and the first-message ICS-feed nudge still fires), never a spurious create.
+- Scenario: **cancel by description confirms first.** WHEN the owner says "отмени встречу с врачом" → THEN
+  calendar resolves the target and asks to confirm before deleting (destructive-delete gate, HC-3).
+- Scenario: **ambiguous time is clarified.** WHEN the time can't be resolved → THEN calendar asks rather than
+  filing a wrong-time event (standing "clarify ambiguous time" principle).
+
 ## Reminders → scheduler-service
 No own reminder table/tick. Agent calls `mcp-scheduler.schedule_once/recurring(target=calendar, payload=...)`. Scheduler wakes the agent via orchestrator; agent formats and sends via notifier→telegram. `core.people` holds occasion data (birthdays + lead_days), not schedules.

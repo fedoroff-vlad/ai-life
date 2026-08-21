@@ -5,9 +5,16 @@ reminders for a household. The canonical role description and capabilities live 
 [AGENT.md](AGENT.md) — read at startup, served at `GET /agents/calendar/manifest`.
 
 Currently bound MCP servers: `mcp-caldav` (write-through Radicale + cache). Skills
-loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recommender`.
+loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recommender`,
+`event-capture` (user-facing "запиши встречу …" create, #486/Track H.2 HC-1).
 Also handles `ics.pull` as a **system trigger** (no LLM) forwarded directly to
 mcp-ics-import's `POST /internal/pull/{id}`.
+
+**User-facing event CRUD via chat (#486/Track H.2):** `/intent` is no longer a single chat call — a
+`CalendarIntentRouter` (shared `SkillClassifier`, #475) classifies the message by SKILL.md description into
+one event flow (HC-1: `event-capture` → `EventCapturer` creates the event via mcp-caldav) or the chat
+fallback (`CalendarChat`, which keeps the #195 ICS-feed nudge). HC-2 (undo a just-created event), HC-3
+(cancel via chat + confirm), HC-4 (move) are queued — plan: [plans/calendar.md](../../../plans/calendar.md) §H.2.
 
 **Cross-agent recall (PR17)**: before every skill LLM call, `TriggerController`
 zips two memory-service calls — `POST /v1/memories/recall` (top-k by
@@ -23,7 +30,7 @@ always runs, just without that enrichment when memory-service is down.
 | method | path                                       | purpose                                              |
 |--------|--------------------------------------------|------------------------------------------------------|
 | GET    | `/agents/calendar/manifest`                | parsed AGENT.md (frontmatter + body)                 |
-| POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent                   |
+| POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent → `CalendarIntentRouter` classifies into an event flow (`event-capture`) or chat (`CalendarChat` + #195 feed nudge) |
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
 | POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4); `create_event` → resolves the item's private/shared scope to a personal/family household (ADR-0001 slice 4) then mcp-caldav `/internal/event`, returns `{eventUid}`; `brief` → read-only sub-question answer (#290 Slice B2-followup) |
 | GET    | `/actuator/health`                         | liveness                                             |
@@ -116,7 +123,10 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `system/IcsPullTriggerHandler` — first implementation; extracts `subscriptionId` from payload, forwards via `IcsImportClient`. Downstream errors are logged + swallowed (scheduler advances regardless).
 - AGENT.md / SKILL.md loaders + `SkillRegistry` live in shared `libs/agent-runtime` as of PR25a. Agent opts in with `@Import(AgentRuntimeConfig.class)` on `CalendarAgentApplication`; scan paths come from `agent.{manifest-classpath, skills-classpath}` in `application.yml`.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
-- `web/IntentController` — `POST /agents/calendar/intent`. Calls llm-gateway with AGENT.md body as system prompt; when `public-feed-base-url` is set, auto-issues an ICS feed on the user's first calendar message and appends the subscribe link (best-effort, soft-fail).
+- `web/IntentController` — `POST /agents/calendar/intent`. Thin: delegates to `CalendarIntentRouter` (was a single chat call before #486/HC-1; the chat + feed logic moved to `CalendarChat`).
+- `intent/CalendarIntentRouter` — the in-agent router (#475): binds the shared `agent-runtime` `SkillRouter` with the calendar dispatch map (`event-capture` → `EventCapturer`) + the `CalendarChat` fallback. SKILL.md descriptions are the routing SSOT; birthday/gift skills stay off the map (wake-driven, not user-routable). HC-3/HC-4 add `event-cancel`/`event-move`.
+- `flow/EventCapturer` — the user-facing capture flow (HC-1): LLM parse (`event-capture` SKILL, temperature 0, `now` passed for relative-date resolution) → resolve the household via the shared `SharingResolver` (private default, same path `create_event` takes) → mcp-caldav `/internal/event` → confirm. Empty plan (no resolvable time) asks instead of filing a wrong-time event; each stage soft-fails.
+- `chat/CalendarChat` — the chat fallback (lifted out of `IntentController`): AGENT.md-prompted reply + the #195 first-message ICS-feed nudge (best-effort, soft-fail).
 - `flow/BirthdayGreeter` — closes the inter-agent chain (CR-g2). On `birthday.greet` it invokes `creator.draft_greeting` over the hub (args `{person: displayName, occasion: "birthday"}`, longer timeout) and fans the returned greeting out to the household. Resolves to `false` (caller falls back to the local skill) on no person / hub error / `ok=false` / empty draft — best-effort, the wake always greets.
 - `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution. `gift.recommend` is routed to `GiftRecommender` (Coordinator flow); `birthday.greet` to `BirthdayGreeter` (creator hub, local skill on fallback); every other kind takes the generic **memory enrichment (recall + relations zipped)** + LLM + household fan-out path. `buildRecallQuery` anchors the recall query on the person's display name when available.
 
