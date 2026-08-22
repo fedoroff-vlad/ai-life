@@ -53,12 +53,24 @@ public class CaldavEventClient {
      * sanity spot-check (#485).
      */
     public Mono<List<CalendarEventDto>> eventsInWindow(UUID householdId, Instant from, Instant to) {
+        return eventsInWindow(List.of(householdId), from, to);
+    }
+
+    /**
+     * Events in {@code [from, to)} across a set of households (the caller's personal ∪ shared set —
+     * {@code householdId} is repeatable on {@code /internal/events}, ADR-0001 slice 5), ascending by
+     * start. Backs the {@code event-cancel} chat flow's target resolution (#486/Track H.2, HC-3): read
+     * the owner's upcoming events, then let the LLM pick which one they mean.
+     */
+    public Mono<List<CalendarEventDto>> eventsInWindow(List<UUID> householdIds, Instant from, Instant to) {
         return http.get()
-                .uri(b -> b.path("/internal/events")
-                        .queryParam("householdId", householdId)
-                        .queryParam("from", from.toString())
-                        .queryParam("to", to.toString())
-                        .build())
+                .uri(b -> {
+                    b.path("/internal/events")
+                            .queryParam("from", from.toString())
+                            .queryParam("to", to.toString());
+                    householdIds.forEach(h -> b.queryParam("householdId", h));
+                    return b.build();
+                })
                 .retrieve()
                 .bodyToFlux(CalendarEventDto.class)
                 .collectList();

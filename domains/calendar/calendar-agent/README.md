@@ -6,17 +6,22 @@ reminders for a household. The canonical role description and capabilities live 
 
 Currently bound MCP servers: `mcp-caldav` (write-through Radicale + cache). Skills
 loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recommender`,
-`event-capture` (user-facing "запиши встречу …" create, #486/Track H.2 HC-1).
+`event-capture` (user-facing "запиши встречу …" create, #486/Track H.2 HC-1),
+`event-cancel` (user-facing "отмени встречу …" delete, #486/Track H.2 HC-3).
 Also handles `ics.pull` as a **system trigger** (no LLM) forwarded directly to
 mcp-ics-import's `POST /internal/pull/{id}`.
 
 **User-facing event CRUD via chat (#486/Track H.2):** `/intent` is no longer a single chat call — a
 `CalendarIntentRouter` (shared `SkillClassifier`, #475) classifies the message by SKILL.md description into
-one event flow (HC-1: `event-capture` → `EventCapturer` creates the event via mcp-caldav) or the chat
-fallback (`CalendarChat`, which keeps the #195 ICS-feed nudge). A chat-created event is **undoable**
-(HC-2): `EventCapturer` attaches an `IntentResponse.undo` handle and the `undo` action cancels it via
-mcp-caldav's `DELETE /internal/event/{id}`, so "отмени последнее" drops it. HC-3 (cancel via chat +
-confirm), HC-4 (move) are queued — plan: [plans/calendar.md](../../../plans/calendar.md) §H.2.
+one event flow (HC-1: `event-capture` → `EventCapturer` creates the event via mcp-caldav; HC-3:
+`event-cancel` → `EventCanceller` deletes one) or the chat fallback (`CalendarChat`, which keeps the #195
+ICS-feed nudge). A chat-created event is **undoable** (HC-2): `EventCapturer` attaches an
+`IntentResponse.undo` handle and the `undo` action cancels it via mcp-caldav's `DELETE /internal/event/{id}`,
+so "отмени последнее" drops it. **Cancel via chat (HC-3)** goes behind the standing confirm-before-delete
+gate: `EventCanceller` reads the owner's upcoming events (personal ∪ shared), lets the LLM pick which one
+they mean, then asks to confirm (a `pendingAction` route-locks to calendar); the follow-up "да" hits
+`POST /resume` and only then deletes. HC-4 (move) is queued — plan:
+[plans/calendar.md](../../../plans/calendar.md) §H.2.
 
 **Cross-agent recall (PR17)**: before every skill LLM call, `TriggerController`
 zips two memory-service calls — `POST /v1/memories/recall` (top-k by
@@ -33,6 +38,7 @@ always runs, just without that enrichment when memory-service is down.
 |--------|--------------------------------------------|------------------------------------------------------|
 | GET    | `/agents/calendar/manifest`                | parsed AGENT.md (frontmatter + body)                 |
 | POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent → `CalendarIntentRouter` classifies into an event flow (`event-capture`) or chat (`CalendarChat` + #195 feed nudge) |
+| POST   | `/agents/calendar/resume`                  | hit by orchestrator when the user replies to an open calendar question (route-locked). Dispatches on `pendingAction.flow`; `event-cancel-confirm` → `EventCanceller.resume` (confirm-before-delete, #486/HC-3). A null `pendingAction` on the reply clears the lock |
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
 | POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4); `create_event` → resolves the item's private/shared scope to a personal/family household (ADR-0001 slice 4) then mcp-caldav `/internal/event`, returns `{eventUid}`; `undo` → cancel a just-created event by its stored id via mcp-caldav `DELETE /internal/event/{id}` (#486/HC-2), honest `ok=false` when gone; `brief` → read-only sub-question answer (#290 Slice B2-followup) |
 | GET    | `/actuator/health`                         | liveness                                             |
@@ -114,7 +120,7 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - `config/OutboundHttpConfig` — `WebClient` per outbound dependency (LLM, profile, notifier), each via `WebClient.Builder.clone()`.
 - `ProfileClient` / `NotifierClient` / `MemoryClient` live in shared `libs/agent-runtime` as of PR25b — `AgentRuntimeConfig` registers them, and as of #200 also builds their `profile/notifier/memory` `WebClient` beans (from `SharedClientProperties`, which `CalendarAgentProperties` implements), so the per-agent `OutboundHttpConfig` only owns the agent-specific clients + the URL *values*. `ProfileClient.householdRouting(userId)` (ADR-0001 slice 4) is consumed by `ActionController`'s `create_event` tenant routing.
 - `http/IcsImportClient` — `pull(subscriptionId)` POSTs `/internal/pull/{id}` on mcp-ics-import. Calendar-only; stays here until a second consumer appears.
-- `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`; `eventsInWindow(household, from, to)` GETs `/internal/events` (backs the `create_event` double-booking sanity check, #485); `deleteEvent(id)` DELETEs `/internal/event/{id}` (the undo reversal, #486/HC-2). Used by the `create_event` action, the `event-capture` flow, and the `undo` action.
+- `http/CaldavEventClient` — `createEvent(CreateEventInput)` POSTs mcp-caldav `/internal/event`; `eventsInWindow(household, from, to)` GETs `/internal/events` (backs the `create_event` double-booking sanity check, #485), plus an overload over a **household set** (personal ∪ shared, repeatable `householdId`) that backs the `event-cancel` target read (#486/HC-3); `deleteEvent(id)` DELETEs `/internal/event/{id}` (the undo reversal #486/HC-2 + the `event-cancel` delete #486/HC-3). Used by the `create_event` action, the `event-capture`/`event-cancel` flows, and the `undo` action.
 - `http/CaldavFeedClient` — `ensureFeed(household, owner, label)` over mcp-caldav `/internal/feeds` (list-or-mint). Backs the #195 feed auto-issue.
 - `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `invoke(req[, timeout])` POSTs the orchestrator's `/v1/agents/invoke` hub. The locked inter-agent path (agents never call each other directly); the `orchestratorWebClient` + the `@Bean` wiring live in `config/OutboundHttpConfig`. Used by `GiftRecommender` (budget) + `BirthdayGreeter` (creator greeting, 30s).
 - `flow/GiftRecommender` — the first real `Coordinator` flow (D2c). On `gift.recommend` it gathers `{budget: finance get_gift_budget via the hub, memories: recall, relations}` in parallel, synthesizes budget-aware gift ideas, and fans the result out to the household. Per-step soft-fail (a dropped budget just removes the price constraint). The budget gather forwards the person's `relationship` (when set) so finance can return the relationship-tiered rule (D3d). **Two outputs (D3e):** the single wake delivers each member a short deterministic birthday **reminder** (names the person; `payload.daysUntil` adds "через N дн." when present) followed by the **gift ideas** — reminder skipped when no person resolved, gift message skipped when synthesis is empty.
@@ -126,17 +132,20 @@ loader reads at startup; the skill loader scans `classpath*:skills/calendar/*/SK
 - AGENT.md / SKILL.md loaders + `SkillRegistry` live in shared `libs/agent-runtime` as of PR25a. Agent opts in with `@Import(AgentRuntimeConfig.class)` on `CalendarAgentApplication`; scan paths come from `agent.{manifest-classpath, skills-classpath}` in `application.yml`.
 - `web/ManifestController` — `GET /agents/calendar/manifest`.
 - `web/IntentController` — `POST /agents/calendar/intent`. Thin: delegates to `CalendarIntentRouter` (was a single chat call before #486/HC-1; the chat + feed logic moved to `CalendarChat`).
-- `intent/CalendarIntentRouter` — the in-agent router (#475): binds the shared `agent-runtime` `SkillRouter` with the calendar dispatch map (`event-capture` → `EventCapturer`) + the `CalendarChat` fallback. SKILL.md descriptions are the routing SSOT; birthday/gift skills stay off the map (wake-driven, not user-routable). HC-3/HC-4 add `event-cancel`/`event-move`.
+- `intent/CalendarIntentRouter` — the in-agent router (#475): binds the shared `agent-runtime` `SkillRouter` with the calendar dispatch map (`event-capture` → `EventCapturer`, `event-cancel` → `EventCanceller`) + the `CalendarChat` fallback. SKILL.md descriptions are the routing SSOT; birthday/gift skills stay off the map (wake-driven, not user-routable). HC-4 adds `event-move`.
 - `flow/EventCapturer` — the user-facing capture flow (HC-1): LLM parse (`event-capture` SKILL, temperature 0, `now` passed for relative-date resolution) → resolve the household via the shared `SharingResolver` (private default, same path `create_event` takes) → mcp-caldav `/internal/event` → confirm. Empty plan (no resolvable time) asks instead of filing a wrong-time event; each stage soft-fails. On a successful create it attaches an `IntentResponse.undo` handle (event id + summary) so "отмени последнее" cancels it (#486/HC-2).
+- `flow/EventCanceller` — the user-facing cancel flow (HC-3), behind the **confirm-before-delete** gate. `cancel(msg)`: resolve the read set (personal ∪ shared via `ProfileClient.householdRouting`, else the envelope household) → read upcoming events (`CaldavEventClient.eventsInWindow` over the set, −1d…+180d) → LLM pick (`event-cancel` SKILL, temperature 0, numbered candidates) returning `{"pick":n}` / `{"ambiguous":[…]}` / `{}` → a single match replies with a `pendingAction` asking to confirm (nothing deleted); ambiguous lists the matches; none/miss asks. `resume(req)`: an affirmative deletes the stashed id via `CaldavEventClient.deleteEvent`, anything else leaves it; either reply clears the lock. Every stage soft-fails.
+- `web/ResumeController` — `POST /agents/calendar/resume`; dispatches on `pendingAction.flow` (only `event-cancel-confirm` → `EventCanceller.resume` so far, #486/HC-3). Mirrors finance's `ResumeController`.
 - `chat/CalendarChat` — the chat fallback (lifted out of `IntentController`): AGENT.md-prompted reply + the #195 first-message ICS-feed nudge (best-effort, soft-fail).
 - `flow/BirthdayGreeter` — closes the inter-agent chain (CR-g2). On `birthday.greet` it invokes `creator.draft_greeting` over the hub (args `{person: displayName, occasion: "birthday"}`, longer timeout) and fans the returned greeting out to the household. Resolves to `false` (caller falls back to the local skill) on no person / hub error / `ok=false` / empty draft — best-effort, the wake always greets.
 - `web/TriggerController` — `POST /agents/calendar/triggers/{kind}`. **System-trigger check first**, then skill dispatch + person resolution. `gift.recommend` is routed to `GiftRecommender` (Coordinator flow); `birthday.greet` to `BirthdayGreeter` (creator hub, local skill on fallback); every other kind takes the generic **memory enrichment (recall + relations zipped)** + LLM + household fan-out path. `buildRecallQuery` anchors the recall query on the person's display name when available.
 
 ## Tests
 
-`mvn -B -pl domains/calendar/calendar-agent -am test` — 29 tests:
+`mvn -B -pl domains/calendar/calendar-agent -am test` — 32 tests:
 - `ActionControllerTest` — the `create_event` action, incl. **tenant routing** (ADR-0001 slice 4): an explicit `SHARED` choice routes to the family household, a `birthday` category defaults to shared, a plain event defaults to the personal household, and a `SHARED` choice with no family household degrades to personal; a request without `userId` falls back to the envelope household. Also the **sanity spot-checks** (#485): an end-before-start event is rejected, and an overlapping event is flagged as a double-booking `warning`. And the **`undo`** action (#486/HC-2): a stored id cancels the event (DELETE `/internal/event/{id}`) and confirms; an already-gone event → honest `ok=false`; a missing id → error.
 - `EventCapturerTest` — the user-facing **event-capture** flow (#486/HC-1): "запиши встречу …" routes to `event-capture`, the LLM parse creates the event via mcp-caldav and confirms with an undo handle; an unresolvable time asks instead of creating.
+- `EventCancellerTest` — the user-facing **event-cancel** flow (#486/HC-3): "отмени встречу с врачом" routes to `event-cancel`, reads the upcoming events, the LLM picks the target, and the reply **asks to confirm** with a `pendingAction` — deleting nothing yet; the follow-up `/resume` "да" then DELETEs `/internal/event/{id}`, while a decline leaves the event untouched.
 - `IntentControllerTest` / `IntentFeedAutoIssueTest` — the router now classifies first (a non-event message falls through to `CalendarChat` + the #195 feed nudge).
 - `BriefActionTest` — the read-only `brief` action (#290 Slice B2-followup): a hub-forwarded `brief` request recalls from memory-service, synthesizes one FAST answer, and returns `{agent:"calendar", answer}` grounded in the recalled fact.
 - Manifest endpoint returns frontmatter + body.

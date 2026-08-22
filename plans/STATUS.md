@@ -53,8 +53,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   successful create. **Calendar is now end-to-end: "запиши встречу…" → "отмени последнее" → событие
   отменено** — closes the original calendar-undo goal. Proven by `ActionControllerTest` (+3 undo cases) +
   `EventCapturerTest` undo-handle assertion + `McpCaldavIntegrationTest` DELETE passthrough case.
-  **NEXT: HC-3** (cancel an existing event by description via chat + destructive-confirm gate) / **HC-4**
-  (move/reschedule). Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
+  **HC-3 ✅ (cancel an existing event by description via chat + destructive-confirm gate)** — a new
+  `event-cancel` SKILL + `EventCanceller` flow: read the owner's upcoming events (personal ∪ shared via
+  `ProfileClient.householdRouting`, else the envelope household — new `CaldavEventClient.eventsInWindow`
+  household-set overload, −1d…+180d) → LLM picks the target (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply
+  asks to confirm with a `pendingAction` (route-locks to calendar, deletes **nothing** yet); the follow-up
+  "да" hits a new `POST /agents/calendar/resume` (`ResumeController`, mirrors finance) → `EventCanceller.resume`
+  deletes via mcp-caldav `DELETE /internal/event/{id}`, a decline leaves it. Router gains `event-cancel`.
+  Proven by `EventCancellerTest` (confirm-before-delete / resume-affirmative deletes / decline leaves it).
+  **NEXT: HC-4** (move/reschedule via chat — `event-move` SKILL + `/internal/event/{id}` PUT passthrough).
+  Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
