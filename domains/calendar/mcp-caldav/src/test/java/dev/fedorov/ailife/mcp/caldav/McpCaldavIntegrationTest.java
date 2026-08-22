@@ -203,6 +203,42 @@ class McpCaldavIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void internalEventPutPassthroughReschedulesAnd404sWhenGone() {
+        // create via the POST passthrough, then reschedule via the PUT passthrough (#486/HC-4 event-move).
+        Instant start = Instant.parse("2027-12-01T10:00:00Z");
+        CalendarEventDto created = client().post().uri("/internal/event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new CreateEventInput(
+                        householdId, "Встреча с врачом", "note", null,
+                        start, start.plus(1, ChronoUnit.HOURS), null, null, null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+        assertThat(created).isNotNull();
+
+        Instant moved = Instant.parse("2027-12-01T16:00:00Z");
+        // Patch only the time (path id is authoritative; a null body id is fine).
+        CalendarEventDto updated = client().put().uri("/internal/event/" + created.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateEventInput(null, null, null, null, moved, null, null, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CalendarEventDto.class)
+                .returnResult().getResponseBody();
+        assertThat(updated).isNotNull();
+        assertThat(updated.dtstart()).isEqualTo(moved);
+        assertThat(updated.summary()).isEqualTo("Встреча с врачом");   // untouched field kept
+
+        // a PUT on an unknown id → 404, so the caller can be honest that the event is gone.
+        client().put().uri("/internal/event/" + UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateEventInput(null, null, null, null, moved, null, null, null))
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
     void internalEventsGetReturnsEventsInWindow() {
         Instant start = Instant.parse("2028-03-15T09:00:00Z");
         tools.createEvent(new CreateEventInput(

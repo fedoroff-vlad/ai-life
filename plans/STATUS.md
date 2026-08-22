@@ -61,9 +61,17 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   "да" hits a new `POST /agents/calendar/resume` (`ResumeController`, mirrors finance) → `EventCanceller.resume`
   deletes via mcp-caldav `DELETE /internal/event/{id}`, a decline leaves it. Router gains `event-cancel`.
   Proven by `EventCancellerTest` (confirm-before-delete / resume-affirmative deletes / decline leaves it).
-  **NEXT: HC-4** (move/reschedule via chat — `event-move` SKILL + `/internal/event/{id}` PUT passthrough).
-  Then the remaining per-domain **H.2 edit/delete holes** (finance/tasks/notes). Epic queue →
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **HC-4 ✅ (move/reschedule via chat)** — new `event-move` SKILL + `EventMover` flow behind a
+  confirm-before-move gate: read upcoming events (same household-set read as HC-3) → LLM picks the target +
+  new time (`{"pick":n,"dtstart":…,"dtend"?}` / `{"pick":n}` → ask for time / `{"ambiguous"}` / `{}`) → reply
+  asks to confirm with a `pendingAction` (deletes/changes **nothing** yet); the "да" hits `POST /resume`
+  (`event-move-confirm` → `EventMover.resume`) → patches only the time via a new mcp-caldav
+  `PUT /internal/event/{id}` passthrough (`updateEvent`, patches supplied fields) + `CaldavEventClient.updateEvent`.
+  Router gains `event-move`. Proven by `EventMoverTest` (confirm-before-move / no-time asks / resume PUTs new
+  time / decline leaves it) + a PUT passthrough case in `McpCaldavIntegrationTest`.
+  **The calendar H.2 chat CRUD is now complete: create (HC-1) · undo (HC-2) · cancel (HC-3) · move (HC-4).**
+  **NEXT: the remaining per-domain H.2 edit/delete holes** (finance/tasks/notes — each on its own SkillRouter
+  path). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
