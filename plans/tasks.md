@@ -91,6 +91,25 @@ another member → shared) vs a personal todo (→ private).
 Note this is a different axis from `owner_id` (private-within-a-household): sharing picks *which
 household* the row lands in; `owner_id` scopes visibility *within* one household.
 
+## H.2 — user-facing task edit/delete via chat (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
+The per-domain lifecycle holes (stage4.md §Track H.2), on tasks' own `IntentRouter` path — **not** the
+cross-cutting `undo` primitive. First hole (smallest / highest daily use): **delete a task by description**
+("удали задачу про X"), behind the standing **confirm-before-delete** gate (a tasks principle; see AGENT.md).
+Target resolution is by context — no id: a new `task-delete` intent skill lets the LLM pick the task from
+the owner's open tasks (read via the sharing-aware `read/TaskReads` across personal ∪ shared households),
+`TaskDeleter` asks to confirm (a `pendingAction` route-locks to tasks), and only the "да" reply deletes via
+mcp-tasks' existing `DELETE /internal/task/{id}` (`DeleteTaskClient`). Rename/state-move/due-edit are queued
+follow-ups (each a further edit skill on the same path).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **delete by description confirms first.** WHEN the owner says "удали задачу про X" → THEN tasks
+  resolves the target from context (no id) and asks to confirm before deleting (destructive-delete gate);
+  the "да" reply deletes and confirms.
+- Scenario: **ambiguous target is clarified.** WHEN more than one open task matches → THEN tasks lists the
+  matches and asks which, rather than deleting the wrong one.
+- Scenario: **no match.** WHEN nothing matches the description → THEN tasks says it found no such task, never
+  a silent no-op or a wrong delete.
+
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers
 `mcp-scheduler.schedule_once(target=tasks, payload={taskId})`; scheduler wakes tasks-agent via

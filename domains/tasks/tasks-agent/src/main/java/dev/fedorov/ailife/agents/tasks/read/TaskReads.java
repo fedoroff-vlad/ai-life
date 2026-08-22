@@ -68,4 +68,20 @@ public class TaskReads {
                         .limit(limit)
                         .toList());
     }
+
+    /**
+     * Every task (any status) unioned across {@code households} and flattened, capped at {@code limit} — the
+     * delete-candidate pool for the {@code task-delete} flow (#486/Track H.2). Wider than
+     * {@link #nextActionsUnion} because a delete can target a task in any state (inbox / waiting / scheduled),
+     * not just an actionable next-action.
+     */
+    public Mono<List<TaskItemDto>> openTasksUnion(List<UUID> households, int limit) {
+        return Flux.fromIterable(households)
+                .flatMap(h -> nextActions.fetchTasks(h, null, limit))
+                .collectList()
+                .map(perHousehold -> perHousehold.stream()
+                        .flatMap(List::stream)
+                        .limit(limit)
+                        .toList());
+    }
 }
