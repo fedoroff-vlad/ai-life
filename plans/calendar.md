@@ -93,6 +93,10 @@ shared `SharingResolver` exactly as `create_event` already does.
   to the chat reply (and the first-message ICS-feed nudge still fires), never a spurious create.
 - Scenario: **cancel by description confirms first.** WHEN the owner says "отмени встречу с врачом" → THEN
   calendar resolves the target and asks to confirm before deleting (destructive-delete gate, HC-3).
+- Scenario: **move by chat confirms first.** WHEN the owner says "перенеси встречу с врачом на 16:00" → THEN
+  calendar resolves the target and the new time and asks to confirm before rescheduling; on "да" it updates
+  only the time via the `/internal/event/{id}` PUT passthrough (HC-4). WHEN a target matches but no new time
+  was given → THEN it asks for the new time rather than guessing.
 - Scenario: **ambiguous time is clarified.** WHEN the time can't be resolved → THEN calendar asks rather than
   filing a wrong-time event (standing "clarify ambiguous time" principle).
 

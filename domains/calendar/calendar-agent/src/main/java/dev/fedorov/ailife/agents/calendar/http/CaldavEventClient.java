@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.calendar.http;
 
 import dev.fedorov.ailife.contracts.calendar.CalendarEventDto;
 import dev.fedorov.ailife.contracts.calendar.CreateEventInput;
+import dev.fedorov.ailife.contracts.calendar.UpdateEventInput;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -28,6 +29,21 @@ public class CaldavEventClient {
     public Mono<CalendarEventDto> createEvent(CreateEventInput input) {
         return http.post()
                 .uri("/internal/event")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(input)
+                .retrieve()
+                .bodyToMono(CalendarEventDto.class);
+    }
+
+    /**
+     * Reschedule (or otherwise patch) an event via mcp-caldav's {@code PUT /internal/event/{id}} — the
+     * {@code event-move} chat flow (#486/Track H.2, HC-4). Only the non-null fields on {@code input} change
+     * (mcp-caldav patches, missing fields keep their value), so a move sends just the new times. A 404
+     * (unknown id) propagates so {@code EventMover.resume} can be honest that the event is gone.
+     */
+    public Mono<CalendarEventDto> updateEvent(UUID id, UpdateEventInput input) {
+        return http.put()
+                .uri("/internal/event/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(input)
                 .retrieve()
