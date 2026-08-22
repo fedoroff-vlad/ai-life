@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agents.tasks.capture.TaskCapturer;
 import dev.fedorov.ailife.agents.tasks.intent.InboxClarifier;
 import dev.fedorov.ailife.agents.tasks.intent.IntentRouter;
 import dev.fedorov.ailife.agents.tasks.intent.NextActionSuggester;
+import dev.fedorov.ailife.agents.tasks.intent.TaskDeleter;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -33,15 +34,17 @@ public class IntentController {
     private final InboxClarifier inboxClarifier;
     private final NextActionSuggester nextActionSuggester;
     private final TaskCapturer taskCapturer;
+    private final TaskDeleter taskDeleter;
 
     public IntentController(IntentRouter router, AgentManifest manifest,
                            InboxClarifier inboxClarifier, NextActionSuggester nextActionSuggester,
-                           TaskCapturer taskCapturer) {
+                           TaskCapturer taskCapturer, TaskDeleter taskDeleter) {
         this.router = router;
         this.manifest = manifest;
         this.inboxClarifier = inboxClarifier;
         this.nextActionSuggester = nextActionSuggester;
         this.taskCapturer = taskCapturer;
+        this.taskDeleter = taskDeleter;
     }
 
     @PostMapping("/intent")
@@ -60,6 +63,9 @@ public class IntentController {
                                         manifest.name(), c.text(), c.model(), c.pendingAction())
                                         .withTrace(c.trace())
                                         .withUndo(c.undo()));
+                    }
+                    if (TaskDeleter.SKILL_NAME.equals(r.invokedSkill())) {
+                        return taskDeleter.delete(message);
                     }
                     return Mono.just(new IntentResponse(manifest.name(), r.text(), r.llmModel()));
                 });

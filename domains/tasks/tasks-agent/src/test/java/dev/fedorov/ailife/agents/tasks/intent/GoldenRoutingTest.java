@@ -61,7 +61,7 @@ class GoldenRoutingTest {
 
     /** The intent (user-invoked) skills the classifier can route to. */
     private static final Set<String> SKILLS =
-            Set.of("inbox-clarify", "next-action-suggester", "task-capture");
+            Set.of("inbox-clarify", "next-action-suggester", "task-capture", "task-delete");
 
     /** The mcp-tasks tools the dispatcher exposes (must match the canonical tool set). */
     private static final List<ToolDefinition> TOOLS = List.of(
@@ -99,7 +99,8 @@ class GoldenRoutingTest {
     private static SkillRegistry loadTasksSkills() {
         ClassLoader cl = GoldenRoutingTest.class.getClassLoader();
         List<Skill> loaded = new java.util.ArrayList<>();
-        for (String name : List.of("weekly-review", "inbox-clarify", "next-action-suggester", "task-capture")) {
+        for (String name : List.of("weekly-review", "inbox-clarify", "next-action-suggester",
+                "task-capture", "task-delete")) {
             loaded.add(GoldenLlm.skill(cl, "skills/tasks/" + name + "/SKILL.md"));
         }
         return new SkillRegistry(loaded);
@@ -175,6 +176,8 @@ class GoldenRoutingTest {
         assertRoutesToSkill("что мне сейчас сделать", "next-action-suggester", false);
         // Family/shared next-actions carry scope:"shared" (the read cut, slice 5b).
         assertRoutesToSkill("какие у нас общие семейные дела на сегодня", "next-action-suggester", true);
+        // A delete-by-description routes to the task-delete flow, not the delete_task tool (#486/Track H.2).
+        assertRoutesToSkill("удали задачу про молоко", "task-delete", false);
     }
 
     private void assertRoutesToSkill(String text, String expectedSkill, boolean expectedShared) {

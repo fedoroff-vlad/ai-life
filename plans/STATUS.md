@@ -70,8 +70,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   Router gains `event-move`. Proven by `EventMoverTest` (confirm-before-move / no-time asks / resume PUTs new
   time / decline leaves it) + a PUT passthrough case in `McpCaldavIntegrationTest`.
   **The calendar H.2 chat CRUD is now complete: create (HC-1) · undo (HC-2) · cancel (HC-3) · move (HC-4).**
-  **NEXT: the remaining per-domain H.2 edit/delete holes** (finance/tasks/notes — each on its own SkillRouter
-  path). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **Per-domain H.2 rollout (parallel line):** **tasks delete ✅** — a new `task-delete` intent skill +
+  `TaskDeleter` flow on tasks' own `IntentRouter` path, behind the confirm-before-delete gate: read the
+  owner's open tasks (personal ∪ shared via `TaskReads.openTasksUnion`, new; `NextActionClient.fetchTasks`
+  generalized) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to confirm with a
+  `pendingAction` (route-locks to tasks, deletes **nothing**); the "да" hits `POST /agents/tasks/resume`
+  (`task-delete-confirm` → `TaskDeleter.resume`) → deletes via mcp-tasks `DELETE /internal/task/{id}`
+  (existing `DeleteTaskClient`), a decline leaves it. Proven by `TaskDeleterTest` (confirm / ambiguous /
+  no-match / resume-deletes / decline). **NEXT: the remaining H.2 holes** — finance (edit/delete a logged
+  expense) + notes (fix/delete a wrong note); then tasks rename/state-move/due-edit follow-ups. Epic queue →
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

@@ -8,8 +8,9 @@ Manifest, intent and the first trigger (`weekly.review`) are real. `intent` rout
 `IntentRouter` (PR58): when mcp-tasks tools are wired the LLM either invokes a tool
 (`add_task`/`clarify_task`/`list_tasks`/…), runs an **intent skill**, or replies directly; with the
 MCP client disabled it falls back to a plain chat. Intent skills are skills with no `triggers`
-(user-invoked, not scheduler-fired) — `inbox-clarify`, `next-action-suggester` and `task-capture`
-(the sharing write path, ADR-0002 slice 5); when the router picks one, `IntentController` runs that
+(user-invoked, not scheduler-fired) — `inbox-clarify`, `next-action-suggester`, `task-capture`
+(the sharing write path, ADR-0002 slice 5) and `task-delete` (delete a task by description behind a
+confirm gate, #486/Track H.2); when the router picks one, `IntentController` runs that
 skill's flow. `triggers/{kind}` resolves a skill from the
 `SkillRegistry`, enriches the wake payload, runs the skill (LLM with AGENT.md + SKILL.md), and fans
 the result out to the household — unknown kinds still 404.
@@ -23,7 +24,8 @@ in dev/degraded environments.
 | method | path | purpose |
 |--------|------|---------|
 | GET  | `/agents/tasks/manifest`        | parsed AGENT.md (orchestrator scrapes at startup) |
-| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture`), or a chat reply (`IntentRouter`) |
+| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture` / `task-delete`), or a chat reply (`IntentRouter`) |
+| POST | `/agents/tasks/resume`          | hit when the user replies to an open tasks question (route-locked); dispatches on `pendingAction.flow` (`inbox-clarify-apply` / `task-delete-confirm` / `sharing-confirm`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
 | POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
 | POST | `/agents/tasks/actions/{action}` | inter-agent action (C1 envelope). `undo` reverses a just-captured task by deleting it — the "отмени последнее" reversal (#486/H3) |
@@ -49,7 +51,8 @@ in dev/degraded environments.
   `SkillRegistry`, enriches, runs it, fans out to the household (unknown kinds 404).
 - `web/ResumeController` — `POST /agents/tasks/resume`; hit when the user replies to an open tasks
   question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`: `inbox-clarify-apply`
-  → `InboxClarifier.resume`, or `sharing-confirm` → `libs/sharing`'s `SharingConfirm.resume` with
+  → `InboxClarifier.resume`, `task-delete-confirm` → `TaskDeleter.resume` (confirm-before-delete, #486/Track
+  H.2), or `sharing-confirm` → `libs/sharing`'s `SharingConfirm.resume` with
   `TaskCapturer::finishCapture` (ADR-0002 item 8 DS-N — finish a deferred capture into the household the
   owner just chose).
 - `intent/IntentRouter` (on the shared `SkillClassifier` since #358 Bucket 1 slice 3) — single LLM
@@ -71,7 +74,15 @@ in dev/degraded environments.
 - `read/TaskReads` — the sharing-aware **read** helper (sibling of finance's `read/SpendingReads`):
   `households(envelope, userId, shared)` (own = envelope; shared = personal ∪ shared via
   `ProfileSharingClient.households`, degrading to the envelope) + `nextActionsUnion(households, limit)`
-  (fan-out across the set + flatten). The own-vs-shared cut lives here, in one place.
+  (open next-actions fan-out + flatten) + `openTasksUnion(households, limit)` (every task, any status — the
+  `task-delete` candidate pool, #486/Track H.2). The own-vs-shared cut lives here, in one place.
+- `intent/TaskDeleter` — the user-facing **delete-a-task** flow (#486/Track H.2), behind the standing
+  **confirm-before-delete** gate. `delete(msg)`: resolve the read set (personal ∪ shared via `TaskReads`) →
+  read the owner's open tasks (`TaskReads.openTasksUnion`) → LLM pick (`task-delete` SKILL, temperature 0,
+  numbered candidates) returning `{"pick":n}` / `{"ambiguous":[…]}` / `{}` → a single match replies with a
+  `pendingAction` asking to confirm (deletes nothing); ambiguous lists, none/miss asks. `resume(req)`: an
+  affirmative deletes via `DeleteTaskClient` (mcp-tasks `DELETE /internal/task/{id}`), anything else leaves
+  it; either reply clears the lock. Mirrors calendar's `EventCanceller`. Every stage soft-fails.
 - `capture/TaskCapturer` — the sharing **write path** (ADR-0002 slice 5): runs the `task-capture`
   flow. The LLM plans `{title, note?, shared?}`, the shared `SharingResolver` (wired with
   `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
@@ -105,8 +116,11 @@ in dev/degraded environments.
   reference producer): reverses a just-captured task by deleting it via `DeleteTaskClient`, returning a
   user-facing `{message}` confirmation; a missing/already-deleted task → an honest `ok=false`.
 - `http/AddTaskClient` — `POST /internal/task` passthrough (capture under a resolved household).
+- `http/NextActionClient` — `GET /internal/tasks` read passthrough. `fetchNextActions(household, limit)`
+  (status=next, for `next-action-suggester`) delegates to the general `fetchTasks(household, status, limit)`
+  (status nullable → every status, the `task-delete` candidate pool, #486/Track H.2).
 - `http/DeleteTaskClient` — `DELETE /internal/task/{id}` passthrough (the undo reversal — delete the
-  just-captured task, #486/H3).
+  just-captured task #486/H3 — and the user-facing `task-delete` #486/Track H.2).
 - `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
   (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
   `/internal/link-event` via `LinkEventClient`. Always returns an `AgentActionResult`; calendar
@@ -134,3 +148,6 @@ Skills live beside the agent under `domains/tasks/skills/<name>/SKILL.md`.
 - `task-capture` — reactive (user-invoked, e.g. "напомни купить молоко"): plans the task and marks
   whether it belongs on the household/shared list; the agent routes it to the personal or shared
   household (ADR-0002 slice 5 — the sharing write path).
+- `task-delete` — reactive (user-invoked, e.g. "удали задачу про X"): picks the task to delete from the
+  owner's open tasks and **deletes only after the user confirms** ("да"), via the conversation
+  route-lock / resume mechanism (#486/Track H.2 — the per-domain delete hole).
