@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.notes.web;
 
 import dev.fedorov.ailife.agents.notes.approve.AmbientApprover;
 import dev.fedorov.ailife.agents.notes.intent.NoteDeleter;
+import dev.fedorov.ailife.agents.notes.intent.NoteEditor;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
@@ -15,8 +16,9 @@ import reactor.core.publisher.Mono;
  * Hit by the orchestrator when the owner replies to an open notes question (the conversation was
  * route-locked to {@code notes}; Stage 4 route-lock + AC-4). Dispatches on the {@code pendingAction.flow}
  * discriminator: {@code ambient-approve} ({@link AmbientApprover#resume}) — the "заметил: … — записать?"
- * confirmation — or {@code note-delete-confirm} ({@link NoteDeleter#resume}) — confirm-before-delete
- * (#486/Track H.2). A reply without a recognised flow (or a cleared pendingAction) resolves with no
+ * confirmation — {@code note-delete-confirm} ({@link NoteDeleter#resume}) — confirm-before-delete — or
+ * {@code note-edit-confirm} ({@link NoteEditor#resume}) — confirm-before-change (both #486/Track H.2). A
+ * reply without a recognised flow (or a cleared pendingAction) resolves with no
  * pendingAction, so the orchestrator clears the lock.
  */
 @RestController
@@ -25,11 +27,14 @@ public class ResumeController {
 
     private final AmbientApprover approver;
     private final NoteDeleter deleter;
+    private final NoteEditor editor;
     private final AgentManifest manifest;
 
-    public ResumeController(AmbientApprover approver, NoteDeleter deleter, AgentManifest manifest) {
+    public ResumeController(AmbientApprover approver, NoteDeleter deleter, NoteEditor editor,
+                            AgentManifest manifest) {
         this.approver = approver;
         this.deleter = deleter;
+        this.editor = editor;
         this.manifest = manifest;
     }
 
@@ -42,6 +47,9 @@ public class ResumeController {
         }
         if (NoteDeleter.FLOW.equals(flow)) {
             return deleter.resume(request);
+        }
+        if (NoteEditor.FLOW.equals(flow)) {
+            return editor.resume(request);
         }
         return Mono.just(new IntentResponse(manifest.name(),
                 "Не понял, что подтвердить. Повторите запрос, пожалуйста.", null));

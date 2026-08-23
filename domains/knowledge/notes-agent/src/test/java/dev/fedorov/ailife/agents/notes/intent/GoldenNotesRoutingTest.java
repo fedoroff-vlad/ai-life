@@ -53,7 +53,7 @@ class GoldenNotesRoutingTest {
 
     /** The actions the notes classifier prompt allows (no MCP tools → only skill / chat). */
     private static final Set<String> ACTIONS = Set.of("skill", "chat");
-    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager", "note-delete");
+    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager", "note-delete", "note-edit");
 
     private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
@@ -61,6 +61,7 @@ class GoldenNotesRoutingTest {
     private final NoteFinder finder = mock(NoteFinder.class);
     private final ListManager lists = mock(ListManager.class);
     private final NoteDeleter deleter = mock(NoteDeleter.class);
+    private final NoteEditor editor = mock(NoteEditor.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final AgentManifest manifest = new AgentManifest(
             "notes", "notes agent", "0.1.0", 8118, List.of(), List.of(),
@@ -70,9 +71,10 @@ class GoldenNotesRoutingTest {
             skill("skills/knowledge/note-writer/SKILL.md"),
             skill("skills/knowledge/note-finder/SKILL.md"),
             skill("skills/knowledge/list-manager/SKILL.md"),
-            skill("skills/knowledge/note-delete/SKILL.md")));
+            skill("skills/knowledge/note-delete/SKILL.md"),
+            skill("skills/knowledge/note-edit/SKILL.md")));
     private final NotesIntentRouter router = new NotesIntentRouter(
-            llm, skills, new SkillClassifier(json), manifest, writer, finder, lists, deleter, chat);
+            llm, skills, new SkillClassifier(json), manifest, writer, finder, lists, deleter, editor, chat);
 
     /**
      * STRUCTURE — the real model, given the real router prompt, must return well-formed routing JSON: a

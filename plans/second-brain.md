@@ -211,8 +211,7 @@ hole: **delete a saved note by description** ("удали заметку про 
 lets the LLM pick the note from the household's recent notes (`NoteClient.list`, `type=list` notes excluded
 — lists are LI-a's job), `NoteDeleter` asks to confirm (a `pendingAction` route-locks to notes), and only
 the "да" reply deletes via memory-service's existing `DELETE /v1/notes/{id}` (`NoteClient.delete` — the same
-reversal the undo primitive uses; drops the recall seed + wiki-link edges). **Fix/edit a wrong note** ("исправь
-заметку …") is the queued follow-up (a further edit skill on the same path).
+reversal the undo primitive uses; drops the recall seed + wiki-link edges).
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали заметку про X" → THEN notes
@@ -222,6 +221,27 @@ reversal the undo primitive uses; drops the recall seed + wiki-link edges). **Fi
   and asks which, rather than deleting the wrong one.
 - Scenario: **no match.** WHEN nothing matches the description → THEN notes says it found no such note, never
   a silent no-op or a wrong delete.
+
+### Fix/edit a note by chat (H.2 edit hole) — DONE
+The second H.2 hole: **edit a saved note by description** ("исправь заметку про отпуск: едем в Крым",
+"переименуй заметку про врача в …"), behind a **confirm-before-change** gate. A new `note-edit` intent skill
+lets the LLM pick the target from the household's recent notes (`type=list` excluded — those are LI-a's job)
+**and** extract the new title/body the user stated; `NoteEditor` asks to confirm (a `pendingAction`
+route-locks to notes) and only the "да" reply applies it — re-reading the note (`NoteClient.get`), overlaying
+the new title/body, and PUTting it back (memory-service `PUT /v1/notes/{id}` replaces the mutable fields, so
+untouched fields survive). Built on the shared `PickConfirmActRunner` (ADR-0004) — the first non-calendar
+**update** consumer: the change threads through the `pendingAction` like a calendar move's new time. The
+edit replaces the given field(s) verbatim (no smart merge with the old body, and no revision history — both
+still Deferred below).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **edit by description confirms first.** WHEN the owner says "исправь заметку про X: <new text>" →
+  THEN notes resolves the target (no id), shows the change, and asks to confirm before writing; the "да"
+  reply applies the edit and confirms.
+- Scenario: **change not stated → ask.** WHEN the owner names a note but not what to change ("исправь заметку
+  про X") → THEN notes asks what to change, rather than writing an empty edit.
+- Scenario: **ambiguous / no match.** WHEN more than one note matches → THEN notes lists them and asks which;
+  WHEN nothing matches → THEN it says so, never a silent or wrong edit.
 
 ## Deferred (out of the epic, note when a consumer needs one)
 - **Real UI / vault two-way sync.** Endpoints (SB-7 export + SB-1 CRUD) are the seam; a live editor or
