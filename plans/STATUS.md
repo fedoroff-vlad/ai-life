@@ -77,8 +77,18 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   `pendingAction` (route-locks to tasks, deletes **nothing**); the "да" hits `POST /agents/tasks/resume`
   (`task-delete-confirm` → `TaskDeleter.resume`) → deletes via mcp-tasks `DELETE /internal/task/{id}`
   (existing `DeleteTaskClient`), a decline leaves it. Proven by `TaskDeleterTest` (confirm / ambiguous /
-  no-match / resume-deletes / decline). **NEXT: the remaining H.2 holes** — finance (edit/delete a logged
-  expense) + notes (fix/delete a wrong note); then tasks rename/state-move/due-edit follow-ups. Epic queue →
+  no-match / resume-deletes / decline). **finance delete ✅** — a new `transaction-delete` intent skill +
+  `TransactionDeleter` flow on finance's own `IntentRouter` path (`delete` classifier action), behind the
+  confirm-before-delete gate: read the owner's recent transactions (personal ∪ shared via
+  `SpendingReads.households` + a fan-out of a **new** mcp-finance `GET /internal/transactions` list
+  passthrough / `TransactionClient.list`) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to
+  confirm with a `pendingAction` (route-locks to finance, deletes **nothing**); the "да" hits `POST
+  /agents/finance/resume` (`transaction-delete-confirm` → `TransactionDeleter.resume`) → deletes via the
+  existing mcp-finance `DELETE /internal/transaction/{id}` (`TransactionClient.delete`, the same reversal the
+  undo primitive uses), a decline leaves it. Proven by `TransactionDeleterTest` (confirm / ambiguous /
+  no-match / resume-deletes / decline) + a list case in `McpFinanceIntegrationTest`. **NEXT: the remaining
+  H.2 holes** — notes (fix/delete a wrong note); then finance edit (change amount/category of the last trata)
+  + tasks rename/state-move/due-edit follow-ups. Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across

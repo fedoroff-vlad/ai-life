@@ -72,7 +72,7 @@ public class IntentRouter {
      */
     private static final String ENUM_PINNING =
             "The \"action\" value MUST be exactly one of these literal strings: "
-                    + "\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"account\", \"chat\". Do NOT invent "
+                    + "\"tool\", \"advice\", \"report\", \"invest\", \"category\", \"account\", \"delete\", \"chat\". Do NOT invent "
                     + "any other action value (not \"analysis\", not a tool name in the action field — a tool goes in "
                     + "\"name\" with action \"tool\"). For a spending analysis use exactly \"advice\".\n";
 
@@ -98,6 +98,7 @@ public class IntentRouter {
                         YearReporter yearReporter,
                         CategoryManager categoryManager,
                         AccountManager accountManager,
+                        TransactionDeleter transactionDeleter,
                         AgentManifest manifest,
                         SkillRegistry skills,
                         SkillClassifier classifier) {
@@ -129,7 +130,12 @@ public class IntentRouter {
                 // A non-deferred (pendingAction == null) create actually wrote → a why-trace; a defer none.
                 "account", (msg, node) -> accountManager.create(msg)
                         .map(r -> new RouterResult(r.text(), "account", r.model(), r.pendingAction(),
-                                r.pendingAction() == null ? "wrote: created a finance account" : null)));
+                                r.pendingAction() == null ? "wrote: created a finance account" : null)),
+                // The delete flow's first turn only asks to confirm (deletes nothing) — it always returns a
+                // pendingAction that route-locks the conversation to finance /resume; the actual delete +
+                // its why-trace happen on the confirming turn (TransactionDeleter.resume), not here.
+                "delete", (msg, node) -> transactionDeleter.delete(msg)
+                        .map(r -> new RouterResult(r.text(), "delete", r.llmModel(), r.pendingAction())));
     }
 
     public Mono<RouterResult> route(NormalizedMessage msg) {
@@ -254,7 +260,16 @@ public class IntentRouter {
                                 + " It plans the account and creates it itself, routing it to the personal or the "
                                 + "shared household. This is about opening an ACCOUNT — not recording a spend (that's "
                                 + "the add_transaction tool) and not managing categories (that's category).",
-                        "{\"action\":\"account\"}"));
+                        "{\"action\":\"account\"}"),
+                new Choice("delete",
+                        "There is also a built-in transaction-DELETE flow (not a tool): "
+                                + flowTrigger("transaction-delete",
+                                "use it when the user wants to DELETE / remove a specific expense or income they "
+                                        + "already logged (\"удали трату про X\", \"удали последнюю трату\").")
+                                + " It finds the transaction from the user's recent ones and confirms before "
+                                + "deleting. This is about removing a LOGGED transaction — not recording a new spend "
+                                + "(that's the add_transaction tool) and not deleting an account/category.",
+                        "{\"action\":\"delete\"}"));
     }
 
     /**
@@ -269,7 +284,8 @@ public class IntentRouter {
                 toolSpecs(tools),
                 choices(),
                 "Decide: run a tool, run the spending analysis, build the finance report, "
-                        + "run the investment advisory, manage categories, create an account, or just talk?",
+                        + "run the investment advisory, manage categories, create an account, delete a logged "
+                        + "transaction, or just talk?",
                 List.of(ENUM_PINNING));
     }
 

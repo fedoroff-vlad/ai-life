@@ -98,6 +98,7 @@ class GoldenRoutingTest {
     private final YearReporter yearReporter = mock(YearReporter.class);
     private final CategoryManager categoryManager = mock(CategoryManager.class);
     private final AccountManager accountManager = mock(AccountManager.class);
+    private final TransactionDeleter transactionDeleter = mock(TransactionDeleter.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
@@ -109,12 +110,12 @@ class GoldenRoutingTest {
     private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router = new IntentRouter(
             llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager,
-            accountManager, manifest, skills, classifier);
+            accountManager, transactionDeleter, manifest, skills, classifier);
 
     private static SkillRegistry loadFinanceSkills() {
         List<Skill> loaded = new java.util.ArrayList<>();
         for (String name : List.of("financial-advisor", "investment-advisor", "monthly-report",
-                "year-report", "category-manager", "account-manager")) {
+                "year-report", "category-manager", "account-manager", "transaction-delete")) {
             String path = "skills/finance/" + name + "/SKILL.md";
             try (var in = GoldenRoutingTest.class.getClassLoader().getResourceAsStream(path)) {
                 assertThat(in).as("classpath resource %s (finance skills are copied by the module pom)", path).isNotNull();
