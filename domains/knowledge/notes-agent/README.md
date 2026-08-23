@@ -7,11 +7,12 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a + undo H)
+## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a + undo H + note-delete H.2)
 
 Scaffold + the **capture**, **recall**, **proactive-resurfacing**, **ambient-approve** (AC-4 resume),
 and **lists** (LI-a) flows, plus the **undo** reversal (#486/Track H — "отмени последнее" deletes a
-just-captured note).
+just-captured note) and the user-facing **note-delete** flow (#486/Track H.2 — "удали заметку про X"
+behind a confirm gate).
 
 - **Lists (LI-a)** — everyday item checklists (a shopping / to-buy / packing list). A "…список…" /
   "вычеркни …" cue → one llm-gateway turn with the `list-manager` SKILL classifies the message into
@@ -59,7 +60,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 | method | path | purpose |
 |--------|------|---------|
 | POST | `/agents/notes/intent` | orchestrator entry. `NotesIntentRouter` classifies the message via the shared `SkillClassifier` (#475) into one intent skill — `note-finder` recall / `list-manager` op (LI-a) / `note-writer` capture — or the chat fallback. Routing SSOT is each skill's SKILL.md description (a paraphrase outside the old keyword cues routes correctly); every stage soft-fails to chat. |
-| POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); unknown flow → graceful reply. |
+| POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); `note-delete-confirm` → delete/keep the note picked for deletion (#486/Track H.2); unknown flow → graceful reply. |
 | POST | `/agents/notes/actions/{action}` | inter-agent action envelope (Track C1). `undo` (#486/Track H) reverses a just-captured note: `DELETE /v1/notes/{id}` by the stored handle id, confirming with its title; an already-gone note → honest `ok=false`. |
 | POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
@@ -72,6 +73,9 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   query from a "what did I think about X" request.
 - **`list-manager`** (`domains/knowledge/skills/list-manager/SKILL.md`) — strict-JSON classify of a
   list request into `{op, list, item}` (`op` ∈ `add|check|clear|show`) for LI-a.
+- **`note-delete`** (`domains/knowledge/skills/note-delete/SKILL.md`) — strict-JSON pick of which
+  saved note to delete from a numbered candidate list (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`), for the
+  confirm-gated delete-a-note flow (#486/Track H.2).
 
 ## Env
 
@@ -100,7 +104,8 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `find/NoteFinder` — the recall flow: LLM query distil (`note-finder` SKILL, temperature=0) → `MemoryClient.recall` → resolve `refId` → `NoteClient.get`, top hit enriched with `NoteClient.backlinks`; each stage soft-fails.
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `approve/AmbientApprover` — AC-4 resume: parse the `pendingAction.note` (a ready `WriteNoteRequest`), and on an affirmative reply write it (`source=ambient`) via `NoteClient.create`, else drop; both clear the lock. Soft-fails to a friendly reply.
-- `intent/NotesIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared `agent-runtime` `SkillClassifier` offers the three intent skills as one `skill` choice (their SKILL.md descriptions are the routing SSOT) → dispatch to `NoteFinder`/`ListManager`/`NoteWriter`, or the `NotesChat` fallback (blank / unknown-skill / non-JSON / LLM error all soft-fail to chat). Replaced the old keyword-cue heuristic.
+- `intent/NoteDeleter` — the user-facing **delete-a-note** flow (#486/Track H.2 — the notes delete hole), behind a **confirm-before-delete** gate. `delete(msg)`: read the household's recent notes (`NoteClient.list`, `type=list` notes excluded — those are LI-a's job) → LLM pick (`note-delete` SKILL, temperature 0, numbered candidates) returning `{"pick":n}` / `{"ambiguous":[…]}` / `{}` → a single match replies with a `pendingAction` asking to confirm (deletes nothing); ambiguous lists, none/miss asks. `resume(req)`: an affirmative deletes via `NoteClient.delete` (memory-service `DELETE /v1/notes/{id}` — the same reversal the undo primitive uses, which also drops the recall seed + wiki-link edges), anything else leaves it; either reply clears the lock. Mirrors finance's `TransactionDeleter` / tasks' `TaskDeleter`. Every stage soft-fails.
+- `intent/NotesIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared `agent-runtime` `SkillClassifier` offers the four intent skills as one `skill` choice (their SKILL.md descriptions are the routing SSOT) → dispatch to `NoteFinder`/`ListManager`/`NoteWriter`/`NoteDeleter`, or the `NotesChat` fallback (blank / unknown-skill / non-JSON / LLM error all soft-fail to chat). Replaced the old keyword-cue heuristic.
 - `web/IntentController` — thin: delegates `/intent` to `NotesIntentRouter`; `web/ManifestController`.
-- `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`).
+- `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`, `note-delete-confirm` → `NoteDeleter.resume`).
 - `web/TriggerController` — `POST /agents/notes/triggers/{kind}`; `notes.resurface` → `NoteResurfacer` (202), unbound kind → 404.

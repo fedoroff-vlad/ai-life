@@ -44,6 +44,7 @@ class NotesIntentRouterTest {
     private final NoteWriter writer = mock(NoteWriter.class);
     private final NoteFinder finder = mock(NoteFinder.class);
     private final ListManager lists = mock(ListManager.class);
+    private final NoteDeleter deleter = mock(NoteDeleter.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final ObjectMapper json = new ObjectMapper();
     private final SkillClassifier classifier = new SkillClassifier(json);
@@ -57,7 +58,7 @@ class NotesIntentRouterTest {
             skill("list-manager", "Maintain an everyday checklist (add / check off / clear / show).")));
 
     private final NotesIntentRouter router =
-            new NotesIntentRouter(llm, skills, classifier, manifest, writer, finder, lists, chat);
+            new NotesIntentRouter(llm, skills, classifier, manifest, writer, finder, lists, deleter, chat);
 
     @Test
     void routesToFinderWhenLlmPicksNoteFinder() {

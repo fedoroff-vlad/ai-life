@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.notes.web;
 
 import dev.fedorov.ailife.agents.notes.approve.AmbientApprover;
+import dev.fedorov.ailife.agents.notes.intent.NoteDeleter;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
@@ -13,19 +14,22 @@ import reactor.core.publisher.Mono;
 /**
  * Hit by the orchestrator when the owner replies to an open notes question (the conversation was
  * route-locked to {@code notes}; Stage 4 route-lock + AC-4). Dispatches on the {@code pendingAction.flow}
- * discriminator; today the only flow is {@code ambient-approve} ({@link AmbientApprover#resume}) — the
- * "заметил: … — записать?" confirmation. A reply without a recognised flow (or a cleared pendingAction)
- * resolves with no pendingAction, so the orchestrator clears the lock.
+ * discriminator: {@code ambient-approve} ({@link AmbientApprover#resume}) — the "заметил: … — записать?"
+ * confirmation — or {@code note-delete-confirm} ({@link NoteDeleter#resume}) — confirm-before-delete
+ * (#486/Track H.2). A reply without a recognised flow (or a cleared pendingAction) resolves with no
+ * pendingAction, so the orchestrator clears the lock.
  */
 @RestController
 @RequestMapping("/agents/notes")
 public class ResumeController {
 
     private final AmbientApprover approver;
+    private final NoteDeleter deleter;
     private final AgentManifest manifest;
 
-    public ResumeController(AmbientApprover approver, AgentManifest manifest) {
+    public ResumeController(AmbientApprover approver, NoteDeleter deleter, AgentManifest manifest) {
         this.approver = approver;
+        this.deleter = deleter;
         this.manifest = manifest;
     }
 
@@ -35,6 +39,9 @@ public class ResumeController {
                 : request.pendingAction().path("flow").asString(null);
         if (AmbientApprover.FLOW.equals(flow)) {
             return approver.resume(request);
+        }
+        if (NoteDeleter.FLOW.equals(flow)) {
+            return deleter.resume(request);
         }
         return Mono.just(new IntentResponse(manifest.name(),
                 "Не понял, что подтвердить. Повторите запрос, пожалуйста.", null));
