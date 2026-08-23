@@ -127,11 +127,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   flows (delete×3 + calendar cancel/move) and grows with each per-domain edit hole. **ADR-0004 ✅ Accepted
   (2026-08-23, owner-approved)** ([adr/ADR-0004-confirm-act-flow.md](adr/ADR-0004-confirm-act-flow.md)): lift
   a generic `PickConfirmAct` primitive into `libs/agent-runtime/intent/` (terminal act as a seam: delete |
-  update; a `missing`-field re-ask gate for move/edit); mcp-side base CRUD explicitly out of scope. **NOW:
-  PR-1** — the primitive (`TargetedActionFlow` + `CandidateView` + `PickConfirmActRunner` + test) + retrofit
-  the 3 delete flows (`TaskDeleter`/`TransactionDeleter`/`NoteDeleter`), the 5 existing per-flow tests must
-  pass unchanged (pure-refactor safety net). **Then PR-2** — retrofit calendar cancel/move (`params` +
-  `missing` seams). `agent-runtime` README + the per-flow key-class lines get updated in the retrofit PRs.
+  update; a `missing`-field re-ask gate for move/edit); mcp-side base CRUD explicitly out of scope. **PR-1 ✅
+  (2026-08-23)** — the primitive landed in `agent-runtime/intent/` (`PickConfirmActRunner` +
+  `TargetedActionFlow` + `CandidateView` + `Nouns`, `PickConfirmActRunnerTest` 12 cases) and the 3 delete
+  flows (`TaskDeleter`/`TransactionDeleter`/`NoteDeleter`) collapsed onto it as ~30-line adapters
+  (`candidates`/`view`/`act`/`nouns`); their 5+5+6 existing tests pass **unchanged** (pure-refactor safety
+  net — legacy `idField`/`labelField` names kept via seam overrides, new flows take the `targetId`/`label`
+  defaults). Russian wording is centralized on the runner via 3 noun forms; the move/edit `params` +
+  `missing` seams are wired but only exercised by the runner test until PR-2. **NOW: PR-2** — retrofit
+  calendar cancel/move (`EventCanceller`/`EventMover`) onto the runner (exercises the `params` passthrough +
+  the `missing` re-ask gate — the non-delete act); their per-flow tests must pass unchanged.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
