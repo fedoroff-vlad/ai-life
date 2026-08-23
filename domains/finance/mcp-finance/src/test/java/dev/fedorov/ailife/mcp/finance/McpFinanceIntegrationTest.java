@@ -900,6 +900,18 @@ class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
         client.get().uri("/internal/transaction/{id}", created.id())
                 .exchange().expectStatus().isOk();
 
+        // GET /internal/transactions lists the household's recent transactions (the transaction-delete
+        // candidate pool, #486/Track H.2) — the just-created row is in it.
+        List<FinTransactionDto> recent = client.get()
+                .uri(uri -> uri.path("/internal/transactions")
+                        .queryParam("householdId", householdId).queryParam("limit", 10).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(FinTransactionDto.class)
+                .returnResult().getResponseBody();
+        assertThat(recent).isNotNull();
+        assertThat(recent).extracting(FinTransactionDto::id).contains(created.id());
+
         // Bad input (account from another household) → 400, surfaced from the tool guard.
         client.post().uri("/internal/transaction")
                 .contentType(MediaType.APPLICATION_JSON)

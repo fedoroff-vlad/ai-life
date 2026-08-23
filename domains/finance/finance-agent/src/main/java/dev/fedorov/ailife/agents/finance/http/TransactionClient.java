@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.finance.http;
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -10,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,11 +25,18 @@ import java.util.UUID;
  *   <li>{@link #add(AddTransactionInput)} — {@code POST /internal/transaction};
  *   used by {@code ReceiptParser} to persist a draft parsed from a photo.</li>
  *   <li>{@link #delete(UUID)} — {@code DELETE /internal/transaction/{id}}; the undo reversal
- *   (#486/Track H): {@code ActionController.undo} calls it to reverse a just-written transaction.</li>
+ *   (#486/Track H): {@code ActionController.undo} calls it to reverse a just-written transaction, and the
+ *   user-facing {@code transaction-delete} flow (#486/Track H.2).</li>
+ *   <li>{@link #list(UUID, int)} — {@code GET /internal/transactions?householdId=&limit=}; the candidate
+ *   pool for the {@code transaction-delete} flow (#486/Track H.2), newest first.</li>
  * </ul>
  */
 @Component
 public class TransactionClient {
+
+    private static final ParameterizedTypeReference<List<FinTransactionDto>> TX_LIST =
+            new ParameterizedTypeReference<>() {
+            };
 
     private final WebClient http;
 
@@ -61,6 +70,17 @@ public class TransactionClient {
                 .uri("/internal/transaction/{id}", id)
                 .retrieve()
                 .bodyToMono(FinTransactionDto.class)
+                .timeout(Duration.ofSeconds(3));
+    }
+
+    public Mono<List<FinTransactionDto>> list(UUID householdId, int limit) {
+        return http.get()
+                .uri(uri -> uri.path("/internal/transactions")
+                        .queryParam("householdId", householdId)
+                        .queryParam("limit", limit)
+                        .build())
+                .retrieve()
+                .bodyToMono(TX_LIST)
                 .timeout(Duration.ofSeconds(3));
     }
 }

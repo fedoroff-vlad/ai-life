@@ -55,5 +55,27 @@ Doctrine reminder (architecture.md): the orchestrator only **routes**; all finan
 in **finance-agent**; cross-domain mechanics (charts, OCR/STT, market data) are **capability-MCPs** the
 agent binds. Data/maths = `mcp-finance`; reasoning = agent skills; presentation = capability + skill.
 
+## H.2 — user-facing transaction delete via chat (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
+The per-domain lifecycle holes (stage4.md §Track H.2), on finance's own `IntentRouter` path — **not** the
+cross-cutting `undo` primitive (which already reverses a *just-written* receipt via `/actions/undo`). First
+hole (smallest / highest daily use): **delete a logged expense by description** ("удали трату про X",
+"удали последнюю трату"), behind the standing **confirm-before-delete** gate (a finance principle — "confirm
+before delete/bulk"; see AGENT.md). Target resolution is by context — no id: a new `transaction-delete`
+intent skill lets the LLM pick the transaction from the owner's recent transactions (read via a new
+`GET /internal/transactions` list passthrough across personal ∪ shared households, reusing
+`read/SpendingReads.households`), `TransactionDeleter` asks to confirm (a `pendingAction` route-locks to
+finance), and only the "да" reply deletes via mcp-finance's existing `DELETE /internal/transaction/{id}`
+(`TransactionClient.delete` — the same reversal the undo primitive uses). Edit (change amount / category of
+the last trata) is a queued follow-up (a further edit skill on the same path).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **delete by description confirms first.** WHEN the owner says "удали трату про X / последнюю
+  трату" → THEN finance resolves the target from context (no id) and asks to confirm before deleting
+  (destructive-delete gate); the "да" reply deletes and confirms.
+- Scenario: **ambiguous target is clarified.** WHEN more than one recent transaction matches → THEN finance
+  lists the matches and asks which, rather than deleting the wrong one.
+- Scenario: **no match.** WHEN nothing matches the description → THEN finance says it found no such trata,
+  never a silent no-op or a wrong delete.
+
 ## Reminders → scheduler-service
 `fin_recurring.auto_remind=true` → agent registers `mcp-scheduler.schedule_recurring(target=finance, payload=pay X)`. Scheduler wakes finance-agent via orchestrator on due date.
