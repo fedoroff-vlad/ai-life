@@ -143,16 +143,23 @@ Every stage soft-fails. The runner owns the orchestration, the LLM round-trip + 
 gate, the shared Russian wording, and the `params` passthrough (the extra LLM fields a move/edit needs,
 threaded through the lock into `act`).
 
-A domain supplies a small `TargetedActionFlow<T>` adapter (~30 lines): `candidates()` (the domain read,
-own vs personal ∪ shared), a `CandidateView<T>` (`id`/`label`/`describe`), `act()` (the delete/cancel/update),
-its `Nouns` (three Russian forms — the only wording it writes), and — only for move/edit — `missing()`
-(the "resolved a target but a required field is absent → re-ask" gate). The runner is **not** an auto-wired
-bean; the domain constructs one per flow (it needs the adapter) and its `IntentController`/`ResumeController`
-still dispatch to the domain object, which delegates here. `idField()`/`labelField()` default to the ADR-0004
-standard `targetId`/`label`; the three already-shipped delete flows override them to their legacy
-`taskId`/`transactionId`/`noteId` + `title` field names so their unit tests stay byte-for-byte — new flows
-take the defaults. Consumers: `TaskDeleter`, `TransactionDeleter`, `NoteDeleter` (delete seam, PR-1);
-calendar `EventCanceller`/`EventMover` land on it in PR-2.
+A domain supplies a small `TargetedActionFlow<T>` adapter: `candidates()` (the domain read, own vs
+personal ∪ shared), a `CandidateView<T>` (`id`/`label`/`describe`), `act()` (the delete/cancel/update), and
+the **wording**. A **delete** flow writes only its `Nouns` (three Russian forms) and gets the "Удалить…"
+wording free from `NounPhrasing`; a flow whose wording doesn't fit (calendar cancel/move) returns its own
+`Phrasing` from `phrasing()`. A **move/edit** flow additionally overrides `missing()` (the "resolved a
+target but a required field is absent → re-ask" gate, given the target + the LLM selection), `readyToAct()`
+(a resume precondition beyond the id — the stashed new time), and `decorateUserMessage()` (extra LLM context
+such as `now` for relative dates); the extra fields the LLM returns on selection (the new time) are threaded
+through the `pendingAction` at top level and handed back to `act()`. `requiresHousehold()` opts a flow out
+of the null-`householdId` short-circuit (calendar resolves its read set from the userId instead). The runner
+is **not** an auto-wired bean; the domain constructs one per flow (it needs the adapter) and its
+`IntentController`/`ResumeController` still dispatch to the domain object, which delegates here.
+`idField()`/`labelField()` default to the ADR-0004 standard `targetId`/`label`; the already-shipped flows
+override them to their legacy field names (`taskId`/`transactionId`/`noteId`/`eventId` + `title`/`summary`)
+so their tests stay byte-for-byte — new flows take the defaults. Consumers: `TaskDeleter`,
+`TransactionDeleter`, `NoteDeleter` (delete seam, PR-1); calendar `EventCanceller`/`EventMover` (cancel/move
+— the non-delete act, PR-2).
 
 ## Configuration (`agent.*`)
 | Property | Default | Purpose |
@@ -183,9 +190,11 @@ calendar `EventCanceller`/`EventMover` land on it in PR-2.
 - `intent/SkillClassifier` — the shared in-agent router: `buildPrompt(...)` + `parse(...) → Decision`. Nested value types `ToolSpec` / `Choice` (inputs) and the sealed `Decision` = `ToolCall | FlowCall | Chat` (output). Pure (only `ObjectMapper`); lifted from the finance/tasks `IntentRouter`s (#358, Bucket 1). See the section above.
 - `intent/SkillRouter` — the shared **skills-only** router (LLM round-trip + dispatch **around** `SkillClassifier`): `route(msg) → Mono<IntentResponse>` + public `buildClassifierPrompt()`. Constructed per-agent with an ordered `{skillName → flow}` dispatch map (its key set = the route set), a chat fallback, and intro/decide framing; total (every soft-fail → chat). Lifted from the notes/creator `*IntentRouter`s (#475, Bucket 1 slice 4+). See the section above.
 - `intent/PickConfirmActRunner` — the shared **pick → confirm → act** runner (ADR-0004): `pick(msg)` + `resume(req)` over the Stage-4 lock. Constructed per-flow with a `TargetedActionFlow<T>` adapter; owns the orchestration, LLM selection parse, confirm gate, Russian wording, and the move/edit `params` passthrough. Not a bean. See the section above.
-- `intent/TargetedActionFlow` — the domain seam for `PickConfirmActRunner`: `skillName`/`flow`/`nouns`/`candidates`/`view`/`act`, `idField`/`labelField` (default `targetId`/`label`), the `missing` completeness gate (default none), and `extraAffirmatives` (default none).
-- `intent/CandidateView` — how a domain renders one candidate: `id(T)` · `label(T)` (fully-formatted display token, incl. its own «…») · `describe(node, T)` (the disambiguating fields for the LLM).
-- `intent/Nouns` — the three Russian noun forms (accusative / genitive-plural / nominative) the runner interpolates into its shared wording.
+- `intent/TargetedActionFlow` — the domain seam for `PickConfirmActRunner`: `skillName`/`flow`/`candidates`/`view`/`act` + wording (`nouns` for the `NounPhrasing` default, or `phrasing` for custom), `idField`/`labelField` (default `targetId`/`label`), `requiresHousehold` (default true), the `missing` completeness gate + `readyToAct` resume precondition (move/edit), `decorateUserMessage` (extra LLM context), and `extraAffirmatives` (default none).
+- `intent/CandidateView` — how a domain renders one candidate: `id(T)` · `label(T)` (the token stored in the lock; the phrasing formats display around it) · `describe(node, T)` (the disambiguating fields for the LLM).
+- `intent/Phrasing` — the per-flow user-facing wording (askWhich / emptyPool / noMatch / ambiguous / confirm / declined / done / actFailed / …). Turn-1 methods get the typed candidate, turn-2 methods get the stored `pendingAction`.
+- `intent/NounPhrasing` — the default `Phrasing` for a **delete** flow: the shared "Удалить … удалил" wording templated on the flow's `Nouns` + `CandidateView`.
+- `intent/Nouns` — the three Russian noun forms (accusative / genitive-plural / nominative) `NounPhrasing` interpolates.
 - `brief/BriefResponder` — the reusable `brief` read-action: `answer(request)` / `answer(request, extraGather)` recall the agent's second brain for `args.question` (plus any domain gather the agent adds), run one FAST `Coordinator` synthesis under a read-only instruction, and return `AgentActionResult{agent, answer, llmModel?}`. Missing question → structured `ok=false`. Wired as a bean; an agent opts in with `register("brief", briefResponder::answer)`.
 - `deliver/DeliverablePublisher` — `publish(household, owner, Doc)` render→store→link over the agent's `DocRenderer` + `MediaStoreClient`; `mediaUrl(UUID|String)` public-link builder (null-safe); static `splitParagraphs(text)` / `summary(text, fallback)`. Two ctors: three-arg (pass a themed `DocRenderer`) and the two-arg convenience (default `HtmlDocRenderer`, no `RenderConfig` needed). Bean is opt-in per agent (declared in the agent's `OutboundHttpConfig`).
 - `transparency/DegradedNotice` — transparency helper (road-test #485, "no silent failures"): `append(text, note)` folds a short, user-facing degraded-state note onto a reply as a trailing `⚠️ …` block (null/blank-safe; blank note → text unchanged). When a **best-effort** step on the reply path soft-fails (a render/store hiccup, a memory write that didn't land), the flow says so discreetly in its `onErrorResume` branch instead of pretending success — the wording is small per-flow copy in the user's language, this primitive owns only the consistent rendering. First consumer: `briefing-agent`'s board-store fallback.

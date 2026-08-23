@@ -71,7 +71,7 @@ class PickConfirmActRunnerTest {
         @Override public Mono<List<Widget>> candidates(NormalizedMessage msg) { return Mono.just(pool); }
         @Override public CandidateView<Widget> view() { return this; }
 
-        @Override public Optional<String> missing(JsonNode pick) {
+        @Override public Optional<String> missing(Widget target, JsonNode pick) {
             return requireField && !pick.hasNonNull("when")
                     ? Optional.of("Когда?") : Optional.empty();
         }
@@ -191,7 +191,7 @@ class PickConfirmActRunnerTest {
         StepVerifier.create(runner.pick(message(UUID.randomUUID(), "перенеси красную на завтра")))
                 .assertNext(r -> {
                     assertThat(r.pendingAction()).isNotNull();
-                    assertThat(r.pendingAction().path("params").path("when").asString())
+                    assertThat(r.pendingAction().path("when").asString())
                             .isEqualTo("2026-09-01T10:00:00Z");
                     pending.set(r.pendingAction());
                 })
