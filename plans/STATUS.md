@@ -122,6 +122,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477), reconcile empty `shared/skills/`
   doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478); + the model-gated Bucket 2 cutover
   [#369](https://github.com/fedoroff-vlad/ai-life/issues/369).
+  **NEW thread — confirm-act flow duplication [#547](https://github.com/fedoroff-vlad/ai-life/issues/547):**
+  the `read candidates → LLM picks → confirm via pendingAction → resume → act` loop is copy-pasted across 5
+  flows (delete×3 + calendar cancel/move) and grows with each per-domain edit hole. **ADR-0004 ✅ Accepted
+  (2026-08-23, owner-approved)** ([adr/ADR-0004-confirm-act-flow.md](adr/ADR-0004-confirm-act-flow.md)): lift
+  a generic `PickConfirmAct` primitive into `libs/agent-runtime/intent/` (terminal act as a seam: delete |
+  update; a `missing`-field re-ask gate for move/edit); mcp-side base CRUD explicitly out of scope. **NOW:
+  PR-1** — the primitive (`TargetedActionFlow` + `CandidateView` + `PickConfirmActRunner` + test) + retrofit
+  the 3 delete flows (`TaskDeleter`/`TransactionDeleter`/`NoteDeleter`), the 5 existing per-flow tests must
+  pass unchanged (pure-refactor safety net). **Then PR-2** — retrofit calendar cancel/move (`params` +
+  `missing` seams). `agent-runtime` README + the per-flow key-class lines get updated in the retrofit PRs.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
