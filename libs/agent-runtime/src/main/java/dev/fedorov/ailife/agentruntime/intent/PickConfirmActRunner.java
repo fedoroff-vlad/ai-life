@@ -30,10 +30,10 @@ import java.util.UUID;
  * The shared <b>pick → confirm → act</b> runner (ADR-0004): the two-turn confirm-act loop over the Stage-4
  * pending-action lock that the five per-domain flows (tasks/finance/notes delete + calendar cancel/move)
  * copy-pasted at ~250 lines each. A domain supplies a {@link TargetedActionFlow} adapter; this runner owns
- * the orchestration, the LLM round-trip + selection parse, the confirm gate, the shared Russian wording,
- * and the resume soft-fail. Constructed per-flow by the domain (it is not an auto-wired bean — it needs the
- * flow adapter); the agent's {@code IntentController}/{@code ResumeController} still dispatch to the domain
- * object, which delegates here.
+ * the orchestration, the LLM round-trip + selection parse, the confirm gate, and the resume soft-fail — the
+ * user-facing wording comes from the flow's {@link Phrasing} (the delete default is {@link NounPhrasing}).
+ * Constructed per-flow by the domain (it is not an auto-wired bean — it needs the flow adapter); the agent's
+ * {@code IntentController}/{@code ResumeController} still dispatch to the domain object, which delegates here.
  *
  * <p>Two turns:
  * <ol>
@@ -45,7 +45,7 @@ import java.util.UUID;
  *   <li>{@link #resume} — on the reply: an affirmative runs {@link TargetedActionFlow#act}; anything else
  *       leaves it. Either reply carries no {@code pendingAction}, so the orchestrator clears the lock.</li>
  * </ol>
- * Every stage soft-fails to a friendly Russian message.
+ * Every stage soft-fails to a friendly reply.
  */
 public final class PickConfirmActRunner<T> {
 
@@ -64,6 +64,7 @@ public final class PickConfirmActRunner<T> {
     private final SkillRegistry skills;
     private final ObjectMapper json;
     private final TargetedActionFlow<T> flow;
+    private final Phrasing<T> phrasing;
     private final Set<String> affirmative;
 
     public PickConfirmActRunner(LlmClient llm, AgentManifest manifest, SkillRegistry skills,
@@ -73,6 +74,7 @@ public final class PickConfirmActRunner<T> {
         this.skills = skills;
         this.json = json;
         this.flow = flow;
+        this.phrasing = flow.phrasing();
         Set<String> aff = new HashSet<>(DEFAULT_AFFIRMATIVE);
         aff.addAll(flow.extraAffirmatives());
         this.affirmative = Set.copyOf(aff);
@@ -84,29 +86,29 @@ public final class PickConfirmActRunner<T> {
     public Mono<IntentResponse> pick(NormalizedMessage msg) {
         String userText = msg == null ? null : msg.text();
         if (userText == null || userText.isBlank()) {
-            return Mono.just(reply("Какую " + acc() + " удалить?", null));
+            return Mono.just(reply(phrasing.askWhich(), null));
         }
-        if (msg.householdId() == null) {
-            return Mono.just(reply("Не знаю, к какому хозяйству относится запрос.", null));
+        if (flow.requiresHousehold() && msg.householdId() == null) {
+            return Mono.just(reply(phrasing.noHousehold(), null));
         }
         return flow.candidates(msg)
                 .flatMap(items -> resolveAndConfirm(userText, items))
                 .onErrorResume(e -> {
                     log.warn("{} failed: {}", flow.flow(), e.toString());
-                    return Mono.just(reply(
-                            "Не смог найти " + acc() + " для удаления. Попробуйте ещё раз позже.", null));
+                    return Mono.just(reply(phrasing.readFailed(), null));
                 });
     }
 
     private Mono<IntentResponse> resolveAndConfirm(String userText, List<T> items) {
         if (items == null || items.isEmpty()) {
-            return Mono.just(reply("Не нашёл " + genPl() + ", которые можно удалить.", null));
+            return Mono.just(reply(phrasing.emptyPool(), null));
         }
         List<T> candidates = items.size() > MAX_CANDIDATES ? items.subList(0, MAX_CANDIDATES) : items;
 
         ObjectNode userMsg = json.createObjectNode();
         userMsg.put("userText", userText);
         userMsg.set("candidates", candidateList(candidates));
+        flow.decorateUserMessage(userMsg);
 
         LlmChatRequest req = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
                 LlmMessage.system(manifest.body()),
@@ -117,32 +119,30 @@ public final class PickConfirmActRunner<T> {
     }
 
     private IntentResponse pickReply(Pick pick, List<T> candidates, String model) {
-        CandidateView<T> view = flow.view();
         if (pick == null || pick.indices().isEmpty()) {
-            return reply("Не нашёл такую " + acc() + ". Уточните, что удалить.", model);
+            return reply(phrasing.noMatch(), model);
         }
         if (pick.indices().size() > 1) {
-            StringBuilder sb = new StringBuilder("Нашёл несколько подходящих " + genPl() + " — какую удалить?");
+            List<T> picked = new ArrayList<>();
             for (int i : pick.indices()) {
                 T t = candidateAt(candidates, i);
                 if (t != null) {
-                    sb.append("\n• ").append(view.label(t));
+                    picked.add(t);
                 }
             }
-            return reply(sb.toString(), model);
+            return reply(phrasing.ambiguous(picked), model);
         }
         T target = candidateAt(candidates, pick.indices().get(0));
         if (target == null) {
-            return reply("Не нашёл такую " + acc() + ". Уточните, что удалить.", model);
+            return reply(phrasing.noMatch(), model);
         }
         // Completeness gate (move/edit): resolved a target but a required field is missing → re-ask, no lock.
-        Optional<String> missing = flow.missing(pick.raw());
+        Optional<String> missing = flow.missing(target, pick.raw());
         if (missing.isPresent()) {
             return reply(missing.get(), model);
         }
-        String label = view.label(target);
-        String confirm = "Удалить " + acc() + " " + label + "? Ответьте «да», чтобы удалить.";
-        return new IntentResponse(manifest.name(), confirm, model, pendingAction(view.id(target), label, pick.raw()));
+        return new IntentResponse(manifest.name(), phrasing.confirm(target, pick.raw()), model,
+                pendingAction(target, pick.raw()));
     }
 
     // ----- turn 2: resume ---------------------------------------------------------------------------
@@ -151,21 +151,18 @@ public final class PickConfirmActRunner<T> {
     public Mono<IntentResponse> resume(ResumeRequest req) {
         JsonNode pending = req == null ? null : req.pendingAction();
         UUID targetId = targetId(pending);
-        if (targetId == null) {
-            return Mono.just(reply("Нечего удалять — повторите запрос, пожалуйста.", null));
+        if (targetId == null || !flow.readyToAct(pending)) {
+            return Mono.just(reply(phrasing.notReady(), null));
         }
-        String label = pending.path(flow.labelField()).asString(acc());
         String text = req.message() == null ? null : req.message().text();
         if (!isAffirmative(text)) {
-            return Mono.just(reply("Оставил " + label + " без изменений.", null));
+            return Mono.just(reply(phrasing.declined(pending), null));
         }
-        JsonNode params = pending.path("params");
-        return flow.act(targetId, params.isMissingNode() ? null : params)
-                .then(Mono.just(reply("Удалил " + acc() + " " + label + ".", null)))
+        return flow.act(targetId, pending)
+                .then(Mono.just(reply(phrasing.done(pending), null)))
                 .onErrorResume(e -> {
                     log.warn("{} act failed for {}: {}", flow.flow(), targetId, e.toString());
-                    return Mono.just(reply(
-                            "Не смог удалить " + label + " — возможно, " + nom() + " уже удалена.", null));
+                    return Mono.just(reply(phrasing.actFailed(pending), null));
                 });
     }
 
@@ -221,31 +218,26 @@ public final class PickConfirmActRunner<T> {
         return (i >= 0 && i < candidates.size()) ? candidates.get(i) : null;
     }
 
-    /** {@code {flow, <idField>:id, <labelField>:label[, params]}} — params carries the LLM's extra fields (move). */
-    private ObjectNode pendingAction(UUID targetId, String label, JsonNode pick) {
+    /**
+     * {@code {<extra LLM fields>, flow, <idField>:id, <labelField>:label}} — the confirm lock. Extra fields
+     * the selection carried (a move's {@code dtstart}/{@code dtend}) are merged in at top level so the flow's
+     * existing {@code pendingAction} shape (and its tests) are preserved; the reserved keys are written last
+     * so they always win.
+     */
+    private ObjectNode pendingAction(T target, JsonNode pick) {
         ObjectNode node = json.createObjectNode();
-        node.put("flow", flow.flow());
-        node.put(flow.idField(), targetId.toString());
-        node.put(flow.labelField(), label);
-        ObjectNode params = extraParams(pick);
-        if (!params.isEmpty()) {
-            node.set("params", params);
-        }
-        return node;
-    }
-
-    /** The selection node's fields other than the index keys — the move/edit payload threaded into the lock. */
-    private ObjectNode extraParams(JsonNode pick) {
-        ObjectNode params = json.createObjectNode();
         if (pick != null && pick.isObject()) {
             pick.properties().forEach(entry -> {
                 String key = entry.getKey();
                 if (!"pick".equals(key) && !"ambiguous".equals(key)) {
-                    params.set(key, entry.getValue());
+                    node.set(key, entry.getValue());
                 }
             });
         }
-        return params;
+        node.put("flow", flow.flow());
+        node.put(flow.idField(), flow.view().id(target).toString());
+        node.put(flow.labelField(), flow.view().label(target));
+        return node;
     }
 
     private UUID targetId(JsonNode pending) {
@@ -270,18 +262,6 @@ public final class PickConfirmActRunner<T> {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         flow.skillName() + " SKILL.md not loaded — check skills-classpath"));
-    }
-
-    private String acc() {
-        return flow.nouns().accusative();
-    }
-
-    private String genPl() {
-        return flow.nouns().genitivePlural();
-    }
-
-    private String nom() {
-        return flow.nouns().nominative();
     }
 
     private IntentResponse reply(String text, String model) {

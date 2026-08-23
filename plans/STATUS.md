@@ -133,10 +133,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   flows (`TaskDeleter`/`TransactionDeleter`/`NoteDeleter`) collapsed onto it as ~30-line adapters
   (`candidates`/`view`/`act`/`nouns`); their 5+5+6 existing tests pass **unchanged** (pure-refactor safety
   net — legacy `idField`/`labelField` names kept via seam overrides, new flows take the `targetId`/`label`
-  defaults). Russian wording is centralized on the runner via 3 noun forms; the move/edit `params` +
-  `missing` seams are wired but only exercised by the runner test until PR-2. **NOW: PR-2** — retrofit
-  calendar cancel/move (`EventCanceller`/`EventMover`) onto the runner (exercises the `params` passthrough +
-  the `missing` re-ask gate — the non-delete act); their per-flow tests must pass unchanged.
+  defaults). **PR-2 ✅ (2026-08-23) — ADR-0004 epic COMPLETE.** Calendar `EventCanceller` + `EventMover`
+  retrofitted onto the runner — the first non-delete consumers, proving the move seam: the wording that
+  didn't fit the delete template lifted into a `Phrasing` seam (`NounPhrasing` = the delete default, kept
+  byte-identical; calendar supplies its own), plus the `missing()` re-ask gate (picked event, no new time),
+  `readyToAct()` (resume needs the stashed time), top-level `params` passthrough (the new time threaded
+  through the `pendingAction`, so `EventMoverTest`'s `dtstart` assertion holds), and `requiresHousehold=false`
+  + `decorateUserMessage` (`now`). Their 3+4 `@SpringBootTest` tests pass **unchanged**; the runner test grew
+  to cover the move branches. #547 can close. Next #479 thread: personalization-profile capability
+  [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) (ADR first), or another epic item.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
   **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список

@@ -1,8 +1,9 @@
 # ADR-0004: Confirm-act flow — lift the pick→confirm→act loop into a shared `agent-runtime` primitive
 
-**Status:** Accepted (2026-08-23 — owner-approved). **PR-1 shipped** (the `agent-runtime/intent/`
-primitive + the 3 delete flows retrofitted; their tests pass unchanged). **PR-2** (calendar cancel/move)
-is next — see §Slicing.
+**Status:** Accepted & **implemented** (2026-08-23 — owner-approved). Both retrofit PRs shipped: **PR-1**
+(the `agent-runtime/intent/` primitive + the 3 delete flows) and **PR-2** (calendar cancel/move — the
+non-delete act; wording lifted into a `Phrasing` seam so calendar overrides it). All five flows now share
+the runner; every per-flow test passed unchanged.
 **Date:** 2026-08-23
 **Deciders:** repo owner (holder/admin)
 **Relates to:** issue [#547](https://github.com/fedoroff-vlad/ai-life/issues/547) under the
