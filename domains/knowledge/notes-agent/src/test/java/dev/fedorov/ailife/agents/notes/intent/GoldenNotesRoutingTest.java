@@ -53,13 +53,14 @@ class GoldenNotesRoutingTest {
 
     /** The actions the notes classifier prompt allows (no MCP tools → only skill / chat). */
     private static final Set<String> ACTIONS = Set.of("skill", "chat");
-    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager");
+    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager", "note-delete");
 
     private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
     private final NoteWriter writer = mock(NoteWriter.class);
     private final NoteFinder finder = mock(NoteFinder.class);
     private final ListManager lists = mock(ListManager.class);
+    private final NoteDeleter deleter = mock(NoteDeleter.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final AgentManifest manifest = new AgentManifest(
             "notes", "notes agent", "0.1.0", 8118, List.of(), List.of(),
@@ -68,9 +69,10 @@ class GoldenNotesRoutingTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             skill("skills/knowledge/note-writer/SKILL.md"),
             skill("skills/knowledge/note-finder/SKILL.md"),
-            skill("skills/knowledge/list-manager/SKILL.md")));
+            skill("skills/knowledge/list-manager/SKILL.md"),
+            skill("skills/knowledge/note-delete/SKILL.md")));
     private final NotesIntentRouter router = new NotesIntentRouter(
-            llm, skills, new SkillClassifier(json), manifest, writer, finder, lists, chat);
+            llm, skills, new SkillClassifier(json), manifest, writer, finder, lists, deleter, chat);
 
     /**
      * STRUCTURE — the real model, given the real router prompt, must return well-formed routing JSON: a
@@ -84,6 +86,7 @@ class GoldenNotesRoutingTest {
                 "что я думал про подарок маме?",
                 "добавь молоко в список покупок",
                 "запомни, что мама любит пионы в горшке",
+                "удали заметку про отпуск",
                 "привет, как дела?")) {
             String raw = chat(prompt, msg);
             JsonNode node = extractJson(raw);
@@ -117,6 +120,7 @@ class GoldenNotesRoutingTest {
         assertRoutesTo("что я думал про подарок маме?", "finder");
         assertRoutesTo("добавь молоко в список покупок", "list");
         assertRoutesTo("запомни, что мама любит пионы в горшке", "writer");
+        assertRoutesTo("удали заметку про отпуск", "deleter");
     }
 
     private void assertRoutesTo(String text, String expectedFlow) {
@@ -164,6 +168,7 @@ class GoldenNotesRoutingTest {
         when(finder.find(any())).thenReturn(Mono.just(sentinel("finder")));
         when(lists.handle(any())).thenReturn(Mono.just(sentinel("list")));
         when(writer.capture(any())).thenReturn(Mono.just(sentinel("writer")));
+        when(deleter.delete(any())).thenReturn(Mono.just(sentinel("deleter")));
         when(chat.reply(any())).thenReturn(Mono.just(sentinel("chat")));
     }
 

@@ -203,6 +203,26 @@ exist so its corpus is ready when it lands.
   row, body/link preserved) + household isolation. Bulk *import* (the inverse) stays deferred. **Closes
   the epic #257.**
 
+## H.2 — user-facing note delete via chat (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
+The per-domain lifecycle holes (stage4.md §Track H.2), on notes' own `NotesIntentRouter` path — **not** the
+cross-cutting `undo` primitive (which already deletes a *just-captured* note via `/actions/undo`). First
+hole: **delete a saved note by description** ("удали заметку про X", "забудь что я записал про Y"), behind a
+**confirm-before-delete** gate. Target resolution is by context — no id: a new `note-delete` intent skill
+lets the LLM pick the note from the household's recent notes (`NoteClient.list`, `type=list` notes excluded
+— lists are LI-a's job), `NoteDeleter` asks to confirm (a `pendingAction` route-locks to notes), and only
+the "да" reply deletes via memory-service's existing `DELETE /v1/notes/{id}` (`NoteClient.delete` — the same
+reversal the undo primitive uses; drops the recall seed + wiki-link edges). **Fix/edit a wrong note** ("исправь
+заметку …") is the queued follow-up (a further edit skill on the same path).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **delete by description confirms first.** WHEN the owner says "удали заметку про X" → THEN notes
+  resolves the target from context (no id) and asks to confirm before deleting (destructive-delete gate); the
+  "да" reply deletes and confirms.
+- Scenario: **ambiguous target is clarified.** WHEN more than one note matches → THEN notes lists the matches
+  and asks which, rather than deleting the wrong one.
+- Scenario: **no match.** WHEN nothing matches the description → THEN notes says it found no such note, never
+  a silent no-op or a wrong delete.
+
 ## Deferred (out of the epic, note when a consumer needs one)
 - **Real UI / vault two-way sync.** Endpoints (SB-7 export + SB-1 CRUD) are the seam; a live editor or
   filesystem watcher is later.

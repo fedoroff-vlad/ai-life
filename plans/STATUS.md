@@ -86,9 +86,17 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   /agents/finance/resume` (`transaction-delete-confirm` → `TransactionDeleter.resume`) → deletes via the
   existing mcp-finance `DELETE /internal/transaction/{id}` (`TransactionClient.delete`, the same reversal the
   undo primitive uses), a decline leaves it. Proven by `TransactionDeleterTest` (confirm / ambiguous /
-  no-match / resume-deletes / decline) + a list case in `McpFinanceIntegrationTest`. **NEXT: the remaining
-  H.2 holes** — notes (fix/delete a wrong note); then finance edit (change amount/category of the last trata)
-  + tasks rename/state-move/due-edit follow-ups. Epic queue →
+  no-match / resume-deletes / decline) + a list case in `McpFinanceIntegrationTest`. **notes delete ✅** — a
+  new `note-delete` intent skill + `NoteDeleter` flow on notes' own `NotesIntentRouter` path, behind the
+  confirm-before-delete gate: read the household's recent notes (`NoteClient.list`, `type=list` notes
+  excluded — lists are LI-a's job) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to
+  confirm with a `pendingAction` (route-locks to notes, deletes **nothing**); the "да" hits `POST
+  /agents/notes/resume` (`note-delete-confirm` → `NoteDeleter.resume`) → deletes via the existing
+  memory-service `DELETE /v1/notes/{id}` (`NoteClient.delete`, the same reversal the undo primitive uses), a
+  decline leaves it. No memory-service change (list + delete already existed). Proven by `NoteDeleterTest`
+  (confirm / list-excluded / ambiguous / no-match / resume-deletes / decline) + updated notes routing tests.
+  **NEXT: the remaining H.2 holes** — the per-domain **edit** ops: notes (исправь заметку) + finance (change
+  amount/category of the last trata) + tasks rename/state-move/due-edit follow-ups. Epic queue →
   [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
