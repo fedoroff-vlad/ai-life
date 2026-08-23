@@ -95,9 +95,19 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   memory-service `DELETE /v1/notes/{id}` (`NoteClient.delete`, the same reversal the undo primitive uses), a
   decline leaves it. No memory-service change (list + delete already existed). Proven by `NoteDeleterTest`
   (confirm / list-excluded / ambiguous / no-match / resume-deletes / decline) + updated notes routing tests.
-  **NEXT: the remaining H.2 holes** — the per-domain **edit** ops: notes (исправь заметку) + finance (change
-  amount/category of the last trata) + tasks rename/state-move/due-edit follow-ups. Epic queue →
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **H.2 edit holes in progress (on the new ADR-0004 runner — an edit is now a ~30-line adapter with an
+  `update` act):** **notes edit ✅ (2026-08-23)** — a new `note-edit` intent skill + `NoteEditor` flow on the
+  notes `NotesIntentRouter` path, behind a confirm-before-change gate: read the household's recent notes
+  (`type=list` excluded) → the LLM picks the target **and** extracts the new title/body → reply asks to
+  confirm (a `pendingAction` route-locks; nothing written); a bare pick with no stated change re-asks; the
+  "да" hits `POST /agents/notes/resume` (`note-edit-confirm` → `NoteEditor.resume`) → re-reads the note
+  (`NoteClient.get`), overlays the change, and PUTs it (`NoteClient.update`, mutable-field replace preserves
+  untouched fields). First non-calendar **update** consumer of `PickConfirmActRunner`. Proven by
+  `NoteEditorTest` (confirm / ask-when-no-change / ambiguous / no-match / list-excluded / resume-updates /
+  decline) + `note-edit` added to the notes routing golden. Detail → [second-brain.md](second-brain.md) §H.2.
+  **NEXT: the remaining H.2 edit holes** — finance (change amount/category of the last trata; needs a new
+  mcp-finance update endpoint) + tasks rename/state-move/due-edit (mcp-tasks `updateTask` tool exists; needs
+  an `/internal` PUT passthrough). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

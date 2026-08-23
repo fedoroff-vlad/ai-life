@@ -7,7 +7,7 @@ in the orchestrator as `notes`; **owns no MCP** — the knowledge base is memory
 (`memory.note` + recall + `[[wiki-link]]` graph), reached through the shared `agent-runtime` clients plus
 a thin `NoteClient` over the same memory-service base URL. Plan: [plans/second-brain.md](../../../plans/second-brain.md).
 
-## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a + undo H + note-delete H.2)
+## Status (SB-4 + resurfacing R-b + ambient-approve AC-4 + lists LI-a + undo H + note-delete/note-edit H.2)
 
 Scaffold + the **capture**, **recall**, **proactive-resurfacing**, **ambient-approve** (AC-4 resume),
 and **lists** (LI-a) flows, plus the **undo** reversal (#486/Track H — "отмени последнее" deletes a
@@ -60,7 +60,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 | method | path | purpose |
 |--------|------|---------|
 | POST | `/agents/notes/intent` | orchestrator entry. `NotesIntentRouter` classifies the message via the shared `SkillClassifier` (#475) into one intent skill — `note-finder` recall / `list-manager` op (LI-a) / `note-writer` capture — or the chat fallback. Routing SSOT is each skill's SKILL.md description (a paraphrase outside the old keyword cues routes correctly); every stage soft-fails to chat. |
-| POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); `note-delete-confirm` → delete/keep the note picked for deletion (#486/Track H.2); unknown flow → graceful reply. |
+| POST | `/agents/notes/resume` | orchestrator resume for an open notes question (route-lock). `pendingAction.flow=ambient-approve` → confirm/drop the ambiently-captured note (AC-4); `note-delete-confirm` → delete/keep the note picked for deletion (#486/Track H.2); `note-edit-confirm` → apply/discard the edit picked for a note (#486/Track H.2); unknown flow → graceful reply. |
 | POST | `/agents/notes/actions/{action}` | inter-agent action envelope (Track C1). `undo` (#486/Track H) reverses a just-captured note: `DELETE /v1/notes/{id}` by the stored handle id, confirming with its title; an already-gone note → honest `ok=false`. |
 | POST | `/agents/notes/triggers/{kind}` | scheduler wake (via orchestrator). `notes.resurface` → surface one stale note to the household; unbound kind → 404. |
 | GET | `/agents/notes/manifest` | the manifest the orchestrator scrapes on startup. |
@@ -76,6 +76,10 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - **`note-delete`** (`domains/knowledge/skills/note-delete/SKILL.md`) — strict-JSON pick of which
   saved note to delete from a numbered candidate list (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`), for the
   confirm-gated delete-a-note flow (#486/Track H.2).
+- **`note-edit`** (`domains/knowledge/skills/note-edit/SKILL.md`) — strict-JSON pick of which saved note
+  to fix/rename **plus** the new title/body the user gave (`{"pick":n,"newTitle"?,"newBody"?}` /
+  `{"ambiguous":[…]}` / `{}`), for the confirm-gated edit-a-note flow (#486/Track H.2); a bare `{"pick":n}`
+  (note named, no change stated) makes the flow ask what to change.
 
 ## Env
 
@@ -105,7 +109,8 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 - `chat/NotesChat` — the open-question fallback (AGENT.md system prompt).
 - `approve/AmbientApprover` — AC-4 resume: parse the `pendingAction.note` (a ready `WriteNoteRequest`), and on an affirmative reply write it (`source=ambient`) via `NoteClient.create`, else drop; both clear the lock. Soft-fails to a friendly reply.
 - `intent/NoteDeleter` — the user-facing **delete-a-note** flow (#486/Track H.2 — the notes delete hole), behind a **confirm-before-delete** gate. `delete(msg)`: read the household's recent notes (`NoteClient.list`, `type=list` notes excluded — those are LI-a's job) → LLM pick (`note-delete` SKILL, temperature 0, numbered candidates) returning `{"pick":n}` / `{"ambiguous":[…]}` / `{}` → a single match replies with a `pendingAction` asking to confirm (deletes nothing); ambiguous lists, none/miss asks. `resume(req)`: an affirmative deletes via `NoteClient.delete` (memory-service `DELETE /v1/notes/{id}` — the same reversal the undo primitive uses, which also drops the recall seed + wiki-link edges), anything else leaves it; either reply clears the lock. Mirrors finance's `TransactionDeleter` / tasks' `TaskDeleter`. Every stage soft-fails. The pick→confirm→act loop itself is the shared `agent-runtime` `PickConfirmActRunner` (ADR-0004); this class is the notes adapter (`candidates`/`view`/`act`/`nouns`, `type=list` exclusion in the read).
-- `intent/NotesIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared `agent-runtime` `SkillClassifier` offers the four intent skills as one `skill` choice (their SKILL.md descriptions are the routing SSOT) → dispatch to `NoteFinder`/`ListManager`/`NoteWriter`/`NoteDeleter`, or the `NotesChat` fallback (blank / unknown-skill / non-JSON / LLM error all soft-fail to chat). Replaced the old keyword-cue heuristic.
+- `intent/NoteEditor` — the user-facing **edit-a-note** flow (#486/Track H.2 — the notes edit hole), behind a **confirm-before-change** gate. `edit(msg)`: read the household's recent notes (`NoteClient.list`, `type=list` excluded — those are LI-a's job) → LLM pick + extract the change (`note-edit` SKILL, temperature 0) returning `{"pick":n,"newTitle"?,"newBody"?}` / `{"ambiguous":[…]}` / `{}` → a single match with a stated change replies with a `pendingAction` asking to confirm (writes nothing); a `{"pick":n}` with no change re-asks ("Как исправить …?"); ambiguous lists, none/miss asks. `resume(req)`: an affirmative re-reads the note (`NoteClient.get`), applies the new title/body, and PUTs it (`NoteClient.update` — memory-service `PUT /v1/notes/{id}` replaces the mutable fields, so untouched fields are preserved), anything else leaves it; either reply clears the lock. Uses the shared `agent-runtime` `PickConfirmActRunner` (ADR-0004) — the first non-calendar update consumer: the new title/body threads through the `pendingAction` (like a calendar move's new time), `missing()` re-asks when no change is given, `act()` does the update. Every stage soft-fails.
+- `intent/NotesIntentRouter` — the in-agent router (#475): one llm-gateway turn via the shared `agent-runtime` `SkillClassifier` offers the five intent skills as one `skill` choice (their SKILL.md descriptions are the routing SSOT) → dispatch to `NoteFinder`/`ListManager`/`NoteWriter`/`NoteDeleter`/`NoteEditor`, or the `NotesChat` fallback (blank / unknown-skill / non-JSON / LLM error all soft-fail to chat). Replaced the old keyword-cue heuristic.
 - `web/IntentController` — thin: delegates `/intent` to `NotesIntentRouter`; `web/ManifestController`.
-- `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`, `note-delete-confirm` → `NoteDeleter.resume`).
+- `web/ResumeController` — `POST /agents/notes/resume`; dispatches on `pendingAction.flow` (`ambient-approve` → `AmbientApprover`, `note-delete-confirm` → `NoteDeleter.resume`, `note-edit-confirm` → `NoteEditor.resume`).
 - `web/TriggerController` — `POST /agents/notes/triggers/{kind}`; `notes.resurface` → `NoteResurfacer` (202), unbound kind → 404.
