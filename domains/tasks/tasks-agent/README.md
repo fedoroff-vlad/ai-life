@@ -82,7 +82,9 @@ in dev/degraded environments.
   numbered candidates) returning `{"pick":n}` / `{"ambiguous":[…]}` / `{}` → a single match replies with a
   `pendingAction` asking to confirm (deletes nothing); ambiguous lists, none/miss asks. `resume(req)`: an
   affirmative deletes via `DeleteTaskClient` (mcp-tasks `DELETE /internal/task/{id}`), anything else leaves
-  it; either reply clears the lock. Mirrors calendar's `EventCanceller`. Every stage soft-fails.
+  it; either reply clears the lock. Mirrors calendar's `EventCanceller`. Every stage soft-fails. The
+  pick→confirm→act loop itself is the shared `agent-runtime` `PickConfirmActRunner` (ADR-0004); this class
+  is the tasks adapter (`candidates`/`view`/`act`/`nouns`).
 - `capture/TaskCapturer` — the sharing **write path** (ADR-0002 slice 5): runs the `task-capture`
   flow. The LLM plans `{title, note?, shared?}`, the shared `SharingResolver` (wired with
   `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
