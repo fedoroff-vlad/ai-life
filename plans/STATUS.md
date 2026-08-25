@@ -4,153 +4,22 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#486 CRUD/undo — Track H DESIGN LANDED, coding not started.** The full track is specced in
-  [stage4.md](stage4.md) §Track H: (H.1) the cross-cutting **"отмени последнее / undo" primitive** — a near-exact
-  mirror of Track F/G (a `last_mutation` handle on conversation-state + a reserved `undo` classifier outcome +
-  agent-led reversal over the existing C1 `invoke`/`/actions/undo`, **no new `Agent` method**), sliced
-  H1 (storage) → H2 (orchestrator+primitive) → H3 (first producer = tasks) → H-rollout; plus (H.2) the
-  **per-domain edit/delete/correct holes** (finance/tasks/notes/calendar) on each domain's own SkillRouter path.
-  WHEN/THEN acceptance criteria are in the plan. **H1 ✅** storage (`last_mutation_{agent,payload,desc}` on
-  `core.conversation_state`, migration `012`). **H2 ✅ (orchestrator wiring + primitive)** — `IntentResponse`
-  gains `UndoHandle` + `withUndo`; `LlmIntentClassifier` gains the reserved `undo` outcome inside a new
-  `Undoable` block (offered only when a `last_mutation` exists); `IntentRouter` records the handle on a fresh
-  write (carried forward across a read turn), and on `undo` reverses it via the recording agent's
-  `/actions/undo` (C1 `invoke`) + surfaces the confirmation / honest "нельзя отменить" + clears only the
-  consumed mutation (last-route preserved). Proven by 5 new `IntentRouterLockTest` cases with stub agents. **H3
-  (first real producer = tasks) split in two:** **H3a ✅ (reversal side)** — mcp-tasks `DELETE
-  /internal/task/{id}` passthrough + tasks-agent `DeleteTaskClient` + a `web/ActionController` registering the
-  `undo` action (reverse a captured task by deleting it, honest `ok=false` when already gone); proven by
-  `ActionControllerTest` + a DELETE case in `McpTasksIntegrationTest`. **H3b ✅ (producer side)** —
-  `TaskCapturer` attaches an `UndoHandle` (task title + created id) on a successful capture via
-  `CaptureResult.undo` → `IntentController` `.withUndo`; deferred/failed turns leave it null. Proven by
-  `TaskCapturerTest` (handle present on capture / null on the deferred ask) + a real-model `GoldenUndoTest`
-  (opt-in). **The undo primitive is now end-to-end on tasks: capture → "отмени последнее" → task gone.**
-  **H-rollout in progress (finance):** **finance reversal ✅** — mcp-finance `DELETE
-  /internal/transaction/{id}` passthrough + `TransactionClient.delete` + finance `ActionController` registers
-  the `undo` action (delete a just-written transaction, honest `ok=false` when gone); proven by
-  `ActionControllerTest` (+2) + a DELETE case in `McpFinanceIntegrationTest`. **finance producer ✅** —
-  `ReceiptParser.resume` (the confirm write) attaches `withUndo` (created tx id); this also required
-  generalizing the orchestrator's `applyLockLifecycle` so a **resume turn that writes reversibly** records the
-  `last_mutation` (clearing the resolved lock in the same upsert) instead of just clearing — so any
-  confirm-then-write is now undoable. Proven by `ReceiptParserTest` + an `IntentRouterLockTest` resume-write
-  case. **Finance is now end-to-end: receipt confirm → "отмени последнее" → transaction deleted.** **notes
-  rollout ✅** — `NoteClient.delete` (`DELETE /v1/notes/{id}`, which also drops the recall seed + wiki-link
-  edges) + a notes `web/ActionController` registering the `undo` action (delete a just-captured note, honest
-  `ok=false` when gone) + `NoteWriter` attaches `withUndo` (note id + title) on a successful "запомни …"
-  capture; proven by `ActionControllerTest` (4) + a handle assertion in `NoteWriterTest`. **Notes is now
-  end-to-end: capture → "отмени последнее" → note deleted.** **calendar reframed → H.2 (owner-approved):**
-  calendar had no user-facing write (events came only from the inter-agent `create_event`, tasks→calendar),
-  so the cross-cutting undo primitive had no producer to hang on — "calendar rollout" is really H.2's
-  "create/move/cancel via chat", specced as HC-1…HC-4 in [calendar.md](calendar.md) §H.2. **HC-1 ✅
-  (event capture via chat)** — a `CalendarIntentRouter` (shared `SkillClassifier`, #475) routes "запиши
-  встречу …" to a new `event-capture` skill + `EventCapturer` (LLM parse `{summary,dtstart,dtend?}` with
-  `now` for relative dates → resolve household via the shared `SharingResolver` → mcp-caldav
-  `/internal/event` → confirm; empty plan asks for the time); the chat + #195 feed-nudge logic moved to
-  `CalendarChat`. Proven by `EventCapturerTest` (create + ask-when) + updated `/intent` tests (routing turn).
-  **HC-2 ✅ (undo a just-created event)** — mcp-caldav `DELETE /internal/event/{id}` passthrough (delegates
-  to the existing `deleteEvent` tool) + `CaldavEventClient.deleteEvent` + calendar `/actions/undo` (cancel by
-  the stored id, honest `ok=false` when gone) + `EventCapturer` attaches `withUndo` (event id + summary) on a
-  successful create. **Calendar is now end-to-end: "запиши встречу…" → "отмени последнее" → событие
-  отменено** — closes the original calendar-undo goal. Proven by `ActionControllerTest` (+3 undo cases) +
-  `EventCapturerTest` undo-handle assertion + `McpCaldavIntegrationTest` DELETE passthrough case.
-  **HC-3 ✅ (cancel an existing event by description via chat + destructive-confirm gate)** — a new
-  `event-cancel` SKILL + `EventCanceller` flow: read the owner's upcoming events (personal ∪ shared via
-  `ProfileClient.householdRouting`, else the envelope household — new `CaldavEventClient.eventsInWindow`
-  household-set overload, −1d…+180d) → LLM picks the target (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply
-  asks to confirm with a `pendingAction` (route-locks to calendar, deletes **nothing** yet); the follow-up
-  "да" hits a new `POST /agents/calendar/resume` (`ResumeController`, mirrors finance) → `EventCanceller.resume`
-  deletes via mcp-caldav `DELETE /internal/event/{id}`, a decline leaves it. Router gains `event-cancel`.
-  Proven by `EventCancellerTest` (confirm-before-delete / resume-affirmative deletes / decline leaves it).
-  **HC-4 ✅ (move/reschedule via chat)** — new `event-move` SKILL + `EventMover` flow behind a
-  confirm-before-move gate: read upcoming events (same household-set read as HC-3) → LLM picks the target +
-  new time (`{"pick":n,"dtstart":…,"dtend"?}` / `{"pick":n}` → ask for time / `{"ambiguous"}` / `{}`) → reply
-  asks to confirm with a `pendingAction` (deletes/changes **nothing** yet); the "да" hits `POST /resume`
-  (`event-move-confirm` → `EventMover.resume`) → patches only the time via a new mcp-caldav
-  `PUT /internal/event/{id}` passthrough (`updateEvent`, patches supplied fields) + `CaldavEventClient.updateEvent`.
-  Router gains `event-move`. Proven by `EventMoverTest` (confirm-before-move / no-time asks / resume PUTs new
-  time / decline leaves it) + a PUT passthrough case in `McpCaldavIntegrationTest`.
-  **The calendar H.2 chat CRUD is now complete: create (HC-1) · undo (HC-2) · cancel (HC-3) · move (HC-4).**
-  **Per-domain H.2 rollout (parallel line):** **tasks delete ✅** — a new `task-delete` intent skill +
-  `TaskDeleter` flow on tasks' own `IntentRouter` path, behind the confirm-before-delete gate: read the
-  owner's open tasks (personal ∪ shared via `TaskReads.openTasksUnion`, new; `NextActionClient.fetchTasks`
-  generalized) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to confirm with a
-  `pendingAction` (route-locks to tasks, deletes **nothing**); the "да" hits `POST /agents/tasks/resume`
-  (`task-delete-confirm` → `TaskDeleter.resume`) → deletes via mcp-tasks `DELETE /internal/task/{id}`
-  (existing `DeleteTaskClient`), a decline leaves it. Proven by `TaskDeleterTest` (confirm / ambiguous /
-  no-match / resume-deletes / decline). **finance delete ✅** — a new `transaction-delete` intent skill +
-  `TransactionDeleter` flow on finance's own `IntentRouter` path (`delete` classifier action), behind the
-  confirm-before-delete gate: read the owner's recent transactions (personal ∪ shared via
-  `SpendingReads.households` + a fan-out of a **new** mcp-finance `GET /internal/transactions` list
-  passthrough / `TransactionClient.list`) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to
-  confirm with a `pendingAction` (route-locks to finance, deletes **nothing**); the "да" hits `POST
-  /agents/finance/resume` (`transaction-delete-confirm` → `TransactionDeleter.resume`) → deletes via the
-  existing mcp-finance `DELETE /internal/transaction/{id}` (`TransactionClient.delete`, the same reversal the
-  undo primitive uses), a decline leaves it. Proven by `TransactionDeleterTest` (confirm / ambiguous /
-  no-match / resume-deletes / decline) + a list case in `McpFinanceIntegrationTest`. **notes delete ✅** — a
-  new `note-delete` intent skill + `NoteDeleter` flow on notes' own `NotesIntentRouter` path, behind the
-  confirm-before-delete gate: read the household's recent notes (`NoteClient.list`, `type=list` notes
-  excluded — lists are LI-a's job) → LLM picks (`{"pick":n}`/`{"ambiguous":[…]}`/`{}`) → reply asks to
-  confirm with a `pendingAction` (route-locks to notes, deletes **nothing**); the "да" hits `POST
-  /agents/notes/resume` (`note-delete-confirm` → `NoteDeleter.resume`) → deletes via the existing
-  memory-service `DELETE /v1/notes/{id}` (`NoteClient.delete`, the same reversal the undo primitive uses), a
-  decline leaves it. No memory-service change (list + delete already existed). Proven by `NoteDeleterTest`
-  (confirm / list-excluded / ambiguous / no-match / resume-deletes / decline) + updated notes routing tests.
-  **H.2 edit holes in progress (on the new ADR-0004 runner — an edit is now a ~30-line adapter with an
-  `update` act):** **notes edit ✅ (2026-08-23)** — a new `note-edit` intent skill + `NoteEditor` flow on the
-  notes `NotesIntentRouter` path, behind a confirm-before-change gate: read the household's recent notes
-  (`type=list` excluded) → the LLM picks the target **and** extracts the new title/body → reply asks to
-  confirm (a `pendingAction` route-locks; nothing written); a bare pick with no stated change re-asks; the
-  "да" hits `POST /agents/notes/resume` (`note-edit-confirm` → `NoteEditor.resume`) → re-reads the note
-  (`NoteClient.get`), overlays the change, and PUTs it (`NoteClient.update`, mutable-field replace preserves
-  untouched fields). First non-calendar **update** consumer of `PickConfirmActRunner`. Proven by
-  `NoteEditorTest` (confirm / ask-when-no-change / ambiguous / no-match / list-excluded / resume-updates /
-  decline) + `note-edit` added to the notes routing golden. Detail → [second-brain.md](second-brain.md) §H.2.
-  **tasks edit ✅ (2026-08-25)** — a new `task-edit` intent skill + `TaskEditor` flow on the tasks
-  `IntentRouter` path, behind a confirm-before-change gate: read the owner's open tasks (personal ∪ shared via
-  `TaskReads.openTasksUnion`) → the LLM picks the target **and** extracts the change (`newTitle` / `newDue`
-  ISO / `newNote`, `now` for relative dates) → reply asks to confirm (a `pendingAction` route-locks; nothing
-  written); a bare pick with no change re-asks; the "да" hits `POST /agents/tasks/resume`
-  (`task-edit-confirm` → `TaskEditor.resume`) → PUTs only the changed fields via a **new** mcp-tasks
-  `PUT /internal/task/{id}` passthrough (`UpdateTaskClient` → the existing `update_task` tool, partial edit).
-  Status moves stay clarify/complete's job. Proven by `TaskEditorTest` (confirm / ask-when-no-change /
-  ambiguous / no-match / resume-updates / decline) + a PUT case in `McpTasksIntegrationTest` + `task-edit`
-  added to the tasks routing golden. Detail → [tasks.md](tasks.md) §H.2.
-  **finance edit ✅ (2026-08-25, amount/note + category)** — a `transaction-edit` intent skill (the `edit`
-  classifier action) + `TransactionEditor` flow on finance's own `IntentRouter` path, behind a
-  confirm-before-change gate: read the owner's recent transactions (personal ∪ shared, same read as delete) →
-  the LLM picks the target **and** extracts the change (`newAmount` magnitude / `newNote` / `newCategory`) →
-  reply asks to confirm (a `pendingAction` route-locks; nothing written); a bare pick re-asks; the "да" hits
-  `POST /agents/finance/resume` (`transaction-edit-confirm` → `TransactionEditor.resume`) → re-reads the row
-  to keep the sign convention (expense<0 / income>0 — magnitude re-signed from the existing row, never
-  trusted from the LLM), resolves a category **name**→id within the row's own household, then PUTs only the
-  changed fields via a mcp-finance `PUT /internal/transaction/{id}` passthrough (`TransactionClient.update` →
-  the existing `update_transaction` tool). **Category = existing-only:** a new additive `decorateAsync` hook
-  on the shared `PickConfirmActRunner` (ADR-0004 follow-on) injects the household's existing category names
-  into the pick prompt so the LLM never invents one; `act` resolves it (case-insensitive, honest error on
-  unknown). Creating a category from an edit stays `category-manager`'s job. Proven by `TransactionEditorTest`
-  (confirm / ask-when-no-change / ambiguous / no-match / resume-updates-keeping-sign / recategorise-confirm /
-  resume-resolves-name→id / decline) + a `decorateAsync` merge case in `PickConfirmActRunnerTest` + a PUT case
-  in `McpFinanceIntegrationTest` + `edit` in the finance routing golden. Detail → [finance.md](finance.md) §H.2
-  + [ADR-0004](adr/ADR-0004-confirm-act-flow.md) §Follow-on.
-  **tasks state-move ✅ (2026-08-25)** — a new `task-status` intent skill + `TaskStatusMover` flow on the
-  tasks `IntentRouter` path, behind a confirm-before-change gate: read the owner's tasks (personal ∪ shared,
-  any status) → the LLM picks the target **and** the new GTD status (inbox|next|waiting|scheduled|done|dropped)
-  → reply asks to confirm (a `pendingAction` route-locks; nothing written); a pick with no/invalid status
-  re-asks; the "да" hits `POST /agents/tasks/resume` (`task-status-confirm` → `TaskStatusMover.resume`) →
-  applies the status via the **existing** `POST /internal/clarify` passthrough (`ClarifyClient` →
-  `clarify_task`, keeping `completed_at` consistent with `done`). A status change is a different GTD verb than
-  a content edit, so it routes through clarify not `update_task` — **no mcp-tasks change needed**. Proven by
-  `TaskStatusMoverTest` (confirm / ask-when-no-status / invalid-status / ambiguous / no-match / resume-clarifies
-  / decline) + `task-status` added to the tasks routing golden. Detail → [tasks.md](tasks.md) §H.2. **This
-  closes the H.2 edit holes** (notes/tasks/finance edit + finance category + tasks state-move; delete×3
-  already shipped). **road-test §#486 CRUD/undo is now feature-complete for the edit surface** — remaining
-  #486 threads (if any) are the H.1 undo-primitive rollout, already done for tasks/finance/notes/calendar.
-  **NEXT: pick the next road-test item** from epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)
-  (proactive-UX [#487](https://github.com/fedoroff-vlad/ai-life/issues/487), memory-quality
+- **road-test §#486 CRUD/undo — ✅ COMPLETE (2026-08-25).** The cross-cutting **"отмени последнее" undo
+  primitive** (H1 storage → H2 orchestrator → H3 tasks → H-rollout to finance/notes) + the **per-domain chat
+  CRUD holes**: calendar create/undo/cancel/move (HC-1…HC-4), delete-by-description ×3 (tasks/finance/notes),
+  and the edit surface (notes/tasks/finance edit + finance re-categorise + tasks GTD state-move) — all
+  confirm-gated, on each domain's own SkillRouter path, the confirm-act flows riding the shared
+  [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner`. **Create/edit/delete + undo now complete
+  across tasks/finance/notes/calendar.** Detail → [HISTORY.md](HISTORY.md) +
+  [tasks.md](tasks.md)/[finance.md](finance.md)/[second-brain.md](second-brain.md)/[calendar.md](calendar.md)
+  §H.2 + [stage4.md](stage4.md) §Track H. **NEXT: pick the next road-test item** from epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) (proactive-UX
+  [#487](https://github.com/fedoroff-vlad/ai-life/issues/487), memory-quality
   [#488](https://github.com/fedoroff-vlad/ai-life/issues/488), multimodal/reply-UX
   [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), family-onboarding
-  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490)), or a future agent (health #187), or an
-  arch-#479 thread.
+  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490)), or a future agent (health
+  [#187](https://github.com/fedoroff-vlad/ai-life/issues/187)), or an
+  arch-[#479](https://github.com/fedoroff-vlad/ai-life/issues/479) thread.
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
