@@ -14,6 +14,9 @@ import java.util.UUID;
  * Thin notifier-service client for ambient capture (AC-4): push the "заметил: … — записать?" approval
  * question to the owner ({@code POST /v1/notify}). Best-effort — a failure just means the owner isn't
  * asked, so the inferred fact is dropped rather than saved; capture never fails on it.
+ *
+ * <p>These are <b>proactive</b> pushes (an unsolicited ack/approval), so they are sent {@code proactive=true}
+ * and are subject to the owner's proactive-UX gate (quiet hours / caps, #487).
  */
 @Component
 public class NotifierClient {
@@ -35,7 +38,7 @@ public class NotifierClient {
             http.post()
                     .uri("/v1/notify")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(new NotifyRequest(userId, text))
+                    .bodyValue(new NotifyRequest(userId, text, true))
                     .retrieve()
                     .toBodilessEntity()
                     .block();
