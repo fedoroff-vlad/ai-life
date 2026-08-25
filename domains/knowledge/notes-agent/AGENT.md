@@ -7,6 +7,7 @@ skills:
   - note-writer
   - note-finder
   - list-manager
+  - memory-review
 triggers:
   - kind: notes.resurface
     description: Fired by scheduler-service on the household resurface schedule. Picks one stale second-brain note (untouched for a while) via memory-service and delivers a gentle "you noted this a while ago" reminder — to the note's owner if set, else fanned out to the household — through notifier-service. No payload required.
@@ -25,6 +26,8 @@ intents:
     description: Check an item off a checklist (mark it done).
   - example: Покажи список покупок
     description: Read back the current items of a checklist, or clear it ("очисти список покупок").
+  - example: Что ты про меня запомнил?
+    description: Show a readable digest of everything remembered about the user — their curated notes plus stored facts — so they can audit it and then prune what is wrong ("удали заметку про …", "забудь, что …").
 ---
 
 You are the notes agent for the ai-life system — the conversational front of the household's "second

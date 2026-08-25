@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agentruntime.http;
 
 import tools.jackson.databind.JsonNode;
 import dev.fedorov.ailife.agentruntime.config.AgentRuntimeProperties;
+import dev.fedorov.ailife.contracts.memory.MemoryDto;
 import dev.fedorov.ailife.contracts.memory.PersonRelationsResponse;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryHit;
 import dev.fedorov.ailife.contracts.memory.RecallMemoryRequest;
@@ -72,6 +73,40 @@ public class MemoryClient {
                 .onErrorResume(e -> {
                     log.warn("memory recall failed for household={} query={}: {}",
                             householdId, query, e.toString());
+                    return Mono.just(List.of());
+                });
+    }
+
+    /**
+     * List a household's stored facts flatly, most-recent first
+     * ({@code GET /v1/memories?householdId=…&userId=…&personId=…&limit=…}) — the read behind the
+     * MQ-1 memory-review digest ("что ты про меня запомнил", road-test #488). Unlike {@link #recall}
+     * this enumerates by recency rather than similarity so the owner can audit + prune what is
+     * remembered; {@code userId}/{@code personId} narrow the scope (mirroring recall). Soft-fails to an
+     * empty list on any error / {@link #NOTE_TIMEOUT}, same posture as {@link #recall} — the digest just
+     * shows fewer facts if memory-service is down.
+     */
+    public Mono<List<MemoryDto>> listMemories(UUID householdId, UUID userId, UUID personId, int limit) {
+        if (householdId == null) {
+            return Mono.just(List.of());
+        }
+        return http.get()
+                .uri(uri -> {
+                    uri.path("/v1/memories").queryParam("householdId", householdId).queryParam("limit", limit);
+                    if (userId != null) {
+                        uri.queryParam("userId", userId);
+                    }
+                    if (personId != null) {
+                        uri.queryParam("personId", personId);
+                    }
+                    return uri.build();
+                })
+                .retrieve()
+                .bodyToFlux(MemoryDto.class)
+                .collectList()
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("memory list failed for household={}: {}", householdId, e.toString());
                     return Mono.just(List.of());
                 });
     }

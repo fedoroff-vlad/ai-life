@@ -6,6 +6,7 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.notes.chat.NotesChat;
 import dev.fedorov.ailife.agents.notes.find.NoteFinder;
 import dev.fedorov.ailife.agents.notes.list.ListManager;
+import dev.fedorov.ailife.agents.notes.review.MemoryReviewer;
 import dev.fedorov.ailife.agents.notes.write.NoteWriter;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -46,6 +47,7 @@ class NotesIntentRouterTest {
     private final ListManager lists = mock(ListManager.class);
     private final NoteDeleter deleter = mock(NoteDeleter.class);
     private final NoteEditor editor = mock(NoteEditor.class);
+    private final MemoryReviewer reviewer = mock(MemoryReviewer.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final ObjectMapper json = new ObjectMapper();
     private final SkillClassifier classifier = new SkillClassifier(json);
@@ -56,10 +58,12 @@ class NotesIntentRouterTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             skill("note-writer", "Capture a durable note from what the user wants remembered."),
             skill("note-finder", "Recall an earlier note by meaning."),
-            skill("list-manager", "Maintain an everyday checklist (add / check off / clear / show).")));
+            skill("list-manager", "Maintain an everyday checklist (add / check off / clear / show)."),
+            skill("memory-review", "Show a digest of everything remembered about the user.")));
 
     private final NotesIntentRouter router =
-            new NotesIntentRouter(llm, skills, classifier, manifest, writer, finder, lists, deleter, editor, chat);
+            new NotesIntentRouter(llm, skills, classifier, manifest, writer, finder, lists, deleter, editor,
+                    reviewer, chat);
 
     @Test
     void routesToFinderWhenLlmPicksNoteFinder() {
@@ -106,6 +110,20 @@ class NotesIntentRouterTest {
                 .verifyComplete();
 
         verify(writer).capture(any());
+    }
+
+    @Test
+    void routesToMemoryReviewerWhenLlmPicksMemoryReview() {
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(
+                reply("{\"action\":\"skill\",\"name\":\"memory-review\"}")));
+        when(reviewer.review(any())).thenReturn(Mono.just(sentinel("review")));
+
+        StepVerifier.create(router.route(msg("что ты про меня запомнил?")))
+                .assertNext(r -> assertThat(r.text()).isEqualTo("review"))
+                .verifyComplete();
+
+        verify(reviewer).review(any());
+        verify(finder, never()).find(any());
     }
 
     @Test

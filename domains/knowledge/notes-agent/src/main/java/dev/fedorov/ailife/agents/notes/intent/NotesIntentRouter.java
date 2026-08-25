@@ -6,6 +6,7 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.notes.chat.NotesChat;
 import dev.fedorov.ailife.agents.notes.find.NoteFinder;
 import dev.fedorov.ailife.agents.notes.list.ListManager;
+import dev.fedorov.ailife.agents.notes.review.MemoryReviewer;
 import dev.fedorov.ailife.agents.notes.write.NoteWriter;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -39,22 +40,25 @@ public class NotesIntentRouter {
     private static final String NOTE_WRITER = "note-writer";
     private static final String NOTE_DELETE = "note-delete";
     private static final String NOTE_EDIT = "note-edit";
+    private static final String MEMORY_REVIEW = "memory-review";
 
     private final SkillRouter router;
 
     public NotesIntentRouter(LlmClient llm, SkillRegistry skills, SkillClassifier classifier,
                              AgentManifest manifest, NoteWriter writer, NoteFinder finder,
-                             ListManager lists, NoteDeleter deleter, NoteEditor editor, NotesChat chat) {
+                             ListManager lists, NoteDeleter deleter, NoteEditor editor,
+                             MemoryReviewer reviewer, NotesChat chat) {
         Map<String, Function<NormalizedMessage, Mono<IntentResponse>>> flows = new LinkedHashMap<>();
         flows.put(NOTE_FINDER, finder::find);
         flows.put(LIST_MANAGER, lists::handle);
         flows.put(NOTE_WRITER, writer::capture);
         flows.put(NOTE_DELETE, deleter::delete);
         flows.put(NOTE_EDIT, editor::edit);
+        flows.put(MEMORY_REVIEW, reviewer::review);
         this.router = new SkillRouter(llm, skills, classifier, manifest,
                 "You are routing a message for the notes agent. Reply directly to the user, or run one skill.",
                 "Decide: does the user want to run a skill (recall a note / manage a list / capture a note / "
-                        + "delete a note / edit a note) or just talk?",
+                        + "delete a note / edit a note / review everything remembered) or just talk?",
                 flows, chat::reply);
     }
 
