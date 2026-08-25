@@ -1,0 +1,58 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 014-notification-preference-cap
+      author: ai-life
+      comment: |
+        Proactive-UX frequency cap (#487 PX-2). daily_cap = the most proactive pushes a user
+        accepts per day (in their tz); null = no cap. Additive nullable column on the existing
+        preference row.
+      changes:
+        - addColumn:
+            schemaName: core
+            tableName: notification_preference
+            columns:
+              - column:
+                  name: daily_cap
+                  type: int
+
+  - changeSet:
+      id: 014-notification-sent
+      author: ai-life
+      comment: |
+        One row per delivered proactive push (#487 PX-2), so the gate can count today's deliveries
+        against daily_cap and suppress the overflow. Reactive sends and redrained-held sends are not
+        recorded here (only fresh proactive deliveries count toward the cap).
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: notification_sent
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sent_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: notification_sent
+            indexName: ix_notification_sent_user_day
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: sent_at
