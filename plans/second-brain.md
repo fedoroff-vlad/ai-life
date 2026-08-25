@@ -243,6 +243,44 @@ still Deferred below).
 - Scenario: **ambiguous / no match.** WHEN more than one note matches → THEN notes lists them and asks which;
   WHEN nothing matches → THEN it says so, never a silent or wrong edit.
 
+## MQ — memory quality: precise, correctable, reviewable (road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488))
+Daily use makes memory *quality* visible: a false auto-save annoys, a miss loses value, a **wrong**
+remembered fact quietly corrupts later answers. The owner must be able to **see** and **correct** what the
+system remembers. The note tier already has chat delete/edit (H.2 above); the gaps this track closes are the
+**audit surface** and the **associative `memory.memories` (fact) tier**. Vertical slices:
+
+- **MQ-1 — review digest ("что ты про меня / про нас запомнил").** A read-only, readable list of what is
+  stored (curated notes + raw facts), each with a reference so the owner can then drop/correct any. Two
+  slices:
+  - **MQ-1a — memory-service fact-list read primitive.** `GET /v1/memories?householdId&userId&personId&limit`
+    returns the household's stored facts (`MemoryDto[]`, most-recent first), scope-narrowed exactly like
+    recall (`userId`/`personId` broaden to include the NULL-scoped rows). recall enumerates by *similarity*;
+    the digest needs a *flat* list, hence a new read. No new store.
+  - **MQ-1b — notes-agent `memory-review` intent.** A "что ты про меня запомнил" cue → gather the owner's
+    notes (`GET /v1/notes`) + facts (MQ-1a), format one readable digest, and hint the drop/correct verbs
+    ("забудь …", "удали заметку про …"). Note-seed memories (`source=note`) are excluded from the facts
+    section (already shown as notes).
+- **MQ-2 — forget / correct a fact by reference ("забудь, что …" / "это неверно, на самом деле …").** The
+  fact-tier analog of H.2's note delete/edit, on the shared [ADR-0004](adr/ADR-0004-confirm-act-flow.md)
+  `PickConfirmActRunner`: recall the matching `memory.memories` candidates → LLM picks → `pendingAction`
+  confirm → resume → act. `act=delete` → `DELETE /v1/memories/{id}` (exists); `act=update` (correct) =
+  forget-then-write the corrected fact. A ~30-line notes-agent adapter, same shape as the note flows.
+- **MQ-3 — ambient-capture precision tuning.** Measure precision/recall of the three-way
+  classification ([ambient-capture.md](ambient-capture.md)) on real messages, tune the `explicitFixation` /
+  `IMPORTANT_INFERRED` / dedup thresholds so trivia isn't saved and durable facts aren't missed, and decide
+  on flipping `MEMORY_AMBIENT_CAPTURE_ENABLED`. An eval/golden + config slice — no confirm-act flow. Spec +
+  thresholds live in [ambient-capture.md](ambient-capture.md).
+
+**Acceptance criteria (WHEN/THEN):**
+- Scenario: **review lists stored facts.** WHEN the owner asks "что ты про меня запомнил" → THEN a readable
+  list of stored facts (+ notes), each with a way to drop it, is returned — not a silent empty or a raw dump.
+- Scenario: **forget a wrong fact.** WHEN the owner says "забудь, что …" → THEN the matching fact/note is
+  resolved from context, confirmed, deleted, and no longer surfaces in recall.
+- Scenario: **correct a wrong fact.** WHEN the owner says "это неверно, на самом деле …" → THEN the matching
+  fact is confirmed and replaced with the corrected version (old dropped, corrected written).
+- Scenario: **ambient precision.** WHEN ambient capture runs on ordinary chatter → THEN trivia is not saved
+  while an explicit durable fact is, per thresholds validated on real messages.
+
 ## Deferred (out of the epic, note when a consumer needs one)
 - **Real UI / vault two-way sync.** Endpoints (SB-7 export + SB-1 CRUD) are the seam; a live editor or
   filesystem watcher is later.

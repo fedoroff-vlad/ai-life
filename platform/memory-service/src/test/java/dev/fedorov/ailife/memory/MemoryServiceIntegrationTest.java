@@ -212,6 +212,56 @@ class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void listReturnsHouseholdFactsMostRecentFirstScoped() {
+        // A fresh household keeps ordering assertions deterministic against the shared DB.
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "list hh");
+        write("First remembered fact.", hh, null, null);
+        write("Second remembered fact.", hh, null, null);
+        write("Third remembered fact.", hh, null, null);
+        write("A different household's fact.", otherHousehold, null, null);
+
+        List<MemoryDto> list = client().get()
+                .uri(b -> b.path("/v1/memories").queryParam("householdId", hh).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(MemoryDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(list).isNotNull().hasSize(3);
+        // Most-recent first.
+        assertThat(list.get(0).text()).isEqualTo("Third remembered fact.");
+        // No cross-household leak.
+        assertThat(list).noneMatch(m -> "A different household's fact.".equals(m.text()));
+    }
+
+    @Test
+    void listNarrowsByUserScopeIncludingHouseholdShared() {
+        UUID hh = UUID.randomUUID();
+        jdbc.update("INSERT INTO core.households (id, name) VALUES (?, ?)", hh, "list scope hh");
+        UUID me = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        write("My own fact.", hh, me, null);
+        write("Household-shared fact.", hh, null, null);
+        write("Someone else's fact.", hh, other, null);
+
+        List<MemoryDto> list = client().get()
+                .uri(b -> b.path("/v1/memories")
+                        .queryParam("householdId", hh)
+                        .queryParam("userId", me)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(MemoryDto.class)
+                .returnResult().getResponseBody();
+
+        assertThat(list).isNotNull();
+        assertThat(list).extracting(MemoryDto::text)
+                .contains("My own fact.", "Household-shared fact.")
+                .doesNotContain("Someone else's fact.");
+    }
+
+    @Test
     void captureExtractsFactsFromChatAndStoresRecallableMemories() {
         // A fresh household keeps the assertions deterministic against the shared DB.
         UUID hh = UUID.randomUUID();

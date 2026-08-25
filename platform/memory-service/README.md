@@ -20,6 +20,7 @@ reads the notes that link to it.
 
 ### Memories (pgvector)
 - `POST /v1/memories` — body: [WriteMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteMemoryRequest.java). Returns `MemoryDto`.
+- `GET /v1/memories?householdId=<uuid>&userId=<uuid>&personId=<uuid>&limit=<n>` — **memory-review fact list** (MQ-1, road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488)): the household's stored facts as `MemoryDto[]`, most-recent first (by `created_at`). Unlike recall this enumerates by *recency* rather than similarity, so the owner can audit + prune what is remembered. `userId`/`personId` narrow the scope, mirroring recall (an optional scope broadens to include the NULL-scoped household-wide / not-about-anyone rows). `limit` defaults to 20, capped at 100. `householdId` required.
 - `POST /v1/memories/recall` — body: [RecallMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/RecallMemoryRequest.java) (`householdId` required, `userId`/`personId` narrow, `k` defaults to 5, capped at 50). Returns `RecallMemoryHit[]` ordered by ascending cosine distance.
 - `DELETE /v1/memories/{id}` — 204 on success, 404 on unknown.
 
@@ -73,6 +74,8 @@ neutral `SharingContext`.
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | Via `libs/llm-client`. |
 | `MEMORY_DEFAULT_K` | `5` | Top-k when request omits it. |
 | `MEMORY_MAX_K` | `50` | Hard cap on top-k. |
+| `MEMORY_LIST_DEFAULT_LIMIT` | `20` | Fact-list (`GET /v1/memories`, MQ-1 review) page size when the request omits it. |
+| `MEMORY_LIST_MAX_LIMIT` | `100` | Hard cap on the fact-list page size. |
 | `MEMORY_EMBED_DIM` | `384` | Must match both the `vector(N)` column and the active embedding provider. `384` = mock/dev (mock provider + `004-memory`). The Mac/Ollama deploy uses nomic-embed-text (768-dim): `infra/.env.mac.example` sets this to `768` **and** `LIQUIBASE_CONTEXTS=default,embed-768` so `091-memory-embed-768` widens the column to match. |
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | profile-service base URL — relation capture resolves person names to `core.people` UUIDs. |
 | `CONVERSATION_BASE_URL` | `http://conversation-service:8089` | conversation-service base URL — AC-4 sets the ambient-approval route-lock here. |
@@ -82,7 +85,7 @@ neutral `SharingContext`.
 
 ## Key classes
 - `MemoryServiceApplication`.
-- `config/MemoryServiceProperties` — `memory.{default-k, max-k, dim, profile-base-url, conversation-base-url, notifier-base-url, ambient-capture.{enabled, dedup-distance}}`.
+- `config/MemoryServiceProperties` — `memory.{default-k, max-k, list-default-limit, list-max-limit, dim, profile-base-url, conversation-base-url, notifier-base-url, ambient-capture.{enabled, dedup-distance}}`.
 - `embed/EmbeddingClient` — wraps `LlmClient.embed`, returns `float[]` for one text.
 - `capture/FactExtractor` — wraps `LlmClient.chat` (DEFAULT channel) to pull durable facts out of a message; lenient JSON parsing (strips markdown fences / leading prose) and best-effort (bad reply → empty list, never throws).
 - `capture/RelationExtractor` — relation counterpart of `FactExtractor`: pulls structured edges (`subject —edge→ object`) for the person graph. Same DEFAULT channel + lenient/best-effort parsing; subject `"self"` marks a statement about the speaker. Returns `capture/ExtractedRelation` triples.
@@ -101,8 +104,8 @@ neutral `SharingContext`.
 - `config/EventBusListenerConfig` — registers the `EventBusListenerContainer` bean wiring the handler to the bus. Producer (`OutboxPublisher`) comes from `EventBusConfig`, `@Import`ed in `MemoryServiceApplication`.
 - `domain/Vectors` — `float[] → "[v1,v2,…]"` literal for the `::vector` cast (pgvector wire format).
 - `domain/MemoryRow` — read model; `toDto()` for the API surface.
-- `domain/MemoryRepository` — JdbcTemplate over `memory.memories`. **JPA was deliberately skipped** — pgvector mapping in JPA requires a custom Hibernate type and we don't need ORM features here.
-- `service/MemoryService` — orchestrates write/recall/forget; clamps `k`, validates non-blank text, asserts embedding dim matches `memory.dim`.
+- `domain/MemoryRepository` — JdbcTemplate over `memory.memories`. **JPA was deliberately skipped** — pgvector mapping in JPA requires a custom Hibernate type and we don't need ORM features here. `listByScope` (MQ-1) enumerates a household's facts by `created_at DESC` for the review digest (scope narrowing mirrors `recall`).
+- `service/MemoryService` — orchestrates write/recall/list/forget; clamps `k` (recall) and `limit` (list), validates non-blank text, asserts embedding dim matches `memory.dim`. `list` (MQ-1) is the flat most-recent fact read behind the memory-review digest.
 - `web/MemoryController` — REST endpoints from the Memories block above.
 - `domain/RelationRepository` — JdbcTemplate over `memory.relations`. `outgoingForPerson` / `incomingForPerson` both filter by `household_id`. SB-3: `deleteBySubjectNote` (drop a note's link edges for re-seed/cleanup) + `backlinkNoteIds` (note ids linking to a given note).
 - `service/RelationService` — write/forget/personRelations + field validation. SB-3: `forgetNoteLinks` / `noteBacklinkIds` delegate to the repo.

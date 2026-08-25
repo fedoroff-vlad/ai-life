@@ -8,10 +8,12 @@ import dev.fedorov.ailife.memory.service.MemoryService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,6 +32,20 @@ public class MemoryController {
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<MemoryDto> write(@RequestBody WriteMemoryRequest req) {
         return ResponseEntity.ok(service.write(req));
+    }
+
+    /**
+     * Flat, most-recent-first list of stored facts for the memory-review digest (MQ-1, #488).
+     * recall enumerates by similarity; this enumerates by recency so the owner can audit + prune.
+     * {@code userId}/{@code personId} narrow the scope (mirroring recall).
+     */
+    @GetMapping
+    public ResponseEntity<List<MemoryDto>> list(
+            @RequestParam("householdId") UUID householdId,
+            @RequestParam(value = "userId", required = false) UUID userId,
+            @RequestParam(value = "personId", required = false) UUID personId,
+            @RequestParam(value = "limit", required = false) Integer limit) {
+        return ResponseEntity.ok(service.list(householdId, userId, personId, limit));
     }
 
     @PostMapping(path = "/recall", consumes = MediaType.APPLICATION_JSON_VALUE)
