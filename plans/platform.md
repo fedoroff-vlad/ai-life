@@ -24,6 +24,36 @@ Central media catalogue. Bytes live in **MinIO** (S3-compatible object store, ra
 ## notifier-service (platform/, port 8084)
 `POST /v1/notify {userId, text}` → lookup telegram_user_id via profile-service → POST gateway-telegram `/internal/send`. Bot token stays in gateway only.
 
+### Proactive UX — quiet hours / caps / snooze ([#487](https://github.com/fedoroff-vlad/ai-life/issues/487), road-test)
+Every proactive push (briefing digest, birthday chain, resurfacing, ambient acks, scheduler wakes) flows
+through notifier — both `POST /v1/notify` and the `notify.requested` bus event — while a reactive reply the
+user asked for goes straight through gateway-telegram, **not** notifier. So notifier is the single seam for a
+send-time gating layer that makes proactive UX controllable. A `proactive` flag on the notify contract marks
+which sends are gated (default `false` → reactive, never gated; back-compat via a secondary ctor so existing
+callers don't ripple). Per-user preferences live in a new `core.notification_preference` (absent row → no
+gating, back-compat). Deterministic mechanism, never an LLM decision.
+
+**Slices** (each a small vertical): **PX-1** quiet-hours hold+redeliver — **PX-1a** store + `proactive` flag +
+gate that *holds* a proactive send due in the user's quiet window into `core.notification_held`; **PX-1b** the
+redrain tick that redelivers a held message when the window opens (drops it if older than a staleness TTL).
+**PX-2** frequency cap (coalesce/defer under a daily ceiling). **PX-3** per-stream opt-out (`stream` on the
+contract + preference; a member mutes one stream while others keep it). **PX-4** snooze/dismiss inline buttons
+(gateway-telegram keyboard + callback → record the preference; coordinates with the #489 button infra).
+
+**Acceptance criteria (WHEN/THEN) — PX-1:**
+- Scenario: **proactive push in quiet hours is held.** WHEN a `proactive` send is due for a user inside their
+  quiet-hours window (evaluated in the user's tz) → THEN notifier does **not** deliver it; it stores the message
+  in `core.notification_held` with `deliver_after` = the window's next end, and returns a "held" outcome (PX-1a).
+- Scenario: **reactive send is never gated.** WHEN a send is reactive (`proactive=false`/absent) → THEN it
+  delivers immediately regardless of quiet hours.
+- Scenario: **no preference = no gating.** WHEN the user has no `notification_preference` row → THEN every send
+  delivers immediately (back-compat).
+- Scenario: **window wraps midnight.** WHEN quiet hours span midnight (e.g. 22:00–08:00) → THEN a 03:00-local
+  send is correctly detected as inside the window (pure `QuietHours` logic, unit-tested).
+- Scenario: **redeliver at window open.** WHEN the quiet window ends and a held message is still fresh (held
+  under the staleness TTL) → THEN notifier redelivers it; a held message older than the TTL is dropped, never
+  delivered late (PX-1b).
+
 ## Schemas owned here
 - `memory` — pgvector + AGE.
 - `audit` — events + LLM trace fallback (if not Langfuse).

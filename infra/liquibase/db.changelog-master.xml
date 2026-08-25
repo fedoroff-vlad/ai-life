@@ -44,6 +44,8 @@
     <include file="features/011-conversation-last-route-trace.yml" relativeToChangelogFile="true"/>
     <!-- 012 CRUD/undo H1 (#486): last_mutation_{agent,payload,desc} on core.conversation_state. -->
     <include file="features/012-conversation-last-mutation.yml" relativeToChangelogFile="true"/>
+    <!-- 013 proactive-UX PX-1 (#487): core.notification_preference (quiet hours) + core.notification_held. -->
+    <include file="features/013-notification-preference.yml" relativeToChangelogFile="true"/>
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>

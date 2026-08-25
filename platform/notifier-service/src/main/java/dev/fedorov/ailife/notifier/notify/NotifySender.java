@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.UUID;
 
@@ -38,16 +39,41 @@ public class NotifySender {
     private final WebClient profile;
     private final WebClient gateway;
     private final NotifierProperties props;
+    private final NotificationGate gate;
 
     public NotifySender(WebClient profileWebClient,
                         WebClient gatewayWebClient,
-                        NotifierProperties props) {
+                        NotifierProperties props,
+                        NotificationGate gate) {
         this.profile = profileWebClient;
         this.gateway = gatewayWebClient;
         this.props = props;
+        this.gate = gate;
     }
 
+    /** Reactive default: a plain send that is never proactively gated (back-compat). */
     public Mono<ResponseEntity<Void>> send(UUID userId, String text) {
+        return send(userId, text, false, null);
+    }
+
+    /**
+     * Send {@code text} to {@code userId}, applying the proactive-UX gate (#487) first: a
+     * {@code proactive} push landing in the user's quiet hours is held (parked for later
+     * redelivery) and reported as {@code 202 ACCEPTED} without touching gateway; everything else
+     * delivers as before. {@code source} is free-text provenance carried into the held row.
+     */
+    public Mono<ResponseEntity<Void>> send(UUID userId, String text, boolean proactive, String source) {
+        if (!gate.mightHold(proactive)) {
+            return deliver(userId, text); // reactive send / no store → original path, no worker hop
+        }
+        return Mono.fromCallable(() -> gate.holdIfQuiet(userId, text, proactive, source))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(held -> held
+                        ? Mono.just(ResponseEntity.accepted().<Void>build())
+                        : deliver(userId, text));
+    }
+
+    private Mono<ResponseEntity<Void>> deliver(UUID userId, String text) {
         return profile.get()
                 .uri("/v1/users/{id}", userId)
                 .retrieve()

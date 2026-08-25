@@ -8,6 +8,20 @@ gateway-telegram. Delivery is driven two ways:
 - **asynchronous** — a `notify.requested` event on the event bus (`libs/event-bus`),
   the decoupled fan-out path. notifier is the **first bus consumer** in the system.
 
+## Proactive-UX gate (#487 PX-1)
+
+notifier is the single seam every proactive push flows through (a reactive reply the user just asked
+for goes straight through gateway-telegram, not here), so it hosts the send-time gate that makes
+proactive UX controllable. Both the REST `NotifyRequest` and the bus `NotifyRequestedEvent` carry a
+`proactive` flag (default `false` → reactive, never gated; back-compat via a secondary ctor so existing
+callers don't ripple). `NotificationGate` reads the user's quiet-hours preference and, for a proactive
+push landing **inside** the window, parks it in `core.notification_held` (with `deliver_after` = the
+window's next end) and reports `202 ACCEPTED` without delivering. Absent preference row, reactive send,
+or no `DataSource` → the gate is **inert** (fail-open — a send is never blocked by the pref store).
+Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision. The redrain
+that redelivers a held row once its window opens (dropping a stale one) is **PX-1b**; frequency caps,
+per-stream opt-out and snooze buttons are PX-2…PX-4 — see [plans/platform.md](../../plans/platform.md).
+
 ## Endpoints
 
 | method | path        | purpose                                          |
@@ -54,9 +68,11 @@ EVENT_BUS_CHANNEL=ailife_events
 - `config/NotifierProperties` — `notifier.{profile-base-url, gateway-base-url, internal-api-token}`.
 - `config/HttpConfig` — separate WebClients for profile + gateway (each via `.clone()` to avoid shared-builder leakage).
 - `config/EventBusListenerConfig` — registers the `EventBusListenerContainer` consumer bean.
-- `notify/NotifySender` — resolve user → forward to gateway; shared by the REST and bus paths.
-- `web/NotifyController` — thin `POST /v1/notify` wrapper over `NotifySender`.
-- `bus/NotifyEventHandler` — consumes `notify.requested`, applies the transient/permanent retry policy.
+- `notify/NotifySender` — apply the proactive-UX gate, then resolve user → forward to gateway; shared by the REST and bus paths. `send(userId, text)` stays the reactive default; `send(userId, text, proactive, source)` is the gated overload.
+- `notify/QuietHours` — pure value logic for the quiet-hours window (tz-aware, midnight-wrap, `nextWindowEnd`). Unit-tested.
+- `notify/NotificationGate` — reads `core.notification_preference`, holds a proactive in-window push into `core.notification_held` (JDBC; inert when no `DataSource`).
+- `web/NotifyController` — thin `POST /v1/notify` wrapper over `NotifySender` (passes `NotifyRequest.proactive`).
+- `bus/NotifyEventHandler` — consumes `notify.requested`, applies the transient/permanent retry policy (passes `proactive`/`source`).
 
 ## Failure mode
 Per-user notifier failures are caller-swallowed by upstream fan-outs (one bad user

@@ -1,0 +1,98 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 013-notification-preference
+      author: ai-life
+      comment: |
+        Proactive-UX preferences (#487 PX-1). One optional row per user holding the
+        quiet-hours window; an absent row means no gating (back-compat — every send
+        delivers immediately). quiet_start/quiet_end are local wall-clock times in `tz`;
+        a window may wrap midnight (start > end). notifier-service reads this at send time.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: notification_preference
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: quiet_start
+                  type: time
+              - column:
+                  name: quiet_end
+                  type: time
+              - column:
+                  name: tz
+                  type: varchar(64)
+                  defaultValue: UTC
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 013-notification-held
+      author: ai-life
+      comment: |
+        Proactive pushes held during a user's quiet hours (#487 PX-1). A proactive send
+        that lands inside the quiet window is parked here with deliver_after = the window's
+        next end; the notifier redrain tick (PX-1b) redelivers a still-fresh row past that
+        instant and drops one older than the staleness TTL. Reactive sends never touch this.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: notification_held
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: body
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source
+                  type: varchar(128)
+              - column:
+                  name: held_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deliver_after
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: core
+            tableName: notification_held
+            indexName: ix_notification_held_due
+            columns:
+              - column:
+                  name: deliver_after
