@@ -20,20 +20,6 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   [#490](https://github.com/fedoroff-vlad/ai-life/issues/490)), or a future agent (health
   [#187](https://github.com/fedoroff-vlad/ai-life/issues/187)), or an
   arch-[#479](https://github.com/fedoroff-vlad/ai-life/issues/479) thread.
-- **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
-  rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
-  tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
-  spot-checks** (future-dated receipt, end-before-start / double-booking). Detail → [HISTORY.md](HISTORY.md);
-  doctrine → [architecture.md](architecture.md) §Principles (soft-fail + sanity spot-checks) + [stage4.md](stage4.md)
-  §Track G.
-- **road-test §#484 misroute-repair — ✅ DONE (2026-08-18, PR#502 F1 + PR#503 F2).** The correction loop
-  ("не то, я про задачи" → re-classify with the prior route as context) is built on the conversation-state
-  substrate; per-agent routing goldens were already delivered by #475. Detail → [HISTORY.md](HISTORY.md) +
-  [stage4.md](stage4.md) §Track F. **Pick the next item** — road-test epic
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) queue (transparency/no-silent-failures
-  [#485](https://github.com/fedoroff-vlad/ai-life/issues/485), CRUD/undo
-  [#486](https://github.com/fedoroff-vlad/ai-life/issues/486), …), or an arch-#479 thread, or a future agent
-  (see `## Next`).
 - **arch epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing — ✅ DONE
   (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist / briefing / stylist / chef
   / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
@@ -51,37 +37,6 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   cancel/move; the H.2 edits above then rode it too). Detail → [HISTORY.md](HISTORY.md) +
   [ADR-0004](adr/ADR-0004-confirm-act-flow.md). **Next #479 thread:** personalization-profile capability
   [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) (ADR first), or another epic item.
-- **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
-  (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
-  **mirrors its packing list onto the note tier** — an upsert of a household-shared `type=list` «список
-  вещей» note (flat `MarkdownChecklist` body, find-or-create by title, re-ask replaces) so the owner then
-  checks items off through LI-a with no travel code involved. Second consumer of note list/update →
-  `listNotes`/`updateNote` lifted onto the shared `agent-runtime` `MemoryClient`. Detail →
-  [HISTORY.md](HISTORY.md) / [lists.md](lists.md) §LI-c. **Pick the next item from `## Next`.**
-- **travel MVP + live search + trip wallet (EX-a…EX-c) COMPLETE** (context only — detail in [travel.md](travel.md) / [HISTORY.md](HISTORY.md)):
-  TR-a…e MVP + TR-f1/f2 live flight/hotel over Travelpayouts. To *enable* live search the owner must obtain a
-  free **Travelpayouts** token + marker and accept T&C (a "confirm before doing" step — keys live in `.env`,
-  never committed); until then the planner degrades to the MVP. Only **TR-f3** (tours/JS sources → `mcp-browser`) deferred.
-- **Prior epics COMPLETE** (context only — detail in [HISTORY.md](HISTORY.md), don't re-open):
-  - **travel #190 — DONE 2026-08-12 (MVP TR-a…e + live-search TR-f1/f2).** Planner-first vacation agent:
-    `mcp-weather` `climate` (TR-a) + `mcp-travel` profile store (TR-b) + `travel-agent`/`travel-profiler`
-    (TR-c) + `trip-planner` gather→synthesize (TR-d) + the **HTML travel board** with a climate-by-month
-    chart (TR-e); **live flight/hotel options** via `mcp-travel-search` over Travelpayouts, owner-key-gated
-    (TR-f1 capability + TR-f2 planner wiring: rank min-transfers→price, over-budget flag, deep links,
-    degrade-to-MVP when `unconfigured`). Booking boundary permanent (ADR-0003). Only **TR-f3** (tours /
-    no-API sources → `mcp-browser`) stays deferred.
-  - **Sharing capability ADR-0002 — DONE 2026-08-07.** Slices 2–7 retrofitted all opt-in domains
-    (calendar/finance/tasks/nutrition/docs, write & read); item 8 memory-driven default (DS-0…DS-4,
-    `LearnedSharingPolicy` over a `memory.sharing_decision` tally, deterministic majority); and **DS-N
-    confirm-on-ambiguity** — a domain defers + asks "личное или общее?" via the reusable `SharingConfirm`
-    when the default is genuinely ambiguous. DS-N consumers: tasks (reference), finance (unscoped account),
-    docs (untyped document — gained its first `/resume`); calendar (inter-agent write) + nutrition
-    (deterministically-shared basket) opt out by design. Detail → [HISTORY.md](HISTORY.md) +
-    [ADR-0002](adr/ADR-0002-sharing-shared-capability.md). Only the separate memory/second-brain owner-tag
-    reconciliation stays deferred (orthogonal).
-  - identity **ADR-0001** slices 1–6 (rows 2026-08-01/04); **skills-vs-flows** #358/#360 (only the Mac-gated
-    cutover #369 stays open, see `## Next`).
-
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
   Mac Studio M4 Max 64/512 running ai-life 24/7 (hot set always-on + auto cold start/stop via a new
