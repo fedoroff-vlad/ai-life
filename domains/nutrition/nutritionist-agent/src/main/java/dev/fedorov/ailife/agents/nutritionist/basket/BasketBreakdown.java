@@ -334,7 +334,7 @@ public class BasketBreakdown {
     /** Fan the breakdown out to every household member (no user reply channel on a bus consume). */
     private Mono<Void> notifyHousehold(UUID householdId, String text) {
         return people.usersByHousehold(householdId)
-                .flatMap(u -> notifier.notify(u.id(), text)
+                .flatMap(u -> notifier.notify(u.id(), text, "nutrition")
                         .onErrorResume(e -> {
                             log.warn("notify household member {} failed: {}", u.id(), e.toString());
                             return Mono.empty();

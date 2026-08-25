@@ -38,7 +38,7 @@ public class NotifierClient {
             http.post()
                     .uri("/v1/notify")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(new NotifyRequest(userId, text, true))
+                    .bodyValue(new NotifyRequest(userId, text, true, "ambient"))
                     .retrieve()
                     .toBodilessEntity()
                     .block();

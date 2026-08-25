@@ -131,7 +131,7 @@ public class TriggerController {
                 return Mono.empty();
             }
             return profile.usersByHousehold(req.householdId())
-                    .flatMap(u -> notifier.notify(u.id(), text)
+                    .flatMap(u -> notifier.notify(u.id(), text, "tasks")
                             .doOnError(e -> log.warn("notify failed for user={} kind={}: {}",
                                     u.id(), kind, e.toString()))
                             .onErrorResume(e -> Mono.empty()))

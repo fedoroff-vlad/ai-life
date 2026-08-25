@@ -42,7 +42,10 @@ queued — owner-decided: a cap that defers just moves the spam, and an overnigh
 + the stale TTL). **PX-3** per-stream opt-out (`stream` on the contract + preference; a member mutes one stream
 while others keep it). **PX-3a** the mechanism — `source`/stream on the notify contract + a
 `core.notification_stream_optout` set + a gate check (a muted stream is suppressed, checked before quiet
-hours/cap); **PX-3b** the producer stream-name rollout + the chat UX that writes the opt-out row. **PX-4**
+hours/cap); **PX-3b** the producer stream-name rollout (each proactive send passes its coarse stream via
+`NotifierClient.notify(userId, text, stream)` — the canonical ids: `briefing` · `resurfacing` · `calendar` ·
+`finance` · `tasks` · `nutrition` · `coordinator` · `ambient`). The chat UX that *writes* the opt-out row is
+folded into **PX-4** (owner-decided: opt out via the snooze/dismiss button on the push itself). **PX-4**
 snooze/dismiss inline buttons (gateway-telegram keyboard + callback → record the preference; coordinates
 with the #489 button infra).
 
