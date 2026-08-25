@@ -100,5 +100,9 @@ shared `SharingResolver` exactly as `create_event` already does.
 - Scenario: **ambiguous time is clarified.** WHEN the time can't be resolved → THEN calendar asks rather than
   filing a wrong-time event (standing "clarify ambiguous time" principle).
 
+The create/cancel/move-vs-chat **routing** of these scenarios is proven against a real model by
+`GoldenCalendarRoutingTest` (#544, `@GoldenLlmTest`, structure-not-text) — the calendar sibling of the other
+cue-routed agents' routing goldens; the per-flow behaviour stays covered by `EventCapturer/Canceller/MoverTest`.
+
 ## Reminders → scheduler-service
 No own reminder table/tick. Agent calls `mcp-scheduler.schedule_once/recurring(target=calendar, payload=...)`. Scheduler wakes the agent via orchestrator; agent formats and sends via notifier→telegram. `core.people` holds occasion data (birthdays + lead_days), not schedules.
