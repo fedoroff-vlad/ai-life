@@ -24,8 +24,15 @@ CREATE TABLE IF NOT EXISTS core.notification_preference (
     quiet_start time,
     quiet_end   time,
     tz          varchar(64) NOT NULL DEFAULT 'UTC',
+    daily_cap   int,
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS core.notification_sent (
+    id       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id  uuid NOT NULL,
+    sent_at  timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS core.notification_held (

@@ -14,11 +14,13 @@ notifier is the single seam every proactive push flows through (a reactive reply
 for goes straight through gateway-telegram, not here), so it hosts the send-time gate that makes
 proactive UX controllable. Both the REST `NotifyRequest` and the bus `NotifyRequestedEvent` carry a
 `proactive` flag (default `false` → reactive, never gated; back-compat via a secondary ctor so existing
-callers don't ripple). `NotificationGate` reads the user's quiet-hours preference and, for a proactive
-push landing **inside** the window, parks it in `core.notification_held` (with `deliver_after` = the
-window's next end) and reports `202 ACCEPTED` without delivering. Absent preference row, reactive send,
-or no `DataSource` → the gate is **inert** (fail-open — a send is never blocked by the pref store).
-Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision.
+callers don't ripple). `NotificationGate.evaluate` reads the user's preference and returns one of **HELD**
+(inside quiet hours → parked in `core.notification_held` with `deliver_after` = the window's next end,
+PX-1), **SUPPRESSED** (already had `daily_cap` proactive pushes today → the overflow is dropped, PX-2), or
+**PASS** (deliver now; `NotifySender` then calls `recordSent` to log the delivery in `core.notification_sent`
+so it counts toward the cap). HELD/SUPPRESSED both report `202 ACCEPTED` without touching gateway. Absent
+preference row, reactive send, or no `DataSource` → the gate is **inert** (fail-open — a send is never blocked
+by the pref store). Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision.
 
 A held row is redelivered by the **redrain tick** (`HeldRedrain`, `@Scheduled` every
 `notifier.held-redrain-millis`, default 60s): each pass drops rows older than `notifier.held-stale-hours`
@@ -76,7 +78,7 @@ EVENT_BUS_CHANNEL=ailife_events
 - `config/EventBusListenerConfig` — registers the `EventBusListenerContainer` consumer bean.
 - `notify/NotifySender` — apply the proactive-UX gate, then resolve user → forward to gateway; shared by the REST and bus paths. `send(userId, text)` stays the reactive default; `send(userId, text, proactive, source)` is the gated overload.
 - `notify/QuietHours` — pure value logic for the quiet-hours window (tz-aware, midnight-wrap, `nextWindowEnd`). Unit-tested.
-- `notify/NotificationGate` — reads `core.notification_preference`, holds a proactive in-window push into `core.notification_held` (JDBC; inert when no `DataSource`).
+- `notify/NotificationGate` — `evaluate` → HELD (park in `core.notification_held`) / SUPPRESSED (over `daily_cap`, counted via `core.notification_sent`) / PASS; `recordSent` logs a delivered proactive push (JDBC; inert when no `DataSource`).
 - `notify/HeldRedrain` — redelivers held rows once their window opens and drops stale ones (JDBC; inert when no `DataSource`); `notify/HeldRedrainRunner` is its `@Scheduled` driver (conditional on `notifier.held-redrain-enabled`).
 - `web/NotifyController` — thin `POST /v1/notify` wrapper over `NotifySender` (passes `NotifyRequest.proactive`).
 - `bus/NotifyEventHandler` — consumes `notify.requested`, applies the transient/permanent retry policy (passes `proactive`/`source`).

@@ -36,9 +36,12 @@ gating, back-compat). Deterministic mechanism, never an LLM decision.
 **Slices** (each a small vertical): **PX-1** quiet-hours hold+redeliver — **PX-1a** store + `proactive` flag +
 gate that *holds* a proactive send due in the user's quiet window into `core.notification_held`; **PX-1b** the
 redrain tick that redelivers a held message when the window opens (drops it if older than a staleness TTL).
-**PX-2** frequency cap (coalesce/defer under a daily ceiling). **PX-3** per-stream opt-out (`stream` on the
-contract + preference; a member mutes one stream while others keep it). **PX-4** snooze/dismiss inline buttons
-(gateway-telegram keyboard + callback → record the preference; coordinates with the #489 button infra).
+**PX-2** frequency cap — a per-user `daily_cap` on proactive deliveries; a delivered proactive push is logged
+in `core.notification_sent`, and once today's count hits the cap the overflow is **suppressed** (dropped, not
+queued — owner-decided: a cap that defers just moves the spam, and an overnight-defer collides with quiet hours
++ the stale TTL). **PX-3** per-stream opt-out (`stream` on the contract + preference; a member mutes one stream
+while others keep it). **PX-4** snooze/dismiss inline buttons (gateway-telegram keyboard + callback → record
+the preference; coordinates with the #489 button infra).
 
 **Acceptance criteria (WHEN/THEN) — PX-1:**
 - Scenario: **proactive push in quiet hours is held.** WHEN a `proactive` send is due for a user inside their
@@ -53,6 +56,16 @@ contract + preference; a member mutes one stream while others keep it). **PX-4**
 - Scenario: **redeliver at window open.** WHEN the quiet window ends and a held message is still fresh (held
   under the staleness TTL) → THEN notifier redelivers it; a held message older than the TTL is dropped, never
   delivered late (PX-1b).
+
+**Acceptance criteria (WHEN/THEN) — PX-2:**
+- Scenario: **overflow is suppressed.** WHEN a user has already had `daily_cap` proactive pushes delivered
+  today (their tz) and another proactive send arrives → THEN it is dropped (not delivered, not queued), and a
+  `202` is returned to the caller.
+- Scenario: **under the cap delivers and counts.** WHEN today's delivered count is below the cap → THEN the
+  push is delivered and recorded in `core.notification_sent`, so it counts toward the cap.
+- Scenario: **no cap = unlimited.** WHEN `daily_cap` is null → THEN no capping (only quiet hours may gate).
+- Scenario: **yesterday does not count.** WHEN deliveries happened on prior days → THEN they do not count
+  against today's cap (the count is per calendar day in the user's tz).
 
 ## Schemas owned here
 - `memory` — pgvector + AGE.

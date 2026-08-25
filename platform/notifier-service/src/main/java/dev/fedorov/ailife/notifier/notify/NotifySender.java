@@ -57,20 +57,25 @@ public class NotifySender {
     }
 
     /**
-     * Send {@code text} to {@code userId}, applying the proactive-UX gate (#487) first: a
-     * {@code proactive} push landing in the user's quiet hours is held (parked for later
-     * redelivery) and reported as {@code 202 ACCEPTED} without touching gateway; everything else
-     * delivers as before. {@code source} is free-text provenance carried into the held row.
+     * Send {@code text} to {@code userId}, applying the proactive-UX gate (#487) first: a {@code proactive}
+     * push landing in the user's quiet hours is <b>held</b> for later redelivery, and one over the user's
+     * daily cap is <b>suppressed</b> — both reported as {@code 202 ACCEPTED} without touching gateway. A
+     * passed proactive send is delivered and then recorded so it counts toward the cap. Everything else
+     * (reactive send / no store) delivers as before. {@code source} is free-text provenance.
      */
     public Mono<ResponseEntity<Void>> send(UUID userId, String text, boolean proactive, String source) {
-        if (!gate.mightHold(proactive)) {
+        if (!gate.mightGate(proactive)) {
             return deliver(userId, text); // reactive send / no store → original path, no worker hop
         }
-        return Mono.fromCallable(() -> gate.holdIfQuiet(userId, text, proactive, source))
+        return Mono.fromCallable(() -> gate.evaluate(userId, text, source))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(held -> held
-                        ? Mono.just(ResponseEntity.accepted().<Void>build())
-                        : deliver(userId, text));
+                .flatMap(decision -> switch (decision) {
+                    case HELD, SUPPRESSED -> Mono.just(ResponseEntity.accepted().<Void>build());
+                    case PASS -> deliver(userId, text).flatMap(resp -> resp.getStatusCode().is2xxSuccessful()
+                            ? Mono.fromRunnable(() -> gate.recordSent(userId))
+                                    .subscribeOn(Schedulers.boundedElastic()).thenReturn(resp)
+                            : Mono.just(resp));
+                });
     }
 
     private Mono<ResponseEntity<Void>> deliver(UUID userId, String text) {
