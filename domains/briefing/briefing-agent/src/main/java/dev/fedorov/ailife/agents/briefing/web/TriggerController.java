@@ -90,7 +90,7 @@ public class TriggerController {
     }
 
     private Mono<Void> notifyOne(UUID userId, String text) {
-        return notifier.notify(userId, text)
+        return notifier.notify(userId, text, "briefing")
                 .doOnError(e -> log.warn("notify failed for user={}: {}", userId, e.toString()))
                 .onErrorResume(e -> Mono.empty());
     }

@@ -106,7 +106,7 @@ public class BirthdayGreeter {
     /** Fan the greeting out to every household member; a per-user notify failure is logged, not fatal. */
     private Mono<Void> notifyHousehold(UUID household, String greeting) {
         return profile.usersByHousehold(household)
-                .flatMap(u -> notifier.notify(u.id(), greeting)
+                .flatMap(u -> notifier.notify(u.id(), greeting, "calendar")
                         .doOnError(e -> log.warn("notify failed for user={}: {}", u.id(), e.toString()))
                         .onErrorResume(e -> Mono.empty()))
                 .then();

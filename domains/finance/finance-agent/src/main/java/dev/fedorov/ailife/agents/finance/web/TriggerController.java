@@ -355,7 +355,7 @@ public class TriggerController {
             log.info("trigger kind={} skill={} schedule={} memories={} produced {} chars, fanning out",
                     kind, skill.name(), req.scheduleId(), memories.size(), text.length());
             return profile.usersByHousehold(req.householdId())
-                    .flatMap(u -> notifier.notify(u.id(), text)
+                    .flatMap(u -> notifier.notify(u.id(), text, "finance")
                             .doOnError(e -> log.warn(
                                     "notify failed for user={} kind={}: {}",
                                     u.id(), kind, e.toString()))

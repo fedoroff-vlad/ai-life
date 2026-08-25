@@ -26,16 +26,28 @@ public class NotifierClient {
         this.http = http;
     }
 
-    /** Proactive push (gate-able under #487). See the class note. */
+    /** Proactive push with no stream attribution (gate-able by quiet hours/cap, but not opt-out-able). */
     public Mono<Void> notify(UUID userId, String text) {
-        return notify(userId, text, true);
+        return notify(userId, text, true, null);
+    }
+
+    /**
+     * Proactive push attributed to a named {@code stream} (#487 PX-3) — the coarse notification stream a
+     * user can mute per-member (e.g. {@code "briefing"}, {@code "resurfacing"}, {@code "finance"}).
+     */
+    public Mono<Void> notify(UUID userId, String text, String stream) {
+        return notify(userId, text, true, stream);
     }
 
     public Mono<Void> notify(UUID userId, String text, boolean proactive) {
+        return notify(userId, text, proactive, null);
+    }
+
+    public Mono<Void> notify(UUID userId, String text, boolean proactive, String source) {
         return http.post()
                 .uri("/v1/notify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new NotifyRequest(userId, text, proactive))
+                .bodyValue(new NotifyRequest(userId, text, proactive, source))
                 .retrieve()
                 .toBodilessEntity()
                 .then();

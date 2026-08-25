@@ -210,7 +210,7 @@ public class GiftRecommender {
     /** One soft-failed notify; a blank message is a no-op so the chain stays simple. */
     private Mono<Void> deliver(UUID userId, String text) {
         if (text == null || text.isBlank()) return Mono.empty();
-        return notifier.notify(userId, text)
+        return notifier.notify(userId, text, "calendar")
                 .doOnError(e -> log.warn("notify failed for user={}: {}", userId, e.toString()))
                 .onErrorResume(e -> Mono.empty())
                 .then();
