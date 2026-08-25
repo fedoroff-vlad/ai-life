@@ -41,6 +41,20 @@ public class MemoryService {
         return row.toDto();
     }
 
+    /**
+     * Flat, most-recent-first list of a household's stored facts for the memory-review
+     * digest (MQ-1, road-test #488). {@code userId}/{@code personId} narrow the scope
+     * (mirroring recall); {@code limit} defaults to {@link MemoryServiceProperties#getListDefaultLimit()}
+     * and is capped at {@link MemoryServiceProperties#getListMaxLimit()}.
+     */
+    public List<MemoryDto> list(UUID householdId, UUID userId, UUID personId, Integer limit) {
+        if (householdId == null) {
+            throw new IllegalArgumentException("householdId is required");
+        }
+        return repo.listByScope(householdId, userId, personId, clampLimit(limit))
+                .stream().map(MemoryRow::toDto).toList();
+    }
+
     public List<RecallMemoryHit> recall(RecallMemoryRequest req) {
         validateText(req.query());
         int k = clampK(req.k());
@@ -65,6 +79,11 @@ public class MemoryService {
     private int clampK(Integer k) {
         int effective = (k == null || k <= 0) ? props.getDefaultK() : k;
         return Math.min(effective, props.getMaxK());
+    }
+
+    private int clampLimit(Integer limit) {
+        int effective = (limit == null || limit <= 0) ? props.getListDefaultLimit() : limit;
+        return Math.min(effective, props.getListMaxLimit());
     }
 
     private static void validateText(String s) {
