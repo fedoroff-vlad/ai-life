@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 properties = {
                         "notifier.internal-api-token=test-token",
                         // no DB in this slice — keep the bus listener from opening a connection
-                        "event-bus.enabled=false"
+                        "event-bus.enabled=false",
+                        "notifier.held-redrain-enabled=false"
                 })
 @AutoConfigureWebTestClient
 class NotifyControllerTest {

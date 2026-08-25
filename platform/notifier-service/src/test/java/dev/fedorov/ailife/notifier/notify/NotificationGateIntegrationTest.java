@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "notifier.internal-api-token=test-token",
         "notifier.profile-base-url=http://localhost:1",
         "notifier.gateway-base-url=http://localhost:1",
-        "event-bus.enabled=false"
+        "event-bus.enabled=false",
+        "notifier.held-redrain-enabled=false"
 })
 class NotificationGateIntegrationTest extends AbstractPostgresIntegrationTest {
 

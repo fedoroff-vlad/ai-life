@@ -9,6 +9,8 @@ public class NotifierProperties {
     private String gatewayBaseUrl = "http://gateway-telegram:8080";
     /** Bearer token shared with gateway-telegram for {@code /internal/send}. */
     private String internalApiToken = "";
+    /** How old a held proactive push may get before the redrain drops it instead of delivering late (#487 PX-1b). */
+    private int heldStaleHours = 12;
 
     public String getProfileBaseUrl() { return profileBaseUrl; }
     public void setProfileBaseUrl(String profileBaseUrl) { this.profileBaseUrl = profileBaseUrl; }
@@ -16,4 +18,6 @@ public class NotifierProperties {
     public void setGatewayBaseUrl(String gatewayBaseUrl) { this.gatewayBaseUrl = gatewayBaseUrl; }
     public String getInternalApiToken() { return internalApiToken; }
     public void setInternalApiToken(String internalApiToken) { this.internalApiToken = internalApiToken; }
+    public int getHeldStaleHours() { return heldStaleHours; }
+    public void setHeldStaleHours(int heldStaleHours) { this.heldStaleHours = heldStaleHours; }
 }

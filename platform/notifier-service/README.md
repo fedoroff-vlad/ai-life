@@ -18,9 +18,15 @@ callers don't ripple). `NotificationGate` reads the user's quiet-hours preferenc
 push landing **inside** the window, parks it in `core.notification_held` (with `deliver_after` = the
 window's next end) and reports `202 ACCEPTED` without delivering. Absent preference row, reactive send,
 or no `DataSource` → the gate is **inert** (fail-open — a send is never blocked by the pref store).
-Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision. The redrain
-that redelivers a held row once its window opens (dropping a stale one) is **PX-1b**; frequency caps,
-per-stream opt-out and snooze buttons are PX-2…PX-4 — see [plans/platform.md](../../plans/platform.md).
+Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision.
+
+A held row is redelivered by the **redrain tick** (`HeldRedrain`, `@Scheduled` every
+`notifier.held-redrain-millis`, default 60s): each pass drops rows older than `notifier.held-stale-hours`
+(default 12 — a message parked too long is never delivered late), then delivers every remaining row whose
+`deliver_after` has passed (as a plain non-gated send) and removes it. The tick is gated by
+`notifier.held-redrain-enabled` (default on; the notifier tests turn it off to drive `drain()` directly).
+Frequency caps, per-stream opt-out and snooze buttons are PX-2…PX-4 — see
+[plans/platform.md](../../plans/platform.md).
 
 ## Endpoints
 
@@ -71,6 +77,7 @@ EVENT_BUS_CHANNEL=ailife_events
 - `notify/NotifySender` — apply the proactive-UX gate, then resolve user → forward to gateway; shared by the REST and bus paths. `send(userId, text)` stays the reactive default; `send(userId, text, proactive, source)` is the gated overload.
 - `notify/QuietHours` — pure value logic for the quiet-hours window (tz-aware, midnight-wrap, `nextWindowEnd`). Unit-tested.
 - `notify/NotificationGate` — reads `core.notification_preference`, holds a proactive in-window push into `core.notification_held` (JDBC; inert when no `DataSource`).
+- `notify/HeldRedrain` — redelivers held rows once their window opens and drops stale ones (JDBC; inert when no `DataSource`); `notify/HeldRedrainRunner` is its `@Scheduled` driver (conditional on `notifier.held-redrain-enabled`).
 - `web/NotifyController` — thin `POST /v1/notify` wrapper over `NotifySender` (passes `NotifyRequest.proactive`).
 - `bus/NotifyEventHandler` — consumes `notify.requested`, applies the transient/permanent retry policy (passes `proactive`/`source`).
 
