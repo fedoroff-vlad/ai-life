@@ -4,6 +4,15 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **road-test §#488 memory-quality — 🚧 IN PROGRESS; MQ-1 review digest DONE (2026-08-25).** Make what the
+  assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)).
+  **MQ-1 (review digest) COMPLETE** — the audit surface "что ты про меня / про нас запомнил": **MQ-1a** (PR#567)
+  memory-service `GET /v1/memories` flat fact-list read (recall enumerates by similarity; the digest needs
+  recency) + **MQ-1b** (PR#568) notes-agent `memory-review` intent → readable digest of curated notes + stored
+  facts (lists + note-seeds excluded) ending with the drop/correct verbs. Detail → [second-brain.md](second-brain.md)
+  §MQ. **NEXT: MQ-2** — forget/correct a **fact** by chat ("забудь, что …" / "это неверно, на самом деле …") on
+  the shared [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner` (fact-tier analog of H.2's note
+  delete/edit); then **MQ-3** ambient-precision tuning ([ambient-capture.md](ambient-capture.md)).
 - **road-test §#487 proactive UX — ✅ CORE COMPLETE (2026-08-25); PX-4 deferred.** notifier is the single
   seam every proactive push flows through, so a send-time gate (`NotificationGate`) makes proactivity
   controllable — deterministic, never an LLM call, inert when reactive/unconfigured/no-DB: **PX-1**
@@ -14,8 +23,7 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   producer now attributes its coarse stream). Detail → [HISTORY.md](HISTORY.md) + [platform.md](platform.md)
   §Proactive UX. **PX-4 (snooze/dismiss buttons + mute-via-button) deferred** — its Telegram inline-button/
   callback infra overlaps [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), to be built once as a
-  shared primitive. **NEXT: road-test §#488 memory-quality**
-  ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)).
+  shared primitive. (§#488 memory-quality is now the active bullet above.)
 - **road-test §#486 CRUD/undo — ✅ COMPLETE (2026-08-25).** The cross-cutting **"отмени последнее" undo
   primitive** (H1 storage → H2 orchestrator → H3 tasks → H-rollout to finance/notes) + the **per-domain chat
   CRUD holes**: calendar create/undo/cancel/move (HC-1…HC-4), delete-by-description ×3 (tasks/finance/notes),
