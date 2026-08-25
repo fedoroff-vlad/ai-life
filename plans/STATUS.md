@@ -132,8 +132,25 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   resume-resolves-name→id / decline) + a `decorateAsync` merge case in `PickConfirmActRunnerTest` + a PUT case
   in `McpFinanceIntegrationTest` + `edit` in the finance routing golden. Detail → [finance.md](finance.md) §H.2
   + [ADR-0004](adr/ADR-0004-confirm-act-flow.md) §Follow-on.
-  **NEXT: the remaining H.2 edit follow-up** — the tasks state-move-via-chat follow-up (clarify/complete
-  rather than `update_task`). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **tasks state-move ✅ (2026-08-25)** — a new `task-status` intent skill + `TaskStatusMover` flow on the
+  tasks `IntentRouter` path, behind a confirm-before-change gate: read the owner's tasks (personal ∪ shared,
+  any status) → the LLM picks the target **and** the new GTD status (inbox|next|waiting|scheduled|done|dropped)
+  → reply asks to confirm (a `pendingAction` route-locks; nothing written); a pick with no/invalid status
+  re-asks; the "да" hits `POST /agents/tasks/resume` (`task-status-confirm` → `TaskStatusMover.resume`) →
+  applies the status via the **existing** `POST /internal/clarify` passthrough (`ClarifyClient` →
+  `clarify_task`, keeping `completed_at` consistent with `done`). A status change is a different GTD verb than
+  a content edit, so it routes through clarify not `update_task` — **no mcp-tasks change needed**. Proven by
+  `TaskStatusMoverTest` (confirm / ask-when-no-status / invalid-status / ambiguous / no-match / resume-clarifies
+  / decline) + `task-status` added to the tasks routing golden. Detail → [tasks.md](tasks.md) §H.2. **This
+  closes the H.2 edit holes** (notes/tasks/finance edit + finance category + tasks state-move; delete×3
+  already shipped). **road-test §#486 CRUD/undo is now feature-complete for the edit surface** — remaining
+  #486 threads (if any) are the H.1 undo-primitive rollout, already done for tasks/finance/notes/calendar.
+  **NEXT: pick the next road-test item** from epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)
+  (proactive-UX [#487](https://github.com/fedoroff-vlad/ai-life/issues/487), memory-quality
+  [#488](https://github.com/fedoroff-vlad/ai-life/issues/488), multimodal/reply-UX
+  [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), family-onboarding
+  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490)), or a future agent (health #187), or an
+  arch-#479 thread.
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

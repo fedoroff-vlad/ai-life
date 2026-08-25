@@ -61,7 +61,8 @@ class GoldenRoutingTest {
 
     /** The intent (user-invoked) skills the classifier can route to. */
     private static final Set<String> SKILLS =
-            Set.of("inbox-clarify", "next-action-suggester", "task-capture", "task-delete", "task-edit");
+            Set.of("inbox-clarify", "next-action-suggester", "task-capture", "task-delete", "task-edit",
+                    "task-status");
 
     /** The mcp-tasks tools the dispatcher exposes (must match the canonical tool set). */
     private static final List<ToolDefinition> TOOLS = List.of(
@@ -100,7 +101,7 @@ class GoldenRoutingTest {
         ClassLoader cl = GoldenRoutingTest.class.getClassLoader();
         List<Skill> loaded = new java.util.ArrayList<>();
         for (String name : List.of("weekly-review", "inbox-clarify", "next-action-suggester",
-                "task-capture", "task-delete", "task-edit")) {
+                "task-capture", "task-delete", "task-edit", "task-status")) {
             loaded.add(GoldenLlm.skill(cl, "skills/tasks/" + name + "/SKILL.md"));
         }
         return new SkillRegistry(loaded);
@@ -180,6 +181,8 @@ class GoldenRoutingTest {
         assertRoutesToSkill("удали задачу про молоко", "task-delete", false);
         // A rename routes to the task-edit flow, not the update_task tool (#486/Track H.2).
         assertRoutesToSkill("переименуй задачу про молоко в купить овсяное молоко", "task-edit", false);
+        // A GTD state move routes to the task-status flow, not the clarify_task tool (#486/Track H.2).
+        assertRoutesToSkill("переведи задачу про врача в ожидание", "task-status", false);
     }
 
     private void assertRoutesToSkill(String text, String expectedSkill, boolean expectedShared) {
