@@ -4,12 +4,14 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.finance.http.CategoryClient;
 import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
+import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
@@ -49,6 +51,7 @@ class TransactionEditorTest {
     private final LlmClient llm = mock(LlmClient.class);
     private final SpendingReads spendingReads = mock(SpendingReads.class);
     private final TransactionClient transactions = mock(TransactionClient.class);
+    private final CategoryClient categories = mock(CategoryClient.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -60,7 +63,13 @@ class TransactionEditorTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(skill));
 
     private final TransactionEditor editor =
-            new TransactionEditor(llm, manifest, skills, spendingReads, transactions, json);
+            new TransactionEditor(llm, manifest, skills, spendingReads, transactions, categories, json);
+
+    {
+        // decorateAsync fetches the household's categories on every pick turn; default to none so the
+        // amount/note cases don't need to care. Category cases stub a real list.
+        when(categories.list(any())).thenReturn(Mono.just(List.of()));
+    }
 
     @Test
     void amountEditConfirmsFirst() {
@@ -177,6 +186,56 @@ class TransactionEditorTest {
     }
 
     @Test
+    void recategoriseConfirmsFirst() {
+        UUID household = UUID.randomUUID();
+        UUID txId = UUID.randomUUID();
+        when(spendingReads.households(eq(household), any(), eq(true)))
+                .thenReturn(Mono.just(List.of(household)));
+        when(transactions.list(eq(household), anyInt())).thenReturn(Mono.just(List.of(
+                tx(txId, "-3.50", "EUR", "coffee", Instant.parse("2026-06-02T08:00:00Z")))));
+        // The household's existing categories are injected into the prompt (decorateAsync).
+        when(categories.list(eq(household))).thenReturn(Mono.just(List.of(
+                cat("Еда"), cat("Такси"))));
+        when(llm.chat(any(LlmChatRequest.class)))
+                .thenReturn(Mono.just(reply("mock-large", "{\"pick\":1,\"newCategory\":\"Еда\"}")));
+
+        StepVerifier.create(editor.edit(message(household, "переведи трату про кофе в категорию Еда")))
+                .assertNext(r -> {
+                    assertThat(r.text()).contains("Изменить трату").contains("coffee").contains("Еда");
+                    assertThat(r.pendingAction()).isNotNull();
+                    assertThat(r.pendingAction().path("newCategory").asString()).isEqualTo("Еда");
+                })
+                .verifyComplete();
+
+        verify(transactions, never()).update(any(), any());
+    }
+
+    @Test
+    void resumeRecategoriseResolvesNameToId() {
+        UUID household = UUID.randomUUID();
+        UUID txId = UUID.randomUUID();
+        UUID foodCatId = UUID.randomUUID();
+        when(transactions.fetch(eq(txId)))
+                .thenReturn(Mono.just(Optional.of(txIn(txId, household, "-3.50", "EUR", "coffee"))));
+        when(categories.list(eq(household))).thenReturn(Mono.just(List.of(
+                catWithId(foodCatId, "Еда"), cat("Такси"))));
+        when(transactions.update(eq(txId), any(UpdateTransactionInput.class)))
+                .thenReturn(Mono.just(tx(txId, "-3.50", "EUR", "coffee", Instant.now())));
+
+        ObjectNode pending = pending(txId, "«coffee» на 3.50 EUR");
+        pending.put("newCategory", "еда"); // case-insensitive match to the existing "Еда"
+
+        StepVerifier.create(editor.resume(new ResumeRequest(
+                        message(UUID.randomUUID(), "да"), pending)))
+                .assertNext(r -> assertThat(r.text()).contains("Изменил трату"))
+                .verifyComplete();
+
+        ArgumentCaptor<UpdateTransactionInput> captor = ArgumentCaptor.forClass(UpdateTransactionInput.class);
+        verify(transactions).update(eq(txId), captor.capture());
+        assertThat(captor.getValue().categoryId()).isEqualTo(foodCatId); // resolved name → id
+    }
+
+    @Test
     void resumeDeclineLeavesIt() {
         UUID txId = UUID.randomUUID();
         ObjectNode pending = pending(txId, "«coffee» на 3.50 EUR");
@@ -206,6 +265,19 @@ class TransactionEditorTest {
     private static FinTransactionDto tx(UUID id, String amount, String currency, String note, Instant ts) {
         return new FinTransactionDto(id, null, null, null, null,
                 new BigDecimal(amount), currency, ts, note, "manual", null, ts);
+    }
+
+    private static FinTransactionDto txIn(UUID id, UUID household, String amount, String currency, String note) {
+        return new FinTransactionDto(id, household, null, null, null,
+                new BigDecimal(amount), currency, Instant.now(), note, "manual", null, Instant.now());
+    }
+
+    private static FinCategoryDto cat(String name) {
+        return new FinCategoryDto(UUID.randomUUID(), null, null, name, "expense", null);
+    }
+
+    private static FinCategoryDto catWithId(UUID id, String name) {
+        return new FinCategoryDto(id, null, null, name, "expense", null);
     }
 
     private static LlmChatResponse reply(String model, String text) {

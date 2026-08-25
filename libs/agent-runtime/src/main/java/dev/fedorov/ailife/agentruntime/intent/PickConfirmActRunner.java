@@ -92,14 +92,14 @@ public final class PickConfirmActRunner<T> {
             return Mono.just(reply(phrasing.noHousehold(), null));
         }
         return flow.candidates(msg)
-                .flatMap(items -> resolveAndConfirm(userText, items))
+                .flatMap(items -> resolveAndConfirm(msg, userText, items))
                 .onErrorResume(e -> {
                     log.warn("{} failed: {}", flow.flow(), e.toString());
                     return Mono.just(reply(phrasing.readFailed(), null));
                 });
     }
 
-    private Mono<IntentResponse> resolveAndConfirm(String userText, List<T> items) {
+    private Mono<IntentResponse> resolveAndConfirm(NormalizedMessage msg, String userText, List<T> items) {
         if (items == null || items.isEmpty()) {
             return Mono.just(reply(phrasing.emptyPool(), null));
         }
@@ -110,12 +110,17 @@ public final class PickConfirmActRunner<T> {
         userMsg.set("candidates", candidateList(candidates));
         flow.decorateUserMessage(userMsg);
 
-        LlmChatRequest req = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
-                LlmMessage.system(manifest.body()),
-                LlmMessage.system(skillBody()),
-                LlmMessage.user(userMsg.toString())), 0.0);
-
-        return llm.chat(req).map(resp -> pickReply(parsePick(resp.content()), candidates, resp.model()));
+        // Merge any async per-request context (e.g. the household's category list) before the LLM call, then
+        // classify. decorateAsync defaults to empty, so every non-category flow keeps its single-step shape.
+        return flow.decorateAsync(msg)
+                .doOnNext(extra -> extra.properties().forEach(e -> userMsg.set(e.getKey(), e.getValue())))
+                .then(Mono.defer(() -> {
+                    LlmChatRequest req = LlmChatRequest.of(LlmChannel.DEFAULT, List.of(
+                            LlmMessage.system(manifest.body()),
+                            LlmMessage.system(skillBody()),
+                            LlmMessage.user(userMsg.toString())), 0.0);
+                    return llm.chat(req).map(resp -> pickReply(parsePick(resp.content()), candidates, resp.model()));
+                }));
     }
 
     private IntentResponse pickReply(Pick pick, List<T> candidates, String model) {

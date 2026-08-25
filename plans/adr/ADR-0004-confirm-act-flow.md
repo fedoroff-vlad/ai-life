@@ -121,6 +121,24 @@ asserting confirm / ambiguous / no-match / resume-affirmative / decline over the
 `move()`/`resume()` surface. **The lift is accepted only if those tests pass unchanged** — that is the
 guarantee behavior did not move — plus the new runner test.
 
+### Follow-on extension — async per-request pick context (`decorateAsync`, #486/Track H.2)
+
+The finance **category** edit (the first edit hole after PR-1/PR-2) needed the pick prompt to carry data
+the flow must *fetch* — the household's **existing** category names — so the model only ever names a
+category that exists (never invents one). The existing `decorateUserMessage(ObjectNode)` hook is
+synchronous, so a new **additive** seam was added to `TargetedActionFlow`:
+
+```java
+default Mono<ObjectNode> decorateAsync(NormalizedMessage msg) { return Mono.empty(); }
+```
+
+The runner fetches it after `candidates()` and merges its fields into the LLM user message before the
+pick. Default is empty, so every existing flow is unchanged (proven by the runner test unchanged + a new
+merge case). `TransactionEditor` is the first consumer; `act` then resolves the chosen name → id within
+the row's own household (case-insensitive; errors on a genuinely unknown name, so a re-categorise never
+silently writes a wrong/invented category). Creating a category from an edit stays out of scope
+(that is `category-manager`'s job).
+
 ## Slicing (2 PRs, by seam complexity)
 - **PR-1** — the primitive (`TargetedActionFlow` + `CandidateView` + `PickConfirmActRunner` + its test)
   and retrofit the **3 delete flows** (seam: `act = delete`, `missing` = default). Proves the core seam

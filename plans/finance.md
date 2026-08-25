@@ -76,7 +76,11 @@ re-asks when only a target was named (`missing` gate), asks to confirm otherwise
 route-locks), and only the "да" reply writes via a **new** mcp-finance `PUT /internal/transaction/{id}`
 passthrough (`TransactionClient.update` → the existing `update_transaction` tool). Sign discipline is the
 agent's: the new magnitude is re-signed from the existing row (expense<0 / income>0), never trusted from the
-LLM. **Category re-assignment** (needs a category name→id resolution) is the remaining queued follow-up.
+LLM. **Category re-assignment** is supported too and is **existing-only**: the runner's `decorateAsync` hook
+(ADR-0004) injects the household's existing category names into the pick prompt so the LLM names only a
+real category, and `act` resolves that name→id within the row's own household (case-insensitive; honest
+error on a genuinely unknown name — never invents one). Creating a category from an edit stays
+`category-manager`'s job.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали трату про X / последнюю
@@ -91,6 +95,9 @@ LLM. **Category re-assignment** (needs a category name→id resolution) is the r
   the "да" reply PUTs only the changed fields (sign preserved) and confirms.
 - Scenario: **named a trata but no change.** WHEN the owner names a trata to edit but does not say what to
   change → THEN finance asks what to change, rather than writing nothing or guessing.
+- Scenario: **re-categorise to an existing category.** WHEN the owner says "переведи трату про X в категорию
+  Y" and Y is one of the household's categories → THEN finance confirms and, on "да", re-assigns the trata
+  to Y (resolved name→id, never cross-household); a category the household does not have is not invented.
 
 ## Reminders → scheduler-service
 `fin_recurring.auto_remind=true` → agent registers `mcp-scheduler.schedule_recurring(target=finance, payload=pay X)`. Scheduler wakes finance-agent via orchestrator on due date.
