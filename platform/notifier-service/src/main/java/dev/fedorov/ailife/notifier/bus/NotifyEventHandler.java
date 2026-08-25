@@ -64,7 +64,9 @@ public class NotifyEventHandler {
         }
 
         // Blocking is fine: the listener runs the handler on its own drain thread.
-        ResponseEntity<Void> outcome = sender.send(event.userId(), event.text()).block(SEND_TIMEOUT);
+        ResponseEntity<Void> outcome = sender
+                .send(event.userId(), event.text(), event.proactive(), event.source())
+                .block(SEND_TIMEOUT);
         HttpStatusCode status = outcome == null ? null : outcome.getStatusCode();
         if (status != null && status.is2xxSuccessful()) {
             log.debug("delivered {} to user {} (source={})",

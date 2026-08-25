@@ -14,10 +14,19 @@ import java.util.UUID;
  * A producer that wants to reach a whole household enumerates its members and emits one
  * event per user — knowing who is in a household is a domain concern, not notifier's.
  * {@code source} is free-text provenance for audit (e.g. {@code "calendar.birthday"}).
+ *
+ * <p>{@code proactive} marks a push notifier may gate under the owner's proactive-UX preferences
+ * (quiet hours / caps, #487). The three-arg constructor keeps existing producers compiling
+ * ({@code proactive=false}); a missing field also deserialises to {@code false}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record NotifyRequestedEvent(UUID userId, String text, String source) {
+public record NotifyRequestedEvent(UUID userId, String text, String source, boolean proactive) {
 
     /** Bus topic this event is published under. */
     public static final String TOPIC = "notify.requested";
+
+    /** Back-compat / reactive default: an event that is never proactively gated. */
+    public NotifyRequestedEvent(UUID userId, String text, String source) {
+        this(userId, text, source, false);
+    }
 }

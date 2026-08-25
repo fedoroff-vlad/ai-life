@@ -25,6 +25,6 @@ public class NotifyController {
         if (request.userId() == null || request.text() == null || request.text().isBlank()) {
             return Mono.just(ResponseEntity.badRequest().build());
         }
-        return sender.send(request.userId(), request.text());
+        return sender.send(request.userId(), request.text(), request.proactive(), null);
     }
 }
