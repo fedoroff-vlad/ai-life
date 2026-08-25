@@ -74,6 +74,12 @@
             <artifactId>spring-boot-webtestclient</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>golden-test-support</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
