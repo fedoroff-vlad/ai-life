@@ -30,7 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {
                         "notifier.internal-api-token=test-token",
-                        "event-bus.poll-millis=500"
+                        "event-bus.poll-millis=500",
+                        "notifier.held-redrain-enabled=false"
                 })
 class NotifyEventConsumerIntegrationTest extends AbstractPostgresIntegrationTest {
 
