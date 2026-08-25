@@ -10,8 +10,9 @@ Manifest, intent and the first trigger (`weekly.review`) are real. `intent` rout
 MCP client disabled it falls back to a plain chat. Intent skills are skills with no `triggers`
 (user-invoked, not scheduler-fired) — `inbox-clarify`, `next-action-suggester`, `task-capture`
 (the sharing write path, ADR-0002 slice 5), `task-delete` (delete a task by description behind a
-confirm gate, #486/Track H.2) and `task-edit` (rename/reschedule/correct a task behind a confirm gate,
-#486/Track H.2); when the router picks one, `IntentController` runs that
+confirm gate, #486/Track H.2), `task-edit` (rename/reschedule/correct a task behind a confirm gate,
+#486/Track H.2) and `task-status` (move a task to a new GTD status behind a confirm gate, #486/Track H.2);
+when the router picks one, `IntentController` runs that
 skill's flow. `triggers/{kind}` resolves a skill from the
 `SkillRegistry`, enriches the wake payload, runs the skill (LLM with AGENT.md + SKILL.md), and fans
 the result out to the household — unknown kinds still 404.
@@ -25,8 +26,8 @@ in dev/degraded environments.
 | method | path | purpose |
 |--------|------|---------|
 | GET  | `/agents/tasks/manifest`        | parsed AGENT.md (orchestrator scrapes at startup) |
-| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture` / `task-delete` / `task-edit`), or a chat reply (`IntentRouter`) |
-| POST | `/agents/tasks/resume`          | hit when the user replies to an open tasks question (route-locked); dispatches on `pendingAction.flow` (`inbox-clarify-apply` / `task-delete-confirm` / `task-edit-confirm` / `sharing-confirm`) |
+| POST | `/agents/tasks/intent`          | LLM routes to an mcp-tasks tool call, an intent skill (`inbox-clarify` / `next-action-suggester` / `task-capture` / `task-delete` / `task-edit` / `task-status`), or a chat reply (`IntentRouter`) |
+| POST | `/agents/tasks/resume`          | hit when the user replies to an open tasks question (route-locked); dispatches on `pendingAction.flow` (`inbox-clarify-apply` / `task-delete-confirm` / `task-edit-confirm` / `task-status-confirm` / `sharing-confirm`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
 | POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
 | POST | `/agents/tasks/actions/{action}` | inter-agent action (C1 envelope). `undo` reverses a just-captured task by deleting it — the "отмени последнее" reversal (#486/H3) |
@@ -53,7 +54,8 @@ in dev/degraded environments.
 - `web/ResumeController` — `POST /agents/tasks/resume`; hit when the user replies to an open tasks
   question (conversation route-locked to tasks). Dispatches on `pendingAction.flow`: `inbox-clarify-apply`
   → `InboxClarifier.resume`, `task-delete-confirm` → `TaskDeleter.resume` (confirm-before-delete, #486/Track
-  H.2), `task-edit-confirm` → `TaskEditor.resume` (confirm-before-change edit, #486/Track H.2), or
+  H.2), `task-edit-confirm` → `TaskEditor.resume` (confirm-before-change edit, #486/Track H.2),
+  `task-status-confirm` → `TaskStatusMover.resume` (GTD state-move, #486/Track H.2), or
   `sharing-confirm` → `libs/sharing`'s `SharingConfirm.resume` with
   `TaskCapturer::finishCapture` (ADR-0002 item 8 DS-N — finish a deferred capture into the household the
   owner just chose).
@@ -96,7 +98,17 @@ in dev/degraded environments.
   ambiguous lists, none/miss asks. `resume(req)`: an affirmative PUTs only the changed fields via
   `UpdateTaskClient` (mcp-tasks `PUT /internal/task/{id}`), anything else leaves it; either reply clears the
   lock. The first non-calendar **update** consumer of `PickConfirmActRunner` on the tasks path (status moves
-  stay clarify/complete's job, not this flow). Mirrors notes' `NoteEditor` + calendar's `EventMover`.
+  are `TaskStatusMover`'s job, a different GTD verb). Mirrors notes' `NoteEditor` + calendar's `EventMover`.
+- `intent/TaskStatusMover` — the user-facing **GTD state-move** flow (#486/Track H.2), behind a
+  **confirm-before-change** gate. `move(msg)`: read the owner's tasks (personal ∪ shared via
+  `TaskReads.openTasksUnion`, any status) → LLM pick + the new GTD status (`task-status` SKILL, temperature 0)
+  returning `{"pick":n,"newStatus":"done|next|waiting|scheduled|inbox|dropped"}` / `{"pick":n}` /
+  `{"ambiguous":[…]}` / `{}` → a single match with a valid status replies with a `pendingAction` asking to
+  confirm (writes nothing); a pick with no/invalid status re-asks (`missing`), ambiguous lists, none/miss
+  asks. `resume(req)`: an affirmative applies the status via `ClarifyClient` (mcp-tasks
+  `POST /internal/clarify` → `clarify_task`, which keeps `completed_at` consistent with `done`); anything
+  else leaves it. Unlike `TaskEditor` (content edit via `update_task`), a status change is a different GTD
+  verb, so it routes through clarify, not update — **no mcp-tasks change was needed**. Mirrors `TaskEditor`.
 - `capture/TaskCapturer` — the sharing **write path** (ADR-0002 slice 5): runs the `task-capture`
   flow. The LLM plans `{title, note?, shared?}`, the shared `SharingResolver` (wired with
   `sharing/TasksSharingPolicy`) routes it to the personal or the shared household, then `AddTaskClient`
@@ -137,6 +149,9 @@ in dev/degraded environments.
   just-captured task #486/H3 — and the user-facing `task-delete` #486/Track H.2).
 - `http/UpdateTaskClient` — `PUT /internal/task/{id}` passthrough (partial content edit: title/note/due),
   the write behind the user-facing `task-edit` flow (#486/Track H.2).
+- `http/ClarifyClient` — `POST /internal/clarify` passthrough (apply a GTD `clarify_task`). Two consumers:
+  `InboxClarifier` (apply each proposal on confirm) and `TaskStatusMover` (the state-move write — a status
+  change keeps `completed_at` consistent with `done`, #486/Track H.2).
 - `flow/TaskToEventService` — the task-to-event chain (Stage 4 / C1): orchestrator `/v1/agents/invoke`
   (calendar `create_event`) via `OrchestratorInvokeClient` → records the `eventUid` via mcp-tasks
   `/internal/link-event` via `LinkEventClient`. Always returns an `AgentActionResult`; calendar
@@ -170,3 +185,7 @@ Skills live beside the agent under `domains/tasks/skills/<name>/SKILL.md`.
 - `task-edit` — reactive (user-invoked, e.g. "переименуй задачу про молоко в …", "перенеси срок задачи про
   врача на завтра"): picks the task **and** the change (new title / due / note) and **saves only after the
   user confirms** ("да"), via the route-lock / resume mechanism (#486/Track H.2 — the per-domain edit hole).
+- `task-status` — reactive (user-invoked, e.g. "отметь задачу про молоко выполненной", "перенеси задачу про
+  врача в ожидание"): picks the task **and** the new GTD status (done/next/waiting/scheduled/inbox/dropped)
+  and **applies it only after the user confirms** ("да"), via the route-lock / resume mechanism — the write
+  goes through `clarify_task`, not `update_task` (#486/Track H.2 — the per-domain state-move hole).

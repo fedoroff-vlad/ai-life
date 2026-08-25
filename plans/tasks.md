@@ -107,8 +107,17 @@ LLM pick the target task from the owner's open tasks (same `read/TaskReads` unio
 the user gave (`newTitle` / `newDue` ISO / `newNote`); `TaskEditor` re-asks when only a target was named
 (`missing` gate), asks to confirm otherwise (a `pendingAction` route-locks), and only the "да" reply writes
 via a **new** mcp-tasks `PUT /internal/task/{id}` passthrough (`UpdateTaskClient` → the existing `update_task`
-tool — partial edit, untouched fields preserved). Status moves ("сделал"/"готово") stay clarify/complete's
-job, not this flow. State-move-via-chat is the remaining queued follow-up.
+tool — partial edit, untouched fields preserved).
+
+Third hole: **move a task's GTD status via chat** ("отметь задачу про X выполненной", "перенеси задачу про
+врача в ожидание", "отложи задачу X"), behind a **confirm-before-change** gate, on the same ADR-0004
+`PickConfirmActRunner`. A new `task-status` intent skill lets the LLM pick the target **and** the new status
+(one of the six GTD states: inbox|next|waiting|scheduled|done|dropped); `TaskStatusMover` re-asks when the
+status is missing/invalid (`missing` gate), asks to confirm otherwise, and only the "да" reply writes via the
+**existing** `POST /internal/clarify` passthrough (`ClarifyClient` → `clarify_task`, which keeps `completed_at`
+consistent with `done`). A status change is a **different GTD verb** than a content edit, so it routes through
+clarify, not `update_task` — **no mcp-tasks change was needed**. This closes the tasks H.2 edit holes
+(delete · edit · state-move).
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали задачу про X" → THEN tasks
@@ -123,6 +132,11 @@ job, not this flow. State-move-via-chat is the remaining queued follow-up.
   the "да" reply PUTs only the changed fields and confirms.
 - Scenario: **named a task but no change.** WHEN the owner names a task to edit but does not say what to
   change → THEN tasks asks what to change, rather than writing nothing or guessing.
+- Scenario: **state move confirms first.** WHEN the owner says "отметь задачу про X выполненной" (or another
+  GTD state) → THEN tasks resolves the target from context, echoes the target status, and asks to confirm
+  before applying; the "да" reply moves the task's status (via `clarify_task`) and confirms.
+- Scenario: **named a task but no clear status.** WHEN the owner names a task to move but not a clear target
+  state → THEN tasks asks which status, rather than guessing.
 
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers

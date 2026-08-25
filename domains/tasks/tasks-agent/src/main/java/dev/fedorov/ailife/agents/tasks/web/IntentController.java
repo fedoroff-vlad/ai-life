@@ -6,6 +6,7 @@ import dev.fedorov.ailife.agents.tasks.intent.IntentRouter;
 import dev.fedorov.ailife.agents.tasks.intent.NextActionSuggester;
 import dev.fedorov.ailife.agents.tasks.intent.TaskDeleter;
 import dev.fedorov.ailife.agents.tasks.intent.TaskEditor;
+import dev.fedorov.ailife.agents.tasks.intent.TaskStatusMover;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -37,10 +38,12 @@ public class IntentController {
     private final TaskCapturer taskCapturer;
     private final TaskDeleter taskDeleter;
     private final TaskEditor taskEditor;
+    private final TaskStatusMover taskStatusMover;
 
     public IntentController(IntentRouter router, AgentManifest manifest,
                            InboxClarifier inboxClarifier, NextActionSuggester nextActionSuggester,
-                           TaskCapturer taskCapturer, TaskDeleter taskDeleter, TaskEditor taskEditor) {
+                           TaskCapturer taskCapturer, TaskDeleter taskDeleter, TaskEditor taskEditor,
+                           TaskStatusMover taskStatusMover) {
         this.router = router;
         this.manifest = manifest;
         this.inboxClarifier = inboxClarifier;
@@ -48,6 +51,7 @@ public class IntentController {
         this.taskCapturer = taskCapturer;
         this.taskDeleter = taskDeleter;
         this.taskEditor = taskEditor;
+        this.taskStatusMover = taskStatusMover;
     }
 
     @PostMapping("/intent")
@@ -72,6 +76,9 @@ public class IntentController {
                     }
                     if (TaskEditor.SKILL_NAME.equals(r.invokedSkill())) {
                         return taskEditor.edit(message);
+                    }
+                    if (TaskStatusMover.SKILL_NAME.equals(r.invokedSkill())) {
+                        return taskStatusMover.move(message);
                     }
                     return Mono.just(new IntentResponse(manifest.name(), r.text(), r.llmModel()));
                 });
