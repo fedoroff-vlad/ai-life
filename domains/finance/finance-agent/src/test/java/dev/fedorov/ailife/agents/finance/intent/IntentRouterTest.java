@@ -67,6 +67,7 @@ class IntentRouterTest {
     private final CategoryManager categoryManager = mock(CategoryManager.class);
     private final AccountManager accountManager = mock(AccountManager.class);
     private final TransactionDeleter transactionDeleter = mock(TransactionDeleter.class);
+    private final TransactionEditor transactionEditor = mock(TransactionEditor.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentManifest manifest = new AgentManifest(
             "finance", "test", "0.0.1", 0,
@@ -80,7 +81,7 @@ class IntentRouterTest {
     private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router =
             new IntentRouter(llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter,
-                    categoryManager, accountManager, transactionDeleter, manifest, skills, classifier);
+                    categoryManager, accountManager, transactionDeleter, transactionEditor, manifest, skills, classifier);
 
     /** A minimal text message — what the orchestrator forwards on a user intent. */
     private static NormalizedMessage msg(String text) {

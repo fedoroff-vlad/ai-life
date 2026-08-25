@@ -69,7 +69,7 @@ class GoldenRoutingTest {
 
     /** The contract actions the classifier prompt allows. */
     private static final Set<String> ACTIONS =
-            Set.of("tool", "advice", "report", "invest", "category", "account", "chat");
+            Set.of("tool", "advice", "report", "invest", "category", "account", "delete", "edit", "chat");
 
     /** The mcp-finance tools the dispatcher exposes (must match the canonical tool set). */
     private static final List<ToolDefinition> TOOLS = List.of(
@@ -99,6 +99,7 @@ class GoldenRoutingTest {
     private final CategoryManager categoryManager = mock(CategoryManager.class);
     private final AccountManager accountManager = mock(AccountManager.class);
     private final TransactionDeleter transactionDeleter = mock(TransactionDeleter.class);
+    private final TransactionEditor transactionEditor = mock(TransactionEditor.class);
     private final AgentManifest manifest = new AgentManifest(
             "finance", "finance agent", "0.1.0", 8093,
             List.of(), List.of(), List.of(), List.of(),
@@ -110,12 +111,12 @@ class GoldenRoutingTest {
     private final SkillClassifier classifier = new SkillClassifier(json);
     private final IntentRouter router = new IntentRouter(
             llm, dispatcher, advisor, investmentAdvisor, monthlyReporter, yearReporter, categoryManager,
-            accountManager, transactionDeleter, manifest, skills, classifier);
+            accountManager, transactionDeleter, transactionEditor, manifest, skills, classifier);
 
     private static SkillRegistry loadFinanceSkills() {
         List<Skill> loaded = new java.util.ArrayList<>();
         for (String name : List.of("financial-advisor", "investment-advisor", "monthly-report",
-                "year-report", "category-manager", "account-manager", "transaction-delete")) {
+                "year-report", "category-manager", "account-manager", "transaction-delete", "transaction-edit")) {
             String path = "skills/finance/" + name + "/SKILL.md";
             try (var in = GoldenRoutingTest.class.getClassLoader().getResourceAsStream(path)) {
                 assertThat(in).as("classpath resource %s (finance skills are copied by the module pom)", path).isNotNull();

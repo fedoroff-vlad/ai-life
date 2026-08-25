@@ -115,9 +115,21 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   Status moves stay clarify/complete's job. Proven by `TaskEditorTest` (confirm / ask-when-no-change /
   ambiguous / no-match / resume-updates / decline) + a PUT case in `McpTasksIntegrationTest` + `task-edit`
   added to the tasks routing golden. Detail → [tasks.md](tasks.md) §H.2.
-  **NEXT: the remaining H.2 edit holes** — finance (change amount/category of the last trata; needs a new
-  mcp-finance update endpoint) + the tasks state-move-via-chat follow-up (clarify/complete rather than
-  `update_task`). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  **finance edit ✅ (2026-08-25)** — a new `transaction-edit` intent skill (the `edit` classifier action) +
+  `TransactionEditor` flow on finance's own `IntentRouter` path, behind a confirm-before-change gate: read the
+  owner's recent transactions (personal ∪ shared, same read as delete) → the LLM picks the target **and**
+  extracts the change (`newAmount` magnitude / `newNote`) → reply asks to confirm (a `pendingAction`
+  route-locks; nothing written); a bare pick re-asks; the "да" hits `POST /agents/finance/resume`
+  (`transaction-edit-confirm` → `TransactionEditor.resume`) → re-reads the row to keep the sign convention
+  (expense<0 / income>0 — magnitude re-signed from the existing row, never trusted from the LLM) → PUTs only
+  the changed fields via a **new** mcp-finance `PUT /internal/transaction/{id}` passthrough
+  (`TransactionClient.update` → the existing `update_transaction` tool). Scope: **amount + note** — category
+  re-assignment (name→id resolution) deferred as the next follow-up. Proven by `TransactionEditorTest`
+  (confirm / ask-when-no-change / ambiguous / no-match / resume-updates-keeping-sign / decline) + a PUT case
+  in `McpFinanceIntegrationTest` + `edit` added to the finance routing golden. Detail → [finance.md](finance.md) §H.2.
+  **NEXT: the remaining H.2 edit follow-ups** — finance category re-assignment (needs a category name→id
+  resolution step) + the tasks state-move-via-chat follow-up (clarify/complete rather than `update_task`).
+  Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity
