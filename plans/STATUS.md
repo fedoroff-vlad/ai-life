@@ -44,25 +44,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477), reconcile empty `shared/skills/`
   doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478); + the model-gated Bucket 2 cutover
   [#369](https://github.com/fedoroff-vlad/ai-life/issues/369).
-  **NEW thread — confirm-act flow duplication [#547](https://github.com/fedoroff-vlad/ai-life/issues/547):**
-  the `read candidates → LLM picks → confirm via pendingAction → resume → act` loop is copy-pasted across 5
-  flows (delete×3 + calendar cancel/move) and grows with each per-domain edit hole. **ADR-0004 ✅ Accepted
-  (2026-08-23, owner-approved)** ([adr/ADR-0004-confirm-act-flow.md](adr/ADR-0004-confirm-act-flow.md)): lift
-  a generic `PickConfirmAct` primitive into `libs/agent-runtime/intent/` (terminal act as a seam: delete |
-  update; a `missing`-field re-ask gate for move/edit); mcp-side base CRUD explicitly out of scope. **PR-1 ✅
-  (2026-08-23)** — the primitive landed in `agent-runtime/intent/` (`PickConfirmActRunner` +
-  `TargetedActionFlow` + `CandidateView` + `Nouns`, `PickConfirmActRunnerTest` 12 cases) and the 3 delete
-  flows (`TaskDeleter`/`TransactionDeleter`/`NoteDeleter`) collapsed onto it as ~30-line adapters
-  (`candidates`/`view`/`act`/`nouns`); their 5+5+6 existing tests pass **unchanged** (pure-refactor safety
-  net — legacy `idField`/`labelField` names kept via seam overrides, new flows take the `targetId`/`label`
-  defaults). **PR-2 ✅ (2026-08-23) — ADR-0004 epic COMPLETE.** Calendar `EventCanceller` + `EventMover`
-  retrofitted onto the runner — the first non-delete consumers, proving the move seam: the wording that
-  didn't fit the delete template lifted into a `Phrasing` seam (`NounPhrasing` = the delete default, kept
-  byte-identical; calendar supplies its own), plus the `missing()` re-ask gate (picked event, no new time),
-  `readyToAct()` (resume needs the stashed time), top-level `params` passthrough (the new time threaded
-  through the `pendingAction`, so `EventMoverTest`'s `dtstart` assertion holds), and `requiresHousehold=false`
-  + `decorateUserMessage` (`now`). Their 3+4 `@SpringBootTest` tests pass **unchanged**; the runner test grew
-  to cover the move branches. #547 can close. Next #479 thread: personalization-profile capability
+  **confirm-act flow dedup [#547](https://github.com/fedoroff-vlad/ai-life/issues/547) — ✅ DONE, #547 closed
+  (2026-08-23).** ADR-0004 lifted the copy-pasted `read candidates → LLM picks → pendingAction confirm →
+  resume → act` loop into a generic `PickConfirmActRunner` (`libs/agent-runtime/intent/`, act as a delete|update
+  seam + a `missing`-field re-ask gate) and retrofitted all five confirm-act flows onto it (delete×3 + calendar
+  cancel/move; the H.2 edits above then rode it too). Detail → [HISTORY.md](HISTORY.md) +
+  [ADR-0004](adr/ADR-0004-confirm-act-flow.md). **Next #479 thread:** personalization-profile capability
   [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) (ADR first), or another epic item.
 - **lists capability is COMPLETE (LI-a + LI-b + LI-c).** LI-c
   (feat/lists-li-c-packing-note) closed the last piece: `travel-agent`'s `PackingFlow` now best-effort
