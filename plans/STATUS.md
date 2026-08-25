@@ -105,9 +105,19 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   untouched fields). First non-calendar **update** consumer of `PickConfirmActRunner`. Proven by
   `NoteEditorTest` (confirm / ask-when-no-change / ambiguous / no-match / list-excluded / resume-updates /
   decline) + `note-edit` added to the notes routing golden. Detail → [second-brain.md](second-brain.md) §H.2.
+  **tasks edit ✅ (2026-08-25)** — a new `task-edit` intent skill + `TaskEditor` flow on the tasks
+  `IntentRouter` path, behind a confirm-before-change gate: read the owner's open tasks (personal ∪ shared via
+  `TaskReads.openTasksUnion`) → the LLM picks the target **and** extracts the change (`newTitle` / `newDue`
+  ISO / `newNote`, `now` for relative dates) → reply asks to confirm (a `pendingAction` route-locks; nothing
+  written); a bare pick with no change re-asks; the "да" hits `POST /agents/tasks/resume`
+  (`task-edit-confirm` → `TaskEditor.resume`) → PUTs only the changed fields via a **new** mcp-tasks
+  `PUT /internal/task/{id}` passthrough (`UpdateTaskClient` → the existing `update_task` tool, partial edit).
+  Status moves stay clarify/complete's job. Proven by `TaskEditorTest` (confirm / ask-when-no-change /
+  ambiguous / no-match / resume-updates / decline) + a PUT case in `McpTasksIntegrationTest` + `task-edit`
+  added to the tasks routing golden. Detail → [tasks.md](tasks.md) §H.2.
   **NEXT: the remaining H.2 edit holes** — finance (change amount/category of the last trata; needs a new
-  mcp-finance update endpoint) + tasks rename/state-move/due-edit (mcp-tasks `updateTask` tool exists; needs
-  an `/internal` PUT passthrough). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  mcp-finance update endpoint) + the tasks state-move-via-chat follow-up (clarify/complete rather than
+  `update_task`). Epic queue → [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#485 transparency — ✅ COMPLETE (2026-08-20).** All three threads done: degraded-notice board
   rollout + "why did you do that" trace (G1 routing via `ExplainResponder` + G2 agent write-traces across
   tasks/finance/notes/docs/nutrition, `GoldenExplainTraceTest` on a real model) + finance/calendar **sanity

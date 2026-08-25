@@ -64,6 +64,12 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   deleted row, delegating to the `delete_task` tool. The deterministic reversal behind
   the "отмени последнее" undo primitive (road-test #486, Track H): tasks-agent's
   `/actions/undo` calls it to reverse a just-captured task. Unknown id → 404.
+- `PUT /internal/task/{id}` (body `UpdateTaskInput`) → `TaskItemDto` | 404 — partial content
+  edit (title/note/context/due/…, non-null fields only), delegating to the `update_task` tool;
+  the path id is authoritative (overrides the body id). The deterministic write behind
+  tasks-agent's user-facing `task-edit` chat flow (road-test #486, Track H.2). Status moves go
+  through `clarify_task`/`complete_task`, not here. Unknown id → 404. Mirrors mcp-caldav's
+  `PUT /internal/event/{id}`.
 - `POST /internal/clarify` (body `ClarifyTaskInput`) → `TaskItemDto` | 400 —
   applies a GTD clarification, delegating to the `clarify_task` tool (status
   whitelist + cross-household project guard apply). Used by tasks-agent's
@@ -114,10 +120,12 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 - `web/InternalLinkEventController` — `POST /internal/link-event`, delegates to `link_task_to_event` (400 on bad input / unknown id).
 - `web/InternalClarifyController` — `POST /internal/clarify`, delegates to
   `TasksMcpTools.clarifyTask` (validation failures → 400).
-- `web/InternalAddTaskController` — `POST /internal/task` (capture) + `DELETE /internal/task/{id}`
+- `web/InternalAddTaskController` — `POST /internal/task` (capture) + `PUT /internal/task/{id}`
+  (partial edit → the `task-edit` chat flow, #486/Track H.2) + `DELETE /internal/task/{id}`
   (delete → the undo reversal, #486/H3), delegates to `TasksMcpTools.addTask` /
-  `TasksMcpTools.deleteTask` (validation failures → 400, unknown id on delete → 404). The sharing
-  write path's capture passthrough (ADR-0002 slice 5) + the undo reversal (Track H).
+  `TasksMcpTools.updateTask` / `TasksMcpTools.deleteTask` (validation failures → 400, unknown id on
+  update/delete → 404). The sharing write path's capture passthrough (ADR-0002 slice 5) + the edit
+  passthrough (Track H.2) + the undo reversal (Track H).
 
 ## Schema
 

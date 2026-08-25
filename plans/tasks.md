@@ -98,8 +98,17 @@ cross-cutting `undo` primitive. First hole (smallest / highest daily use): **del
 Target resolution is by context — no id: a new `task-delete` intent skill lets the LLM pick the task from
 the owner's open tasks (read via the sharing-aware `read/TaskReads` across personal ∪ shared households),
 `TaskDeleter` asks to confirm (a `pendingAction` route-locks to tasks), and only the "да" reply deletes via
-mcp-tasks' existing `DELETE /internal/task/{id}` (`DeleteTaskClient`). Rename/state-move/due-edit are queued
-follow-ups (each a further edit skill on the same path).
+mcp-tasks' existing `DELETE /internal/task/{id}` (`DeleteTaskClient`).
+
+Second hole: **edit a task via chat** ("переименуй задачу про X в …", "перенеси срок задачи про врача на
+завтра"), behind a **confirm-before-change** gate, on the shared ADR-0004 `PickConfirmActRunner` (the
+tasks-side sibling of notes' `NoteEditor` + calendar's `EventMover`). A new `task-edit` intent skill lets the
+LLM pick the target task from the owner's open tasks (same `read/TaskReads` union) **and** extract the change
+the user gave (`newTitle` / `newDue` ISO / `newNote`); `TaskEditor` re-asks when only a target was named
+(`missing` gate), asks to confirm otherwise (a `pendingAction` route-locks), and only the "да" reply writes
+via a **new** mcp-tasks `PUT /internal/task/{id}` passthrough (`UpdateTaskClient` → the existing `update_task`
+tool — partial edit, untouched fields preserved). Status moves ("сделал"/"готово") stay clarify/complete's
+job, not this flow. State-move-via-chat is the remaining queued follow-up.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали задачу про X" → THEN tasks
@@ -109,6 +118,11 @@ follow-ups (each a further edit skill on the same path).
   matches and asks which, rather than deleting the wrong one.
 - Scenario: **no match.** WHEN nothing matches the description → THEN tasks says it found no such task, never
   a silent no-op or a wrong delete.
+- Scenario: **edit confirms first.** WHEN the owner says "переименуй задачу про X в Y" (or gives a new due)
+  → THEN tasks resolves the target from context, echoes the change, and asks to confirm before writing;
+  the "да" reply PUTs only the changed fields and confirms.
+- Scenario: **named a task but no change.** WHEN the owner names a task to edit but does not say what to
+  change → THEN tasks asks what to change, rather than writing nothing or guessing.
 
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers

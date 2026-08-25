@@ -543,6 +543,44 @@ class McpTasksIntegrationTest extends AbstractPostgresIntegrationTest {
                 .expectStatus().isNotFound();
     }
 
+    @Test
+    void internalTaskUpdateEndpointPatchesFieldsAnd404OnUnknown() {
+        UUID h = UUID.randomUUID();
+        seedHousehold(h);
+        TaskItemDto captured = tools.addTask(new AddTaskInput(h, null, "черновик", null, "telegram"));
+
+        org.springframework.test.web.reactive.server.WebTestClient client =
+                org.springframework.test.web.reactive.server.WebTestClient.bindToServer()
+                        .baseUrl("http://localhost:" + port).build();
+
+        // PUT /internal/task/{id} patches only the supplied fields (the task-edit chat flow, #486/H.2):
+        // the path id is authoritative, so the body id can be null.
+        Instant due = Instant.now().plus(2, ChronoUnit.DAYS);
+        TaskItemDto updated = client.put()
+                .uri("/internal/task/{id}", captured.id())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateTaskInput(null, "итоговое название", null, null, null, null, due, null))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(TaskItemDto.class)
+                .returnResult().getResponseBody();
+        assertThat(updated).isNotNull();
+        assertThat(updated.id()).isEqualTo(captured.id());
+        assertThat(updated.title()).isEqualTo("итоговое название");
+        assertThat(updated.dueAt()).isNotNull();
+        // Untouched fields (source, status) are preserved by the partial edit.
+        assertThat(updated.source()).isEqualTo("telegram");
+        assertThat(updated.status()).isEqualTo("inbox");
+
+        // Unknown id → 404 (the tool's "Task not found" surfaces through the passthrough).
+        client.put()
+                .uri("/internal/task/{id}", UUID.randomUUID())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateTaskInput(null, "x", null, null, null, null, null, null))
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
