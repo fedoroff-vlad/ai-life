@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.finance.http;
 
 import dev.fedorov.ailife.contracts.finance.AddTransactionInput;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
+import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
@@ -28,7 +29,9 @@ import java.util.UUID;
  *   (#486/Track H): {@code ActionController.undo} calls it to reverse a just-written transaction, and the
  *   user-facing {@code transaction-delete} flow (#486/Track H.2).</li>
  *   <li>{@link #list(UUID, int)} — {@code GET /internal/transactions?householdId=&limit=}; the candidate
- *   pool for the {@code transaction-delete} flow (#486/Track H.2), newest first.</li>
+ *   pool for the {@code transaction-delete} + {@code transaction-edit} flows (#486/Track H.2), newest first.</li>
+ *   <li>{@link #update(UUID, UpdateTransactionInput)} — {@code PUT /internal/transaction/{id}}; the partial
+ *   edit behind the user-facing {@code transaction-edit} flow (#486/Track H.2).</li>
  * </ul>
  */
 @Component
@@ -68,6 +71,16 @@ public class TransactionClient {
     public Mono<FinTransactionDto> delete(UUID id) {
         return http.delete()
                 .uri("/internal/transaction/{id}", id)
+                .retrieve()
+                .bodyToMono(FinTransactionDto.class)
+                .timeout(Duration.ofSeconds(3));
+    }
+
+    public Mono<FinTransactionDto> update(UUID id, UpdateTransactionInput input) {
+        return http.put()
+                .uri("/internal/transaction/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(input)
                 .retrieve()
                 .bodyToMono(FinTransactionDto.class)
                 .timeout(Duration.ofSeconds(3));

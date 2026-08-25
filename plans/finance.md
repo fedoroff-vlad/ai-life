@@ -65,8 +65,18 @@ intent skill lets the LLM pick the transaction from the owner's recent transacti
 `GET /internal/transactions` list passthrough across personal ∪ shared households, reusing
 `read/SpendingReads.households`), `TransactionDeleter` asks to confirm (a `pendingAction` route-locks to
 finance), and only the "да" reply deletes via mcp-finance's existing `DELETE /internal/transaction/{id}`
-(`TransactionClient.delete` — the same reversal the undo primitive uses). Edit (change amount / category of
-the last trata) is a queued follow-up (a further edit skill on the same path).
+(`TransactionClient.delete` — the same reversal the undo primitive uses).
+
+Second hole: **edit a logged trata via chat** ("исправь сумму последней траты на 550", "поправь заметку у
+траты про кофе"), behind a **confirm-before-change** gate, on the shared ADR-0004 `PickConfirmActRunner` (the
+finance sibling of tasks' `TaskEditor` + notes' `NoteEditor`). A new `transaction-edit` intent skill (the
+`edit` classifier action) lets the LLM pick the target from the owner's recent transactions (same personal ∪
+shared read as delete) **and** extract the change (`newAmount` magnitude / `newNote`); `TransactionEditor`
+re-asks when only a target was named (`missing` gate), asks to confirm otherwise (a `pendingAction`
+route-locks), and only the "да" reply writes via a **new** mcp-finance `PUT /internal/transaction/{id}`
+passthrough (`TransactionClient.update` → the existing `update_transaction` tool). Sign discipline is the
+agent's: the new magnitude is re-signed from the existing row (expense<0 / income>0), never trusted from the
+LLM. **Category re-assignment** (needs a category name→id resolution) is the remaining queued follow-up.
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали трату про X / последнюю
@@ -76,6 +86,11 @@ the last trata) is a queued follow-up (a further edit skill on the same path).
   lists the matches and asks which, rather than deleting the wrong one.
 - Scenario: **no match.** WHEN nothing matches the description → THEN finance says it found no such trata,
   never a silent no-op or a wrong delete.
+- Scenario: **edit confirms first.** WHEN the owner says "исправь сумму последней траты на X" (or a new note)
+  → THEN finance resolves the target from context, echoes the change, and asks to confirm before writing;
+  the "да" reply PUTs only the changed fields (sign preserved) and confirms.
+- Scenario: **named a trata but no change.** WHEN the owner names a trata to edit but does not say what to
+  change → THEN finance asks what to change, rather than writing nothing or guessing.
 
 ## Reminders → scheduler-service
 `fin_recurring.auto_remind=true` → agent registers `mcp-scheduler.schedule_recurring(target=finance, payload=pay X)`. Scheduler wakes finance-agent via orchestrator on due date.

@@ -938,6 +938,47 @@ class McpFinanceIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void internalTransactionPutPatchesFieldsAnd404OnUnknown() {
+        FinAccountDto acc = tools.upsertAccount(new UpsertAccountInput(
+                null, householdId, null, "Internal-put-acc", "card", "EUR",
+                BigDecimal.ZERO, null));
+        FinTransactionDto created = tools.addTransaction(new AddTransactionInput(
+                householdId, acc.id(), null, null,
+                new BigDecimal("-3.50"), "EUR", Instant.parse("2026-06-01T08:00:00Z"),
+                "coffee", "telegram", null));
+
+        WebTestClient client = WebTestClient.bindToServer()
+                .baseUrl("http://localhost:" + port).build();
+
+        // PUT /internal/transaction/{id} patches only the supplied fields (the transaction-edit chat flow,
+        // #486/H.2): the path id is authoritative, so the body id can be null.
+        FinTransactionDto updated = client.put()
+                .uri("/internal/transaction/{id}", created.id())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateTransactionInput(
+                        null, null, null, null, new BigDecimal("-5.50"), null, null, "обед"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(FinTransactionDto.class)
+                .returnResult().getResponseBody();
+        assertThat(updated).isNotNull();
+        assertThat(updated.id()).isEqualTo(created.id());
+        assertThat(updated.amount()).isEqualByComparingTo("-5.50");
+        assertThat(updated.note()).isEqualTo("обед");
+        // Untouched provenance stays.
+        assertThat(updated.source()).isEqualTo("telegram");
+
+        // Unknown id → 404 (the tool's "not found" surfaces through the passthrough).
+        client.put()
+                .uri("/internal/transaction/{id}", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new UpdateTransactionInput(
+                        null, null, null, null, new BigDecimal("-1.00"), null, null, null))
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
     void internalGiftBudgetReturnsMonthlyEnvelopeOver404WhenUnset() {
         // Fresh household keeps the Gifts-category lookup deterministic against
         // the shared test DB.

@@ -218,6 +218,11 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
   "отмени последнее" undo primitive (road-test #486, Track H) **and** the user-facing
   `transaction-delete` flow (Track H.2): finance-agent's `/actions/undo` and its
   `TransactionDeleter.resume` both call it. Unknown id → 404.
+- `PUT /internal/transaction/{id}` (body `UpdateTransactionInput`) → `FinTransactionDto` (200) | 404.
+  Partial edit (non-null fields only — amount/note/…) delegating to the `update_transaction` tool;
+  the path id is authoritative (overrides the body id). The deterministic write behind finance-agent's
+  user-facing `transaction-edit` chat flow (#486/Track H.2). Unknown id → 404. Mirrors mcp-tasks'
+  `PUT /internal/task/{id}`.
 - `GET /internal/transactions?householdId=<uuid>&limit=<opt>` → `List<FinTransactionDto>` (newest
   first, default limit 40). Delegates to the `list_transactions` tool. The candidate pool finance-agent's
   `transaction-delete` flow (#486/Track H.2) resolves "удали трату про X / последнюю трату" against,
