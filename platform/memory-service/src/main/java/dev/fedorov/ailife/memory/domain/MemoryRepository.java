@@ -112,6 +112,35 @@ public class MemoryRepository {
     }
 
     /**
+     * Flat, most-recent-first list of the household's stored facts — the read behind
+     * the memory-review digest (MQ-1, road-test #488). Unlike {@link #recall} this
+     * enumerates by {@code created_at} rather than similarity, so the owner can audit
+     * (and then prune) what is remembered. Scope narrowing mirrors recall: an optional
+     * {@code userId}/{@code personId} broadens to include the NULL-scoped (household-wide /
+     * not-about-anyone) rows, so the list and recall agree on "what's in scope".
+     */
+    public List<MemoryRow> listByScope(UUID householdId, UUID userId, UUID personId, int limit) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT id, household_id, user_id, person_id, source, text, metadata, created_at
+                  FROM memory.memories
+                 WHERE household_id = ?
+                """);
+        List<Object> args = new ArrayList<>();
+        args.add(householdId);
+        if (userId != null) {
+            sql.append("   AND (user_id IS NULL OR user_id = ?)\n");
+            args.add(userId);
+        }
+        if (personId != null) {
+            sql.append("   AND (person_id = ? OR person_id IS NULL)\n");
+            args.add(personId);
+        }
+        sql.append(" ORDER BY created_at DESC\n LIMIT ?");
+        args.add(limit);
+        return jdbc.query(sql.toString(), rowMapper, args.toArray());
+    }
+
+    /**
      * Top-k recall by cosine distance (smaller = more similar). Scope filter:
      * household required; user and person narrow further when set in the request.
      * Returns hits ordered by ascending distance.
