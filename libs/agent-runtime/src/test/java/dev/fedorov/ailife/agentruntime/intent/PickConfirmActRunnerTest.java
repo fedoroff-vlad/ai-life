@@ -64,12 +64,17 @@ class PickConfirmActRunnerTest {
         List<Widget> pool = List.of();
         boolean requireField = false;
         boolean actFails = false;
+        ObjectNode asyncContext = null;
 
         @Override public String skillName() { return "widget-delete"; }
         @Override public String flow() { return "widget-delete-confirm"; }
         @Override public Nouns nouns() { return new Nouns("штуку", "штук", "штука"); }
         @Override public Mono<List<Widget>> candidates(NormalizedMessage msg) { return Mono.just(pool); }
         @Override public CandidateView<Widget> view() { return this; }
+
+        @Override public Mono<ObjectNode> decorateAsync(NormalizedMessage msg) {
+            return asyncContext == null ? Mono.empty() : Mono.just(asyncContext);
+        }
 
         @Override public Optional<String> missing(Widget target, JsonNode pick) {
             return requireField && !pick.hasNonNull("when")
@@ -203,6 +208,27 @@ class PickConfirmActRunnerTest {
                 .verifyComplete();
         assertThat(acted.get()).isEqualTo(id);
         assertThat(actedParams.get().path("when").asString()).isEqualTo("2026-09-01T10:00:00Z");
+    }
+
+    @Test
+    void decorateAsyncMergesIntoLlmUserMessage() {
+        UUID id = UUID.randomUUID();
+        flow.pool = List.of(new Widget(id, "красная"));
+        ObjectNode ctx = json.createObjectNode();
+        ctx.putArray("categories").add("Еда").add("Такси");
+        flow.asyncContext = ctx;
+
+        org.mockito.ArgumentCaptor<LlmChatRequest> req =
+                org.mockito.ArgumentCaptor.forClass(LlmChatRequest.class);
+        when(llm.chat(req.capture())).thenReturn(Mono.just(reply("{\"pick\":1}")));
+
+        StepVerifier.create(runner.pick(message(UUID.randomUUID(), "удали красную")))
+                .assertNext(r -> assertThat(r.pendingAction()).isNotNull())
+                .verifyComplete();
+
+        // The async context is merged into the LLM user message alongside userText/candidates.
+        String userMsg = req.getValue().messages().get(req.getValue().messages().size() - 1).content();
+        assertThat(userMsg).contains("categories").contains("Еда").contains("Такси");
     }
 
     @Test

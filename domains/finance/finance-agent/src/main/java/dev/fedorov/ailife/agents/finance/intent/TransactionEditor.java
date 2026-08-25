@@ -8,12 +8,15 @@ import dev.fedorov.ailife.agentruntime.intent.Phrasing;
 import dev.fedorov.ailife.agentruntime.intent.PickConfirmActRunner;
 import dev.fedorov.ailife.agentruntime.intent.TargetedActionFlow;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import tools.jackson.databind.node.ArrayNode;
+import dev.fedorov.ailife.agents.finance.http.CategoryClient;
 import dev.fedorov.ailife.agents.finance.http.TransactionClient;
 import dev.fedorov.ailife.agents.finance.read.SpendingReads;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
+import dev.fedorov.ailife.contracts.finance.FinCategoryDto;
 import dev.fedorov.ailife.contracts.finance.FinTransactionDto;
 import dev.fedorov.ailife.contracts.finance.UpdateTransactionInput;
 import dev.fedorov.ailife.llm.LlmClient;
@@ -25,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -32,20 +36,26 @@ import java.util.UUID;
 
 /**
  * Runs the reactive {@code transaction-edit} intent skill (road-test #486, Track H.2 — the finance
- * per-domain <b>edit</b> hole): fix a logged expense's <b>amount</b> or <b>note</b> by just chatting
- * ("исправь сумму последней траты на 550", "поправь заметку у траты про кофе"), behind the standing
- * <b>confirm-before-change</b> gate (a finance principle; see AGENT.md). When {@code IntentRouter}
+ * per-domain <b>edit</b> hole): fix a logged expense's <b>amount</b>, <b>category</b> or <b>note</b> by just
+ * chatting ("исправь сумму последней траты на 550", "переведи трату про кофе в категорию Еда"), behind the
+ * standing <b>confirm-before-change</b> gate (a finance principle; see AGENT.md). When {@code IntentRouter}
  * classifies a message as an {@code edit} request, it dispatches to {@link #edit}; the confirming reply
  * routes back through {@code ResumeController} to {@link #resume}.
  *
  * <p>The pick→confirm→act loop itself lives in the shared {@link PickConfirmActRunner} (ADR-0004); this
  * class is the finance-edit adapter (the sibling of tasks' {@code TaskEditor} + notes' {@code NoteEditor}).
- * The LLM picks the target transaction <b>and</b> extracts the change (a new amount magnitude / note),
- * threaded through the {@code pendingAction}. A picked transaction with no stated change re-asks
- * ({@link #missing}); the terminal {@link #act} re-reads the row to keep the sign convention
- * (expense&lt;0 / income&gt;0) — it applies the target's existing sign to the new magnitude — and PUTs only
- * the changed fields via mcp-finance {@code PUT /internal/transaction/{id}}. Re-categorising is a separate
- * verb (needs a category name→id resolution) and is a queued follow-up, not this flow.
+ * The LLM picks the target transaction <b>and</b> extracts the change (a new amount magnitude / category
+ * name / note), threaded through the {@code pendingAction}. A picked transaction with no stated change
+ * re-asks ({@link #missing}); the terminal {@link #act} re-reads the row to keep the sign convention
+ * (expense&lt;0 / income&gt;0) — it applies the target's existing sign to the new magnitude — resolves a
+ * category <b>name</b> to an id within the row's own household (never cross-household), and PUTs only the
+ * changed fields via mcp-finance {@code PUT /internal/transaction/{id}}.
+ *
+ * <p><b>Category = existing-only.</b> {@link #decorateAsync} injects the household set's existing category
+ * names into the pick prompt so the model only ever names a category that exists; {@link #act} resolves that
+ * name to an id (case-insensitive) and errors if it is genuinely unknown, so a re-categorise never silently
+ * writes a wrong or invented category. Creating a new category from an edit is out of scope (that is
+ * {@code category-manager}'s job).
  */
 @Component
 public class TransactionEditor
@@ -56,14 +66,22 @@ public class TransactionEditor
     public static final String FLOW = "transaction-edit-confirm";
     private static final int MAX_CANDIDATES = 40;
 
+    /** Cap on category names handed to the LLM — a defensive bound for a household with many categories. */
+    private static final int MAX_CATEGORIES = 60;
+
     private final SpendingReads spendingReads;
     private final TransactionClient transactions;
+    private final CategoryClient categories;
+    private final ObjectMapper json;
     private final PickConfirmActRunner<FinTransactionDto> runner;
 
     public TransactionEditor(LlmClient llm, AgentManifest manifest, SkillRegistry skills,
-                             SpendingReads spendingReads, TransactionClient transactions, ObjectMapper json) {
+                             SpendingReads spendingReads, TransactionClient transactions,
+                             CategoryClient categories, ObjectMapper json) {
         this.spendingReads = spendingReads;
         this.transactions = transactions;
+        this.categories = categories;
+        this.json = json;
         this.runner = new PickConfirmActRunner<>(llm, manifest, skills, json, this);
     }
 
@@ -130,12 +148,49 @@ public class TransactionEditor
         return this;
     }
 
+    /**
+     * Inject the household set's existing category names so the LLM can only ever name a category that
+     * exists (re-categorising writes to a real category or omits it — never invents one). Soft-fails to
+     * empty context, so a category-list hiccup still lets an amount/note edit through.
+     */
+    @Override
+    public Mono<ObjectNode> decorateAsync(NormalizedMessage msg) {
+        return spendingReads.households(msg.householdId(), msg.userId(), true)
+                .flatMap(households -> Flux.fromIterable(households)
+                        .flatMap(categories::list)
+                        .collectList()
+                        .map(TransactionEditor::flattenNames))
+                .map(names -> {
+                    ObjectNode ctx = json.createObjectNode();
+                    ArrayNode arr = ctx.putArray("categories");
+                    names.forEach(arr::add);
+                    return ctx;
+                })
+                .onErrorResume(e -> Mono.empty());
+    }
+
+    /** Distinct category names across the household set, order-preserving, capped. */
+    private static List<String> flattenNames(List<List<FinCategoryDto>> perHousehold) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (List<FinCategoryDto> cats : perHousehold) {
+            for (FinCategoryDto c : cats) {
+                if (c.name() != null && !c.name().isBlank()) {
+                    names.add(c.name());
+                    if (names.size() >= MAX_CATEGORIES) {
+                        return List.copyOf(names);
+                    }
+                }
+            }
+        }
+        return List.copyOf(names);
+    }
+
     /** Picked a transaction but the user did not say what to change → ask, without a lock. */
     @Override
     public Optional<String> missing(FinTransactionDto target, JsonNode pick) {
         return hasChange(pick)
                 ? Optional.empty()
-                : Optional.of("Что изменить в трате " + label(target) + "? Новую сумму или заметку.");
+                : Optional.of("Что изменить в трате " + label(target) + "? Новую сумму, категорию или заметку.");
     }
 
     /** The resume needs at least one stashed change, not just the id. */
@@ -148,15 +203,37 @@ public class TransactionEditor
     public Mono<Void> act(UUID targetId, JsonNode pending) {
         BigDecimal newAmountMag = decimal(pending, "newAmount");
         String newNote = text(pending, "newNote");
+        String newCategory = text(pending, "newCategory");
         // Re-read the row so the new amount keeps the transaction's sign (expense<0 / income>0) — the agent
         // owns sign discipline, so we never trust the LLM to sign it. A missing row → actFailed wording.
         return transactions.fetch(targetId)
                 .flatMap(opt -> opt
-                        .map(tx -> transactions.update(targetId, new UpdateTransactionInput(
-                                        targetId, null, null, null,
-                                        signed(newAmountMag, tx.amount()), null, null, newNote))
-                                .then())
+                        .map(tx -> resolveCategory(tx.householdId(), newCategory)
+                                .flatMap(catId -> transactions.update(targetId, new UpdateTransactionInput(
+                                                targetId, null, catId.orElse(null), null,
+                                                signed(newAmountMag, tx.amount()), null, null, newNote))
+                                        .then()))
                         .orElseGet(() -> Mono.error(new IllegalStateException("transaction gone: " + targetId))));
+    }
+
+    /**
+     * Resolve a category NAME to an id within the transaction's own household (case-insensitive exact match,
+     * so a category can never be re-assigned to another household's row). No name → present-but-empty (leave
+     * the category unchanged). A named-but-unknown category errors so {@link #actFailed} is honest rather than
+     * silently dropping the change — the injected list makes this rare (the model only names existing ones).
+     */
+    private Mono<Optional<UUID>> resolveCategory(UUID householdId, String newCategory) {
+        if (newCategory == null) {
+            return Mono.just(Optional.empty());
+        }
+        return categories.list(householdId).map(cats -> {
+            for (FinCategoryDto c : cats) {
+                if (c.name() != null && c.name().trim().equalsIgnoreCase(newCategory)) {
+                    return Optional.of(c.id());
+                }
+            }
+            throw new IllegalStateException("category not found: " + newCategory);
+        });
     }
 
     /** Apply the existing row's sign to the new magnitude (default: keep as expense when the sign is unknown). */
@@ -263,6 +340,10 @@ public class TransactionEditor
                 sb.append(" ").append(target.currency());
             }
         }
+        String newCategory = text(pick, "newCategory");
+        if (newCategory != null) {
+            sb.append(" (категория «").append(newCategory).append("»)");
+        }
         if (text(pick, "newNote") != null) {
             sb.append(" (новая заметка)");
         }
@@ -285,7 +366,8 @@ public class TransactionEditor
     }
 
     private static boolean hasChange(JsonNode node) {
-        return decimal(node, "newAmount") != null || text(node, "newNote") != null;
+        return decimal(node, "newAmount") != null || text(node, "newNote") != null
+                || text(node, "newCategory") != null;
     }
 
     private static String labelOf(JsonNode pending) {

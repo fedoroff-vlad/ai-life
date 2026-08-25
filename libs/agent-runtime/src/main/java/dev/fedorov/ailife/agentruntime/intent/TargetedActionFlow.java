@@ -107,6 +107,18 @@ public interface TargetedActionFlow<T> {
     default void decorateUserMessage(ObjectNode userMsg) {
     }
 
+    /**
+     * <b>Async</b> per-request context merged into the LLM user message before the pick — for data a flow
+     * must fetch first (e.g. the household's category list, so the model only ever names an existing
+     * category). Runs after {@link #candidates}, before the LLM call; the returned node's fields are merged
+     * at top level alongside {@code userText}/{@code candidates}, so it composes with the synchronous
+     * {@link #decorateUserMessage}. Default: nothing (an empty {@link Mono}). A flow that needs it should
+     * soft-fail internally (degrade to empty) so a context-fetch hiccup doesn't sink the whole edit.
+     */
+    default Mono<ObjectNode> decorateAsync(NormalizedMessage msg) {
+        return Mono.empty();
+    }
+
     /** Affirmative words to accept on resume <b>in addition</b> to {@link PickConfirmActRunner#DEFAULT_AFFIRMATIVE}
      *  (notes: "забудь"; calendar: "отмени"/"перенеси"/…). Default: none. */
     default Set<String> extraAffirmatives() {
