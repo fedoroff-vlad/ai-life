@@ -48,6 +48,8 @@
     <include file="features/013-notification-preference.yml" relativeToChangelogFile="true"/>
     <!-- 014 proactive-UX PX-2 (#487): daily_cap on notification_preference + core.notification_sent log. -->
     <include file="features/014-notification-cap.yml" relativeToChangelogFile="true"/>
+    <!-- 015 proactive-UX PX-3 (#487): core.notification_stream_optout (per-user muted streams). -->
+    <include file="features/015-notification-stream-optout.yml" relativeToChangelogFile="true"/>
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>

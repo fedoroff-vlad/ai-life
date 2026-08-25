@@ -54,7 +54,12 @@ class NotificationGateIntegrationTest extends AbstractPostgresIntegrationTest {
     void clean() {
         jdbc.update("DELETE FROM core.notification_held");
         jdbc.update("DELETE FROM core.notification_sent");
+        jdbc.update("DELETE FROM core.notification_stream_optout");
         jdbc.update("DELETE FROM core.notification_preference");
+    }
+
+    private void muteStream(UUID userId, String stream) {
+        jdbc.update("INSERT INTO core.notification_stream_optout (user_id, stream) VALUES (?, ?)", userId, stream);
     }
 
     private NotificationGate gateAt(String instant) {
@@ -169,5 +174,32 @@ class NotificationGateIntegrationTest extends AbstractPostgresIntegrationTest {
         assertThat(gate.evaluate(user, "first", "briefing")).isEqualTo(Decision.PASS);
         gate.recordSent(user);
         assertThat(gate.evaluate(user, "second", "briefing")).isEqualTo(Decision.SUPPRESSED);
+    }
+
+    // ---- PX-3: per-stream opt-out ---------------------------------------------------------------
+
+    @Test
+    void mutedStreamIsSuppressedButOthersPass() {
+        UUID user = UUID.randomUUID();
+        muteStream(user, "briefing"); // no preference row at all — opt-out is independent
+
+        assertThat(gateAt("2026-08-25T12:00:00Z").evaluate(user, "дайджест", "briefing"))
+                .isEqualTo(Decision.SUPPRESSED);
+        assertThat(gateAt("2026-08-25T12:00:00Z").evaluate(user, "трата", "finance"))
+                .isEqualTo(Decision.PASS);
+        assertThat(gateAt("2026-08-25T12:00:00Z").evaluate(user, "без источника", null))
+                .isEqualTo(Decision.PASS); // unattributed send is never opt-out-able
+    }
+
+    @Test
+    void optOutIsCheckedBeforeQuietHours() {
+        UUID user = UUID.randomUUID();
+        preference(user, LocalTime.of(22, 0), LocalTime.of(8, 0), null);
+        muteStream(user, "briefing");
+
+        // 03:00 is inside quiet hours, but a muted stream is suppressed outright (not held for later).
+        assertThat(gateAt("2026-08-25T03:00:00Z").evaluate(user, "дайджест", "briefing"))
+                .isEqualTo(Decision.SUPPRESSED);
+        assertThat(heldCount(user)).isZero();
     }
 }

@@ -40,8 +40,11 @@ redrain tick that redelivers a held message when the window opens (drops it if o
 in `core.notification_sent`, and once today's count hits the cap the overflow is **suppressed** (dropped, not
 queued — owner-decided: a cap that defers just moves the spam, and an overnight-defer collides with quiet hours
 + the stale TTL). **PX-3** per-stream opt-out (`stream` on the contract + preference; a member mutes one stream
-while others keep it). **PX-4** snooze/dismiss inline buttons (gateway-telegram keyboard + callback → record
-the preference; coordinates with the #489 button infra).
+while others keep it). **PX-3a** the mechanism — `source`/stream on the notify contract + a
+`core.notification_stream_optout` set + a gate check (a muted stream is suppressed, checked before quiet
+hours/cap); **PX-3b** the producer stream-name rollout + the chat UX that writes the opt-out row. **PX-4**
+snooze/dismiss inline buttons (gateway-telegram keyboard + callback → record the preference; coordinates
+with the #489 button infra).
 
 **Acceptance criteria (WHEN/THEN) — PX-1:**
 - Scenario: **proactive push in quiet hours is held.** WHEN a `proactive` send is due for a user inside their
@@ -66,6 +69,15 @@ the preference; coordinates with the #489 button infra).
 - Scenario: **no cap = unlimited.** WHEN `daily_cap` is null → THEN no capping (only quiet hours may gate).
 - Scenario: **yesterday does not count.** WHEN deliveries happened on prior days → THEN they do not count
   against today's cap (the count is per calendar day in the user's tz).
+
+**Acceptance criteria (WHEN/THEN) — PX-3:**
+- Scenario: **a muted stream is suppressed.** WHEN a proactive send's `source` (stream) is in the user's
+  `notification_stream_optout` set → THEN it is dropped, and checked **before** quiet hours/cap (a muted
+  stream is never held or counted); other streams still deliver.
+- Scenario: **muting is per member.** WHEN one household member mutes a stream → THEN only that member stops
+  receiving it (the opt-out row is per user).
+- Scenario: **unattributed send is never opt-out-able.** WHEN a proactive send has no `source` → THEN no
+  stream opt-out can match it (it still faces quiet hours/cap).
 
 ## Schemas owned here
 - `memory` — pgvector + AGE.

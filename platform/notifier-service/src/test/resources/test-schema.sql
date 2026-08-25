@@ -35,6 +35,13 @@ CREATE TABLE IF NOT EXISTS core.notification_sent (
     sent_at  timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS core.notification_stream_optout (
+    user_id    uuid NOT NULL,
+    stream     varchar(64) NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, stream)
+);
+
 CREATE TABLE IF NOT EXISTS core.notification_held (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id       uuid NOT NULL,

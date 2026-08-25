@@ -1,0 +1,36 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 015-notification-stream-optout
+      author: ai-life
+      comment: |
+        Per-stream opt-out (#487 PX-3): a user mutes a named proactive stream (e.g. "briefing",
+        "resurfacing") while still receiving the others. One row per (user, muted stream); the gate
+        suppresses a proactive send whose source is in the set. Household-member granular — the row
+        is per user, so muting is per member, not per household.
+      changes:
+        - createTable:
+            schemaName: core
+            tableName: notification_stream_optout
+            columns:
+              - column:
+                  name: user_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+              - column:
+                  name: stream
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            schemaName: core
+            tableName: notification_stream_optout
+            columnNames: user_id, stream
+            constraintName: pk_notification_stream_optout
