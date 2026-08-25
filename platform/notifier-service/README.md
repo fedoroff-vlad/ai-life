@@ -14,11 +14,13 @@ notifier is the single seam every proactive push flows through (a reactive reply
 for goes straight through gateway-telegram, not here), so it hosts the send-time gate that makes
 proactive UX controllable. Both the REST `NotifyRequest` and the bus `NotifyRequestedEvent` carry a
 `proactive` flag (default `false` → reactive, never gated; back-compat via a secondary ctor so existing
-callers don't ripple). `NotificationGate.evaluate` reads the user's preference and returns one of **HELD**
-(inside quiet hours → parked in `core.notification_held` with `deliver_after` = the window's next end,
-PX-1), **SUPPRESSED** (already had `daily_cap` proactive pushes today → the overflow is dropped, PX-2), or
-**PASS** (deliver now; `NotifySender` then calls `recordSent` to log the delivery in `core.notification_sent`
-so it counts toward the cap). HELD/SUPPRESSED both report `202 ACCEPTED` without touching gateway. Absent
+callers don't ripple). `NotificationGate.evaluate` reads the user's preference and returns one of
+**SUPPRESSED** (the send's `source`/**stream** is in the user's `core.notification_stream_optout` set — a
+muted stream, PX-3 — or today already hit `daily_cap`, PX-2 → the push is dropped, not queued), **HELD**
+(inside quiet hours → parked in `core.notification_held` with `deliver_after` = the window's next end, PX-1),
+or **PASS** (deliver now; `NotifySender` then calls `recordSent` to log the delivery in
+`core.notification_sent` so it counts toward the cap). The stream opt-out is checked **first** — a muted
+stream is never held or counted. HELD/SUPPRESSED both report `202 ACCEPTED` without touching gateway. Absent
 preference row, reactive send, or no `DataSource` → the gate is **inert** (fail-open — a send is never blocked
 by the pref store). Deterministic (`QuietHours` pure logic, tz- and midnight-wrap-aware), never an LLM decision.
 

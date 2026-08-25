@@ -68,6 +68,10 @@ public class NotificationGate {
      * held, so {@code jdbc} is non-null.
      */
     public Decision evaluate(UUID userId, String text, String source) {
+        if (source != null && streamMuted(userId, source)) {
+            log.info("suppressed proactive notify for user {} — stream '{}' muted", userId, source);
+            return Decision.SUPPRESSED;
+        }
         Preference pref = preferenceFor(userId);
         if (pref == null) {
             return Decision.PASS;
@@ -97,6 +101,14 @@ public class NotificationGate {
             return;
         }
         jdbc.update("INSERT INTO core.notification_sent (user_id) VALUES (?)", userId);
+    }
+
+    /** True when the user has muted this stream (source). */
+    private boolean streamMuted(UUID userId, String stream) {
+        Integer n = jdbc.queryForObject(
+                "SELECT count(*) FROM core.notification_stream_optout WHERE user_id = ? AND stream = ?",
+                Integer.class, userId, stream);
+        return n != null && n > 0;
     }
 
     private int deliveredToday(UUID userId, ZoneId tz, Instant now) {
