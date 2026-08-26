@@ -111,6 +111,44 @@ public class MemoryClient {
                 });
     }
 
+    /**
+     * A single stored fact by id ({@code GET /v1/memories/{id}}), or empty when it's gone — the read
+     * behind MQ-2's fact "correct" ("это неверно, на самом деле …", road-test #488): the notes-agent
+     * re-reads the row to recover its household/user before forget-then-writing the corrected fact under
+     * the same scope (mirrors how {@code TransactionEditor}/{@code NoteEditor} re-read their target in
+     * {@code act}). Soft-fails to empty on any error / {@link #NOTE_TIMEOUT} — a missing row simply drops
+     * out, and the caller words it as "уже удалён".
+     */
+    public Mono<MemoryDto> getMemory(UUID id) {
+        if (id == null) {
+            return Mono.empty();
+        }
+        return http.get()
+                .uri("/v1/memories/{id}", id)
+                .retrieve()
+                .bodyToMono(MemoryDto.class)
+                .timeout(NOTE_TIMEOUT)
+                .onErrorResume(e -> {
+                    log.warn("memory fetch failed for id={}: {}", id, e.toString());
+                    return Mono.empty();
+                });
+    }
+
+    /**
+     * Forget a stored fact ({@code DELETE /v1/memories/{id}}) — the terminal act behind MQ-2's fact
+     * "forget" ("забудь, что …", road-test #488). Unlike this client's enrichment reads it is a
+     * <b>mutation</b>, so — like {@code NoteClient.delete} — a {@code 204} completes empty while an
+     * unknown id (404) or any error <b>propagates</b>, letting the confirm-act runner surface an honest
+     * "не смог забыть" instead of pretending it forgot something.
+     */
+    public Mono<Void> deleteMemory(UUID id) {
+        return http.delete()
+                .uri("/v1/memories/{id}", id)
+                .retrieve()
+                .bodyToMono(Void.class)
+                .timeout(NOTE_TIMEOUT);
+    }
+
     public Mono<PersonRelationsResponse> personRelations(UUID householdId, UUID personId) {
         if (householdId == null || personId == null) {
             return Mono.just(emptyRelations(personId));

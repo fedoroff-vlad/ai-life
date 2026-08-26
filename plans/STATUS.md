@@ -4,15 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#488 memory-quality — 🚧 IN PROGRESS; MQ-1 review digest DONE (2026-08-25).** Make what the
-  assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)).
-  **MQ-1 (review digest) COMPLETE** — the audit surface "что ты про меня / про нас запомнил": **MQ-1a** (PR#567)
-  memory-service `GET /v1/memories` flat fact-list read (recall enumerates by similarity; the digest needs
-  recency) + **MQ-1b** (PR#568) notes-agent `memory-review` intent → readable digest of curated notes + stored
-  facts (lists + note-seeds excluded) ending with the drop/correct verbs. Detail → [second-brain.md](second-brain.md)
-  §MQ. **NEXT: MQ-2** — forget/correct a **fact** by chat ("забудь, что …" / "это неверно, на самом деле …") on
-  the shared [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner` (fact-tier analog of H.2's note
-  delete/edit); then **MQ-3** ambient-precision tuning ([ambient-capture.md](ambient-capture.md)).
+- **road-test §#488 memory-quality — 🚧 IN PROGRESS; MQ-1 digest + MQ-2 forget/correct DONE (2026-08-26).** Make what
+  the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)).
+  **MQ-1 (review digest)** — the audit surface "что ты про меня / про нас запомнил" (memory-service flat fact-list
+  read + notes-agent `memory-review` digest). **MQ-2 (forget/correct a fact)** — "забудь, что …" / "это неверно, на
+  самом деле …" on the shared [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner`: new `fact-forget`
+  skill + `FactForgetter` adapter; forget = `DELETE /v1/memories/{id}`, correct = re-read (new `GET /v1/memories/{id}`)
+  → forget → write corrected. Both → [HISTORY.md](HISTORY.md) + [second-brain.md](second-brain.md) §MQ. **NEXT: MQ-3**
+  — ambient-capture precision tuning (measure precision/recall of the three-way classification on real messages,
+  tune thresholds, decide on `MEMORY_AMBIENT_CAPTURE_ENABLED`) — an eval/golden + config slice, spec in
+  [ambient-capture.md](ambient-capture.md).
 - **road-test §#487 proactive UX — ✅ CORE COMPLETE (2026-08-25); PX-4 deferred.** notifier is the single
   seam every proactive push flows through, so a send-time gate (`NotificationGate`) makes proactivity
   controllable — deterministic, never an LLM call, inert when reactive/unconfigured/no-DB: **PX-1**

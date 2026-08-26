@@ -41,13 +41,14 @@ public class NotesIntentRouter {
     private static final String NOTE_DELETE = "note-delete";
     private static final String NOTE_EDIT = "note-edit";
     private static final String MEMORY_REVIEW = "memory-review";
+    private static final String FACT_FORGET = "fact-forget";
 
     private final SkillRouter router;
 
     public NotesIntentRouter(LlmClient llm, SkillRegistry skills, SkillClassifier classifier,
                              AgentManifest manifest, NoteWriter writer, NoteFinder finder,
                              ListManager lists, NoteDeleter deleter, NoteEditor editor,
-                             MemoryReviewer reviewer, NotesChat chat) {
+                             MemoryReviewer reviewer, FactForgetter forgetter, NotesChat chat) {
         Map<String, Function<NormalizedMessage, Mono<IntentResponse>>> flows = new LinkedHashMap<>();
         flows.put(NOTE_FINDER, finder::find);
         flows.put(LIST_MANAGER, lists::handle);
@@ -55,10 +56,12 @@ public class NotesIntentRouter {
         flows.put(NOTE_DELETE, deleter::delete);
         flows.put(NOTE_EDIT, editor::edit);
         flows.put(MEMORY_REVIEW, reviewer::review);
+        flows.put(FACT_FORGET, forgetter::forget);
         this.router = new SkillRouter(llm, skills, classifier, manifest,
                 "You are routing a message for the notes agent. Reply directly to the user, or run one skill.",
                 "Decide: does the user want to run a skill (recall a note / manage a list / capture a note / "
-                        + "delete a note / edit a note / review everything remembered) or just talk?",
+                        + "delete a note / edit a note / review everything remembered / forget or correct a "
+                        + "remembered fact) or just talk?",
                 flows, chat::reply);
     }
 
