@@ -4,16 +4,17 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#488 memory-quality — 🚧 IN PROGRESS; MQ-1 digest + MQ-2 forget/correct DONE (2026-08-26).** Make what
-  the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)).
-  **MQ-1 (review digest)** — the audit surface "что ты про меня / про нас запомнил" (memory-service flat fact-list
-  read + notes-agent `memory-review` digest). **MQ-2 (forget/correct a fact)** — "забудь, что …" / "это неверно, на
-  самом деле …" on the shared [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner`: new `fact-forget`
-  skill + `FactForgetter` adapter; forget = `DELETE /v1/memories/{id}`, correct = re-read (new `GET /v1/memories/{id}`)
-  → forget → write corrected. Both → [HISTORY.md](HISTORY.md) + [second-brain.md](second-brain.md) §MQ. **NEXT: MQ-3**
-  — ambient-capture precision tuning (measure precision/recall of the three-way classification on real messages,
-  tune thresholds, decide on `MEMORY_AMBIENT_CAPTURE_ENABLED`) — an eval/golden + config slice, spec in
-  [ambient-capture.md](ambient-capture.md).
+- **road-test §#488 memory-quality — ✅ CORE COMPLETE (2026-08-26); only the Mac-gated ambient enable-flip remains.**
+  Made what the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)):
+  **MQ-1** review digest ("что ты про меня запомнил"), **MQ-2** forget/correct a fact on the shared
+  [ADR-0004](adr/ADR-0004-confirm-act-flow.md) runner, **MQ-3** ambient-precision eval (labelled corpus + pure
+  `AmbientCaptureScore` + gated `GoldenAmbientPrecisionTest` asserting act-precision/recall thresholds). Detail →
+  [HISTORY.md](HISTORY.md) + [second-brain.md](second-brain.md) §MQ + [ambient-capture.md](ambient-capture.md) §MQ-3.
+  **Deferred (Mac-gated):** flipping `MEMORY_AMBIENT_CAPTURE_ENABLED` on once `GoldenAmbientPrecisionTest` is green on
+  the deploy model (stronger local MoE; dev box CPU-only). **Next road-test item** (epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): multimodal/reply-UX
+  [#489](https://github.com/fedoroff-vlad/ai-life/issues/489) + family-onboarding
+  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490).
 - **road-test §#487 proactive UX — ✅ CORE COMPLETE (2026-08-25); PX-4 deferred.** notifier is the single
   seam every proactive push flows through, so a send-time gate (`NotificationGate`) makes proactivity
   controllable — deterministic, never an LLM call, inert when reactive/unconfigured/no-DB: **PX-1**

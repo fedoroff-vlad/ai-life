@@ -81,7 +81,7 @@ neutral `SharingContext`.
 | `PROFILE_SERVICE_URL` | `http://profile-service:8082` | profile-service base URL — relation capture resolves person names to `core.people` UUIDs. |
 | `CONVERSATION_BASE_URL` | `http://conversation-service:8089` | conversation-service base URL — AC-4 sets the ambient-approval route-lock here. |
 | `NOTIFIER_BASE_URL` | `http://notifier-service:8084` | notifier-service base URL — AC-4 pushes the "заметил: … — записать?" question here. |
-| `MEMORY_AMBIENT_CAPTURE_ENABLED` | `false` | Ambient note capture (AC-2+): when true, `CaptureService` also promotes explicit-fixation chat into curated `memory.note`s and raises approval for inferred facts (AC-4). Opt-in. |
+| `MEMORY_AMBIENT_CAPTURE_ENABLED` | `false` | Ambient note capture (AC-2+): when true, `CaptureService` also promotes explicit-fixation chat into curated `memory.note`s and raises approval for inferred facts (AC-4). Opt-in — **gated (MQ-3, #488) on `GoldenAmbientPrecisionTest` passing on the deploy model** before flipping on. |
 | `MEMORY_AMBIENT_CAPTURE_DEDUP_DISTANCE` | `0.15` | AC-3 dedup threshold: skip writing an ambient note when its nearest `source=note` neighbour is within this cosine distance. Smaller = stricter. |
 
 ## Key classes
@@ -158,7 +158,7 @@ algorithms (centrality, shortest path); (c) row count exceeds ~100k and SQL
 joins start to hurt.
 
 ## Roadmap (deferred)
-- **Ambient / intuitive capture (complete, AC-1..5, flag-gated):** the memory-from-chat path (`CaptureService`) now has a **third output** — curated **ambient notes** — so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1..AC-5 all landed, flag-gated:** classify every message → auto-save explicit fixation / approve-first important-inferred (push + notes-agent `/resume`) / ignore trivial; on a near-duplicate, reconcile (`NoteReconciler` enrich/supersede/skip) instead of blindly writing. The ambient/intuitive-capture feature is complete.
+- **Ambient / intuitive capture (complete, AC-1..5, flag-gated):** the memory-from-chat path (`CaptureService`) now has a **third output** — curated **ambient notes** — so the note tier fills itself without the "запомни" keyword. Phased plan (AC-1..5) in [plans/ambient-capture.md](../../plans/ambient-capture.md). **AC-1..AC-5 all landed, flag-gated:** classify every message → auto-save explicit fixation / approve-first important-inferred (push + notes-agent `/resume`) / ignore trivial; on a near-duplicate, reconcile (`NoteReconciler` enrich/supersede/skip) instead of blindly writing. The ambient/intuitive-capture feature is complete. **MQ-3 precision eval (road-test #488):** `test/.../eval/AmbientCaptureScore` (pure scorer) + `GoldenAmbientPrecisionTest` (`@GoldenLlmTest`) measure the three-way classification against a labelled corpus (`test/resources/ambient/precision-corpus.json`) — act-precision ("trivia isn't saved") / act-recall ("durable facts aren't missed") / explicit-not-missed thresholds. `MEMORY_AMBIENT_CAPTURE_ENABLED` stays `false` until that golden is green on the deploy model (Mac / stronger MoE; the dev box is CPU-only). See [plans/ambient-capture.md](../../plans/ambient-capture.md) §MQ-3.
 - PR17: first cross-agent chain (`calendar.birthday_upcoming → memory recall + person relations → gift-recommender`).
 - Future: Apache AGE upgrade (per promotion criteria above).
 - Future: bulk re-embed endpoint when we change provider/dim (Stage 5).

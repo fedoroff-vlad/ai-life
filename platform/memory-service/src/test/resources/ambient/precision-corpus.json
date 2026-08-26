@@ -1,0 +1,39 @@
+{
+  "_comment": "MQ-3 ambient-capture precision/recall corpus (road-test #488, plans/ambient-capture.md §MQ-3). Each case labels a message with the CaptureOutcome ambient capture SHOULD reach: EXPLICIT_FIXATION (a record-me cue present), IMPORTANT_INFERRED (a durable fact worth keeping, no cue), or TRIVIAL (operational / small-talk / one-off / question / command). Extend it with real mis-classified messages as they surface; GoldenAmbientPrecisionTest scores the extractor against these labels.",
+  "cases": [
+    {"text": "запомни, что у мамы аллергия на орехи", "expected": "EXPLICIT_FIXATION"},
+    {"text": "отметь, что я перешёл на новую работу в другую компанию", "expected": "EXPLICIT_FIXATION"},
+    {"text": "зафиксируй: мой размер обуви — 43", "expected": "EXPLICIT_FIXATION"},
+    {"text": "не забудь, что Катя пьёт чай без сахара", "expected": "EXPLICIT_FIXATION"},
+    {"text": "запиши, что годовщина у нас 12 июня", "expected": "EXPLICIT_FIXATION"},
+    {"text": "remember that Alex is allergic to penicillin", "expected": "EXPLICIT_FIXATION"},
+    {"text": "запомни, что папу зовут Игорь Петрович", "expected": "EXPLICIT_FIXATION"},
+    {"text": "note that our wifi network name is home5g", "expected": "EXPLICIT_FIXATION"},
+
+    {"text": "у мамы аллергия на орехи", "expected": "IMPORTANT_INFERRED"},
+    {"text": "я решил сменить работу, ухожу из текущей компании", "expected": "IMPORTANT_INFERRED"},
+    {"text": "мы с Аней теперь живём вместе", "expected": "IMPORTANT_INFERRED"},
+    {"text": "я стал вегетарианцем полгода назад", "expected": "IMPORTANT_INFERRED"},
+    {"text": "у меня непереносимость лактозы", "expected": "IMPORTANT_INFERRED"},
+    {"text": "моя цель в этом году — пробежать марафон", "expected": "IMPORTANT_INFERRED"},
+    {"text": "папа вышел на пенсию", "expected": "IMPORTANT_INFERRED"},
+    {"text": "я боюсь высоты, поэтому не люблю летать", "expected": "IMPORTANT_INFERRED"},
+    {"text": "Дима переехал в Берлин насовсем", "expected": "IMPORTANT_INFERRED"},
+    {"text": "теперь я работаю удалённо на постоянной основе", "expected": "IMPORTANT_INFERRED"},
+
+    {"text": "привет! как дела?", "expected": "TRIVIAL"},
+    {"text": "какая сегодня погода?", "expected": "TRIVIAL"},
+    {"text": "спасибо, отлично!", "expected": "TRIVIAL"},
+    {"text": "сколько будет 2 плюс 2?", "expected": "TRIVIAL"},
+    {"text": "давай встретимся завтра в кафе", "expected": "TRIVIAL"},
+    {"text": "что там по новостям сегодня?", "expected": "TRIVIAL"},
+    {"text": "ок, договорились", "expected": "TRIVIAL"},
+    {"text": "включи, пожалуйста, музыку", "expected": "TRIVIAL"},
+    {"text": "покажи мои задачи на сегодня", "expected": "TRIVIAL"},
+    {"text": "сегодня дождь, взял зонт", "expected": "TRIVIAL"},
+    {"text": "во сколько открывается магазин?", "expected": "TRIVIAL"},
+    {"text": "хорошего дня!", "expected": "TRIVIAL"},
+    {"text": "напомни позвонить в банк в 15:00", "expected": "TRIVIAL"},
+    {"text": "добавь молоко в список покупок", "expected": "TRIVIAL"}
+  ]
+}
