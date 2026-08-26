@@ -54,7 +54,7 @@ class GoldenNotesRoutingTest {
 
     /** The actions the notes classifier prompt allows (no MCP tools → only skill / chat). */
     private static final Set<String> ACTIONS = Set.of("skill", "chat");
-    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager", "note-delete", "note-edit", "memory-review");
+    private static final Set<String> SKILLS = Set.of("note-writer", "note-finder", "list-manager", "note-delete", "note-edit", "memory-review", "fact-forget");
 
     private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
@@ -64,6 +64,7 @@ class GoldenNotesRoutingTest {
     private final NoteDeleter deleter = mock(NoteDeleter.class);
     private final NoteEditor editor = mock(NoteEditor.class);
     private final MemoryReviewer reviewer = mock(MemoryReviewer.class);
+    private final FactForgetter forgetter = mock(FactForgetter.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final AgentManifest manifest = new AgentManifest(
             "notes", "notes agent", "0.1.0", 8118, List.of(), List.of(),
@@ -75,10 +76,11 @@ class GoldenNotesRoutingTest {
             skill("skills/knowledge/list-manager/SKILL.md"),
             skill("skills/knowledge/note-delete/SKILL.md"),
             skill("skills/knowledge/note-edit/SKILL.md"),
-            skill("skills/knowledge/memory-review/SKILL.md")));
+            skill("skills/knowledge/memory-review/SKILL.md"),
+            skill("skills/knowledge/fact-forget/SKILL.md")));
     private final NotesIntentRouter router = new NotesIntentRouter(
             llm, skills, new SkillClassifier(json), manifest, writer, finder, lists, deleter, editor,
-            reviewer, chat);
+            reviewer, forgetter, chat);
 
     /**
      * STRUCTURE — the real model, given the real router prompt, must return well-formed routing JSON: a
@@ -93,6 +95,7 @@ class GoldenNotesRoutingTest {
                 "добавь молоко в список покупок",
                 "запомни, что мама любит пионы в горшке",
                 "удали заметку про отпуск",
+                "забудь, что я курю",
                 "что ты про меня запомнил?",
                 "привет, как дела?")) {
             String raw = chat(prompt, msg);
@@ -128,6 +131,7 @@ class GoldenNotesRoutingTest {
         assertRoutesTo("добавь молоко в список покупок", "list");
         assertRoutesTo("запомни, что мама любит пионы в горшке", "writer");
         assertRoutesTo("удали заметку про отпуск", "deleter");
+        assertRoutesTo("забудь, что я курю", "forget");
         assertRoutesTo("что ты про меня запомнил?", "review");
     }
 
@@ -178,6 +182,7 @@ class GoldenNotesRoutingTest {
         when(writer.capture(any())).thenReturn(Mono.just(sentinel("writer")));
         when(deleter.delete(any())).thenReturn(Mono.just(sentinel("deleter")));
         when(reviewer.review(any())).thenReturn(Mono.just(sentinel("review")));
+        when(forgetter.forget(any())).thenReturn(Mono.just(sentinel("forget")));
         when(chat.reply(any())).thenReturn(Mono.just(sentinel("chat")));
     }
 

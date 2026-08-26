@@ -11,6 +11,7 @@ import dev.fedorov.ailife.memory.embed.EmbeddingClient;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -61,6 +62,19 @@ public class MemoryService {
         float[] embedding = embed.embed(req.query());
         guardDim(embedding);
         return repo.recall(req, embedding, k);
+    }
+
+    /**
+     * A single stored fact by id, or empty when it's gone — the read behind MQ-2's fact "correct"
+     * ("это неверно, на самом деле …", road-test #488): the notes-agent re-reads the row to recover its
+     * household/user before forget-then-writing the corrected fact under the same scope (mirrors how
+     * TransactionEditor/NoteEditor re-read their target in {@code act}).
+     */
+    public Optional<MemoryDto> get(UUID id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return repo.findById(id).map(MemoryRow::toDto);
     }
 
     public boolean forget(UUID id) {

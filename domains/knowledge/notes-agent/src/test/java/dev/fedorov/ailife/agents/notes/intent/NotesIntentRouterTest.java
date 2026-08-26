@@ -48,6 +48,7 @@ class NotesIntentRouterTest {
     private final NoteDeleter deleter = mock(NoteDeleter.class);
     private final NoteEditor editor = mock(NoteEditor.class);
     private final MemoryReviewer reviewer = mock(MemoryReviewer.class);
+    private final FactForgetter forgetter = mock(FactForgetter.class);
     private final NotesChat chat = mock(NotesChat.class);
     private final ObjectMapper json = new ObjectMapper();
     private final SkillClassifier classifier = new SkillClassifier(json);
@@ -59,11 +60,12 @@ class NotesIntentRouterTest {
             skill("note-writer", "Capture a durable note from what the user wants remembered."),
             skill("note-finder", "Recall an earlier note by meaning."),
             skill("list-manager", "Maintain an everyday checklist (add / check off / clear / show)."),
-            skill("memory-review", "Show a digest of everything remembered about the user.")));
+            skill("memory-review", "Show a digest of everything remembered about the user."),
+            skill("fact-forget", "Forget or correct a remembered fact about the user.")));
 
     private final NotesIntentRouter router =
             new NotesIntentRouter(llm, skills, classifier, manifest, writer, finder, lists, deleter, editor,
-                    reviewer, chat);
+                    reviewer, forgetter, chat);
 
     @Test
     void routesToFinderWhenLlmPicksNoteFinder() {
@@ -124,6 +126,21 @@ class NotesIntentRouterTest {
 
         verify(reviewer).review(any());
         verify(finder, never()).find(any());
+    }
+
+    @Test
+    void routesToFactForgetterWhenLlmPicksFactForget() {
+        when(llm.chat(any(LlmChatRequest.class))).thenReturn(Mono.just(
+                reply("{\"action\":\"skill\",\"name\":\"fact-forget\"}")));
+        when(forgetter.forget(any())).thenReturn(Mono.just(sentinel("forget")));
+
+        StepVerifier.create(router.route(msg("забудь, что я курю")))
+                .assertNext(r -> assertThat(r.text()).isEqualTo("forget"))
+                .verifyComplete();
+
+        verify(forgetter).forget(any());
+        verify(deleter, never()).delete(any());
+        verify(reviewer, never()).review(any());
     }
 
     @Test

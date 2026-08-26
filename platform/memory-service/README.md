@@ -4,7 +4,7 @@ pgvector-backed long-term recall + single-hop relation graph + the authored-note
 tier of the **second-brain substrate** (epic [#257](https://github.com/fedoroff-vlad/ai-life/issues/257)).
 `POST /v1/memories` writes a piece of text + metadata after embedding it via
 llm-gateway; `POST /v1/memories/recall` returns top-k cosine-nearest hits within a
-scope filter; `DELETE /v1/memories/{id}` forgets. `POST /v1/relations` writes one
+scope filter; `GET /v1/memories/{id}` reads one fact; `DELETE /v1/memories/{id}` forgets. `POST /v1/relations` writes one
 structured edge ("Maria likes books"); `GET /v1/graph/person/{id}/relations?householdId=…`
 returns the person's outgoing + incoming edges. `POST /v1/capture` is the
 memory-from-chat path: it runs the LLM over a message to extract durable facts
@@ -21,8 +21,9 @@ reads the notes that link to it.
 ### Memories (pgvector)
 - `POST /v1/memories` — body: [WriteMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/WriteMemoryRequest.java). Returns `MemoryDto`.
 - `GET /v1/memories?householdId=<uuid>&userId=<uuid>&personId=<uuid>&limit=<n>` — **memory-review fact list** (MQ-1, road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488)): the household's stored facts as `MemoryDto[]`, most-recent first (by `created_at`). Unlike recall this enumerates by *recency* rather than similarity, so the owner can audit + prune what is remembered. `userId`/`personId` narrow the scope, mirroring recall (an optional scope broadens to include the NULL-scoped household-wide / not-about-anyone rows). `limit` defaults to 20, capped at 100. `householdId` required.
+- `GET /v1/memories/{id}` — a single stored fact as `MemoryDto` (404 if absent). The read behind **MQ-2's fact "correct"** (road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488)): notes-agent re-reads the row for its household/user before forget-then-writing the corrected fact under the same scope.
 - `POST /v1/memories/recall` — body: [RecallMemoryRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/RecallMemoryRequest.java) (`householdId` required, `userId`/`personId` narrow, `k` defaults to 5, capped at 50). Returns `RecallMemoryHit[]` ordered by ascending cosine distance.
-- `DELETE /v1/memories/{id}` — 204 on success, 404 on unknown.
+- `DELETE /v1/memories/{id}` — 204 on success, 404 on unknown. The terminal act behind **MQ-2's fact "forget"** ("забудь, что …") as well as note-seed cleanup.
 
 ### Capture (memory-from-chat)
 - `POST /v1/capture` — body [CaptureRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/memory/CaptureRequest.java) (`householdId` + `text` required; `userId`/`personId` scope the stored memories). **Synchronous:** runs the LLM `FactExtractor` over the message, writes each extracted durable fact as a memory (`source = "chat-capture"`), and returns the written `MemoryDto[]` (empty list when nothing durable was found). 400 on missing householdId / blank text. **Best-effort:** a malformed LLM reply or parse failure yields zero facts, never an error. For direct/manual/debug use. **Relation capture (MFC-c):** the same call also runs `RelationExtractor` and writes resolved edges to `memory.relations` as a **best-effort side effect** — it never throws and is not reflected in the returned `MemoryDto[]` (which stays memories-only). A `"self"` edge anchors on the `userId` (`subjectType = "user"`); a named subject is resolved to a `core.people` UUID via profile-service (`subjectType = "person"`). An edge whose subject cannot be anchored (no `userId` for a self-edge, or an unresolved name) is **dropped** — we do not auto-create people from chat. Objects are stored free-text (`objectType = "label"`, `objectLabel` = the phrase).
@@ -105,7 +106,7 @@ neutral `SharingContext`.
 - `domain/Vectors` — `float[] → "[v1,v2,…]"` literal for the `::vector` cast (pgvector wire format).
 - `domain/MemoryRow` — read model; `toDto()` for the API surface.
 - `domain/MemoryRepository` — JdbcTemplate over `memory.memories`. **JPA was deliberately skipped** — pgvector mapping in JPA requires a custom Hibernate type and we don't need ORM features here. `listByScope` (MQ-1) enumerates a household's facts by `created_at DESC` for the review digest (scope narrowing mirrors `recall`).
-- `service/MemoryService` — orchestrates write/recall/list/forget; clamps `k` (recall) and `limit` (list), validates non-blank text, asserts embedding dim matches `memory.dim`. `list` (MQ-1) is the flat most-recent fact read behind the memory-review digest.
+- `service/MemoryService` — orchestrates write/recall/list/get/forget; clamps `k` (recall) and `limit` (list), validates non-blank text, asserts embedding dim matches `memory.dim`. `list` (MQ-1) is the flat most-recent fact read behind the memory-review digest; `get` (MQ-2) resolves one fact by id for the fact-correct re-read.
 - `web/MemoryController` — REST endpoints from the Memories block above.
 - `domain/RelationRepository` — JdbcTemplate over `memory.relations`. `outgoingForPerson` / `incomingForPerson` both filter by `household_id`. SB-3: `deleteBySubjectNote` (drop a note's link edges for re-seed/cleanup) + `backlinkNoteIds` (note ids linking to a given note).
 - `service/RelationService` — write/forget/personRelations + field validation. SB-3: `forgetNoteLinks` / `noteBacklinkIds` delegate to the repo.

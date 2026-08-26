@@ -48,6 +48,18 @@ public class MemoryController {
         return ResponseEntity.ok(service.list(householdId, userId, personId, limit));
     }
 
+    /**
+     * A single stored fact by id (or 404) — the read behind MQ-2's fact "correct" (road-test #488):
+     * the notes-agent re-reads the row to recover its household/user before forget-then-writing the
+     * corrected fact under the same scope.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<MemoryDto> get(@PathVariable UUID id) {
+        return service.get(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping(path = "/recall", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<RecallMemoryHit>> recall(@RequestBody RecallMemoryRequest req) {
         return ResponseEntity.ok(service.recall(req));

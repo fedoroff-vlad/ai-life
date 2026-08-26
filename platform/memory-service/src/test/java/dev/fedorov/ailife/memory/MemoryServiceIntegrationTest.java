@@ -162,6 +162,34 @@ class MemoryServiceIntegrationTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void getReturnsFactByIdOr404() {
+        var req = new WriteMemoryRequest(
+                household, null, null, "chat", "Vlad is learning to play the piano.", null);
+        MemoryDto written = client().post().uri("/v1/memories")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(req)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(MemoryDto.class)
+                .returnResult().getResponseBody();
+        assertThat(written).isNotNull();
+
+        // GET /{id} — the read behind MQ-2's fact "correct" (re-read for scope before forget-then-write).
+        MemoryDto fetched = client().get().uri("/v1/memories/{id}", written.id())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(MemoryDto.class)
+                .returnResult().getResponseBody();
+        assertThat(fetched).isNotNull();
+        assertThat(fetched.id()).isEqualTo(written.id());
+        assertThat(fetched.text()).isEqualTo("Vlad is learning to play the piano.");
+
+        client().get().uri("/v1/memories/{id}", UUID.randomUUID())
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
     void recallReturnsClosestHitsScopedToHousehold() {
         // Seed three memories in our household, one in a different household.
         write("Maria's favourite tea is earl grey.", household, null, null);
