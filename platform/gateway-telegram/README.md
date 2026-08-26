@@ -7,6 +7,12 @@ Telegram entry point. Long-polling bot that:
 3. Builds a `NormalizedMessage` and sends it to `orchestrator`.
 4. Replies to the chat with the orchestrator's response.
 
+**Quick ack (typing indicator, road-test [#489](https://github.com/fedoroff-vlad/ai-life/issues/489) RU-1).**
+A round-trip (upload → STT → orchestrator → agent) can take several seconds, so the bot shows Telegram's
+"печатает…" for the whole flow — fired immediately and **kept alive** (Telegram's action lapses after ~5s, so
+it's refreshed every ~4s on a daemon scheduler while the long-poll thread blocks on the reply) until the reply
+is sent. Purely cosmetic + best-effort: a chat-action failure is swallowed, never delaying or breaking the reply.
+
 **Family invites (ADR-0001 slice 4b).** Two owner-gated commands, both handled at the gateway level
 (identity plumbing, not routable messages):
 - **`/invite <name> as <relationship>` (slice 4b-ii)** — the owner mints a pre-authorized invite into
@@ -79,6 +85,7 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 ## Key classes
 - `GatewayApplication`.
 - `bot/AiLifeBot` — Telegram bot impl. Intercepts the family-invite commands before the normal media/text dispatch: `/start <token>` (redemption → invitee reply + holder ping) and `/invite <name> as <relationship>` (owner mint → deep-link reply, or usage on a bare `/invite`).
+- `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
 - `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio (`transcribeIfVoice`) and routes the transcript as `text`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
