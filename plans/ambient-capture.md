@@ -127,6 +127,36 @@ nothing-new. Slices:
   `AmbientReconcileIntegrationTest` — a second mention with a new detail enriches the one note over real
   `/v1/capture`+Postgres (reconciler pinned to ENRICH; constant embedder so the mentions collide).
 
+### MQ-3 — precision tuning: measure → tune → enable (road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488))
+AC-1..5 built the machinery; MQ-3 makes its **quality measurable** before the flag is flipped on. The risk
+the flag guards is asymmetric: a false auto-save annoys (trivia saved), a miss loses value (a durable fact
+dropped), so the decision to enable is a **measured** one, not a vibe.
+
+- **Corpus.** `platform/memory-service/src/test/resources/ambient/precision-corpus.json` — labelled messages
+  (`text` → expected `CaptureOutcome`) spanning the three classes: explicit-fixation cues, un-cued durable
+  facts (about self + others), and trivia (commands / questions / scheduling / small-talk / one-off events).
+  **Grow it with real mis-classifications** as they surface in daily use — that is how the bar tracks reality.
+- **Scorer.** `memory/eval/AmbientCaptureScore` (pure, unit-tested by `AmbientCaptureScoreTest`) reduces each
+  message to its **strongest** predicted outcome (`EXPLICIT_FIXATION` > `IMPORTANT_INFERRED` > `TRIVIAL`, or
+  `TRIVIAL` when nothing is emitted — how `CaptureService` acts) and folds `(expected, predicted)` into a
+  confusion matrix, exposing the two goal metrics: **act-precision** (of messages acted on, the fraction truly
+  note-worthy = "trivia isn't saved") and **act-recall** (of note-worthy messages, the fraction acted on =
+  "durable facts aren't missed"), plus per-class precision/recall and an explicit-cue-not-missed rate.
+- **Golden.** `GoldenAmbientPrecisionTest` (`@GoldenLlmTest`, gated on `GOLDEN_LLM`) runs
+  `NoteWorthinessExtractor` over the corpus against the real model, prints the matrix, and asserts the
+  thresholds: **act-precision ≥ 0.80**, **act-recall ≥ 0.80**, **explicit-not-missed ≥ 0.90**. These are the
+  **acceptance bar** (what "good enough to trust" means), not a claim about the current default model. Run:
+  `scripts/golden.sh -pl platform/memory-service -Dtest=GoldenAmbientPrecisionTest`.
+- **Tuning knobs.** If the golden fails on the deploy model, tune (in order of cheapness): the
+  `NoteWorthinessExtractor` system prompt (the trivial/important boundary + the fixation-cue list); the corpus
+  (add the concrete mis-classification so the regression is captured); the AC-3 `memory.ambient-capture.dedup-distance`
+  (write-side duplicate suppression — orthogonal to classification but part of "trivia isn't saved").
+- **Enable gate (config).** `MEMORY_AMBIENT_CAPTURE_ENABLED` stays **`false`** until this golden is green on the
+  target deploy model (a stronger local MoE on the Mac — the dev box is CPU-only, so the run is deferred there,
+  the same model-gated posture as the Bucket 2 cutover #369). Flipping it before the eval passes is exactly the
+  "false auto-save annoys" failure the road-test is guarding against. When it clears, flip the flag in
+  `infra/.env.mac.example` (+ `.env.example`) and re-validate live.
+
 ## Reuse (no new client/endpoint)
 `FactExtractor` (the extractor shape), `ProfileClient.resolvePersonId` (attribution),
 `MemoryService.recall` + the `NoteFinder.refId` filter (dedup), `NoteService.create` (write + auto-seed +
