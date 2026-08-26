@@ -33,14 +33,20 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
 
     private final TelegramClient client;
     private final MessageProcessor processor;
+    private final TypingIndicator typing;
 
     public AiLifeBot(String botToken, MessageProcessor processor) {
         this(new OkHttpTelegramClient(botToken), processor);
     }
 
     AiLifeBot(TelegramClient client, MessageProcessor processor) {
+        this(client, processor, new TypingIndicator(client));
+    }
+
+    AiLifeBot(TelegramClient client, MessageProcessor processor, TypingIndicator typing) {
         this.client = client;
         this.processor = processor;
+        this.typing = typing;
     }
 
     @Override
@@ -73,7 +79,9 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
             return;
         }
 
-        try {
+        // Show "печатает…" for the whole slow round-trip (upload → STT → orchestrator → agent). The handle
+        // closes as this block exits — right before the reply (or the error notice) is sent (#489 quick ack).
+        try (TypingIndicator.Handle ignored = typing.start(msg.getChatId())) {
             // For a photo / document message the text is in the caption (may be null). A voice
             // note carries no caption — its text is the transcript, filled downstream from the
             // uploaded audio (front-door STT), so the orchestrator routes it like a typed message.

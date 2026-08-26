@@ -8,6 +8,28 @@ Also the single entry the scheduler uses to wake any agent (so human-triggered a
 ## gateway-telegram (platform/)
 Long polling at start → webhook when TLS. Resolve telegram_user_id → user/household/scope. Store incoming media in MinIO, pass links. BEFORE orchestrator call mcp-media-processing: audio→STT, image→vision-caption+OCR, video→keyframes+STT, file→text. Output: unified NormalizedMessage. Bot token lives ONLY here; `/internal/send` endpoint (shared INTERNAL_API_TOKEN) used by notifier.
 
+### Multimodal & reply UX ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489), road-test)
+The daily surface is Telegram (voice / photo / text); its rough edges are felt on every interaction. A broad
+epic sliced small:
+- **RU-1 quick ack (typing indicator) — ✅ DONE.** `bot/TypingIndicator` shows "печатает…" for the whole slow
+  round-trip (upload → STT → orchestrator → agent → reply) so the owner sees the bot heard them instead of
+  silence. Telegram's `sendChatAction` lapses after ~5s, so it is **kept alive** — fired once immediately, then
+  refreshed every ~4s on a daemon scheduler (the long-poll thread is blocked in `process().block()`, so the
+  refresh runs off it) until the reply is sent (a try-with-resources `Handle` in `AiLifeBot.consume`). Purely
+  cosmetic + best-effort: a chat-action failure is swallowed, never delaying or breaking the reply.
+- **RU-2 inline buttons for confirmations — deferred (next).** Render a Telegram inline keyboard for a
+  `pendingAction` confirm and map a tap (callback query) back to `/resume`, replacing free-text "да/нет".
+  The shared button/callback primitive **PX-4** (proactive snooze/dismiss) waits on — build once here.
+- **RU-3 STT reliability** (measure/tune RU voice transcription; low-confidence → ask to repeat) and **RU-4
+  photo/receipt robustness** (unreadable → ask for a clearer shot) — deferred; `mcp-media-processing` owns most.
+
+**Acceptance criteria (WHEN/THEN) — RU-1:**
+- Scenario: **slow flow shows a typing indicator.** WHEN an inbound message starts a round-trip that takes more
+  than a moment → THEN the owner sees "печатает…" immediately and continuously until the reply arrives, not
+  silence (`TypingIndicator.start` fires now + refreshes every ~4s; the `Handle` stops it when the reply sends).
+- Scenario: **typing never breaks the reply.** WHEN the typing chat-action send fails → THEN it is swallowed and
+  the actual reply is still produced and sent (best-effort, cosmetic-only).
+
 ## llm-gateway (platform/)
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
 
