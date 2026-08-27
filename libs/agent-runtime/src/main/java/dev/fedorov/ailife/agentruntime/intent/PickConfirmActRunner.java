@@ -242,6 +242,9 @@ public final class PickConfirmActRunner<T> {
         node.put("flow", flow.flow());
         node.put(flow.idField(), flow.view().id(target).toString());
         node.put(flow.labelField(), flow.view().label(target));
+        // Every confirm-act flow is a binary да/нет, so hint the gateway to offer inline Да/Нет buttons
+        // (#489 RU-2). Additive — resume reads only the id field; a tap maps back to the same "да"/"нет".
+        node.put(dev.fedorov.ailife.contracts.agent.PendingActionHints.CONFIRM, true);
         return node;
     }
 

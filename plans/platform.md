@@ -17,9 +17,15 @@ epic sliced small:
   refreshed every ~4s on a daemon scheduler (the long-poll thread is blocked in `process().block()`, so the
   refresh runs off it) until the reply is sent (a try-with-resources `Handle` in `AiLifeBot.consume`). Purely
   cosmetic + best-effort: a chat-action failure is swallowed, never delaying or breaking the reply.
-- **RU-2 inline buttons for confirmations — deferred (next).** Render a Telegram inline keyboard for a
-  `pendingAction` confirm and map a tap (callback query) back to `/resume`, replacing free-text "да/нет".
-  The shared button/callback primitive **PX-4** (proactive snooze/dismiss) waits on — build once here.
+- **RU-2 inline buttons for confirmations — ✅ DONE.** A binary-confirm reply now carries a Telegram
+  inline **Да / Нет** keyboard; a tap (callback query) is decoded to the same "да"/"нет" text the user would
+  type and routed through the normal orchestrator path, where the active conversation route-lock resumes the
+  awaiting agent — so the whole resume path is unchanged (no contract/agent change). Which replies get buttons
+  is opt-in: the shared confirm-act runner (`PickConfirmActRunner`) marks its confirm `pendingAction` with the
+  `PendingActionHints.CONFIRM` hint, and only a hinted reply gets a keyboard — an open-question `pendingAction`
+  (a clarify, a "личное/общее?" sharing confirm) still expects free text. The tap answers the callback (stops
+  the client spinner) and strips the keyboard so it's one-shot (both best-effort). The gateway's
+  `ConfirmKeyboard` is the shared button/callback primitive **PX-4** (proactive snooze/dismiss) will extend.
 - **RU-3 STT reliability** (measure/tune RU voice transcription; low-confidence → ask to repeat) and **RU-4
   photo/receipt robustness** (unreadable → ask for a clearer shot) — deferred; `mcp-media-processing` owns most.
 
@@ -29,6 +35,18 @@ epic sliced small:
   silence (`TypingIndicator.start` fires now + refreshes every ~4s; the `Handle` stops it when the reply sends).
 - Scenario: **typing never breaks the reply.** WHEN the typing chat-action send fails → THEN it is swallowed and
   the actual reply is still produced and sent (best-effort, cosmetic-only).
+
+**Acceptance criteria (WHEN/THEN) — RU-2:**
+- Scenario: **binary confirm renders buttons.** WHEN an agent reply carries a `pendingAction` hinted
+  `PendingActionHints.CONFIRM` → THEN the bot sends the reply text with a two-button Да / Нет inline keyboard.
+- Scenario: **open-question pendingAction gets no buttons.** WHEN a `pendingAction` lacks the confirm hint (a
+  clarify, a "личное/общее?" sharing confirm) → THEN no keyboard is attached (it expects a free-text answer).
+- Scenario: **a tap confirms via resume.** WHEN the owner taps "Да" → THEN the gateway routes the affirmative
+  text "да" through the orchestrator, the route-lock resumes the awaiting agent, and its reply is shown.
+- Scenario: **a tap cancels via resume.** WHEN the owner taps "Нет" → THEN the gateway routes "нет" (non-
+  affirmative) → the agent leaves the action, and the decline reply is shown.
+- Scenario: **buttons are one-shot + acknowledged.** WHEN a button is tapped → THEN the callback query is
+  answered (spinner stops) and the prompt's keyboard is stripped so it can't be tapped again (both best-effort).
 
 ## llm-gateway (platform/)
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
