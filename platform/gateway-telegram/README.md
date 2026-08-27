@@ -13,6 +13,16 @@ A round-trip (upload → STT → orchestrator → agent) can take several second
 it's refreshed every ~4s on a daemon scheduler while the long-poll thread blocks on the reply) until the reply
 is sent. Purely cosmetic + best-effort: a chat-action failure is swallowed, never delaying or breaking the reply.
 
+**Inline confirm buttons (road-test [#489](https://github.com/fedoroff-vlad/ai-life/issues/489) RU-2).** A
+binary-confirm reply — an agent `pendingAction` hinted `PendingActionHints.CONFIRM` (set by the shared
+`PickConfirmActRunner`) — is sent with a **Да / Нет** inline keyboard. A tap arrives as a callback query; the
+gateway decodes it to the same "да"/"нет" text the user would type and routes it through the normal
+orchestrator path, where the active conversation route-lock resumes the awaiting agent — so no resume-specific
+plumbing lives here. The tap answers the callback (stops the client spinner) and strips the keyboard so it's
+one-shot (both best-effort). An open-question `pendingAction` without the hint (a clarify, a "личное/общее?"
+sharing confirm) gets **no** keyboard — it still expects a free-text answer. `ConfirmKeyboard` is the shared
+button/callback primitive the proactive snooze/dismiss buttons (#487 PX-4) will extend.
+
 **Family invites (ADR-0001 slice 4b).** Two owner-gated commands, both handled at the gateway level
 (identity plumbing, not routable messages):
 - **`/invite <name> as <relationship>` (slice 4b-ii)** — the owner mints a pre-authorized invite into
@@ -84,7 +94,8 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 
 ## Key classes
 - `GatewayApplication`.
-- `bot/AiLifeBot` — Telegram bot impl. Intercepts the family-invite commands before the normal media/text dispatch: `/start <token>` (redemption → invitee reply + holder ping) and `/invite <name> as <relationship>` (owner mint → deep-link reply, or usage on a bare `/invite`).
+- `bot/AiLifeBot` — Telegram bot impl. Intercepts a **callback query** (a confirm-button tap, #489 RU-2) before message dispatch — decodes it to "да"/"нет", answers the callback + strips the keyboard, routes it like a typed reply; then intercepts the family-invite commands before the normal media/text dispatch: `/start <token>` (redemption → invitee reply + holder ping) and `/invite <name> as <relationship>` (owner mint → deep-link reply, or usage on a bare `/invite`). Attaches the confirm keyboard to a binary-confirm reply (`isBinaryConfirm` → `pendingAction` hinted `PendingActionHints.CONFIRM`).
+- `bot/ConfirmKeyboard` — the RU-2 shared inline-button primitive (#489; PX-4 will extend it): builds the two-button Да / Нет keyboard (localised labels, stable `cf:y`/`cf:n` callback ids) and decodes a tap's `callback_data` back into the "да"/"нет" text a route-locked `/resume` expects.
 - `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
 - `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio (`transcribeIfVoice`) and routes the transcript as `text`.

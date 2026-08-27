@@ -11,7 +11,7 @@ boundaries, the DTO goes here.
 
 | Package | Purpose |
 |---|---|
-| `agent` | `AgentManifest`, `IntentResponse`, `NormalizedMessage`, `Attachment`, `MessageScope` (agent ↔ orchestrator); `AgentActionRequest`/`AgentActionResult` (inter-agent hub `/v1/agents/invoke`); `ResumeRequest` (route-lock resume). |
+| `agent` | `AgentManifest`, `IntentResponse`, `NormalizedMessage`, `Attachment`, `MessageScope` (agent ↔ orchestrator); `AgentActionRequest`/`AgentActionResult` (inter-agent hub `/v1/agents/invoke`); `ResumeRequest` (route-lock resume); `PendingActionHints` (reserved keys the gateway reads from the opaque `pendingAction` — `CONFIRM` marks a binary да/нет for #489 RU-2 inline buttons). |
 | `calendar` | `CalendarEventDto`, `CreateEventInput`, `UpdateEventInput`, `ListEventsInput`, `SearchEventsInput` (mcp-caldav); `IcsSubscriptionDto`, `AddSubscriptionInput`, `PullCalendarResult` (mcp-ics-import). |
 | `finance` | mcp-finance surface: `FinTransactionDto`/`FinAccountDto`/`FinBudgetDto`/`FinCategoryDto`/`FinRecurringDto` + their inputs; `BalanceResult`, `BudgetStatusResult`, `SpendingByCategoryInput`/`Row`, gift-budget (`GiftBudgetResult`/`GiftBudgetRuleDto`/`SetGiftBudgetRuleInput`), CSV import/export, matview refresh. |
 | `tasks` | GTD: `TaskProjectDto`/`TaskItemDto` + inputs (`Add/Clarify/Update/ListTasksInput`, `UpsertProjectInput`), `LinkTaskToEventInput`/`TaskToEventRequest`, `WeeklyReviewResult`. |

@@ -4,16 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#489 multimodal/reply-UX — 🚧 IN PROGRESS; RU-1 quick-ack DONE (2026-08-26).** The daily Telegram
-  surface (voice/photo/text) should feel good ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489)).
-  **RU-1 (typing indicator / quick ack)** — gateway-telegram shows "печатает…" for the whole slow round-trip,
-  kept alive (`bot/TypingIndicator`: fire now + refresh every ~4s on a daemon scheduler while the long-poll
-  thread blocks; `Handle` stops it when the reply sends), best-effort/cosmetic. Detail → [HISTORY.md](HISTORY.md)
-  + [platform.md](platform.md) §Multimodal & reply UX. **NEXT: RU-2** — inline buttons for a `pendingAction`
-  confirm (render a Telegram inline keyboard, map a tap/callback back to `/resume` instead of free-text "да/нет");
-  the shared button/callback primitive **PX-4** (proactive snooze/dismiss) waits on — build once. Then **RU-3**
-  STT reliability (RU voice; low-confidence → ask to repeat) + **RU-4** photo/receipt robustness (unreadable →
-  ask for a clearer shot).
+- **road-test §#489 multimodal/reply-UX — 🚧 IN PROGRESS; RU-1 quick-ack + RU-2 inline-confirm DONE (2026-08-27).**
+  The daily Telegram surface (voice/photo/text) should feel good ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489)).
+  **RU-1 (typing indicator)** — "печатает…" kept alive for the slow round-trip (`bot/TypingIndicator`). **RU-2
+  (inline confirm buttons)** — a binary-confirm reply (a `pendingAction` hinted `PendingActionHints.CONFIRM`,
+  set by the shared `PickConfirmActRunner`) now carries a **Да / Нет** inline keyboard; a tap is decoded to the
+  same "да"/"нет" text and routed through the normal path, where the route-lock resumes the awaiting agent (no
+  contract/agent change). `bot/ConfirmKeyboard` is the shared button primitive **PX-4** (proactive snooze/dismiss)
+  will extend. Detail → [HISTORY.md](HISTORY.md) + [platform.md](platform.md) §Multimodal & reply UX. **NEXT:
+  RU-3** STT reliability (RU voice; low-confidence → ask to repeat) + **RU-4** photo/receipt robustness
+  (unreadable → ask for a clearer shot) — `mcp-media-processing` owns most.
 - **road-test §#488 memory-quality — ✅ CORE COMPLETE (2026-08-26); only the Mac-gated ambient enable-flip remains.**
   Made what the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)):
   **MQ-1** review digest ("что ты про меня запомнил"), **MQ-2** forget/correct a fact on the shared

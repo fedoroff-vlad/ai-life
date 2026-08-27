@@ -141,7 +141,9 @@ lock: `pick(msg)` reads the candidate pool, asks the LLM to pick one (`{pick:n}`
 `resume(req)` runs the terminal act on an affirmative, leaves it otherwise, and clears the lock either way.
 Every stage soft-fails. The runner owns the orchestration, the LLM round-trip + selection parse, the confirm
 gate, the shared Russian wording, and the `params` passthrough (the extra LLM fields a move/edit needs,
-threaded through the lock into `act`).
+threaded through the lock into `act`). The confirm `pendingAction` also carries the
+`contracts.agent.PendingActionHints.CONFIRM` hint (`"confirm": true`), so gateway-telegram renders a Да / Нет
+inline keyboard for it (#489 RU-2) — additive, ignored by `resume` (which reads only the id field).
 
 A domain supplies a small `TargetedActionFlow<T>` adapter: `candidates()` (the domain read, own vs
 personal ∪ shared), a `CandidateView<T>` (`id`/`label`/`describe`), `act()` (the delete/cancel/update), and

@@ -1,19 +1,26 @@
 package dev.fedorov.ailife.tg.bot;
 
+import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
+import dev.fedorov.ailife.contracts.agent.PendingActionHints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageReplyMarkup;
+import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.File;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.Voice;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
+import org.telegram.telegrambots.meta.api.objects.message.MaybeInaccessibleMessage;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
@@ -51,6 +58,13 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
 
     @Override
     public void consume(Update update) {
+        // A button tap on a confirm prompt (#489 RU-2) arrives as a callback query, not a message —
+        // map it back to the "да"/"нет" text and route it like a typed reply (the conversation lock
+        // then resumes the awaiting agent).
+        if (update.hasCallbackQuery()) {
+            handleCallback(update.getCallbackQuery());
+            return;
+        }
         Message msg = update.getMessage();
         if (msg == null) {
             return;
@@ -111,13 +125,68 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
                     media);
 
             var response = processor.process(incoming).block();
-            String reply = response != null && response.text() != null
-                    ? response.text()
-                    : "(no response)";
-            send(msg.getChatId(), reply);
+            reply(msg.getChatId(), response, from.getLanguageCode());
         } catch (Exception e) {
             log.error("Failed to handle update {}", update.getUpdateId(), e);
             send(msg.getChatId(), "Sorry, something broke. Please try again.");
+        }
+    }
+
+    /**
+     * Handles a confirm-button tap (#489 RU-2). The tap's {@code callback_data} maps to the same "да"/"нет"
+     * the user would type; that text is routed through the normal orchestrator path, where the active
+     * conversation route-lock resumes the awaiting agent (so no resume-specific plumbing is needed here).
+     * The callback query is always answered (stops the client spinner) and the prompt's keyboard is stripped
+     * so it can't be tapped twice — both best-effort. A tap whose data isn't one of ours is just acknowledged.
+     */
+    private void handleCallback(CallbackQuery cq) {
+        answerCallback(cq.getId());
+        String mapped = ConfirmKeyboard.textFor(cq.getData());
+        MaybeInaccessibleMessage src = cq.getMessage();
+        if (mapped == null || src == null) {
+            return;
+        }
+        Long chatId = src.getChatId();
+        User from = cq.getFrom();
+        stripKeyboard(chatId, src.getMessageId());
+        try (TypingIndicator.Handle ignored = typing.start(chatId)) {
+            var incoming = new MessageProcessor.IncomingMessage(
+                    from.getId(),
+                    displayNameOf(from),
+                    from.getLanguageCode(),
+                    mapped,
+                    scopeFor(src),
+                    String.valueOf(src.getMessageId()));
+            IntentResponse response = processor.process(incoming).block();
+            reply(chatId, response, from.getLanguageCode());
+        } catch (Exception e) {
+            log.error("Failed to handle callback {}", cq.getId(), e);
+            send(chatId, "Sorry, something broke. Please try again.");
+        }
+    }
+
+    /** Best-effort ack so the tapping client stops showing its loading spinner; a failure is swallowed. */
+    private void answerCallback(String callbackQueryId) {
+        try {
+            client.execute(AnswerCallbackQuery.builder().callbackQueryId(callbackQueryId).build());
+        } catch (TelegramApiException e) {
+            log.debug("Failed to answer callback {}", callbackQueryId, e);
+        }
+    }
+
+    /** Best-effort removal of the confirm keyboard from the original prompt so it's one-shot; failure swallowed. */
+    private void stripKeyboard(Long chatId, Integer messageId) {
+        if (chatId == null || messageId == null) {
+            return;
+        }
+        try {
+            client.execute(EditMessageReplyMarkup.builder()
+                    .chatId(chatId)
+                    .messageId(messageId)
+                    .replyMarkup(InlineKeyboardMarkup.builder().keyboard(List.of()).build())
+                    .build());
+        } catch (TelegramApiException e) {
+            log.debug("Failed to strip keyboard on chat {} msg {}", chatId, messageId, e);
         }
     }
 
@@ -312,6 +381,32 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         return "photo-" + fileId + ".jpg";
     }
 
+    /**
+     * Sends an agent reply, attaching a "Да / Нет" inline keyboard when the reply is a binary confirm
+     * (a {@code pendingAction} hinted {@link PendingActionHints#CONFIRM}, #489 RU-2). A plain reply, an
+     * open-question pendingAction (a clarify / "личное-общее?" sharing confirm), or a null response all
+     * fall back to a keyboardless text send.
+     */
+    private void reply(Long chatId, IntentResponse response, String languageCode) {
+        String text = response != null && response.text() != null ? response.text() : "(no response)";
+        var builder = SendMessage.builder().chatId(chatId).text(text);
+        if (isBinaryConfirm(response)) {
+            builder.replyMarkup(ConfirmKeyboard.markup(languageCode));
+        }
+        try {
+            client.execute(builder.build());
+        } catch (TelegramApiException e) {
+            log.error("Failed to send reply to chat {}", chatId, e);
+        }
+    }
+
+    /** A reply that awaits a yes/no confirmation the gateway should offer as buttons (#489 RU-2). */
+    private static boolean isBinaryConfirm(IntentResponse response) {
+        return response != null
+                && response.pendingAction() != null
+                && response.pendingAction().path(PendingActionHints.CONFIRM).asBoolean(false);
+    }
+
     private void send(Long chatId, String text) {
         try {
             client.execute(SendMessage.builder()
@@ -336,7 +431,7 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         return "user-" + from.getId();
     }
 
-    private static MessageScope scopeFor(Message msg) {
+    private static MessageScope scopeFor(MaybeInaccessibleMessage msg) {
         return msg.isGroupMessage() || msg.isSuperGroupMessage()
                 ? MessageScope.GROUP_CHAT
                 : MessageScope.PRIVATE;
