@@ -4,33 +4,24 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#490 family-onboarding — 🚧 IN FLIGHT.** UX/onboarding layer on the shipped identity
-  ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md))
-  plumbing so a 2nd member (wife) is productive in minutes. Slices spec'd in [core.md](core.md) §Onboarding UX
-  (FO-1 join orientation · FO-2 keyword-free per-member prefs-in-chat · FO-3 sensible defaults on join).
-  **FO-1 — join orientation** (gateway `IdentityResolver.joinedReply`): the `/start <token>` redeem reply
-  orients the new member (what works with no setup + how to set prefs in chat + privacy line, per locale)
-  instead of a bare "you've joined". **DONE** ([PR #577](https://github.com/fedoroff-vlad/ai-life/pull/577)).
-  **FO-3 — sensible defaults on join** (`BriefingComposer.resolveProfile`): a member who set nothing now
-  inherits the **family/shared household-default** briefing profile (home base + interests) via the shared
-  `ProfileClient.householdRouting`, so weather/news work out of the box with no per-member setup; personal
-  profiles are never read for anyone else. **DONE** ([PR #578](https://github.com/fedoroff-vlad/ai-life/pull/578)).
-  **FO-2 — keyword-free per-member prefs-in-chat**: the per-member invariant (self-scope default +
-  self-first read) is already structural across profilers; the real gap was the `briefing-profiler` SKILL
-  rejecting a **cue-less** statement ("я встаю в 7, брифинг в 7:15" → `{"error":...}`). SKILL now recognises
-  a plainly-stated preference/habit as config (no "настрой" verb), stored self-scoped. Proved end-to-end by
-  golden (real qwen3:8b): `GoldenBriefingProfileTest` keyword-free self-scope extract + `GoldenBriefingRoutingTest`
-  cue-less → profiler routing, both green. **DONE (in flight PR).** **All three FO slices (FO-1/FO-3/FO-2)
-  done → #490 ready to close** (do the closer freshness pass on merge). Epic
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+- **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
+  identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing
+  ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md)) plumbing so a 2nd member (wife) is productive in
+  minutes: **FO-1** join orientation (gateway redeem reply orients the new member), **FO-3** sensible
+  defaults on join (a member who set nothing inherits the family/shared briefing default via
+  `ProfileClient.householdRouting`), **FO-2** keyword-free per-member prefs (the `briefing-profiler` SKILL
+  now captures a cue-less stated preference as a `self` config; golden-proved on qwen3:8b). Detail →
+  [HISTORY.md](HISTORY.md) + [core.md](core.md) §Onboarding UX. **This closes the assistant-hardening
+  road-test epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)** (#483…#490) — **Jarvis-style
+  autonomy (smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192), coordination
+  [#477](https://github.com/fedoroff-vlad/ai-life/issues/477)) is now unblocked.** Next work = pick from
+  `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
 - **road-test §#489 multimodal/reply-UX — ✅ COMPLETE (2026-08-28).** All four slices shipped: **RU-1** typing
   indicator, **RU-2** inline Да/Нет confirm buttons, **RU-3** STT reliability gate (empty/low-confidence voice →
   ask to repeat), **RU-4** photo/receipt robustness (unreadable captionless document photo → ask for a clearer
   shot; OCR-confidence twin of RU-3, on the docs path — the receipt/finance path already asked). Detail →
-  [HISTORY.md](HISTORY.md) + [platform.md](platform.md) §Multimodal & reply UX. **Next road-test item** (epic
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): family-onboarding
-  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490) — the last item before the Jarvis-style autonomy
-  work is unblocked.
+  [HISTORY.md](HISTORY.md) + [platform.md](platform.md) §Multimodal & reply UX. (Superseded by the §#490
+  COMPLETE bullet above — #490 was the last road-test item and is now done.)
 - **road-test §#488 memory-quality — ✅ CORE COMPLETE (2026-08-26); only the Mac-gated ambient enable-flip remains.**
   Made what the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)):
   **MQ-1** review digest ("что ты про меня запомнил"), **MQ-2** forget/correct a fact on the shared
@@ -111,16 +102,11 @@ grocery/things lists as **structured item lists** (add/check-off/clear) on the `
 **notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list
 mirrored as a `type=list` note. Detail → [HISTORY.md](HISTORY.md). (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
 **Assistant hardening / road-test** (owner direction 2026-08-16: daily-drive it as a reliable personal
-assistant *before* any autonomy/actuation) — **epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)**
-is the SSOT; order: prerequisite 24/7 instance [#483](https://github.com/fedoroff-vlad/ai-life/issues/483)
-(blocked) → transparency/no-silent-failures [#485](https://github.com/fedoroff-vlad/ai-life/issues/485) +
-routing reliability [#484](https://github.com/fedoroff-vlad/ai-life/issues/484) (rides #475) → CRUD/undo
-[#486](https://github.com/fedoroff-vlad/ai-life/issues/486) → proactive-UX
-[#487](https://github.com/fedoroff-vlad/ai-life/issues/487) + memory-quality
-[#488](https://github.com/fedoroff-vlad/ai-life/issues/488) → multimodal/reply-UX
-[#489](https://github.com/fedoroff-vlad/ai-life/issues/489) + family-onboarding
-[#490](https://github.com/fedoroff-vlad/ai-life/issues/490). Jarvis-style autonomy (smart-home #192,
-coordination #477) deferred until this is done.
+assistant *before* any autonomy/actuation) — **epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)
+✅ COMPLETE (2026-08-28)**: transparency #485 + routing #484 → CRUD/undo #486 → proactive-UX #487 +
+memory-quality #488 → multimodal/reply-UX #489 + family-onboarding #490 all shipped (only the 24/7 instance
+[#483](https://github.com/fedoroff-vlad/ai-life/issues/483) remains, hardware-blocked). Detail →
+[HISTORY.md](HISTORY.md). **Jarvis-style autonomy (smart-home #192, coordination #477) is now unblocked.**
 **Architecture hardening** (2026-08-16 review) — **epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479)** is the SSOT; items (ROI order): in-agent routing → shared `SkillClassifier` for the 8 cue-routed agents [#475](https://github.com/fedoroff-vlad/ai-life/issues/475); factor the 5× personalization-profile pattern into a shared capability (ADR first) [#476](https://github.com/fedoroff-vlad/ai-life/issues/476); prove real agent-led multi-domain coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477); reconcile empty `shared/skills/` doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478). Bucket 2 cutover #369 (above) is the model-gated fifth thread.
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
