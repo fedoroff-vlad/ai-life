@@ -45,6 +45,10 @@ class TesseractOcrEngineTest {
 
         String letters = result.text().toUpperCase().replaceAll("[^A-Z]", "");
         assertThat(letters).contains("HELLO");
+        // RU-4 (#489): a clean, readable render yields a real 0..1 confidence (mean word confidence),
+        // well clear of the docs unreadable gate — proves the signal is populated, not left null.
+        assertThat(result.confidence()).isNotNull();
+        assertThat(result.confidence()).isGreaterThan(0.4);
     }
 
     /** Clean, high-contrast rendering so OCR is reliable in CI. */

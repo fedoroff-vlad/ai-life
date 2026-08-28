@@ -2,9 +2,11 @@ package dev.fedorov.ailife.mcp.mediaprocessing.engine;
 
 import dev.fedorov.ailife.contracts.media.OcrResult;
 import dev.fedorov.ailife.mcp.mediaprocessing.config.McpMediaProcessingProperties;
+import net.sourceforge.tess4j.ITessAPI;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
 import net.sourceforge.tess4j.TesseractException;
+import net.sourceforge.tess4j.Word;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,6 +17,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Real OCR via Tess4J (JNI wrapper around native {@code tesseract-ocr}, MP-b). The
@@ -77,10 +80,48 @@ public class TesseractOcrEngine implements OcrEngine {
         }
         try {
             String text = tess.doOCR(image);
-            return new OcrResult(text == null ? "" : text.strip(), null, null);
+            String stripped = text == null ? "" : text.strip();
+            return new OcrResult(stripped, null, confidenceFor(tess, image, stripped));
         } catch (TesseractException e) {
             // Genuine engine failure (native lib / tessdata missing) — surface it.
             throw new IllegalStateException("OCR failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * A 0..1 recognition confidence = mean Tesseract per-word confidence (0..100) ÷ 100 — the OCR twin
+     * of the whisper STT signal (#489 RU-4). {@code 0.0} on empty text; {@code null} when the engine
+     * reports no per-word confidence (treated by the consumer as "unknown", never low). Uses a second
+     * recognition pass ({@code getWords}) so the stored text corpus stays byte-identical to {@code doOCR}'s;
+     * OCR is infrequent on the docs ingest path, so the extra pass is an acceptable cost for a clean signal.
+     * Best-effort: a hiccup in the word pass never fails the OCR — it just yields {@code null}.
+     */
+    private Double confidenceFor(ITesseract tess, BufferedImage image, String text) {
+        if (text.isEmpty()) {
+            return 0.0;
+        }
+        try {
+            List<Word> words = tess.getWords(image, ITessAPI.TessPageIteratorLevel.RIL_WORD);
+            if (words == null || words.isEmpty()) {
+                return null;
+            }
+            double sum = 0.0;
+            int n = 0;
+            for (Word w : words) {
+                float c = w.getConfidence();
+                if (c >= 0) {
+                    sum += c;
+                    n++;
+                }
+            }
+            if (n == 0) {
+                return null;
+            }
+            double confidence = (sum / n) / 100.0;
+            return Math.max(0.0, Math.min(1.0, confidence));
+        } catch (Exception e) {
+            log.debug("OCR confidence pass failed, reporting no signal: {}", e.toString());
+            return null;
         }
     }
 

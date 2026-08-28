@@ -4,19 +4,14 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **road-test §#489 multimodal/reply-UX — 🚧 IN PROGRESS; RU-1 quick-ack + RU-2 inline-confirm + RU-3 STT-gate DONE (2026-08-28).**
-  The daily Telegram surface (voice/photo/text) should feel good ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489)).
-  **RU-1 (typing indicator)** — "печатает…" kept alive for the slow round-trip (`bot/TypingIndicator`). **RU-2
-  (inline confirm buttons)** — a binary-confirm reply (a `pendingAction` hinted `PendingActionHints.CONFIRM`,
-  set by the shared `PickConfirmActRunner`) now carries a **Да / Нет** inline keyboard; a tap is decoded to the
-  same "да"/"нет" text and routed through the normal path, where the route-lock resumes the awaiting agent (no
-  contract/agent change). `bot/ConfirmKeyboard` is the shared button primitive **PX-4** (proactive snooze/dismiss)
-  will extend. **RU-3 (STT reliability)** — `mcp-media-processing`'s whisper engine derives a `0..1` `confidence`
-  on `TranscriptResult`; gateway-telegram bounces a captionless voice note that transcribes empty or below
-  `gateway.stt.min-confidence` (default `0.55`) with "повтори голосом ещё раз" instead of routing garbage (a
-  `null`/unknown confidence still routes; deterministic). Detail → [HISTORY.md](HISTORY.md) +
-  [platform.md](platform.md) §Multimodal & reply UX. **NEXT: RU-4** photo/receipt robustness (unreadable →
-  ask for a clearer shot) — `mcp-media-processing` owns most (the OCR/caption twin of the RU-3 gate).
+- **road-test §#489 multimodal/reply-UX — ✅ COMPLETE (2026-08-28).** All four slices shipped: **RU-1** typing
+  indicator, **RU-2** inline Да/Нет confirm buttons, **RU-3** STT reliability gate (empty/low-confidence voice →
+  ask to repeat), **RU-4** photo/receipt robustness (unreadable captionless document photo → ask for a clearer
+  shot; OCR-confidence twin of RU-3, on the docs path — the receipt/finance path already asked). Detail →
+  [HISTORY.md](HISTORY.md) + [platform.md](platform.md) §Multimodal & reply UX. **Next road-test item** (epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): family-onboarding
+  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490) — the last item before the Jarvis-style autonomy
+  work is unblocked.
 - **road-test §#488 memory-quality — ✅ CORE COMPLETE (2026-08-26); only the Mac-gated ambient enable-flip remains.**
   Made what the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)):
   **MQ-1** review digest ("что ты про меня запомнил"), **MQ-2** forget/correct a fact on the shared

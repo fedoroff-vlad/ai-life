@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.agents.docs.archive.DocArchiver;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
@@ -299,6 +300,65 @@ class DocArchiverTest {
         assertThat(body.path("ownerId").asString()).isEqualTo(userId.toString());
         assertThat(body.path("mediaId").asString()).isEqualTo("media-amb2");
         assertThat(body.path("ocrText").asString()).contains("важная бумага");
+    }
+
+    @Test
+    void unreadableCaptionlessPhotoAsksForAClearerShotWithoutArchiving() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // RU-4: empty OCR (nothing recognised) + no caption to infer metadata from → ask, don't file.
+        mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
+                new OcrResult("", null, 0.0))));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, householdId, MessageScope.PRIVATE, null,
+                List.of(new Attachment("image", "image/jpeg", "media-blurry", null)),
+                "telegram", "90", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).isEqualTo(DocArchiver.ASK_CLEARER_SHOT);
+
+        // OCR ran, but the unreadable photo was NOT extracted (no llm) nor archived (no mcp-docs).
+        RecordedRequest ocrReq = mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(ocrReq.getPath()).isEqualTo("/internal/ocr");
+        assertThat(llmGateway.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(mcpDocs.takeRequest(300, TimeUnit.MILLISECONDS)).isNull();
+    }
+
+    @Test
+    void lowConfidencePhotoWithCaptionStillArchives() throws Exception {
+        UUID envelopeHh = UUID.randomUUID();
+        UUID personalHh = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // RU-4 exemption: OCR confidence below the gate, BUT the user captioned it — the caption carries
+        // the metadata, so we archive as before rather than asking for a re-shoot.
+        mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(
+                new OcrResult("смазанный текст", "ru", 0.1))));
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "{\"docType\":\"note\",\"title\":\"Справка\"}",
+                "stop", new LlmUsage(60, 15, 75)))));
+        profileService.enqueue(jsonResponse("{\"personalHouseholdId\":\"" + personalHh
+                + "\",\"sharedHouseholdIds\":[]}"));
+        mcpDocs.enqueue(jsonResponse(json.writeValueAsString(new DocumentDto(
+                UUID.randomUUID(), personalHh, userId, "media-cap", "note", "Справка",
+                null, null, null, null, "смазанный текст", null, Instant.now()))));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, envelopeHh, MessageScope.PRIVATE,
+                "это справка из поликлиники", List.of(new Attachment("image", "image/jpeg", "media-cap", null)),
+                "telegram", "91", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Заархивировал");
+
+        // It went the full archive path despite the low confidence (caption present).
+        mcpMediaProcessing.takeRequest(2, TimeUnit.SECONDS);
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        profileService.takeRequest(2, TimeUnit.SECONDS);
+        RecordedRequest saveReq = mcpDocs.takeRequest(2, TimeUnit.SECONDS);
+        assertThat(saveReq.getPath()).isEqualTo("/internal/documents");
     }
 
     private IntentResponse post(NormalizedMessage msg) {

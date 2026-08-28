@@ -35,8 +35,27 @@ epic sliced small:
   unintelligible: the gateway replies "не расслышал, повтори голосом ещё раз" and **does not route**, so the
   owner just re-records instead of getting a wrong action. A `null` confidence is "unknown", never low, so a
   transcript still routes when the engine gives no signal (back-compat). Deterministic, never an LLM call.
-- **RU-4 photo/receipt robustness** (unreadable → ask for a clearer shot) — deferred; `mcp-media-processing`
-  owns most (the OCR/caption twin of this gate).
+- **RU-4 photo/receipt robustness — ✅ DONE.** The image twin of RU-3. Two photo paths reach an
+  understanding step: a **receipt → finance** (`caption`/vision) already asks «пришлите фото почётче» when the
+  vision model can't read an amount (`ReceiptParser`, + a future-date sanity caution), so no change there. The
+  gap was the **document → docs** OCR path: `mcp-media-processing`'s Tesseract engine now derives a `0..1`
+  `confidence` on `OcrResult` (mean per-word confidence; `0.0` on empty text; `null` when the engine gives no
+  signal — the OCR twin of the whisper signal), and `docs-agent`'s `DocArchiver` gates on it — a **captionless**
+  document photo whose OCR is empty or **below `docs-agent.ocr-min-confidence`** (default `0.4`) is bounced back
+  asking for a clearer shot instead of filing a blank, unsearchable archive row + note. A caption exempts it (the
+  caption carries the metadata → still archives), and a `null`/unknown confidence still archives (back-compat).
+  Deterministic, never an LLM call.
+
+**Acceptance criteria (WHEN/THEN) — RU-4:**
+- Scenario: **a readable document archives.** WHEN a document photo's OCR is non-empty with confidence ≥
+  `docs-agent.ocr-min-confidence` (or a `null`/unknown confidence) → THEN docs-agent archives it as before.
+- Scenario: **an unreadable captionless photo asks for a re-shoot.** WHEN the OCR text is empty or its confidence
+  is known and below the threshold, and the message carries no caption → THEN docs-agent replies asking for a
+  clearer shot and does not file anything (no LLM extract, no archive write).
+- Scenario: **a caption exempts the gate.** WHEN the same unreadable OCR arrives with a user caption → THEN
+  docs-agent still archives (the caption carries the metadata).
+- Scenario: **a blurry receipt to finance still asks for the amount.** WHEN a receipt photo's vision extract has
+  no amount → THEN finance replies «Не удалось распознать сумму… Пришлите фото почётче» (pre-existing, unchanged).
 
 **Acceptance criteria (WHEN/THEN) — RU-3:**
 - Scenario: **a confident voice note routes.** WHEN a captionless voice note transcribes to non-empty text with

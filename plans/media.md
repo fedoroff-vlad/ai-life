@@ -78,6 +78,9 @@ JNI-mature; whisper's isn't.
   only by `mediaprocessing.ocr-engine=stub` (the wiring test, degraded boxes). Docker image
   installs `tesseract-ocr` + eng/rus + sets `TESSDATA_PREFIX`; CI installs tesseract so the
   real-OCR test (render → extract → assert) runs. `tessdata` path resolved via env-then-probe.
+  **RU-4 (#489):** it now also populates `OcrResult.confidence` — mean per-word Tesseract
+  confidence (`getWords`) ÷ 100, `0.0` on empty text, `null` when the engine gives no signal —
+  the OCR twin of the whisper STT confidence, consumed by docs-agent's unreadable-photo gate.
 - **Reorder (owner 2026-06-19):** the `caption` vision tool comes **before** the
   receipt-parser migration — vision-on-the-image is more accurate than parsing noisy OCR
   text, so receipt-parser migrates onto `caption`, not `ocr`. New order: MP-d1 (caption) →
