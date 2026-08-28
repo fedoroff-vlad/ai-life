@@ -32,6 +32,13 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- ADR-0005 slice 7: the generic PersonalizationProfileClient (libs/profile) — stylist adopts the
+             shared style-profile client (get+set) only; its vision-caption write flow (AnalyseMe) and the
+             per-person style profile don't use the profiler template / ProfileScopeResolver (see the ADR). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile</artifactId>
+        </dependency>
         <dependency>
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>doc-render</artifactId>

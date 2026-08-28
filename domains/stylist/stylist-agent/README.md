@@ -120,8 +120,10 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   / `AnalyseMe`. `@Bean` wired in `config/OutboundHttpConfig` from the `DocRenderer` + `MediaStoreClient`
   + public-media base URL.
 - `http/CaptionClient` (`/internal/caption`) + `http/WardrobeClient` (`/internal/item`) +
-  `http/StyleProfileClient` (`/internal/profile`) + `http/WardrobeReadClient` (`/internal/items` +
-  `/internal/profile`) + `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`
+  `http/StyleProfileClient` — stylist's typed binding of the shared `PersonalizationProfileClient`
+  (get+set `/internal/profile`; ADR-0005 slice 7, collapses the former split style-profile clients) +
+  `http/WardrobeReadClient` (`/internal/items`; its profile read now delegates to `StyleProfileClient`) +
+  `http/WebSearchClient` (`/internal/search`) + `http/ImageGenClient`
   (`/internal/generate`) + the shared `MediaStoreClient` (`libs/agent-runtime`, `POST /v1/media`;
   `@Bean` source `stylist` in `config/OutboundHttpConfig`) — the deterministic
   capability/media calls (MockWebServer-testable; not SSE).

@@ -12,19 +12,24 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Reads the wardrobe over {@code mcp-wardrobe}'s {@code GET /internal/items} + {@code GET
- * /internal/profile} passthroughs (ST-e). The capsule flow gathers the household's garments and the
- * person's style profile from here. Read-only; the deterministic, MockWebServer-testable path (not
- * the SSE transport). A 404 on the profile (none set yet) maps to an empty Mono so the gather just
+ * Reads the wardrobe over {@code mcp-wardrobe}'s {@code GET /internal/items} passthrough (ST-e), and the
+ * person's style profile via the shared {@link StyleProfileClient} (ADR-0005 slice 7 — the style-profile
+ * get/set now lives once in the generic {@code PersonalizationProfileClient}; this class delegates its
+ * profile read rather than hand-rolling a second copy). The capsule flow gathers the household's garments
+ * and the person's style profile from here. Read-only; the deterministic, MockWebServer-testable path
+ * (not the SSE transport). A 404 on the profile (none set yet) maps to an empty Mono so the gather just
  * omits it.
  */
 @Component
 public class WardrobeReadClient {
 
     private final WebClient http;
+    private final StyleProfileClient styleProfiles;
 
-    public WardrobeReadClient(@Qualifier("mcpWardrobeWebClient") WebClient http) {
+    public WardrobeReadClient(@Qualifier("mcpWardrobeWebClient") WebClient http,
+                              StyleProfileClient styleProfiles) {
         this.http = http;
+        this.styleProfiles = styleProfiles;
     }
 
     public Mono<List<WardrobeItemDto>> listItems(UUID householdId, String category) {
@@ -40,17 +45,8 @@ public class WardrobeReadClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
+    /** Delegates to the shared generic style-profile client (404 → empty). */
     public Mono<StyleProfileDto> getProfile(UUID householdId, UUID ownerId) {
-        return http.get()
-                .uri(b -> {
-                    b.path("/internal/profile").queryParam("householdId", householdId);
-                    if (ownerId != null) b.queryParam("ownerId", ownerId);
-                    return b.build();
-                })
-                .retrieve()
-                .bodyToMono(StyleProfileDto.class)
-                .timeout(Duration.ofSeconds(10))
-                .onErrorResume(org.springframework.web.reactive.function.client.WebClientResponseException.NotFound.class,
-                        e -> Mono.empty());
+        return styleProfiles.get(householdId, ownerId);
     }
 }
