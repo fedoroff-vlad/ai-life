@@ -161,7 +161,7 @@ ADR-0002 reached for sharing.
 
 1. [x] **Accept this ADR**; update `architecture.md` §Locked decisions + register in `INDEX.md` + add the
    `PATTERNS.md` "add a personalization profile to a domain" recipe. *(docs — the accept PR)*
-2. [ ] **Foundation — `libs/profile` leaf** (`ProfileScope`, `ProfileScopeResolver`,
+2. [x] **Foundation — `libs/profile` leaf** (`ProfileScope`, `ProfileScopeResolver`,
    `PersonalizationProfileClient`) + the `PersonalizationProfiler` template in `agent-runtime`. Unit-tested
    in isolation (resolver self/household/family/empty cases mirror the FO-3 tests); no domain wired beyond a
    green build.

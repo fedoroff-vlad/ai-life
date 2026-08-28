@@ -20,6 +20,12 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>contracts</artifactId>
         </dependency>
+        <!-- The PersonalizationProfiler template resolves the write scope via libs/profile's
+             ProfileScope (ADR-0005). The leaf is light (contracts + sharing + WebClient, no LLM). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile</artifactId>
+        </dependency>
         <!-- The Coordinator scaffold synthesizes via llm-gateway. Every agent already
              pulls llm-client directly; declared here so the runtime owns the dep its
              Coordinator bean needs. -->
