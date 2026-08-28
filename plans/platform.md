@@ -26,8 +26,28 @@ epic sliced small:
   (a clarify, a "личное/общее?" sharing confirm) still expects free text. The tap answers the callback (stops
   the client spinner) and strips the keyboard so it's one-shot (both best-effort). The gateway's
   `ConfirmKeyboard` is the shared button/callback primitive **PX-4** (proactive snooze/dismiss) will extend.
-- **RU-3 STT reliability** (measure/tune RU voice transcription; low-confidence → ask to repeat) and **RU-4
-  photo/receipt robustness** (unreadable → ask for a clearer shot) — deferred; `mcp-media-processing` owns most.
+- **RU-3 STT reliability — ✅ DONE.** A voice note is the *only* payload the owner sent, so routing a garbled
+  or empty transcript wastes a turn (the orchestrator classifies noise, an agent acts on the wrong text). The
+  fix is a **front-door quality gate**: `mcp-media-processing`'s whisper engine now derives a `0..1` recognition
+  `confidence` on `TranscriptResult` (`exp(mean segment avg_logprob)`; `0.0` on empty text, `null` when the
+  engine reports no signal), and gateway-telegram, after transcribing a captionless voice note, checks it — an
+  **empty transcript** or one **below `gateway.stt.min-confidence`** (default `0.55`) is treated as
+  unintelligible: the gateway replies "не расслышал, повтори голосом ещё раз" and **does not route**, so the
+  owner just re-records instead of getting a wrong action. A `null` confidence is "unknown", never low, so a
+  transcript still routes when the engine gives no signal (back-compat). Deterministic, never an LLM call.
+- **RU-4 photo/receipt robustness** (unreadable → ask for a clearer shot) — deferred; `mcp-media-processing`
+  owns most (the OCR/caption twin of this gate).
+
+**Acceptance criteria (WHEN/THEN) — RU-3:**
+- Scenario: **a confident voice note routes.** WHEN a captionless voice note transcribes to non-empty text with
+  confidence ≥ `gateway.stt.min-confidence` (or a `null`/unknown confidence) → THEN the gateway routes the
+  transcript to the orchestrator exactly as before.
+- Scenario: **a low-confidence voice note asks for a repeat.** WHEN the transcript's confidence is known and
+  below the threshold → THEN the gateway replies asking the owner to repeat and never calls the orchestrator.
+- Scenario: **an empty transcript asks for a repeat.** WHEN the transcript text is empty/blank (no speech heard)
+  → THEN the gateway replies asking the owner to repeat and never calls the orchestrator.
+- Scenario: **a captioned voice / typed message is unaffected.** WHEN the message already carries text (a
+  caption or a typed message) → THEN no STT gate applies and it routes normally.
 
 **Acceptance criteria (WHEN/THEN) — RU-1:**
 - Scenario: **slow flow shows a typing indicator.** WHEN an inbound message starts a round-trip that takes more

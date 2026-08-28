@@ -87,11 +87,41 @@ public class WhisperSttEngine implements SttEngine {
             String text = root.path("text").asString("").strip();
             String lang = root.hasNonNull("language") ? root.get("language").asString() : null;
             Double duration = durationFromSegments(root);
-            return new TranscriptResult(text, lang, duration);
+            // Keep both branches boxed: a primitive 0.0 here would force the Double branch to unbox,
+            // NPEing when confidenceFromSegments returns null (no avg_logprob signal).
+            Double confidence = text.isEmpty() ? Double.valueOf(0.0) : confidenceFromSegments(root);
+            return new TranscriptResult(text, lang, duration, confidence);
         } catch (Exception e) {
             // A 200 with a body we can't read is still a genuine engine failure.
             throw new IllegalStateException("STT response unparseable: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * A 0..1 recognition confidence derived from the segments' {@code avg_logprob} (faster-whisper's
+     * average token log-probability, ≤ 0 — higher is better): {@code exp(mean avg_logprob)} maps it
+     * back to a probability. {@code null} when no segment carries {@code avg_logprob} (engine gave no
+     * signal → the gateway treats it as "unknown", never as low). Non-empty text only (empty ⇒ 0.0 upstream).
+     */
+    private Double confidenceFromSegments(JsonNode root) {
+        JsonNode segments = root.path("segments");
+        if (!segments.isArray() || segments.isEmpty()) {
+            return null;
+        }
+        double sum = 0.0;
+        int n = 0;
+        for (JsonNode seg : segments) {
+            JsonNode lp = seg.path("avg_logprob");
+            if (lp.isNumber()) {
+                sum += lp.asDouble();
+                n++;
+            }
+        }
+        if (n == 0) {
+            return null;
+        }
+        double confidence = Math.exp(sum / n);
+        return Math.max(0.0, Math.min(1.0, confidence));
     }
 
     /** Whisper's last segment {@code end} is the clip duration; absent in some engines. */

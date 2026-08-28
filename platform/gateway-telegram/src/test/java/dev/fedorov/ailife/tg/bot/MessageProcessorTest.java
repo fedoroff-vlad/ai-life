@@ -289,4 +289,76 @@ class MessageProcessorTest {
         assertThat(body).contains("\"kind\":\"voice\"");
         assertThat(body).contains("\"storageUri\":\"" + mediaId + "\"");
     }
+
+    @Test
+    void lowConfidenceVoiceAsksToRepeatWithoutRouting() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID mediaId = UUID.randomUUID();
+
+        profile.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new UserDto(
+                        userId, householdId, "vlad", "ru", 99L, "admin", Instant.now()))));
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new MediaObjectDto(
+                        mediaId, householdId, userId, "voice", "audio/ogg",
+                        64L, "0ddba11", "telegram", Instant.now()))));
+        // A recognised-but-unsure transcript: confidence 0.2 is below the 0.55 default gate.
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new TranscriptResult(
+                        "неразборчивое бормотание", "ru", 2.0, 0.2))));
+
+        int orchestratorBefore = orchestrator.getRequestCount();
+
+        byte[] voiceBytes = "muffled-ogg-bytes".getBytes(StandardCharsets.UTF_8);
+        var incoming = new MessageProcessor.IncomingMessage(
+                99L, "vlad", "ru", null, MessageScope.PRIVATE, "10",
+                new MessageProcessor.IncomingMedia(voiceBytes, "audio/ogg", "voice-low.oga", "voice"));
+
+        IntentResponse result = processor.process(incoming).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text()).isEqualTo(MessageProcessor.ASK_TO_REPEAT);
+        // The audio was still uploaded + transcribed, but the low-confidence transcript is NOT routed.
+        assertThat(mediaProcessing.takeRequest().getPath()).isEqualTo("/internal/transcribe");
+        assertThat(orchestrator.getRequestCount()).isEqualTo(orchestratorBefore);
+    }
+
+    @Test
+    void emptyTranscriptAsksToRepeatWithoutRouting() throws Exception {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID mediaId = UUID.randomUUID();
+
+        profile.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new UserDto(
+                        userId, householdId, "vlad", "ru", 99L, "admin", Instant.now()))));
+        media.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new MediaObjectDto(
+                        mediaId, householdId, userId, "voice", "audio/ogg",
+                        64L, "0ddba11", "telegram", Instant.now()))));
+        // Silence / no speech heard: empty text (confidence 0.0) is always unintelligible.
+        mediaProcessing.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody(json.writeValueAsString(new TranscriptResult("", null, null, 0.0))));
+
+        int orchestratorBefore = orchestrator.getRequestCount();
+
+        byte[] voiceBytes = "silence-ogg-bytes".getBytes(StandardCharsets.UTF_8);
+        var incoming = new MessageProcessor.IncomingMessage(
+                99L, "vlad", "ru", null, MessageScope.PRIVATE, "11",
+                new MessageProcessor.IncomingMedia(voiceBytes, "audio/ogg", "voice-silent.oga", "voice"));
+
+        IntentResponse result = processor.process(incoming).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.text()).isEqualTo(MessageProcessor.ASK_TO_REPEAT);
+        assertThat(mediaProcessing.takeRequest().getPath()).isEqualTo("/internal/transcribe");
+        assertThat(orchestrator.getRequestCount()).isEqualTo(orchestratorBefore);
+    }
 }
