@@ -93,13 +93,38 @@ public class IdentityResolver {
                 : userName;
     }
 
+    /**
+     * The join reply is a short **orientation** for the new member (#490 FO-1), not a bare
+     * confirmation: it says what already works with no setup (capture / recall / briefing), how to set
+     * personal preferences conversationally, and that personal items stay private. Everything below is
+     * on by sensible defaults, so a member who sets nothing hits no dead-ends (ADR-0001/0002).
+     */
     private static String joinedReply(boolean ru, String relationship) {
-        if (relationship == null || relationship.isBlank()) {
-            return ru ? "Готово — вы присоединились к семейному пространству."
-                    : "Done — you've joined the family space.";
+        boolean hasRel = relationship != null && !relationship.isBlank();
+        if (ru) {
+            String head = hasRel
+                    ? "🎉 Готово — вы в семейном пространстве как " + relationship + "."
+                    : "🎉 Готово — вы в семейном пространстве.";
+            return head + "\n\n"
+                    + "Можно начинать сразу, без настройки:\n"
+                    + "• пишите мне заметки, задачи, траты, документы — я запомню и найду;\n"
+                    + "• напишите «брифинг» — соберу утреннюю сводку.\n\n"
+                    + "Чтобы подстроить под себя, просто скажите в чате, например:\n"
+                    + "• «я живу в Казани»\n"
+                    + "• «я встаю в 7, брифинг в 7:15»\n\n"
+                    + "Личные записи видите только вы; общее с семьёй остаётся общим.";
         }
-        return ru ? "Готово — вы присоединились к семейному пространству как " + relationship + "."
-                : "Done — you've joined the family space as " + relationship + ".";
+        String head = hasRel
+                ? "🎉 Done — you're in the family space as " + relationship + "."
+                : "🎉 Done — you're in the family space.";
+        return head + "\n\n"
+                + "You can start right away, no setup needed:\n"
+                + "• send me notes, tasks, expenses, documents — I'll remember and find them;\n"
+                + "• type \"briefing\" for a morning digest.\n\n"
+                + "To tailor things to you, just say it in chat, e.g.:\n"
+                + "• \"I live in Kazan\"\n"
+                + "• \"I get up at 7, briefing at 7:15\"\n\n"
+                + "Your personal items stay private; what's shared with the family stays shared.";
     }
 
     private static String failedReply(boolean ru) {

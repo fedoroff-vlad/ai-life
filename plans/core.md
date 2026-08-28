@@ -40,6 +40,28 @@ invite-only (deep-link token, owner-gated). `users.household_id` is retained as 
 household (read-through default) during the migration. Full model + slice sequence:
 [adr/ADR-0001](adr/ADR-0001-identity-membership-scope.md).
 
+## Onboarding UX — a household assistant, not a solo tool ([#490](https://github.com/fedoroff-vlad/ai-life/issues/490))
+The identity/membership plumbing ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing
+([ADR-0002](adr/ADR-0002-sharing-shared-capability.md)) are shipped; #490 is the **UX layer on top** so a
+second member (the wife) is productive in minutes with minimal friction. Slices FO-*:
+
+- **FO-1 — join orientation.** The `/start <token>` redeem reply is a short **orientation** for the new
+  member (not a bare "you've joined"): what already works with no setup, how to set personal preferences
+  in chat, and the privacy line. Gateway-level (`IdentityResolver.joinedReply`).
+  - `Scenario:` WHEN the wife opens the invite deep-link and joins → THEN the reply names her relationship,
+    lists what works immediately (capture / recall / briefing), shows a chat example for personal prefs,
+    and states personal items stay private — in her locale.
+- **FO-2 — preferences-in-chat, keyword-free.** A plain conversational preference ("я встаю в 7, брифинг в
+  7:15", "я живу в Казани") is captured **per-member** without a domain-specific cue, routed to the right
+  per-domain profiler (briefing/travel/nutrition/stylist), self-scoped to the sender.
+  - `Scenario:` WHEN a member states a preference in chat with no config keyword → THEN it is stored for
+    that member (`owner_id` = sender) and honoured, not applied household-wide.
+- **FO-3 — sensible defaults on join.** A new member with nothing set gets working defaults immediately
+  (e.g. a briefing profile seeded with all-sections defaults), so nothing is a dead-end; personal stays
+  personal, shared stays shared (ADR-0002).
+  - `Scenario:` WHEN a member has set nothing and asks for a briefing → THEN a default digest is produced
+    (no "configure me first" dead-end).
+
 ## Notes
 - Growth happens as **rows / JSONB**, never runtime DDL.
 - Multi-tenancy (vlad + wife + later others) is `household_id` + membership, not per-user schemas.
