@@ -254,6 +254,38 @@ create-input can carry a `SharingScope` (`contracts/common`).
 5. Docs: the domain plan's tenant-scope section + the module READMEs; if the create-input contract gained
    `sharing`, that is a public-surface change (README-upkeep rule).
 
+## Recipe: add a personalization profile to a domain
+Per [ADR-0005](adr/ADR-0005-personalization-profile-capability.md) (Accepted). A per-member preference
+profile (a `(household_id, owner_id)` row the member sets in chat) reuses **one shared mechanism**; a
+domain adds only its data + extraction + a thin adapter. **Canonical example: briefing** (the reference
+retrofit, ADR-0005 slice 3). *Mechanism modules (`libs/profile` + the `agent-runtime` `PersonalizationProfiler`
+template) land in slice 2 — until then this recipe is the target shape; briefing/creator/nutrition/travel/stylist
+are the pre-lift per-domain copies.*
+
+Store stays **per-domain** (heterogeneous jsonb, read on the domain's hot path). Only the mechanism is shared.
+
+1. **Store (domain-MCP).** A `<Domain>Profile` entity `(household_id, owner_id, updated_at, …fields)` +
+   `<Domain>ProfileDto` (`contracts/<domain>`) + an `Internal<Domain>ProfileController` (`GET
+   /internal/<path>` by household[+owner], `POST` upsert). The MCP stays **tenant-agnostic** (writes/reads
+   whatever household+owner it is handed).
+2. **Write scope + read resolution (shared).** Do **not** hand-roll `household ? null : userId` or the
+   `self → household-default → …` switch. Use `libs/profile`:
+   - `ProfileScope.ownerId(scope, userId)` for the write (`self → userId`, `household → null`).
+   - `ProfileScopeResolver.resolve(userId, householdId, fetch)` for the read — it applies the one rule
+     `self → own household-default → family/shared household-default → empty`, reusing `libs/sharing`'s
+     `ProfileSharingClient` for the family set (so **family-default inheritance is free**, #490 FO-3).
+3. **Profiler flow (shared template).** Bind the `agent-runtime` `PersonalizationProfiler` with the
+   domain's `*-profiler` SKILL name + a `(draft, ownerId, msg) -> Mono<SetInput>` builder (the domain's
+   field mapping; any post-step like briefing's geocode lives inside the builder). No per-domain
+   extract/parse/scope skeleton.
+4. **Per-module adapter.** Everything domain-specific goes in a same-named **`profile/`** package: the
+   typed client binding, the `SetInput` builder, wiring. The resolver, scope helper, template, identity
+   read — all shared.
+5. Tests: assert the write scope (self → owner=userId, household → owner=null), the read resolution
+   (self → own-default → family-default → empty), and any post-step. Mirror `BriefingProfilerTest` +
+   `BriefingComposerTest` (the FO-3 family-default cases).
+6. Docs: the domain plan + module READMEs (the profile is public surface); the SKILL stays in domain skills.
+
 ## Recipe: add a new contract DTO
 Canonical examples: any record in [libs/contracts](../libs/contracts) — they are
 deliberately tiny and `@JsonInclude(NON_NULL)`.
