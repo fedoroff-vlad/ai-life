@@ -20,8 +20,9 @@ From a fresh clone (each step has detail in [`infra/README.md`](infra/README.md)
 LLM inference is local Ollama (native on the host). For IDE-driven development (JVMs from IntelliJ against
 backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](infra/README.md).
 
-> **Status:** foundations (Stages 0–5) + all Stage-6 domain agents shipped; both cross-cutting epics
-> (identity, sharing) complete; **no feature slice in flight.** The list below is a set of **pointers, not
+> **Status:** foundations (Stages 0–5) + all Stage-6 domain agents shipped; the cross-cutting capability
+> epics (identity, sharing, personalization-profile) + the assistant-hardening road-test (#491) + the
+> architecture-hardening review (#479) all complete; **no feature slice in flight.** The list below is a set of **pointers, not
 > a restatement** — the authoritative "what's done" lives in [`roadmap.md`](plans/roadmap.md) (stages/epics),
 > the ADR headers, and [`HISTORY.md`](plans/HISTORY.md) (timeline); in-flight + next + parked live in
 > [`plans/STATUS.md`](plans/STATUS.md).
@@ -35,7 +36,10 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 - **Platform** — Java 25 / Boot 4 / Spring AI 2 migration ([#288](https://github.com/fedoroff-vlad/ai-life/issues/288)) + build/CI perf + fast/slow test split ([#423](https://github.com/fedoroff-vlad/ai-life/issues/423)) → [`migration-25-boot4.md`](plans/migration-25-boot4.md)
 - **Identity & membership** epic → [ADR-0001](plans/adr/ADR-0001-identity-membership-scope.md)
 - **Sharing as a capability** epic → [ADR-0002](plans/adr/ADR-0002-sharing-shared-capability.md)
+- **Personalization profile as a capability** epic ([#476](https://github.com/fedoroff-vlad/ai-life/issues/476)) → [ADR-0005](plans/adr/ADR-0005-personalization-profile-capability.md)
+- **Confirm→act** shared primitive (`PickConfirmActRunner`) → [ADR-0004](plans/adr/ADR-0004-confirm-act-flow.md)
 - **skills-vs-flows** in-agent refactor (shared `SkillClassifier`) → [`skills-vs-flows.md`](plans/skills-vs-flows.md)
+- **Architecture hardening** epic ([#479](https://github.com/fedoroff-vlad/ai-life/issues/479)): in-agent routing · personalization-profile · multi-domain coordination · confirm-act dedup · `shared/skills/` reconcile → [`plans/HISTORY.md`](plans/HISTORY.md)
 - **Assistant hardening (road-test)** epic ([#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): transparency · routing · CRUD/undo · proactive-UX · memory-quality · multimodal/reply-UX · family-onboarding → [`plans/HISTORY.md`](plans/HISTORY.md)
 
 **Paused / not done:** coach-agent (CO-1/CO-2 shipped, then PARKED mid-epic — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289), [`coach.md`](plans/coach.md)) · Mac deployment + hot/cold lifecycle (PARKED, hardware-blocked — [`lifecycle.md`](plans/lifecycle.md)) · future agents health/email/smart-home. Next pick → [`plans/STATUS.md`](plans/STATUS.md).
@@ -60,7 +64,8 @@ ai-life/
 │   ├── platform-common/     logging, metrics, error envelopes
 │   ├── agent-runtime/       AGENT.md/SKILL.md loaders + shared HTTP clients (agents @Import this)
 │   ├── doc-render/           shared HTML deliverable renderer (stylist/nutrition boards)
-│   └── sharing/             personal-vs-shared privacy engine (SharingResolver + per-domain policy seam)
+│   ├── sharing/             personal-vs-shared privacy engine (SharingResolver + per-domain policy seam)
+│   └── profile/             per-member personalization-profile engine (ProfileScopeResolver; ADR-0005)
 ├── platform/                cross-cutting SERVICES (the brain + infra):
 │                            orchestrator, gateway-telegram, llm-gateway, memory-service,
 │                            profile-service, scheduler-service, notifier-service,
