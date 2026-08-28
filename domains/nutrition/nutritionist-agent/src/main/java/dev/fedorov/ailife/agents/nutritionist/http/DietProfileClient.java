@@ -2,56 +2,25 @@ package dev.fedorov.ailife.agents.nutritionist.http;
 
 import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;
 import dev.fedorov.ailife.contracts.nutrition.SetDietProfileInput;
+import dev.fedorov.ailife.profile.PersonalizationProfileClient;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
-import reactor.core.publisher.Mono;
-
-import java.time.Duration;
-import java.util.UUID;
 
 /**
- * Calls the {@code mcp-nutrition} domain-MCP's {@code POST /internal/diet-profile} passthrough
- * (NU-d1) to upsert a person's diet profile. The diet-profiler flow has already extracted a concrete
- * {@link SetDietProfileInput} from typed goals/restrictions, so it writes deterministically over HTTP
- * rather than through an LLM-driven MCP tool call (the MCP/SSE binding stays for future selection but
- * isn't MockWebServer-testable). Same shape as {@code MealClient}.
+ * The nutrition domain's typed binding of the shared {@link PersonalizationProfileClient} (ADR-0005): the
+ * {@code get(householdId, ownerId)} / {@code set(input)} shape over {@code mcp-nutrition}'s
+ * {@code /internal/diet-profile} passthrough (NU-d1) is generic; only the path + DTO + set-input are
+ * nutrition-specific. The extract→write flow lives in the {@code PersonalizationProfiler} template.
+ * Nutrition's read path keeps its richer own + household-default gather (MealPlanner/MealReads); the shared
+ * {@code ProfileScopeResolver} single-profile fallback is applied where a single per-member profile is read
+ * ({@code NutritionAnalyst}).
  */
 @Component
-public class DietProfileClient {
-
-    private final WebClient http;
+public class DietProfileClient
+        extends PersonalizationProfileClient<DietProfileDto, SetDietProfileInput> {
 
     public DietProfileClient(@Qualifier("mcpNutritionWebClient") WebClient http) {
-        this.http = http;
-    }
-
-    public Mono<DietProfileDto> set(SetDietProfileInput input) {
-        return http.post()
-                .uri("/internal/diet-profile")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(input)
-                .retrieve()
-                .bodyToMono(DietProfileDto.class)
-                .timeout(Duration.ofSeconds(10));
-    }
-
-    /**
-     * Read a person's diet profile (null ownerId = household-default). A 404 (none set yet) maps to
-     * an empty Mono, so the analysis/ration gathers just omit the profile constraint.
-     */
-    public Mono<DietProfileDto> get(UUID householdId, UUID ownerId) {
-        return http.get()
-                .uri(b -> {
-                    b.path("/internal/diet-profile").queryParam("householdId", householdId);
-                    if (ownerId != null) b.queryParam("ownerId", ownerId);
-                    return b.build();
-                })
-                .retrieve()
-                .bodyToMono(DietProfileDto.class)
-                .timeout(Duration.ofSeconds(10))
-                .onErrorResume(WebClientResponseException.NotFound.class, e -> Mono.empty());
+        super(http, "/internal/diet-profile", DietProfileDto.class);
     }
 }

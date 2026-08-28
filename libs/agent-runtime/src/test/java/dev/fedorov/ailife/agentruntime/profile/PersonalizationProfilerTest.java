@@ -57,6 +57,7 @@ class PersonalizationProfilerTest {
     private class Spec implements ProfileSpec<Input, Dto> {
         final AtomicReference<UUID> builtOwner = new AtomicReference<>();
         boolean writeFails = false;
+        String trace = null;
 
         @Override public String skillName() { return "briefing-profiler"; }
 
@@ -76,6 +77,8 @@ class PersonalizationProfilerTest {
         @Override public String unparseable() { return "не понял"; }
 
         @Override public String failure() { return "не смог сохранить"; }
+
+        @Override public String trace() { return trace; }
     }
 
     private void llmReturns(String content) {
@@ -110,6 +113,22 @@ class PersonalizationProfilerTest {
 
         StepVerifier.create(profiler.setProfile(new Spec(), msg))
                 .assertNext(r -> assertThat(r.text()).isEqualTo("не понял"))
+                .verifyComplete();
+    }
+
+    @Test
+    void successReplyCarriesTheDomainTraceButUnparseableDoesNot() {
+        Spec spec = new Spec();
+        spec.trace = "wrote: updated the profile";
+
+        llmReturns("{\"scope\":\"self\"}");
+        StepVerifier.create(profiler.setProfile(spec, msg))
+                .assertNext(r -> assertThat(r.trace()).isEqualTo("wrote: updated the profile"))
+                .verifyComplete();
+
+        llmReturns("no json");
+        StepVerifier.create(profiler.setProfile(spec, msg))
+                .assertNext(r -> assertThat(r.trace()).as("no write → no trace").isNull())
                 .verifyComplete();
     }
 

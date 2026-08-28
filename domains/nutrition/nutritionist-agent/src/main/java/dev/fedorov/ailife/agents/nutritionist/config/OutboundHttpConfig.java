@@ -7,6 +7,7 @@ import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.sharing.DefaultSharingPolicy;
 import dev.fedorov.ailife.sharing.LearnedSharingPolicy;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
 import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import dev.fedorov.ailife.sharing.SharingLearningClient;
 import dev.fedorov.ailife.sharing.SharingResolver;
@@ -98,6 +99,19 @@ public class OutboundHttpConfig {
     public ProfileSharingClient profileSharingClient(
             @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
         return new ProfileSharingClient(profileServiceWebClient);
+    }
+
+    /**
+     * The shared personalization read-resolution engine (ADR-0005), reusing the existing
+     * {@link ProfileSharingClient} identity read (nutrition already declares it for the sharing write path).
+     * {@code NutritionAnalyst} resolves the requester's single diet profile through it (self → own
+     * household-default → family/shared household-default → empty, #490 FO-3). The ration/meal-plan reads
+     * keep their richer own + household-default <i>set</i> gather (MealPlanner/MealReads) — the single-profile
+     * resolver is not forced there.
+     */
+    @Bean
+    public ProfileScopeResolver profileScopeResolver(ProfileSharingClient profileSharingClient) {
+        return new ProfileScopeResolver(profileSharingClient);
     }
 
     /**
