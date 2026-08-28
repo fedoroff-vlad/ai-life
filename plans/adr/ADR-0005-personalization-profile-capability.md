@@ -1,9 +1,11 @@
 # ADR-0005: Personalization profile as a reusable cross-domain capability
 
 **Status:** Accepted (2026-08-28 — Option B, owner-approved: `libs/profile` shared resolver + `agent-runtime`
-profiler template + per-module `profile/` adapter; store stays per-domain). Implementation underway. Drives
-[#476](https://github.com/fedoroff-vlad/ai-life/issues/476) (architecture-hardening epic
-[#479](https://github.com/fedoroff-vlad/ai-life/issues/479)).
+profiler template + per-module `profile/` adapter; store stays per-domain). **Implementation COMPLETE
+(2026-08-28)** — all 7 slices shipped (foundation + briefing reference + creator + nutrition + travel +
+stylist); [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) closed (architecture-hardening epic
+[#479](https://github.com/fedoroff-vlad/ai-life/issues/479)). Detail → the Action Items checklist below +
+[HISTORY.md](../HISTORY.md).
 **Date:** 2026-08-28
 **Deciders:** repo owner (holder/admin)
 **Builds on:** [ADR-0001](ADR-0001-identity-membership-scope.md) (multi-tenant identity — personal
@@ -183,7 +185,12 @@ ADR-0002 reached for sharing.
 6. [x] **travel** — same (`TravelProfiler` → `ProfileSpec` keeping its geocode + vocabulary-enforcement in
    `build`, `TravelProfileClient` → generic subclass, `TripComposer`/`PackingFlow` `resolveProfile` →
    `ProfileScopeResolver`); family-default now applies (home base + rest-types inheritance).
-7. [ ] **stylist** — same (its split set/get clients collapse onto the generic client). **All five
+7. [x] **stylist** — its split set/get clients collapse onto the generic client (`StyleProfileClient` →
+   generic subclass with get+set; `WardrobeReadClient.getProfile` delegates to it). Stylist adopts the
+   shared **client only** — **not** the `PersonalizationProfiler` template nor `ProfileScopeResolver`, by
+   design: its write flow (`AnalyseMe`) is a vision-caption of a self-photo (not a `DEFAULT`-chat
+   `*-profiler` text extract) and is always self-scoped, and a style profile (body shape / colour type) is
+   intrinsically per-person — there is no meaningful household-default style row to inherit. **All five
    retrofitted → capability complete.**
 
 ## Notes

@@ -1,7 +1,10 @@
 # libs/profile
 
-**Status (ADR-0005 slice 2 — foundation):** the shared mechanism shipped; **no domain wired yet** (slice 3
-retrofits briefing as the reference, then creator/nutrition/travel/stylist). Spec →
+**Status (ADR-0005 — COMPLETE, 2026-08-28):** the shared mechanism + all five domain retrofits shipped.
+**briefing** is the reference (profiler → `ProfileSpec`, client → generic subclass, read → `ProfileScopeResolver`);
+**creator/nutrition/travel** adopt the full mechanism (family-default inheritance now free for their reads);
+**stylist** adopts the **client only** by design (its vision-caption `AnalyseMe` write is always self-scoped
+and a style profile is intrinsically per-person — no household-default to inherit). Spec →
 [ADR-0005](../../plans/adr/ADR-0005-personalization-profile-capability.md).
 
 The reusable **per-member personalization-profile capability**. Five domains (briefing / creator /
@@ -25,7 +28,10 @@ The five personalization **domain agents** (write via the `PersonalizationProfil
 profile — the module is a light leaf (`contracts` + `libs/sharing` + WebClient, no LLM / no agent-runtime)
 so a read service can depend on it without pulling the agent runtime, exactly as `libs/sharing` is split.
 `agent-runtime` depends on this leaf for `ProfileScope` (its `PersonalizationProfiler` template resolves the
-write owner through it). *No consumer is wired yet — slice 3 makes briefing the reference.*
+write owner through it). **Consumers:** briefing / creator / nutritionist / travel agents (full mechanism —
+generic client + `ProfileScopeResolver` read + the `PersonalizationProfiler` template), and stylist (generic
+client only). Each declares its own `ProfileSharingClient` + `ProfileScopeResolver` beans (or reuses an
+existing `ProfileSharingClient` where it is already a sharing-write domain, as nutrition does).
 
 ## Depends on
 `libs/contracts` (`HouseholdRoutingDto` in `contracts/profile`) + `libs/sharing` (`ProfileSharingClient` —
