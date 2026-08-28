@@ -257,10 +257,11 @@ create-input can carry a `SharingScope` (`contracts/common`).
 ## Recipe: add a personalization profile to a domain
 Per [ADR-0005](adr/ADR-0005-personalization-profile-capability.md) (Accepted). A per-member preference
 profile (a `(household_id, owner_id)` row the member sets in chat) reuses **one shared mechanism**; a
-domain adds only its data + extraction + a thin adapter. **Canonical example: briefing** (the reference
-retrofit, ADR-0005 slice 3). *Mechanism modules (`libs/profile` + the `agent-runtime` `PersonalizationProfiler`
-template) land in slice 2 — until then this recipe is the target shape; briefing/creator/nutrition/travel/stylist
-are the pre-lift per-domain copies.*
+domain adds only its data + extraction + a thin adapter. **Canonical example: briefing** — the reference
+retrofit (ADR-0005 slice 3): `profile/BriefingProfiler` is the `ProfileSpec`, `http/BriefingProfileClient`
+subclasses `PersonalizationProfileClient`, and `BriefingComposer.resolveProfile` calls the shared
+`ProfileScopeResolver`. *The mechanism modules (`libs/profile` + the `agent-runtime` `PersonalizationProfiler`
+template) are live; creator/nutrition/travel/stylist are the remaining pre-lift per-domain copies (slices 4–7).*
 
 Store stays **per-domain** (heterogeneous jsonb, read on the domain's hot path). Only the mechanism is shared.
 

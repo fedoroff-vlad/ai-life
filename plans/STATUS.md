@@ -13,9 +13,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   profile-service centralization). **Slice 1 (accept): ADR-0005 + architecture.md §Locked + INDEX + PATTERNS
   recipe — DONE.** **Slice 2 (foundation): `libs/profile` leaf (`ProfileScope` + `ProfileScopeResolver` +
   `PersonalizationProfileClient`) + `agent-runtime` `PersonalizationProfiler`/`ProfileSpec` template, unit-tested
-  in isolation, no domain wired — DONE.** Next: slice 3 briefing reference retrofit (`BriefingProfiler` →
-  template, `BriefingProfileClient` → generic client, `BriefingComposer.resolveProfile` → `ProfileScopeResolver`),
-  then creator/nutrition/travel/stylist. Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
+  in isolation, no domain wired — DONE.** **Slice 3 (briefing reference retrofit): `BriefingProfiler` → a
+  `ProfileSpec` on the shared template (bean now in `AgentRuntimeConfig`), `BriefingProfileClient` → generic
+  client subclass, `BriefingComposer.resolveProfile` → `ProfileScopeResolver`; behaviour unchanged (19 briefing
+  tests + FO-3 case green) — DONE.** Next: slice 4 creator, then nutrition/travel/stylist (each a thin
+  `profile/` adapter onto the now-live mechanism). Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
   Couples with #478 (empty `shared/skills/` doctrine).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
   identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing

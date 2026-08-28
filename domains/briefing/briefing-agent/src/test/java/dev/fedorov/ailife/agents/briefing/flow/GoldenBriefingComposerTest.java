@@ -9,7 +9,8 @@ import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
-import dev.fedorov.ailife.agentruntime.http.ProfileClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -65,7 +66,9 @@ class GoldenBriefingComposerTest {
     private final ObjectMapper json = new ObjectMapper();
     private final Coordinator coordinator = new Coordinator(GoldenLlm.client(), json);
     private final BriefingProfileClient profiles = mock(BriefingProfileClient.class);
-    private final ProfileClient identity = mock(ProfileClient.class);
+    // Real resolver over a mocked identity read: profiles.get is stubbed to return a profile, so the
+    // self step resolves and the family (identity) lookup is never reached — no stubbing needed on it.
+    private final ProfileScopeResolver profileScope = new ProfileScopeResolver(mock(ProfileSharingClient.class));
     private final ForecastClient forecast = mock(ForecastClient.class);
     private final CalendarEventsClient calendar = mock(CalendarEventsClient.class);
     private final OrchestratorInvokeClient orchestrator = mock(OrchestratorInvokeClient.class);
@@ -80,7 +83,7 @@ class GoldenBriefingComposerTest {
             GoldenLlm.skill(GoldenBriefingComposerTest.class.getClassLoader(),
                     "skills/briefing/briefing-composer/SKILL.md")));
     private final BriefingComposer composer =
-            new BriefingComposer(coordinator, profiles, identity, forecast, calendar, orchestrator, news, publisher, skills, manifest, json);
+            new BriefingComposer(coordinator, profiles, profileScope, forecast, calendar, orchestrator, news, publisher, skills, manifest, json);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete four-section corpus, must
