@@ -2,54 +2,25 @@ package dev.fedorov.ailife.agents.travel.http;
 
 import dev.fedorov.ailife.contracts.travel.SetTravelProfileInput;
 import dev.fedorov.ailife.contracts.travel.TravelProfileDto;
+import dev.fedorov.ailife.profile.PersonalizationProfileClient;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
-
-import java.time.Duration;
-import java.util.UUID;
 
 /**
- * Calls the {@code mcp-travel} domain-MCP's {@code POST /internal/travel-profile} passthrough to upsert
- * a person's travel preferences. The travel-profiler flow has already extracted a concrete
- * {@link SetTravelProfileInput} (and geocoded the home-base city), so it writes deterministically over
- * HTTP rather than through an LLM-driven MCP tool call. Mirrors briefing-agent's
- * {@code BriefingProfileClient}.
+ * The travel domain's typed binding of the shared {@link PersonalizationProfileClient} (ADR-0005): the
+ * {@code get(householdId, ownerId)} / {@code set(input)} shape over {@code mcp-travel}'s
+ * {@code /internal/travel-profile} passthrough is generic; only the path + DTO + set-input are
+ * travel-specific. The read-resolution fallback (self → own-default → family-default) lives in the shared
+ * {@code ProfileScopeResolver}, and the extract→write flow (with the geocode + vocabulary post-steps) in the
+ * travel {@code ProfileSpec} on the {@code PersonalizationProfiler} template. The generic client's 404→empty
+ * covers mcp-travel's "none set" (204/404 both resolve to an empty read).
  */
 @Component
-public class TravelProfileClient {
-
-    private final WebClient http;
+public class TravelProfileClient
+        extends PersonalizationProfileClient<TravelProfileDto, SetTravelProfileInput> {
 
     public TravelProfileClient(@Qualifier("mcpTravelWebClient") WebClient http) {
-        this.http = http;
-    }
-
-    public Mono<TravelProfileDto> set(SetTravelProfileInput input) {
-        return http.post()
-                .uri("/internal/travel-profile")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(input)
-                .retrieve()
-                .bodyToMono(TravelProfileDto.class)
-                .timeout(Duration.ofSeconds(10));
-    }
-
-    /**
-     * Read a person's travel prefs (null ownerId = household-default). A 204 (none set yet) maps to an
-     * empty Mono, so the caller falls back to the household default / empty-profile default.
-     */
-    public Mono<TravelProfileDto> get(UUID householdId, UUID ownerId) {
-        return http.get()
-                .uri(b -> {
-                    b.path("/internal/travel-profile").queryParam("householdId", householdId);
-                    if (ownerId != null) b.queryParam("ownerId", ownerId);
-                    return b.build();
-                })
-                .retrieve()
-                .bodyToMono(TravelProfileDto.class)
-                .timeout(Duration.ofSeconds(10));
+        super(http, "/internal/travel-profile", TravelProfileDto.class);
     }
 }

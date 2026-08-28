@@ -15,6 +15,7 @@ import dev.fedorov.ailife.agentruntime.http.ChartRenderClient;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
 import dev.fedorov.ailife.agents.travel.http.TravelSearchClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.travelsearch.FlightOffer;
@@ -129,6 +130,7 @@ public class TripComposer {
 
     private final Coordinator coordinator;
     private final TravelProfileClient profiles;
+    private final ProfileScopeResolver profileScope;
     private final GeocodeClient geocode;
     private final ClimateClient climate;
     private final WebSearchClient web;
@@ -141,13 +143,15 @@ public class TripComposer {
     private final DeliverablePublisher publisher;
     private final ChartRenderClient chartRender;
 
-    public TripComposer(Coordinator coordinator, TravelProfileClient profiles, GeocodeClient geocode,
+    public TripComposer(Coordinator coordinator, TravelProfileClient profiles,
+                        ProfileScopeResolver profileScope, GeocodeClient geocode,
                         ClimateClient climate, WebSearchClient web, TravelSearchClient search,
                         OrchestratorInvokeClient hub, LlmClient llm, SkillRegistry skills,
                         AgentManifest manifest, ObjectMapper json, DeliverablePublisher publisher,
                         ChartRenderClient chartRender) {
         this.coordinator = coordinator;
         this.profiles = profiles;
+        this.profileScope = profileScope;
         this.geocode = geocode;
         this.climate = climate;
         this.web = web;
@@ -172,11 +176,14 @@ public class TripComposer {
                 });
     }
 
-    /** self → household-default → an empty default; a broken mcp-travel soft-fails to it. */
+    /**
+     * self → own household-default → family/shared household-default → an empty default (ADR-0005): the
+     * shared {@link ProfileScopeResolver} rule; a member who set nothing now inherits the family's home
+     * base + rest-types (#490 FO-3). A broken mcp-travel/profile-service soft-fails to the empty default.
+     */
     private Mono<TravelProfileDto> resolveProfile(NormalizedMessage msg) {
-        return profiles.get(msg.householdId(), msg.userId())
-                .switchIfEmpty(profiles.get(msg.householdId(), null))
-                .switchIfEmpty(Mono.just(emptyProfile(msg)))
+        return profileScope.<TravelProfileDto>resolve(msg.userId(), msg.householdId(), profiles::get)
+                .switchIfEmpty(Mono.fromSupplier(() -> emptyProfile(msg)))
                 .onErrorResume(e -> {
                     log.warn("travel profile resolve failed, using defaults: {}", e.toString());
                     return Mono.just(emptyProfile(msg));

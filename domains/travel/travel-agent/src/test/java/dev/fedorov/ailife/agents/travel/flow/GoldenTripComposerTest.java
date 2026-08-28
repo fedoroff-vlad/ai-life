@@ -11,6 +11,8 @@ import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
 import dev.fedorov.ailife.agents.travel.http.TravelSearchClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -91,9 +93,12 @@ class GoldenTripComposerTest {
     // so both soft-fail to empty → the text-only reply, keeping the corpus-links assertion clean.
     private final DeliverablePublisher publisher = mock(DeliverablePublisher.class);
     private final ChartRenderClient chartRender = mock(ChartRenderClient.class);
+    // Real resolver over a mocked identity read: profiles.get is stubbed to return a profile, so the
+    // self step resolves and the family (identity) lookup is never reached — no stubbing needed on it.
+    private final ProfileScopeResolver profileScope = new ProfileScopeResolver(mock(ProfileSharingClient.class));
     private final TripComposer composer = new TripComposer(
-            coordinator, profiles, geocode, climate, web, search, hub, GoldenLlm.client(), skills, manifest,
-            json, publisher, chartRender);
+            coordinator, profiles, profileScope, geocode, climate, web, search, hub, GoldenLlm.client(), skills,
+            manifest, json, publisher, chartRender);
 
     /**
      * STRUCTURE — the real model, given the real composer prompt and a concrete corpus (budget + dates +

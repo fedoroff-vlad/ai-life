@@ -32,6 +32,17 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- ADR-0005: shared personalization-profile capability — the generic PersonalizationProfileClient +
+             ProfileScopeResolver (libs/profile) and its ProfileSharingClient identity read (libs/sharing).
+             Travel retrofit (slice 6) — family-default inheritance now applies to the travel profile. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>sharing</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

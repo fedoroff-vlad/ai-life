@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.travel.profile;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.profile.PersonalizationProfiler;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
@@ -59,8 +60,9 @@ class GoldenTravelProfileTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenTravelProfileTest.class.getClassLoader(),
                     "skills/travel/travel-profiler/SKILL.md")));
-    private final TravelProfiler profiler =
-            new TravelProfiler(profiles, geocode, GoldenLlm.client(), skills, manifest, json);
+    private final PersonalizationProfiler template =
+            new PersonalizationProfiler(GoldenLlm.client(), manifest, skills, json);
+    private final TravelProfiler profiler = new TravelProfiler(template, profiles, geocode, json);
 
     /**
      * STRUCTURE — the real model, given the real profiler prompt and a concrete travel-preferences

@@ -21,8 +21,10 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   for the creator track); 20 creator tests green — DONE.** **Slice 5 (nutrition/diet): `DietProfiler` →
   `ProfileSpec` (+ a `trace()` hook on the shared spec to keep its #485 why-trace), `DietProfileClient` → generic
   subclass, `NutritionAnalyst` read → `ProfileScopeResolver`; MealPlanner/MealReads keep their richer household-set
-  gather; 33 nutrition tests green — DONE.** Next: slice 6 travel, then slice 7 stylist → capability complete.
-  Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
+  gather; 33 nutrition tests green — DONE.** **Slice 6 (travel): `TravelProfiler` → `ProfileSpec` (geocode +
+  vocabulary-enforcement kept in `build`), `TravelProfileClient` → generic subclass, `TripComposer`/`PackingFlow`
+  reads → `ProfileScopeResolver` (home-base + rest-type family inheritance); 64 travel tests green — DONE.**
+  Next: slice 7 stylist → **capability complete**. Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
   Couples with #478 (empty `shared/skills/` doctrine).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
   identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing

@@ -10,6 +10,7 @@ import dev.fedorov.ailife.agents.travel.flow.PackingListComposer.PackingList;
 import dev.fedorov.ailife.agents.travel.http.ClimateClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
 import dev.fedorov.ailife.agents.travel.http.TravelProfileClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
 import dev.fedorov.ailife.agents.travel.http.TripWalletClient;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.common.list.MarkdownChecklist;
@@ -70,17 +71,20 @@ public class PackingFlow {
 
     private final TripWalletClient wallet;
     private final TravelProfileClient profiles;
+    private final ProfileScopeResolver profileScope;
     private final GeocodeClient geocode;
     private final ClimateClient climate;
     private final DeliverablePublisher publisher;
     private final MemoryClient memory;
     private final AgentManifest manifest;
 
-    public PackingFlow(TripWalletClient wallet, TravelProfileClient profiles, GeocodeClient geocode,
+    public PackingFlow(TripWalletClient wallet, TravelProfileClient profiles,
+                       ProfileScopeResolver profileScope, GeocodeClient geocode,
                        ClimateClient climate, DeliverablePublisher publisher, MemoryClient memory,
                        AgentManifest manifest) {
         this.wallet = wallet;
         this.profiles = profiles;
+        this.profileScope = profileScope;
         this.geocode = geocode;
         this.climate = climate;
         this.publisher = publisher;
@@ -99,11 +103,14 @@ public class PackingFlow {
                 });
     }
 
-    /** self → household-default → an empty default; a broken mcp-travel soft-fails to it. */
+    /**
+     * self → own household-default → family/shared household-default → an empty default (ADR-0005): the
+     * shared {@link ProfileScopeResolver} rule (#490 FO-3 now inherited). A broken mcp-travel/profile-service
+     * soft-fails to the empty default.
+     */
     private Mono<TravelProfileDto> resolveProfile(NormalizedMessage msg) {
-        return profiles.get(msg.householdId(), msg.userId())
-                .switchIfEmpty(profiles.get(msg.householdId(), null))
-                .switchIfEmpty(Mono.just(emptyProfile(msg)))
+        return profileScope.<TravelProfileDto>resolve(msg.userId(), msg.householdId(), profiles::get)
+                .switchIfEmpty(Mono.fromSupplier(() -> emptyProfile(msg)))
                 .onErrorResume(e -> {
                     log.warn("travel profile resolve failed, using defaults: {}", e.toString());
                     return Mono.just(emptyProfile(msg));
