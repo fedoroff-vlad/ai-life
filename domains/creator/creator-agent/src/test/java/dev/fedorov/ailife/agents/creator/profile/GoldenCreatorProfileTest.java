@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.creator.profile;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.profile.PersonalizationProfiler;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -51,8 +52,9 @@ class GoldenCreatorProfileTest {
             GoldenLlm.agentBody(GoldenCreatorProfileTest.class.getClassLoader()));
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenCreatorProfileTest.class.getClassLoader(), "skills/creator/creator-profiler/SKILL.md")));
-    private final CreatorProfiler profiler =
-            new CreatorProfiler(profiles, GoldenLlm.client(), skills, manifest, json);
+    private final PersonalizationProfiler template =
+            new PersonalizationProfiler(GoldenLlm.client(), manifest, skills, json);
+    private final CreatorProfiler profiler = new CreatorProfiler(template, profiles);
 
     /**
      * STRUCTURE — the real model, given the real profiler prompt and a concrete track description, must

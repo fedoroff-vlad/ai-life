@@ -32,6 +32,17 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- ADR-0005: shared personalization-profile capability — the generic PersonalizationProfileClient +
+             ProfileScopeResolver (libs/profile) and its ProfileSharingClient identity read (libs/sharing).
+             Creator retrofit (slice 4) — family-default inheritance now applies to the creator track. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>sharing</artifactId>
+        </dependency>
         <!-- Shared HTML deliverable renderer (the content-plan board, CR-d). PDF later behind the same seam. -->
         <dependency>
             <groupId>dev.fedorov.ailife</groupId>

@@ -11,6 +11,7 @@ import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agents.creator.http.CreatorCacheClient;
 import dev.fedorov.ailife.agents.creator.http.CreatorProfileClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
 import dev.fedorov.ailife.agents.creator.http.TrendGatherClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -61,6 +62,7 @@ public class ContentStrategist {
 
     private final Coordinator coordinator;
     private final CreatorProfileClient profiles;
+    private final ProfileScopeResolver profileScope;
     private final TrendGatherClient gather;
     private final CreatorCacheClient cache;
     private final DeliverablePublisher publisher;
@@ -70,6 +72,7 @@ public class ContentStrategist {
 
     public ContentStrategist(Coordinator coordinator,
                              CreatorProfileClient profiles,
+                             ProfileScopeResolver profileScope,
                              TrendGatherClient gather,
                              CreatorCacheClient cache,
                              DeliverablePublisher publisher,
@@ -78,6 +81,7 @@ public class ContentStrategist {
                              ObjectMapper json) {
         this.coordinator = coordinator;
         this.profiles = profiles;
+        this.profileScope = profileScope;
         this.gather = gather;
         this.cache = cache;
         this.publisher = publisher;
@@ -190,10 +194,14 @@ public class ContentStrategist {
         return out;
     }
 
-    /** Try the speaker's own track first, then the household-default; absent/error → empty. */
+    /**
+     * Resolve the creator track via the shared {@link ProfileScopeResolver} (ADR-0005): self → own
+     * household-default → family/shared household-default → empty. The family-default step (#490 FO-3) is
+     * now inherited for free — a member who set no track picks up the household's shared one; absent/error
+     * → empty (the trend gather just omits the track constraint).
+     */
     private Mono<Optional<CreatorProfileDto>> resolveProfile(NormalizedMessage msg) {
-        return profiles.get(msg.householdId(), msg.userId())
-                .switchIfEmpty(Mono.defer(() -> profiles.get(msg.householdId(), null)))
+        return profileScope.<CreatorProfileDto>resolve(msg.userId(), msg.householdId(), profiles::get)
                 .map(Optional::of)
                 .defaultIfEmpty(Optional.empty())
                 .onErrorReturn(Optional.empty());

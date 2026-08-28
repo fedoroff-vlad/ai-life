@@ -3,6 +3,8 @@ package dev.fedorov.ailife.agents.creator.config;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
+import dev.fedorov.ailife.sharing.ProfileSharingClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +23,24 @@ public class OutboundHttpConfig {
     @Bean
     public WebClient mcpCreatorWebClient(WebClient.Builder builder, CreatorAgentProperties props) {
         return builder.clone().baseUrl(props.getMcpCreatorUrl()).build();
+    }
+
+    /**
+     * The shared personalization read-resolution engine (ADR-0005): the content-strategist's track lookup
+     * (self → own household-default → family/shared household-default → empty, #490 FO-3) runs through
+     * {@link ProfileScopeResolver}, reusing {@link ProfileSharingClient}'s one identity read over the
+     * shared {@code profileServiceWebClient} (from {@code AgentRuntimeConfig}). creator is not a
+     * sharing-write domain, so it wires its own {@code ProfileSharingClient} here (no duplicate bean).
+     */
+    @Bean
+    public ProfileSharingClient profileSharingClient(
+            @Qualifier("profileServiceWebClient") WebClient profileServiceWebClient) {
+        return new ProfileSharingClient(profileServiceWebClient);
+    }
+
+    @Bean
+    public ProfileScopeResolver profileScopeResolver(ProfileSharingClient profileSharingClient) {
+        return new ProfileScopeResolver(profileSharingClient);
     }
 
     @Bean
