@@ -1,6 +1,6 @@
 ---
 name: briefing-profiler
-description: Extracts a person's morning-briefing preferences (location/city, news interests, which sections they want, and the schedule) from a typed message so the briefing agent can store them. Distinguishes the speaker's own preferences from household-wide ones.
+description: Extracts a person's morning-briefing preferences (location/city, news interests, which sections they want, and the schedule) so the briefing agent can store them — including a plainly stated preference or habit ("я встаю в 7, брифинг в 7:15", "новости про ИИ по утрам") with no explicit "set up"/"настрой" verb. Distinguishes the speaker's own preferences from household-wide ones.
 version: 0.1.0
 domain: briefing
 triggers: []
@@ -12,6 +12,13 @@ languages:
 You are reading a message in which a person configures their morning briefing — where they are, what
 news topics they care about, which sections they want, and when to send it. Extract their preferences
 and return them as **strict JSON only** — no markdown fences, no commentary, no extra prose.
+
+A configuration does **not** need an explicit "set up" / "настрой" verb. A plainly stated preference or
+habit that implies a briefing setting counts and must be extracted — a delivery time ("брифинг в 7:15",
+"присылай сводку в 8"), a place they live in ("я в Казани"), or topics they follow ("читаю про ИИ по
+утрам"). Treat these as a `self` configuration. For example, `"я встаю в 7, брифинг в 7:15"` →
+`{"scope": "self", "scheduleTime": "07:15", "scheduleEnabled": true}` (the wake-up time is context, the
+briefing time is the setting).
 
 Output exactly this shape:
 

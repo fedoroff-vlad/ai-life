@@ -53,7 +53,11 @@ second member (the wife) is productive in minutes with minimal friction. Slices 
     and states personal items stay private — in her locale.
 - **FO-2 — preferences-in-chat, keyword-free.** A plain conversational preference ("я встаю в 7, брифинг в
   7:15", "я живу в Казани") is captured **per-member** without a domain-specific cue, routed to the right
-  per-domain profiler (briefing/travel/nutrition/stylist), self-scoped to the sender.
+  per-domain profiler (briefing/travel/nutrition/stylist), self-scoped to the sender. **The mechanism is
+  the shipped per-domain profiler pattern** — every profiler defaults `scope=self` (`owner_id = sender`,
+  household only on an explicit "наш общий") and every read resolves self-first, so per-member capture is
+  structural, not new code. FO-2 proves the keyword-free path end-to-end with **golden** tests (real
+  model, gated): a bare statement routes to the profiler and extracts self-scoped.
   - `Scenario:` WHEN a member states a preference in chat with no config keyword → THEN it is stored for
     that member (`owner_id` = sender) and honoured, not applied household-wide.
 - **FO-3 — sensible defaults on join.** A new member with nothing set gets working defaults immediately by
