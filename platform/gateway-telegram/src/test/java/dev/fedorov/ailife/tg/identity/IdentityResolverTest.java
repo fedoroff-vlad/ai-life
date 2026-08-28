@@ -94,9 +94,37 @@ class IdentityResolverTest {
         InviteOutcome outcome = resolver.redeemInvite(555L, "Masha", "ru", "tok").block();
 
         assertThat(outcome).isNotNull();
-        assertThat(outcome.inviteeReply()).contains("daughter");
+        // #490 FO-1: the join reply orients the new member — relationship + what works now + how to
+        // set personal preferences in chat, not a bare confirmation.
+        assertThat(outcome.inviteeReply())
+                .contains("daughter")
+                .contains("брифинг")
+                .contains("я встаю в 7");
         assertThat(outcome.holderTelegramId()).isEqualTo(42L);
         assertThat(outcome.holderReply()).contains("Masha").contains("daughter");
+    }
+
+    @Test
+    void joinReplyOrientsAnEnglishMemberEvenWithoutARelationship() {
+        UUID inviteeId = UUID.randomUUID();
+        UUID inviterId = UUID.randomUUID();
+        UUID family = UUID.randomUUID();
+        UserDto invitee = new UserDto(inviteeId, UUID.randomUUID(), "Kate", "en-GB", 556L, "member", Instant.now());
+        UserDto inviter = new UserDto(inviterId, family, "vlad", "ru-RU", 42L, "admin", Instant.now());
+
+        when(profile.findByTelegramId(556L)).thenReturn(Mono.just(invitee));
+        when(profile.redeem("tok", inviteeId.toString())).thenReturn(Mono.just(new HouseholdInviteDto(
+                UUID.randomUUID(), "tok", family, inviterId, null, true,
+                "accepted", inviteeId, Instant.now(), Instant.now())));
+        when(profile.findById(inviterId.toString())).thenReturn(Mono.just(inviter));
+
+        InviteOutcome outcome = resolver.redeemInvite(556L, "Kate", "en", "tok").block();
+
+        assertThat(outcome).isNotNull();
+        assertThat(outcome.inviteeReply())
+                .contains("family space")
+                .contains("briefing")
+                .contains("no setup needed");
     }
 
     @Test

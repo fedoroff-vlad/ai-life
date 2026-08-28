@@ -4,6 +4,14 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **road-test §#490 family-onboarding — 🚧 IN FLIGHT.** UX/onboarding layer on the shipped identity
+  ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md))
+  plumbing so a 2nd member (wife) is productive in minutes. Slices spec'd in [core.md](core.md) §Onboarding UX
+  (FO-1 join orientation · FO-2 keyword-free per-member prefs-in-chat · FO-3 sensible defaults on join).
+  **FO-1 — join orientation (gateway `IdentityResolver.joinedReply`): the `/start <token>` redeem reply now
+  orients the new member** (what works with no setup + how to set prefs in chat + privacy line, per locale)
+  instead of a bare "you've joined". Next: FO-3 defaults, then FO-2. Epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#489 multimodal/reply-UX — ✅ COMPLETE (2026-08-28).** All four slices shipped: **RU-1** typing
   indicator, **RU-2** inline Да/Нет confirm buttons, **RU-3** STT reliability gate (empty/low-confidence voice →
   ask to repeat), **RU-4** photo/receipt robustness (unreadable captionless document photo → ask for a clearer
