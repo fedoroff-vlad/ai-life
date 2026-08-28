@@ -10,8 +10,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   self→own-default→family-default→empty, reusing `libs/sharing`'s identity read) + a `PersonalizationProfiler`
   template in `agent-runtime`; store stays per-domain, per-module `profile/` adapter. **Generalises #490 FO-3's
   family-default inheritance to all five** (today only briefing has it). Owner picked Option B (libs lift, not
-  profile-service centralization). **Slice 1 (accept — this bullet): ADR-0005 + architecture.md §Locked +
-  INDEX + PATTERNS recipe.** Next: slice 2 foundation (`libs/profile` + template), slice 3 briefing reference,
+  profile-service centralization). **Slice 1 (accept): ADR-0005 + architecture.md §Locked + INDEX + PATTERNS
+  recipe — DONE.** **Slice 2 (foundation): `libs/profile` leaf (`ProfileScope` + `ProfileScopeResolver` +
+  `PersonalizationProfileClient`) + `agent-runtime` `PersonalizationProfiler`/`ProfileSpec` template, unit-tested
+  in isolation, no domain wired — DONE.** Next: slice 3 briefing reference retrofit (`BriefingProfiler` →
+  template, `BriefingProfileClient` → generic client, `BriefingComposer.resolveProfile` → `ProfileScopeResolver`),
   then creator/nutrition/travel/stylist. Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
   Couples with #478 (empty `shared/skills/` doctrine).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped

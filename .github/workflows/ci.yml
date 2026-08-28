@@ -82,7 +82,7 @@ jobs:
         if: steps.detect.outputs.skip != 'true' && github.event_name == 'pull_request'
         run: >
           mvn -B -ntp -q -DskipTests install
-          -pl libs/contracts,libs/llm-client,libs/mcp-client,libs/event-bus,libs/platform-common,libs/sharing,libs/agent-runtime,libs/doc-render,libs/test-support,libs/golden-test-support
+          -pl libs/contracts,libs/llm-client,libs/mcp-client,libs/event-bus,libs/platform-common,libs/sharing,libs/profile,libs/agent-runtime,libs/doc-render,libs/test-support,libs/golden-test-support
 
       # PR: incremental build via GIB (only modules changed vs the base + their
       # dependents). Push to main: full verify (GIB stays disabled via .mvn/maven.config)

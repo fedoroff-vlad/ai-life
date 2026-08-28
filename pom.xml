@@ -44,6 +44,7 @@
         <module>libs/agent-runtime</module>
         <module>libs/doc-render</module>
         <module>libs/sharing</module>
+        <module>libs/profile</module>
         <module>libs/test-support</module>
         <module>libs/golden-test-support</module>
         <module>platform/llm-gateway</module>
@@ -198,6 +199,11 @@
             <dependency>
                 <groupId>dev.fedorov.ailife</groupId>
                 <artifactId>sharing</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.fedorov.ailife</groupId>
+                <artifactId>profile</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
