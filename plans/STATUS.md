@@ -4,6 +4,16 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **arch §#476 personalization-profile capability — 🚧 IN FLIGHT (ADR-0005 Accepted 2026-08-28).** Lift the
+  repeated `(household, owner)` per-member profile pattern (5 domains: briefing/creator/nutrition/travel/
+  stylist) into a shared capability — `libs/profile` leaf (`ProfileScope` + `ProfileScopeResolver`
+  self→own-default→family-default→empty, reusing `libs/sharing`'s identity read) + a `PersonalizationProfiler`
+  template in `agent-runtime`; store stays per-domain, per-module `profile/` adapter. **Generalises #490 FO-3's
+  family-default inheritance to all five** (today only briefing has it). Owner picked Option B (libs lift, not
+  profile-service centralization). **Slice 1 (accept — this bullet): ADR-0005 + architecture.md §Locked +
+  INDEX + PATTERNS recipe.** Next: slice 2 foundation (`libs/profile` + template), slice 3 briefing reference,
+  then creator/nutrition/travel/stylist. Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
+  Couples with #478 (empty `shared/skills/` doctrine).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
   identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing
   ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md)) plumbing so a 2nd member (wife) is productive in
