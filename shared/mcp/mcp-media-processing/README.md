@@ -23,7 +23,7 @@ call, reused not re-embedded.
 
 | tool | args | returns | purpose |
 |------|------|---------|---------|
-| `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). |
+| `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). `confidence` is the mean per-word Tesseract confidence (0..1; `0.0` on empty text, `null` when no signal) — docs-agent's RU-4 gate asks for a clearer shot on an unreadable document photo. |
 | `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
 | `transcribe` | `mediaId` (media-service object id) | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | fetch the audio/video bytes from media-service, run STT (local engine), return recognised speech (empty when none). `confidence` is a 0..1 recognition confidence (whisper: `exp(mean segment avg_logprob)`; `0.0` on empty text, `null` when the engine reports no signal) — the gateway's RU-3 gate uses it to ask for a repeat on an unintelligible voice note. For voice notes / dictated messages. |
 

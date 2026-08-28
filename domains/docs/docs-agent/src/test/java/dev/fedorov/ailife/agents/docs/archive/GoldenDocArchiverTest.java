@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.docs.archive;
 import tools.jackson.databind.ObjectMapper;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
 import dev.fedorov.ailife.agents.docs.http.OcrClient;
 import dev.fedorov.ailife.agents.docs.sharing.DocsSharingPolicy;
@@ -65,7 +66,8 @@ class GoldenDocArchiverTest {
     private final SharingResolver sharing = new SharingResolver(profileSharing, new DocsSharingPolicy());
     private final SharingConfirm sharingConfirm = new SharingConfirm(sharing, json);
     private final DocArchiver archiver = new DocArchiver(
-            ocr, documents, memory, GoldenLlm.client(), sharing, sharingConfirm, skills, manifest, json);
+            ocr, documents, memory, GoldenLlm.client(), sharing, sharingConfirm, skills, manifest, json,
+            new DocsAgentProperties());
 
     /**
      * STRUCTURE — the real model, given the real archiver prompt and a concrete document's OCR text,

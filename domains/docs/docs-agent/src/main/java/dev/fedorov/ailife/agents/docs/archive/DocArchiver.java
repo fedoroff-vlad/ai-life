@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.http.MemoryClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.docs.config.DocsAgentProperties;
 import dev.fedorov.ailife.agents.docs.http.DocumentClient;
 import dev.fedorov.ailife.agents.docs.http.OcrClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -13,6 +14,7 @@ import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.docs.DocumentDto;
 import dev.fedorov.ailife.contracts.docs.SaveDocumentInput;
+import dev.fedorov.ailife.contracts.media.OcrResult;
 import dev.fedorov.ailife.contracts.llm.LlmChannel;
 import dev.fedorov.ailife.contracts.llm.LlmChatRequest;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
@@ -45,8 +47,13 @@ import java.util.UUID;
  * corpus → reply confirming what was filed.
  *
  * <p>Archiving is non-destructive (no confirm-before-write, unlike a finance receipt): we save and
- * report. Empty OCR still archives the blob with whatever metadata the model could infer from the
- * caption, so nothing is silently dropped. Every stage soft-fails to a friendly message.
+ * report. Every stage soft-fails to a friendly message.
+ *
+ * <p><b>RU-4 photo robustness (#489):</b> an <i>unreadable</i> document photo — empty OCR text, or OCR
+ * confidence known and below {@code docs-agent.ocr-min-confidence} — that carries <i>no caption</i> to
+ * infer metadata from is bounced back with an ask-for-a-clearer-shot reply instead of filing a blank,
+ * unsearchable row + note. When a caption <i>is</i> present it still archives (the caption carries the
+ * metadata); a {@code null} confidence is "unknown", never low, so it also archives (back-compat).
  */
 @Component
 public class DocArchiver {
@@ -59,6 +66,10 @@ public class DocArchiver {
     private static final String NOTE_SOURCE = "docs-agent";
     /** A document is reference material — the second-brain note {@code type} (see the note manifest). */
     private static final String NOTE_TYPE = "reference";
+    /** RU-4 (#489): reply shown when a document photo is too unreadable to archive, asking for a re-shoot. */
+    public static final String ASK_CLEARER_SHOT =
+            "🧾 Не разобрал текст на фото документа. Пришлите, пожалуйста, снимок почётче — "
+            + "без бликов, при хорошем свете и чтобы весь лист попал в кадр.";
 
     private final OcrClient ocr;
     private final DocumentClient documents;
@@ -69,10 +80,11 @@ public class DocArchiver {
     private final SkillRegistry skills;
     private final AgentManifest manifest;
     private final ObjectMapper json;
+    private final double minConfidence;
 
     public DocArchiver(OcrClient ocr, DocumentClient documents, MemoryClient memory, LlmClient llm,
                        SharingResolver sharing, SharingConfirm sharingConfirm, SkillRegistry skills,
-                       AgentManifest manifest, ObjectMapper json) {
+                       AgentManifest manifest, ObjectMapper json, DocsAgentProperties properties) {
         this.ocr = ocr;
         this.documents = documents;
         this.memory = memory;
@@ -82,17 +94,41 @@ public class DocArchiver {
         this.skills = skills;
         this.manifest = manifest;
         this.json = json;
+        this.minConfidence = properties.getOcrMinConfidence();
     }
 
     public Mono<IntentResponse> archive(NormalizedMessage msg, String mediaId) {
         return ocr.ocr(mediaId)
-                .map(r -> clip(r.text()))
-                .flatMap(text -> extractAndSave(msg, mediaId, text))
+                .flatMap(result -> {
+                    // RU-4 (#489): an unreadable photo with no caption to lean on → ask for a clearer
+                    // shot rather than filing a blank/garbage corpus. A captioned or readable one archives.
+                    if (unreadable(result) && !hasCaption(msg)) {
+                        log.info("doc archive: unreadable photo (empty/low-confidence OCR, no caption) for media {}"
+                                + " — asking for a clearer shot", mediaId);
+                        return Mono.just(reply(ASK_CLEARER_SHOT, null));
+                    }
+                    return extractAndSave(msg, mediaId, clip(result.text()));
+                })
                 .onErrorResume(e -> {
                     log.warn("doc archive failed for media {}: {}", mediaId, e.toString());
                     return Mono.just(reply(
                             "Не удалось обработать документ. Пришлите фото почётче или попробуйте позже.", null));
                 });
+    }
+
+    /**
+     * RU-4 readability gate: an OCR result is unreadable when its text is empty/blank or its confidence is
+     * <b>known and below</b> {@code docs-agent.ocr-min-confidence}. A {@code null} confidence is "unknown",
+     * never low, so such a document still archives.
+     */
+    private boolean unreadable(OcrResult result) {
+        boolean empty = result.text() == null || result.text().isBlank();
+        boolean lowConfidence = result.confidence() != null && result.confidence() < minConfidence;
+        return empty || lowConfidence;
+    }
+
+    private static boolean hasCaption(NormalizedMessage msg) {
+        return msg.text() != null && !msg.text().isBlank();
     }
 
     private Mono<IntentResponse> extractAndSave(NormalizedMessage msg, String mediaId, String ocrText) {

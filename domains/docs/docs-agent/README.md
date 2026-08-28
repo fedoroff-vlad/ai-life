@@ -17,7 +17,11 @@ private); **7b (read)** widens "find my X" to the member's personal ∪ shared h
 "наши документы" cue (default = own).
 
 - **Ingest (D-c, +SB-5 note seed, +7a sharing)** — an inbound message with an `image` attachment →
-  `doc-archiver`: OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → one llm-gateway turn with
+  `doc-archiver`: OCR the photo (`mcp-media-processing` `POST /internal/ocr`) → **RU-4 readability gate
+  ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489)):** a *captionless* photo whose OCR is empty or
+  below `docs-agent.ocr-min-confidence` (default `0.4`) is bounced back asking for a clearer shot instead of
+  filing a blank, unsearchable row — a caption exempts it (the caption carries the metadata) and a `null`/unknown
+  confidence still archives → one llm-gateway turn with
   the `doc-archiver` SKILL extracts the metadata (doc_type / title / party / date / amount / currency /
   tags) from the OCR text + the user's caption → **resolve the shared vs personal `household_id`** via the
   shared `SharingResolver` + `DocsSharingPolicy` (a warranty/contract is a household asset → the family's
@@ -67,6 +71,7 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
 | `DOCS_PUBLIC_MEDIA_BASE_URL` | `http://media-service:8088` | public base for a search hit's open link (`<base>/v1/media/{mediaId}`). |
 | `DOCS_AGENT_MCP_CLIENT_ENABLED` | `true` | bind mcp-docs + mcp-media-processing over MCP/SSE (toggle off in degraded envs). |
 | `DOCS_AGENT_MEMORY_RECALL_K` | `5` | memory-recall fan-in (shared agent-runtime). |
+| `DOCS_AGENT_OCRMINCONFIDENCE` | `0.4` | RU-4 readability gate: a captionless photo with OCR confidence below this (or empty text) → ask for a clearer shot instead of archiving. |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway for the metadata extract. |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | shared agent-runtime clients. |
 
@@ -77,7 +82,8 @@ Otherwise a message falls through to a chat fallback. Every stage soft-fails to 
   (`mcpDocsWebClient` + `mcpMediaProcessingWebClient`).
 - `http/OcrClient` — `POST /internal/ocr` → `OcrResult` (mirrors finance `CaptionClient`).
 - `http/DocumentClient` — `POST /internal/documents` → `DocumentDto` (mirrors `BriefingProfileClient`).
-- `archive/DocArchiver` — the ingest flow: OCR → LLM metadata extract (`doc-archiver` SKILL,
+- `archive/DocArchiver` — the ingest flow: OCR → **RU-4 readability gate** (`unreadable(result) && !hasCaption`
+  → `ASK_CLEARER_SHOT`, threshold `docs-agent.ocr-min-confidence`) → LLM metadata extract (`doc-archiver` SKILL,
   temperature=0) → **resolve shared vs personal `household_id`** (`SharingResolver.resolve` + `DocsSharingPolicy`,
   ADR-0002 slice 7a; degrades to the envelope household on a profile hiccup) → `saveDocument` under that
   household (stores the full OCR text) → second-brain note seed (`MemoryClient.note`, `source=docs-agent`,

@@ -18,6 +18,15 @@ public class DocsAgentProperties implements SharedClientProperties {
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
+    /**
+     * RU-4 photo robustness (#489): a captionless document photo whose OCR confidence (0..1) is
+     * <b>known and below</b> this value — or whose OCR text is empty — is treated as unreadable, so
+     * the archiver asks for a clearer shot instead of filing a blank/garbage corpus. A {@code null}
+     * confidence (no signal) is "unknown", never low, so it still archives (back-compat). Deliberately
+     * conservative so a merely-mediocre but readable scan is not rejected. Internal tunable — override
+     * via {@code docs-agent.ocr-min-confidence} / env {@code DOCS_AGENT_OCRMINCONFIDENCE}.
+     */
+    private double ocrMinConfidence = 0.4;
 
     public String getMcpDocsUrl() { return mcpDocsUrl; }
     public void setMcpDocsUrl(String mcpDocsUrl) { this.mcpDocsUrl = mcpDocsUrl; }
@@ -48,5 +57,10 @@ public class DocsAgentProperties implements SharedClientProperties {
     public String getMemoryServiceUrl() { return memoryServiceUrl; }
     public void setMemoryServiceUrl(String memoryServiceUrl) {
         this.memoryServiceUrl = memoryServiceUrl;
+    }
+
+    public double getOcrMinConfidence() { return ocrMinConfidence; }
+    public void setOcrMinConfidence(double ocrMinConfidence) {
+        this.ocrMinConfidence = ocrMinConfidence;
     }
 }
