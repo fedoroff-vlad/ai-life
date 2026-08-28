@@ -32,6 +32,17 @@
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>agent-runtime</artifactId>
         </dependency>
+        <!-- ADR-0005: the shared personalization-profile capability — ProfileScope/ProfileScopeResolver +
+             the generic PersonalizationProfileClient (libs/profile), and its ProfileSharingClient identity
+             read (libs/sharing). briefing is the reference retrofit (slice 3). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>sharing</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

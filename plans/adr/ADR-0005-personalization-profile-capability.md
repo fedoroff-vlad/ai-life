@@ -165,10 +165,12 @@ ADR-0002 reached for sharing.
    `PersonalizationProfileClient`) + the `PersonalizationProfiler` template in `agent-runtime`. Unit-tested
    in isolation (resolver self/household/family/empty cases mirror the FO-3 tests); no domain wired beyond a
    green build.
-3. [ ] **Reference retrofit — briefing** (write + read): `BriefingProfiler` → the shared template,
-   `BriefingProfileClient` → the generic client, `BriefingComposer.resolveProfile` → `ProfileScopeResolver`
-   (its FO-3 family-default is now the shared rule). Behaviour unchanged (existing briefing tests + goldens
-   green). Briefing becomes the canonical example the PATTERNS recipe points at.
+3. [x] **Reference retrofit — briefing** (write + read): `BriefingProfiler` → the shared template (as a
+   `ProfileSpec`), `BriefingProfileClient` → the generic client (subclass), `BriefingComposer.resolveProfile`
+   → `ProfileScopeResolver` (its FO-3 family-default is now the shared rule). Behaviour unchanged (existing
+   briefing tests + goldens green). Briefing is the canonical example the PATTERNS recipe points at. The
+   `PersonalizationProfiler` template is wired as a shared `AgentRuntimeConfig` bean, so the remaining
+   domains just inject it.
 4. [ ] **creator** — thin `profile/` adapter + wiring onto the shared mechanism; family-default now applies.
 5. [ ] **nutrition (diet)** — same; family-default now applies to the diet profile read.
 6. [ ] **travel** — same; family-default now applies (home base inheritance).

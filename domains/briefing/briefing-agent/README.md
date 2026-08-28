@@ -84,14 +84,17 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
   composer digest flow → deliver via notifier (owner, or household fan-out when no `ownerId`).
 - `web/ManifestController` — `GET /agents/briefing/manifest`.
 - `chat/BriefingChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
-- `profile/BriefingProfiler` — the preferences flow: cue → LLM extract via `briefing-profiler` SKILL →
-  geocode the city → upsert via `/internal/briefing-profile`.
-- `flow/BriefingComposer` — the digest flow (BR-d/e): resolve the profile (self → own household-default →
-  family/shared household-default via the shared `ProfileClient.householdRouting`, #490 FO-3 → empty
-  default) → gather the enabled sections in
+- `profile/BriefingProfiler` — the preferences flow (ADR-0005 reference retrofit): the briefing
+  `ProfileSpec` (field mapping + geocode post-step + reply wording) run through the shared
+  `agent-runtime` `PersonalizationProfiler` template (LLM extract via `briefing-profiler` SKILL → parse →
+  self/household scope → upsert via `/internal/briefing-profile`).
+- `flow/BriefingComposer` — the digest flow (BR-d/e): resolve the profile via the shared
+  `ProfileScopeResolver` (self → own household-default → family/shared household-default, #490 FO-3 →
+  empty default; ADR-0005) → gather the enabled sections in
   parallel on the `Coordinator` → one `briefing-composer` synthesis → render an HTML board (news links as
   provenance) via `DeliverablePublisher`, store in media-service, append the open-link to the reply.
-- `http/BriefingProfileClient` — `POST/GET /internal/briefing-profile` on `mcp-briefing`.
+- `http/BriefingProfileClient` — briefing's typed binding of the shared `PersonalizationProfileClient`
+  (`GET/POST /internal/briefing-profile` on `mcp-briefing`; ADR-0005).
 - `http/GeocodeClient` — `POST /internal/geocode` on `mcp-weather` (city → coords + timezone; soft-fail).
 - `http/ForecastClient` — `POST /internal/forecast` on `mcp-weather` (today's weather for the profile coords).
 - `http/CalendarEventsClient` — `GET /internal/events` on `mcp-caldav` (today's agenda for the window).

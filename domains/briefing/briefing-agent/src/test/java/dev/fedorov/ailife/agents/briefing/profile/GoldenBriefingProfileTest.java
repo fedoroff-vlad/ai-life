@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.briefing.profile;
 
 import tools.jackson.databind.ObjectMapper;
+import dev.fedorov.ailife.agentruntime.profile.PersonalizationProfiler;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agentruntime.http.GeocodeClient;
@@ -53,8 +54,9 @@ class GoldenBriefingProfileTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenBriefingProfileTest.class.getClassLoader(),
                     "skills/briefing/briefing-profiler/SKILL.md")));
-    private final BriefingProfiler profiler =
-            new BriefingProfiler(profiles, geocode, GoldenLlm.client(), skills, manifest, json);
+    private final PersonalizationProfiler template =
+            new PersonalizationProfiler(GoldenLlm.client(), manifest, skills, json);
+    private final BriefingProfiler profiler = new BriefingProfiler(template, profiles, geocode);
 
     /**
      * STRUCTURE — the real model, given the real profiler prompt and a concrete briefing config, must

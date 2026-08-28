@@ -9,6 +9,7 @@ import dev.fedorov.ailife.agentruntime.http.NotifierClient;
 import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.manifest.ManifestParser;
+import dev.fedorov.ailife.agentruntime.profile.PersonalizationProfiler;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillParser;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -87,6 +88,19 @@ public class AgentRuntimeConfig {
     @Bean
     public SkillClassifier skillClassifier(ObjectMapper json) {
         return new SkillClassifier(json);
+    }
+
+    /**
+     * The shared personalization-profiler template (ADR-0005): the deterministic
+     * {@code extract → parse → scope → write} skeleton the per-domain profilers copy-pasted. Stateless
+     * and generic (a domain passes its {@code ProfileSpec} at call time), needing only the universal
+     * {@link LlmClient} / {@link AgentManifest} / {@link SkillRegistry} / {@code ObjectMapper} beans, so it
+     * wires for free on {@code @Import(AgentRuntimeConfig)} — a personalization domain just injects it.
+     */
+    @Bean
+    public PersonalizationProfiler personalizationProfiler(LlmClient llm, AgentManifest manifest,
+                                                           SkillRegistry skillRegistry, ObjectMapper json) {
+        return new PersonalizationProfiler(llm, manifest, skillRegistry, json);
     }
 
     /**
