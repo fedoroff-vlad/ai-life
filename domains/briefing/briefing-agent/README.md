@@ -18,7 +18,9 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
   per-person prefs via `mcp-briefing`'s `/internal/briefing-profile` (self → the sender, household →
   the default). Geocoding soft-fails (the profile saves without coordinates). `profile/BriefingProfiler`.
 - **BR-d — the digest flow. DONE.** A produce-now cue ("собери мне брифинг на сегодня", "brief me") →
-  resolve the profile (self → household-default → all-sections default) → **gather** the enabled
+  resolve the profile (self → own household-default → **family/shared household-default** (#490 FO-3,
+  via profile-service `household-routing`, so a new member inherits the family home base with no setup) →
+  all-sections default) → **gather** the enabled
   sections in parallel over the `/internal/*` read passthroughs (weather for the geocoded coordinates,
   today's agenda from `mcp-caldav`, yesterday's spend snapshot from **finance-agent** (its `spend_snapshot`
   action over the orchestrator hub — not a direct mcp-finance read), news from `mcp-web`
@@ -84,7 +86,9 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 - `chat/BriefingChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
 - `profile/BriefingProfiler` — the preferences flow: cue → LLM extract via `briefing-profiler` SKILL →
   geocode the city → upsert via `/internal/briefing-profile`.
-- `flow/BriefingComposer` — the digest flow (BR-d/e): resolve the profile → gather the enabled sections in
+- `flow/BriefingComposer` — the digest flow (BR-d/e): resolve the profile (self → own household-default →
+  family/shared household-default via the shared `ProfileClient.householdRouting`, #490 FO-3 → empty
+  default) → gather the enabled sections in
   parallel on the `Coordinator` → one `briefing-composer` synthesis → render an HTML board (news links as
   provenance) via `DeliverablePublisher`, store in media-service, append the open-link to the reply.
 - `http/BriefingProfileClient` — `POST/GET /internal/briefing-profile` on `mcp-briefing`.
