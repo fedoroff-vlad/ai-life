@@ -14,8 +14,8 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   genuine cross-domain path is now proven, not just the coordinator demo. **I3 (live-read brief enrichment —
   the `answer(request, extraGather)` overload, applies to every exposer) deferred/optional; not needed to prove
   #477.** Detail → [HISTORY.md](HISTORY.md) + [stage4.md](stage4.md) §Track I. **Remaining epic
-  [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) threads:** empty `shared/skills/` doctrine
-  [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) + model-gated Bucket 2 cutover #369.
+  [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) thread:** model-gated Bucket 2 cutover #369
+  (empty `shared/skills/` doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) ✅ reconciled 2026-08-28).
 - **arch §#476 personalization-profile capability — ✅ COMPLETE (2026-08-28), #476 closed.** All 7 slices
   shipped (per [ADR-0005](adr/ADR-0005-personalization-profile-capability.md)): foundation
   (`libs/profile` leaf `ProfileScope`/`ProfileScopeResolver`/`PersonalizationProfileClient` +
@@ -24,8 +24,8 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   shared mechanism (store stays per-domain); **#490 FO-3 family-default inheritance reaches
   briefing/creator/nutrition/travel** (stylist opts out by design — per-person style profile). Detail →
   [HISTORY.md](HISTORY.md) + [ADR-0005](adr/ADR-0005-personalization-profile-capability.md). Remaining #479
-  threads: coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) + empty `shared/skills/`
-  [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) + model-gated Bucket 2 cutover #369.
+  thread: model-gated Bucket 2 cutover #369 (coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477)
+  ✅ + empty `shared/skills/` [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) ✅ both now done).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
   identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing
   ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md)) plumbing so a 2nd member (wife) is productive in
@@ -80,19 +80,18 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
   `intent/SkillRouter`; every keyword router deleted. **Bucket 1 is now fully complete** (finance + tasks
   were the original two). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1 + per-agent HISTORY rows
-  (2026-08-17). **Remaining #479 threads** (pick next): prove agent-led multi-domain
-  coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477), reconcile empty `shared/skills/`
-  doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478); + the model-gated Bucket 2 cutover
-  [#369](https://github.com/fedoroff-vlad/ai-life/issues/369). (personalization-profile capability
-  [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) — ✅ DONE 2026-08-28, ADR-0005, see the top bullet.)
+  (2026-08-17). **Remaining #479 thread:** only the model-gated Bucket 2 cutover
+  [#369](https://github.com/fedoroff-vlad/ai-life/issues/369) is left — coordination
+  [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) ✅, personalization-profile
+  [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) ✅ (ADR-0005), and empty `shared/skills/`
+  doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) ✅ (2026-08-28) are all done.
   **confirm-act flow dedup [#547](https://github.com/fedoroff-vlad/ai-life/issues/547) — ✅ DONE, #547 closed
   (2026-08-23).** ADR-0004 lifted the copy-pasted `read candidates → LLM picks → pendingAction confirm →
   resume → act` loop into a generic `PickConfirmActRunner` (`libs/agent-runtime/intent/`, act as a delete|update
   seam + a `missing`-field re-ask gate) and retrofitted all five confirm-act flows onto it (delete×3 + calendar
   cancel/move; the H.2 edits above then rode it too). Detail → [HISTORY.md](HISTORY.md) +
-  [ADR-0004](adr/ADR-0004-confirm-act-flow.md). **Next #479 thread:** agent-led multi-domain coordination
-  [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) or empty `shared/skills/` doctrine
-  [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) (#476 personalization-profile now done).
+  [ADR-0004](adr/ADR-0004-confirm-act-flow.md). **Next #479 thread:** only the model-gated Bucket 2 cutover
+  [#369](https://github.com/fedoroff-vlad/ai-life/issues/369) remains (#476, #477, #478 all now done).
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
   Mac Studio M4 Max 64/512 running ai-life 24/7 (hot set always-on + auto cold start/stop via a new
@@ -130,7 +129,7 @@ assistant *before* any autonomy/actuation) — **epic [#491](https://github.com/
 memory-quality #488 → multimodal/reply-UX #489 + family-onboarding #490 all shipped (only the 24/7 instance
 [#483](https://github.com/fedoroff-vlad/ai-life/issues/483) remains, hardware-blocked). Detail →
 [HISTORY.md](HISTORY.md). **Jarvis-style autonomy (smart-home #192, coordination #477) is now unblocked.**
-**Architecture hardening** (2026-08-16 review) — **epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479)** is the SSOT; items (ROI order): in-agent routing → shared `SkillClassifier` for the 8 cue-routed agents [#475](https://github.com/fedoroff-vlad/ai-life/issues/475) ✅; factor the 5× personalization-profile pattern into a shared capability [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) ✅ (ADR-0005); prove real agent-led multi-domain coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477); reconcile empty `shared/skills/` doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478). Bucket 2 cutover #369 (above) is the model-gated fifth thread.
+**Architecture hardening** (2026-08-16 review) — **epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479)** is the SSOT; items (ROI order): in-agent routing → shared `SkillClassifier` for the 8 cue-routed agents [#475](https://github.com/fedoroff-vlad/ai-life/issues/475) ✅; factor the 5× personalization-profile pattern into a shared capability [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) ✅ (ADR-0005); prove real agent-led multi-domain coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) ✅; reconcile empty `shared/skills/` doctrine [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) ✅ (2026-08-28, trimmed to "mechanism available, zero tenants"). Only the model-gated Bucket 2 cutover #369 (above) remains open.
 **Runtime topology / footprint** (owner concern 2026-08-28) — **epic [#584](https://github.com/fedoroff-vlad/ai-life/issues/584)**, [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) (Proposed, mac-gated): decouple runtime process count from code-module structure to free RAM for the local model — measurement-first → process consolidation (few JVM hosts, code untouched) → native-image for the resident hot set; CDS/AOT (LC-3a) stays as the cold-start-latency lever. Correctness (types/goldens/E2E/privacy) preserved; domain logic never rewritten.
 Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
 (The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
