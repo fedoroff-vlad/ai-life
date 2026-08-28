@@ -4,6 +4,15 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+- **arch §#477 real agent-led multi-domain coordination — 🚧 IN FLIGHT (Track I, [stage4.md](stage4.md) §Track I).**
+  The coordinator substrate (#290) is built but the cross-domain path is thin (only finance + calendar expose
+  `brief`). #477 lands 1–2 real cross-domain scenarios end-to-end through the hub (canonical: "спланируй
+  выходные" → calendar free dates + finance budget + tasks to-dos). **I1 DONE** (this PR): tasks-agent is the
+  3rd `brief` exposer (`register("brief", …)` mirroring calendar) + added to the `coordinator-agent.specialists[]`
+  roster, so the FAST planner now picks among ≥3 real specialists; `BriefActionTest` proves the tasks brief hop.
+  **NEXT: I2 (stage-closer)** — the mandatory multi-domain E2E (`E2ECoordinateMultiDomainTest`): one synthesized
+  answer grounded in all sources + per-source soft-fail + the no-direct-agent-to-agent invariant. I3 (live-read
+  brief enrichment) trails, optional. Spec + WHEN/THEN → [stage4.md](stage4.md) §Track I.
 - **arch §#476 personalization-profile capability — ✅ COMPLETE (2026-08-28), #476 closed.** All 7 slices
   shipped (per [ADR-0005](adr/ADR-0005-personalization-profile-capability.md)): foundation
   (`libs/profile` leaf `ProfileScope`/`ProfileScopeResolver`/`PersonalizationProfileClient` +

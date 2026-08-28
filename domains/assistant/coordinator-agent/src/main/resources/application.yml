@@ -29,6 +29,8 @@ coordinator-agent:
       expertise: money, budgets, spending, transactions, income, savings, financial planning
     - name: calendar
       expertise: events, appointments, birthdays, anniversaries, reminders, schedule, agenda
+    - name: tasks
+      expertise: to-dos, tasks, GTD next-actions, projects, deadlines, chores, reminders to do something
 
 ailife:
   llm-client:
