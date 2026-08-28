@@ -109,5 +109,10 @@ Registered in the orchestrator via `orchestrator.agents[]` (`name: coordinator`,
 - `web/ManifestControllerTest` — the manifest loads + exposes the routing description.
 - `E2ECoordinateFlowTest` — real coordinator context; an inbound cross-cutting message flows
   recall → synthesis → reply across HTTP with the `libs/contracts` DTOs.
+- `E2ECoordinateMultiDomainTest` — the #477 (Track I / I2) multi-domain stage-closer: a "спланируй
+  выходные" ask fans out to finance+calendar+tasks **through the orchestrator hub** (`/v1/agents/invoke`)
+  and returns **one** synthesis grounded in every specialist's brief; proves per-source soft-fail (one
+  specialist's hub invoke 500s → the survivors still synthesize, never a 500) and the invariant that
+  coordination reaches specialists **only through the hub** (no direct agent-to-agent call).
 - `flow/GoldenCoordinatorSynthesisTest` — opt-in (`@GoldenLlmTest`, skipped in CI): on a real 7b the
   synthesis is grounded in the supplied recall context (structure, not text).

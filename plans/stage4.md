@@ -332,17 +332,22 @@ everything above: the hub (C1), the `Coordinator` (D1), the `brief` primitive (E
 (A). Doctrine unchanged — coordination is **agent-led via the hub**; no agent calls another directly.
 
 **Slices (≤5 files each):**
-- **I1** — **tasks-agent as the 3rd `brief` exposer** (mirror of E-B2-followup, calendar-as-second):
+- **I1 ✅** — **tasks-agent as the 3rd `brief` exposer** (mirror of E-B2-followup, calendar-as-second):
   `register("brief", briefResponder::answer)` on tasks' `ActionController` + `tasks` in the
   `coordinator-agent.specialists[]` roster, so the FAST planner now chooses among ≥3 real specialists.
   Memory-only recall, exactly like the finance/calendar exposers (live domain reads via the
   `answer(request, extraGather)` overload is a separate, all-exposer concern — see I3). A `BriefActionTest`
   proves the tasks `brief` hop (recall → FAST synthesis → `{agent, answer}`).
-- **I2 (stage-closer)** — the mandatory multi-domain **E2E**: `E2ECoordinateMultiDomainTest` in
+- **I2 ✅ (stage-closer)** — the mandatory multi-domain **E2E**: `E2ECoordinateMultiDomainTest` in
   coordinator-agent — one real coordinator context, MockWebServers **forwarding** the hub
-  `/v1/agents/invoke` to ≥2 stub specialists, asserting the invariants below: one synthesized answer
-  grounded in all sources, per-source **soft-fail** (a killed specialist degrades, never 500s), and the
-  architecture invariant that coordination flows **only through the hub** (no direct agent-to-agent call).
+  `/v1/agents/invoke` to the stub specialists, asserting all three invariants on a real multi-agent path:
+  a "спланируй выходные" ask fans out to finance+calendar+tasks and returns **one** synthesis grounded in
+  every specialist's brief; per-source **soft-fail** (one specialist's hub invoke 500s → the flow still
+  returns one grounded reply from the survivors, never a 500); and the architecture invariant that
+  coordination reaches specialists **only through the hub** (the only specialist transport wired is
+  `/v1/agents/invoke`; every recorded hub call is a `brief` for a rostered specialist — no direct
+  agent-to-agent call). **This is the #477 closer** — the genuine cross-domain path is now proven, not
+  just the coordinator demo.
 - **I3 (later, optional)** — enrich the specialist briefs with **live domain reads** (the
   `answer(request, extraGather)` overload) so a brief carries real data (tasks' open next-actions,
   finance's spend snapshot) rather than memory-only recall. Applies equally to every exposer; not needed
