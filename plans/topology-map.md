@@ -77,6 +77,27 @@ Per-JVM baseline ~300 MB (ADR-0006); native ~30–60 MB (×5–10).
 (Matches lifecycle.md's "hot set ≈ 6 GB" today. The ~4.5 GB freed by B alone is the RAM-for-the-model
 goal; C compounds it.)
 
+## Native-image scope (path C) — targeted, not blanket
+**We do not native-compile everything.** Native-image (ADR-0006 Option C) is a **per-host** decision on a
+spectrum, driven by three questions: is the host resident (footprint payoff)? does instant-start matter
+(latency payoff)? is the native build tractable (cost)? Whatever native does not fit falls back to
+CDS/AOT (LC-3a, re-scoped as the *latency* lever) or stays a plain JVM.
+
+| Layer | Treatment | Why |
+|---|---|---|
+| **Resident hosts** (Platform-hot · Agent-hot · Domain-MCP-hot · `memory-service` · `llm-gateway`) | **native — primary target** | always in memory → the ~5–10× RSS cut is a permanent saving; this is the footprint win |
+| **Cold hosts** (Content · Lifestyle · Brief+Travel · Docs · Finance-aux) | **native optional — for latency, not RAM** | idle = stopped = 0 RAM, so no footprint gain; native's payoff here is instant wake (~50–100 ms vs ~8–20 s). Worth it where instant-start matters and the build is cheap; else **CDS/AOT** |
+| **Native-hostile modules** (heavy reflection / dynamic classloading not covered by Spring Boot 4 AOT hints) | **stay JVM + CDS/AOT** | hint-chasing cost exceeds the benefit |
+| **One-shot jobs** (`liquibase`) | **plain JVM** | runs at startup then exits — native pointless |
+| **Non-JVM backing** (Postgres · Radicale · MinIO · SearXNG · whisper · Grafana) | **not applicable** | not our code, not a JVM |
+
+Two guardrails keep this from over-investing:
+- **B first makes C tractable.** Consolidation collapses 47 JVMs → ~12 hosts, so the native decision is
+  made over ~12 targets, not 47 — and only ~5 resident ones are native-compiled for footprint.
+- **Measurement-first (slice 1).** If the real numbers show 64 GB is already ample after B alone, **C may
+  be optional entirely** — or reserved for the few worst offenders. ADR-0006 does not commit to
+  "everything native" up front.
+
 ## Open questions → deferred to measurement (slices 1/3, Mac)
 - **Cold granularity** — 5 cold hosts vs finer. Native start (~50–100 ms) makes coarse grouping cheap, so
   favour fewer hosts unless a measured hotspot argues otherwise.
