@@ -13,6 +13,7 @@ import dev.fedorov.ailife.agents.briefing.http.BriefingProfileClient;
 import dev.fedorov.ailife.agents.briefing.http.CalendarEventsClient;
 import dev.fedorov.ailife.agents.briefing.http.ForecastClient;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
+import dev.fedorov.ailife.agentruntime.http.ProfileClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.agentruntime.http.WebSearchClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -76,6 +77,7 @@ public class BriefingComposer {
 
     private final Coordinator coordinator;
     private final BriefingProfileClient profiles;
+    private final ProfileClient identity;
     private final ForecastClient forecast;
     private final CalendarEventsClient calendar;
     private final OrchestratorInvokeClient orchestrator;
@@ -87,6 +89,7 @@ public class BriefingComposer {
 
     public BriefingComposer(Coordinator coordinator,
                             BriefingProfileClient profiles,
+                            ProfileClient identity,
                             ForecastClient forecast,
                             CalendarEventsClient calendar,
                             OrchestratorInvokeClient orchestrator,
@@ -97,6 +100,7 @@ public class BriefingComposer {
                             ObjectMapper json) {
         this.coordinator = coordinator;
         this.profiles = profiles;
+        this.identity = identity;
         this.forecast = forecast;
         this.calendar = calendar;
         this.orchestrator = orchestrator;
@@ -116,14 +120,43 @@ public class BriefingComposer {
                 });
     }
 
-    /** self → household-default → an empty all-sections default; a broken mcp-briefing soft-fails to it. */
+    /**
+     * self → own household-default → the <b>family (shared) household-default</b> → an empty all-sections
+     * default; a broken mcp-briefing/profile-service soft-fails to the empty default. The family-default
+     * fallback (#490 FO-3) lets a new member who has set nothing inherit the household's home base +
+     * interests, so weather/news work out of the box with no per-member setup. Only the explicitly-shared
+     * household-default is inherited — a member's own personal profile is never read for anyone else.
+     */
     private Mono<BriefingProfileDto> resolveProfile(NormalizedMessage msg) {
         return profiles.get(msg.householdId(), msg.userId())
                 .switchIfEmpty(profiles.get(msg.householdId(), null))
+                .switchIfEmpty(familyDefault(msg))
                 .switchIfEmpty(Mono.just(empty(msg)))
                 .onErrorResume(e -> {
                     log.warn("briefing profile resolve failed, using defaults: {}", e.toString());
                     return Mono.just(empty(msg));
+                });
+    }
+
+    /**
+     * The shared household-default briefing profile from the caller's family household(s) (ADR-0001
+     * tenant routing). Resolves the member's personal/shared split via profile-service, then returns the
+     * first shared household that has a household-default profile — skipping the envelope household, which
+     * the caller already tried. Empty (→ plain default) when the member has no family, no shared default,
+     * or profile-service is unreachable. Reuses the shared {@code ProfileClient.householdRouting} seam.
+     */
+    private Mono<BriefingProfileDto> familyDefault(NormalizedMessage msg) {
+        if (msg.userId() == null) {
+            return Mono.empty();
+        }
+        return identity.householdRouting(msg.userId())
+                .flatMapMany(routing -> Flux.fromIterable(routing.sharedHouseholdIds()))
+                .filter(h -> !h.equals(msg.householdId()))
+                .concatMap(h -> profiles.get(h, null))
+                .next()
+                .onErrorResume(e -> {
+                    log.warn("briefing family-default resolve failed: {}", e.toString());
+                    return Mono.empty();
                 });
     }
 

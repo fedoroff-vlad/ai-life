@@ -56,11 +56,13 @@ second member (the wife) is productive in minutes with minimal friction. Slices 
   per-domain profiler (briefing/travel/nutrition/stylist), self-scoped to the sender.
   - `Scenario:` WHEN a member states a preference in chat with no config keyword → THEN it is stored for
     that member (`owner_id` = sender) and honoured, not applied household-wide.
-- **FO-3 — sensible defaults on join.** A new member with nothing set gets working defaults immediately
-  (e.g. a briefing profile seeded with all-sections defaults), so nothing is a dead-end; personal stays
-  personal, shared stays shared (ADR-0002).
-  - `Scenario:` WHEN a member has set nothing and asks for a briefing → THEN a default digest is produced
-    (no "configure me first" dead-end).
+- **FO-3 — sensible defaults on join.** A new member with nothing set gets working defaults immediately by
+  **inheriting the family's shared household-default** (e.g. the briefing home base + interests, via
+  profile-service `household-routing`), so nothing is a dead-end and no owner pre-config per member is
+  needed; personal stays personal, shared stays shared (ADR-0002).
+  - `Scenario:` WHEN a member who has set nothing asks for a briefing and the family has a shared
+    household-default → THEN the digest uses the inherited home base (weather/news work), not a bare
+    default — and never reads any member's personal profile.
 
 ## Notes
 - Growth happens as **rows / JSONB**, never runtime DDL.

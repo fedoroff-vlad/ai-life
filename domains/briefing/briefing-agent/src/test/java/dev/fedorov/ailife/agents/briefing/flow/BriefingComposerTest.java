@@ -13,6 +13,7 @@ import dev.fedorov.ailife.contracts.finance.SpendingByCategoryRow;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.contracts.profile.HouseholdRoutingDto;
 import dev.fedorov.ailife.contracts.weather.Weather;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
@@ -58,6 +59,7 @@ class BriefingComposerTest {
     static MockWebServer mcpWeb;
     static MockWebServer mediaService;
     static MockWebServer llmGateway;
+    static MockWebServer profileService;
 
     @BeforeAll
     static void start() throws Exception {
@@ -68,6 +70,7 @@ class BriefingComposerTest {
         mcpWeb = new MockWebServer();
         mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
+        profileService = new MockWebServer();
         mcpBriefing.start();
         mcpWeather.start();
         mcpCaldav.start();
@@ -75,6 +78,7 @@ class BriefingComposerTest {
         mcpWeb.start();
         mediaService.start();
         llmGateway.start();
+        profileService.start();
     }
 
     @AfterAll
@@ -86,6 +90,7 @@ class BriefingComposerTest {
         mcpWeb.shutdown();
         mediaService.shutdown();
         llmGateway.shutdown();
+        profileService.shutdown();
     }
 
     @DynamicPropertySource
@@ -97,6 +102,7 @@ class BriefingComposerTest {
         r.add("briefing-agent.mcp-web-url", () -> "http://localhost:" + mcpWeb.getPort());
         r.add("briefing-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("briefing-agent.public-media-base-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("briefing-agent.profile-service-url", () -> "http://localhost:" + profileService.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -163,9 +169,11 @@ class BriefingComposerTest {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
-        // No profile set (404 for self + household) → default all-sections, but no coords (weather
-        // skipped) and no interests (news skipped); agenda + finance still gather.
+        // No profile set (404 for self + household) and no family default (routing 404) → plain
+        // all-sections default, but no coords (weather skipped) and no interests (news skipped);
+        // agenda + finance still gather.
         mcpBriefing.setDispatcher(notFound());
+        profileService.setDispatcher(notFound());
         mcpCaldav.setDispatcher(fixedJson(json.writeValueAsString(List.of(new CalendarEventDto(
                 UUID.randomUUID(), householdId, "personal", "uid-2", "Dentist", null, null,
                 Instant.parse("2026-07-02T09:00:00Z"), Instant.parse("2026-07-02T09:30:00Z"),
@@ -201,6 +209,70 @@ class BriefingComposerTest {
     }
 
     @Test
+    void newMemberInheritsFamilyHomeBaseWhenTheyHaveSetNothing() throws Exception {
+        // A fresh family member (#490 FO-3): no self profile, no personal household-default — but the
+        // family (shared) household has a household-default with a home base + interest. Resolution must
+        // inherit it so weather + news gather out of the box, with zero per-member setup.
+        UUID personalHousehold = UUID.randomUUID();
+        UUID familyHousehold = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        // mcp-briefing: 404 for the member's own lookups (personal household), the shared family
+        // household-default carries the home base (Kazan) + one interest + all sections.
+        String familyProfile = json.writeValueAsString(new BriefingProfileDto(
+                UUID.randomUUID(), familyHousehold, null, "Казань", 55.79, 49.11, "Europe/Moscow",
+                json.readTree("[\"AI\"]"), json.readTree("[\"weather\",\"agenda\",\"finance\",\"news\"]"),
+                "08:00", true, null, Instant.now()));
+        mcpBriefing.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath();
+                return path != null && path.contains(familyHousehold.toString())
+                        ? jsonResponse(familyProfile)
+                        : new MockResponse().setResponseCode(404);
+            }
+        });
+        // profile-service: the member's tenant-routing split — personal + the one shared family household.
+        profileService.setDispatcher(fixedJson(json.writeValueAsString(
+                new HouseholdRoutingDto(personalHousehold, List.of(familyHousehold)))));
+        mcpWeather.setDispatcher(fixedJson(json.writeValueAsString(new Weather(
+                55.79, 49.11, "2026-07-02", 24.0, 14.0, 20, 10.0, 1, "Partly cloudy"))));
+        mcpCaldav.setDispatcher(fixedJson(json.writeValueAsString(List.of(new CalendarEventDto(
+                UUID.randomUUID(), personalHousehold, "personal", "uid-4", "Yoga", null, null,
+                Instant.parse("2026-07-02T06:00:00Z"), Instant.parse("2026-07-02T07:00:00Z"),
+                null, List.of(), null)))));
+        ObjectNode spend = json.createObjectNode();
+        spend.set("spending", json.valueToTree(List.of(new SpendingByCategoryRow(
+                UUID.randomUUID(), "Cafe", "RUB", new BigDecimal("450.00"), 1))));
+        orchestrator.setDispatcher(fixedJson(json.writeValueAsString(AgentActionResult.ok(spend))));
+        mcpWeb.setDispatcher(fixedJson(json.writeValueAsString(new WebSearchResult("AI", List.of(
+                new WebSearchHit("AI news", "https://example.com/ai2", "Something happened."))))));
+        enqueuePick("briefing-composer");
+        llmGateway.enqueue(jsonResponse(json.writeValueAsString(new LlmChatResponse(
+                "mock-large", "Доброе утро! В Казани переменная облачность.", "stop",
+                new LlmUsage(200, 80, 280)))));
+        UUID storedId = UUID.randomUUID();
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(new MediaObjectDto(
+                storedId, personalHousehold, userId, "file", "text/html", 4096, "sha", "briefing", Instant.now()))));
+
+        NormalizedMessage msg = new NormalizedMessage(userId, personalHousehold, MessageScope.PRIVATE,
+                "брифинг", List.of(), "telegram", "83", Instant.now());
+
+        IntentResponse resp = post(msg);
+        assertThat(resp).isNotNull();
+        assertThat(resp.text()).contains("Доброе утро! В Казани переменная облачность.");
+
+        // Weather (inherited coords) + news (inherited interest) actually gathered — proving the family
+        // home base drove the digest, not the empty default (which would skip both).
+        llmGateway.takeRequest(2, TimeUnit.SECONDS);          // router classify
+        RecordedRequest llmReq = llmGateway.takeRequest(2, TimeUnit.SECONDS);
+        String body = llmReq.getBody().readUtf8();
+        assertThat(body).contains("Partly cloudy")   // weather from the inherited Kazan coords
+                .contains("Yoga")                     // the member's own agenda
+                .contains("AI news");                 // news from the inherited interest
+    }
+
+    @Test
     void mediaStoreFailureSurfacesDegradedNotice() throws Exception {
         UUID householdId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
@@ -209,6 +281,7 @@ class BriefingComposerTest {
         // MockWebServer footprint) but the board store fails (media-service 500). The digest must survive
         // as text and honestly say the board is missing, not pretend a full digest (#485).
         mcpBriefing.setDispatcher(notFound());
+        profileService.setDispatcher(notFound());
         mcpCaldav.setDispatcher(fixedJson(json.writeValueAsString(List.of(new CalendarEventDto(
                 UUID.randomUUID(), householdId, "personal", "uid-3", "Standup", null, null,
                 Instant.parse("2026-07-02T07:00:00Z"), Instant.parse("2026-07-02T07:15:00Z"),
