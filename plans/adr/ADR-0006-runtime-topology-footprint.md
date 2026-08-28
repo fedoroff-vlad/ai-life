@@ -131,9 +131,11 @@ count**, which becomes a deploy-time grouping choice.
 1. [ ] **Measurement harness** — a script capturing per-process RSS + the total, and the **JVM vs model vs
    Postgres** split on the running stack, establishing the real baseline (it may show 64 GB is already
    ample, or pinpoint the worst offenders). *Authorable now; run at deploy.*
-2. [ ] **Topology map** — classify every **runtime** module as must-be-resident (hot) / on-demand (cold) /
+2. [~] **Topology map** — classify every **runtime** module as must-be-resident (hot) / on-demand (cold) /
    consolidatable-together, and propose the host groupings (domain-MCP host / agent host / platform host /
-   isolated singletons: `llm-gateway`, Postgres). *Design doc, no code.*
+   isolated singletons: `llm-gateway`, **`memory-service`**, Postgres). *Design doc, no code.* **Drafted:
+   [topology-map.md](../topology-map.md)** (47 JVMs → ~12 hosts; `memory-service` isolated up front). Real
+   host boundaries confirmed by the slice-1/3 measurement on the Mac.
 3. [ ] **Consolidation spike** — one host JVM running **all domain-MCPs** behind the same localhost HTTP
    contracts (a multi-module Spring context or a thin aggregator); measure the RAM delta **and** assert the
    goldens/E2E parity. Reversible. *Hardware-gated for the real number; buildable/testable earlier.*
