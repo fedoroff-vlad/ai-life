@@ -174,7 +174,12 @@ ADR-0002 reached for sharing.
 4. [x] **creator** — thin `profile/` adapter + wiring onto the shared mechanism; family-default now applies
    (`CreatorProfiler` → `ProfileSpec`, `CreatorProfileClient` → generic subclass,
    `ContentStrategist.resolveProfile` → `ProfileScopeResolver`).
-5. [ ] **nutrition (diet)** — same; family-default now applies to the diet profile read.
+5. [x] **nutrition (diet)** — `DietProfiler` → `ProfileSpec` (+ a `trace()` hook added to the shared spec so
+   its success why-trace #485/G2 survives the lift; briefing/creator return the default null), `DietProfileClient`
+   → generic subclass. Read: the shared `ProfileScopeResolver` is applied to `NutritionAnalyst` (its single
+   per-member profile read — the one lacking family handling, now self→own-default→family-default→empty);
+   `MealPlanner`/`MealReads` keep their richer own + household-default *set* gather (a superior family
+   mechanism that predates this ADR — the single-profile resolver is not forced there).
 6. [ ] **travel** — same; family-default now applies (home base inheritance).
 7. [ ] **stylist** — same (its split set/get clients collapse onto the generic client). **All five
    retrofitted → capability complete.**

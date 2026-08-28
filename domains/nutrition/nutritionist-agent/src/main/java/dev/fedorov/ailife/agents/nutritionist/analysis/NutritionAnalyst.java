@@ -9,6 +9,8 @@ import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.nutritionist.http.DietProfileClient;
+import dev.fedorov.ailife.contracts.nutrition.DietProfileDto;
+import dev.fedorov.ailife.profile.ProfileScopeResolver;
 import dev.fedorov.ailife.agents.nutritionist.http.MealReadClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -48,6 +50,7 @@ public class NutritionAnalyst {
     private final Coordinator coordinator;
     private final MealReadClient meals;
     private final DietProfileClient profiles;
+    private final ProfileScopeResolver profileScope;
     private final DeliverablePublisher publisher;
     private final SkillRegistry skills;
     private final AgentManifest manifest;
@@ -56,6 +59,7 @@ public class NutritionAnalyst {
     public NutritionAnalyst(Coordinator coordinator,
                             MealReadClient meals,
                             DietProfileClient profiles,
+                            ProfileScopeResolver profileScope,
                             DeliverablePublisher publisher,
                             SkillRegistry skills,
                             AgentManifest manifest,
@@ -63,6 +67,7 @@ public class NutritionAnalyst {
         this.coordinator = coordinator;
         this.meals = meals;
         this.profiles = profiles;
+        this.profileScope = profileScope;
         this.publisher = publisher;
         this.skills = skills;
         this.manifest = manifest;
@@ -89,7 +94,11 @@ public class NutritionAnalyst {
     private Mono<IntentResponse> synthesize(NormalizedMessage msg, List<MealLogDto> recent) {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("meals", Mono.just(json.valueToTree(recent)));
-        gather.put("profile", profiles.get(msg.householdId(), msg.userId())
+        // Resolve the requester's diet profile via the shared rule (ADR-0005): self → own
+        // household-default → family/shared household-default → empty (#490 FO-3 now inherited, so a
+        // member who set nothing still gets the household's goals in their analysis).
+        gather.put("profile", profileScope.<DietProfileDto>resolve(
+                        msg.userId(), msg.householdId(), profiles::get)
                 .map(p -> json.valueToTree(p)));
 
         ObjectNode payload = json.createObjectNode();

@@ -108,12 +108,17 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
 - `foodlog/FoodLogger` — the food-log flow: photo → caption / typed → LLM extract, both via the
   `meal-logger` SKILL, write-immediately to `/internal/meal` (attributed to the sender). On a successful
   write it attaches a payload-free `IntentResponse.trace` "wrote: logged a meal" (why-trace #485/G2).
-- `profile/DietProfiler` — the diet-profile flow: typed goals/restrictions → LLM extract via the
-  `diet-profiler` SKILL → upsert via `/internal/diet-profile` (self or household-default). A successful
-  write attaches `IntentResponse.trace` "wrote: updated the diet profile" (why-trace #485/G2).
-- `analysis/NutritionAnalyst` — the nutrition-analysis flow: gather recent meals + diet profile on
-  the shared `Coordinator` → one LLM synthesis via the `nutrition-analyst` SKILL → render HTML via
-  the shared `libs/doc-render` → store in media-service → reply with a link.
+- `profile/DietProfiler` — the diet-profile flow (ADR-0005): the nutrition `ProfileSpec` (field mapping +
+  reply wording + the success why-trace) run through the shared `agent-runtime` `PersonalizationProfiler`
+  template (LLM extract via `diet-profiler` SKILL → parse → self/household scope → upsert via
+  `/internal/diet-profile`). A successful write attaches `IntentResponse.trace` "wrote: updated the diet
+  profile" (why-trace #485/G2) via the spec's `trace()` hook.
+- `analysis/NutritionAnalyst` — the nutrition-analysis flow: resolve the requester's diet profile via the
+  shared `ProfileScopeResolver` (self → own household-default → family/shared household-default → empty,
+  #490 FO-3 now inherited; ADR-0005) + gather recent meals on the shared `Coordinator` → one LLM synthesis
+  via the `nutrition-analyst` SKILL → render HTML via `libs/doc-render` → store in media-service → link.
+  (MealPlanner/MealReads keep their richer own + household-default *set* gather — the single-profile
+  resolver is applied only where one per-member profile is read.)
 - `flow/MealPlanner` — the ration + shopping-list flow: gather the sender + household diet profiles
   + recent meals + (when a store is named) its availability via `mcp-web` on the shared `Coordinator`
   → one LLM synthesis via the `meal-planner` SKILL → render an HTML board via `libs/doc-render` →
@@ -149,7 +154,8 @@ personal ∪ shared households; default stays own). Remaining flows replace the 
 - `http/FoodDataClient` — `POST /internal/food-lookup` on mcp-food-data (precise per-100g КБЖУ for the basket breakdown, FD-c).
 - `OrchestratorInvokeClient` (shared, `libs/agent-runtime`) — `POST /v1/agents/invoke` (NU-g → chef recipes, 8s timeout); `@Bean` wired in `config/OutboundHttpConfig`.
 - `http/BasketClient` — `POST /internal/basket` on mcp-nutrition (save analysed basket).
-- `http/DietProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/diet-profile` on mcp-nutrition.
+- `http/DietProfileClient` — nutrition's typed binding of the shared `PersonalizationProfileClient`
+  (`POST` upsert + `GET` read, 404→empty, `/internal/diet-profile` on mcp-nutrition; ADR-0005).
 - `MediaStoreClient` (shared, `libs/agent-runtime`) — multipart `POST /v1/media` (store the rendered HTML); `@Bean` (source `nutritionist`) wired in `config/OutboundHttpConfig`.
 - `DeliverablePublisher` (shared, `libs/agent-runtime`) — the render→store→link seam (`publish(household, owner, Doc)` + static `splitParagraphs`/`summary`) used by `NutritionAnalyst` / `MealPlanner` / `BasketBreakdown`. `@Bean` wired in `config/OutboundHttpConfig` via the default-theme convenience ctor (no per-agent `RenderConfig`/`DocRenderer` bean) from the `MediaStoreClient` + public-media base URL.
 - `intent/NutritionIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475):

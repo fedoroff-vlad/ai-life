@@ -18,8 +18,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   client subclass, `BriefingComposer.resolveProfile` → `ProfileScopeResolver`; behaviour unchanged (19 briefing
   tests + FO-3 case green) — DONE.** **Slice 4 (creator): `CreatorProfiler` → `ProfileSpec`, `CreatorProfileClient`
   → generic subclass, `ContentStrategist.resolveProfile` → `ProfileScopeResolver` (family-default now inherited
-  for the creator track); 20 creator tests green — DONE.** Next: slice 5 nutrition (diet), then travel/stylist
-  (each a thin `profile/` adapter onto the now-live mechanism). Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
+  for the creator track); 20 creator tests green — DONE.** **Slice 5 (nutrition/diet): `DietProfiler` →
+  `ProfileSpec` (+ a `trace()` hook on the shared spec to keep its #485 why-trace), `DietProfileClient` → generic
+  subclass, `NutritionAnalyst` read → `ProfileScopeResolver`; MealPlanner/MealReads keep their richer household-set
+  gather; 33 nutrition tests green — DONE.** Next: slice 6 travel, then slice 7 stylist → capability complete.
+  Spec → [ADR-0005](adr/ADR-0005-personalization-profile-capability.md).
   Couples with #478 (empty `shared/skills/` doctrine).
 - **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
   identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing

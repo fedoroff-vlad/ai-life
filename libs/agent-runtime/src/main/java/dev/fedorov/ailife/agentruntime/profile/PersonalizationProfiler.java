@@ -75,7 +75,7 @@ public final class PersonalizationProfiler {
         UUID ownerId = ProfileScope.ownerId(scope, msg.userId());
         return spec.build(draft, ownerId, msg)
                 .flatMap(input -> spec.write(input)
-                        .map(saved -> reply(spec.success(household, saved), model)))
+                        .map(saved -> withTrace(reply(spec.success(household, saved), model), spec.trace())))
                 .switchIfEmpty(Mono.fromSupplier(() -> reply(spec.unparseable(), model)))
                 .onErrorResume(e -> {
                     log.warn("{} write failed: {}", spec.skillName(), e.toString());
@@ -117,5 +117,10 @@ public final class PersonalizationProfiler {
 
     private IntentResponse reply(String text, String model) {
         return new IntentResponse(manifest.name(), text, model);
+    }
+
+    /** Attach the domain's success why-trace (#485/G2) when it supplies one; success path only. */
+    private static IntentResponse withTrace(IntentResponse reply, String trace) {
+        return trace == null ? reply : reply.withTrace(trace);
     }
 }

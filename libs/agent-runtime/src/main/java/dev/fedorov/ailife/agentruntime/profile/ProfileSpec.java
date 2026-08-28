@@ -41,4 +41,14 @@ public interface ProfileSpec<I, S> {
 
     /** Reply when the extract or the write fails. */
     String failure();
+
+    /**
+     * Optional why-trace (#485/G2) attached to the <b>success</b> reply only — the payload-free "what I did"
+     * line for a write. {@code null} (the default) attaches none; the unparseable/failure replies never
+     * carry it. A domain whose profile write is user-visible overrides this (e.g. nutrition:
+     * {@code "wrote: updated the diet profile"}).
+     */
+    default String trace() {
+        return null;
+    }
 }
