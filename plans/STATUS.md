@@ -14,8 +14,15 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   **FO-3 — sensible defaults on join** (`BriefingComposer.resolveProfile`): a member who set nothing now
   inherits the **family/shared household-default** briefing profile (home base + interests) via the shared
   `ProfileClient.householdRouting`, so weather/news work out of the box with no per-member setup; personal
-  profiles are never read for anyone else. **DONE (in flight PR).** Next: FO-2 (keyword-free per-member
-  prefs-in-chat). Epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
+  profiles are never read for anyone else. **DONE** ([PR #578](https://github.com/fedoroff-vlad/ai-life/pull/578)).
+  **FO-2 — keyword-free per-member prefs-in-chat**: the per-member invariant (self-scope default +
+  self-first read) is already structural across profilers; the real gap was the `briefing-profiler` SKILL
+  rejecting a **cue-less** statement ("я встаю в 7, брифинг в 7:15" → `{"error":...}`). SKILL now recognises
+  a plainly-stated preference/habit as config (no "настрой" verb), stored self-scoped. Proved end-to-end by
+  golden (real qwen3:8b): `GoldenBriefingProfileTest` keyword-free self-scope extract + `GoldenBriefingRoutingTest`
+  cue-less → profiler routing, both green. **DONE (in flight PR).** **All three FO slices (FO-1/FO-3/FO-2)
+  done → #490 ready to close** (do the closer freshness pass on merge). Epic
+  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491).
 - **road-test §#489 multimodal/reply-UX — ✅ COMPLETE (2026-08-28).** All four slices shipped: **RU-1** typing
   indicator, **RU-2** inline Да/Нет confirm buttons, **RU-3** STT reliability gate (empty/low-confidence voice →
   ask to repeat), **RU-4** photo/receipt robustness (unreadable captionless document photo → ask for a clearer

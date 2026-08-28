@@ -113,6 +113,9 @@ class GoldenBriefingRoutingTest {
 
         assertRoutesTo("собери мне брифинг на сегодня", "composer");
         assertRoutesTo("спасибо, очень помог!", "chat");
+        // #490 FO-2: a keyword-free preference (a stated schedule, no "настрой"/config verb) must still
+        // reach the preferences flow, not be mistaken for a produce-now digest request.
+        assertRoutesTo("я встаю в 7, брифинг в 7:15", "profiler");
     }
 
     private void assertRoutesTo(String text, String expectedFlow) {

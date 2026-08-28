@@ -96,4 +96,44 @@ class GoldenBriefingProfileTest {
                 .as("extract had only a location — no interests/sections/schedule, not a structured config: %s", saved)
                 .isTrue();
     }
+
+    /**
+     * PER-MEMBER (#490 FO-2) — a <b>keyword-free</b> preference ("я встаю в 7, брифинг в 7:15": no
+     * "настрой"/config verb, just a stated habit) must still be extracted <b>for the speaker alone</b>:
+     * {@code scope=self} is the default, so the production parser writes {@code ownerId = the sender},
+     * never the household-default ({@code ownerId = null}). This is the core FO-2 invariant — a member's
+     * plain preference is stored per-member, not applied household-wide. A schedule is also extracted from
+     * the bare phrasing (structure, not the exact minute).
+     */
+    @Test
+    void keywordFreePreferenceIsStoredForTheSenderNotTheHousehold() {
+        UUID household = UUID.randomUUID();
+        UUID user = UUID.randomUUID();
+        ArgumentCaptor<SetBriefingProfileInput> captor = ArgumentCaptor.forClass(SetBriefingProfileInput.class);
+        when(profiles.set(any(SetBriefingProfileInput.class))).thenAnswer(inv -> {
+            SetBriefingProfileInput in = inv.getArgument(0);
+            return Mono.just(new BriefingProfileDto(
+                    UUID.randomUUID(), in.householdId(), in.ownerId(), in.locationLabel(), in.latitude(),
+                    in.longitude(), in.timezone(), in.interests(), in.sections(), in.scheduleTime(),
+                    in.scheduleEnabled(), in.notes(), Instant.now()));
+        });
+
+        // No city → the production flow skips geocoding entirely (geocode mock stays unused).
+        var msg = GoldenLlm.message(household, user, "я встаю в 7, брифинг в 7:15");
+
+        var resp = profiler.setProfile(msg).block(Duration.ofSeconds(120));
+        assertThat(resp).as("null result — is llm-gateway up at %s?", GoldenLlm.gatewayUrl()).isNotNull();
+
+        verify(profiles, times(1)).set(captor.capture());
+        SetBriefingProfileInput saved = captor.getValue();
+        // The FO-2 invariant: stored for the sender (self-scope default), never the household-default.
+        assertThat(saved.ownerId())
+                .as("keyword-free preference must be per-member (ownerId = sender), not household-wide: %s", saved)
+                .isEqualTo(user);
+        assertThat(saved.householdId()).isEqualTo(household);
+        // A schedule was extracted from the bare phrasing (structure, not the exact minute).
+        assertThat(saved.scheduleTime())
+                .as("no schedule extracted from a keyword-free time statement (degraded reply: %s)", resp.text())
+                .isNotBlank();
+    }
 }

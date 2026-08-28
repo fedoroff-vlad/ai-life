@@ -101,7 +101,9 @@ Manifest endpoint + the `chat/BriefingChat` fallback (one LLM turn, AGENT.md as 
 ## Skills
 
 - `briefing-profiler` (`domains/briefing/skills/briefing-profiler/SKILL.md`) — NL config → strict-JSON
-  preferences (location/interests/sections/schedule + self|household scope).
+  preferences (location/interests/sections/schedule + self|household scope). Captures a **keyword-free**
+  stated preference/habit too ("я встаю в 7, брифинг в 7:15") — no "настрой" verb needed — self-scoped
+  per member (#490 FO-2, golden-proved).
 - `briefing-composer` (`domains/briefing/skills/briefing-composer/SKILL.md`) — pre-gathered corpus
   (weather/agenda/finance/news) → one short, grounded morning briefing (only reports what was gathered;
   never fabricates a headline or link).
