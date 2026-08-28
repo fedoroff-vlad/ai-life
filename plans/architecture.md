@@ -138,7 +138,7 @@ ai-life/
 │   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
     ├── mcp/    capability-MCP (schema-less): mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen, mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds, mcp-travel-search, …
-    └── skills/ cross-cutting skills
+    └── skills/ cross-cutting skills  # mechanism available; currently unused — zero tenants (see the table note below)
 ```
 **Group-by-domain:** everything about one specialist lives under `domains/<domain>/` — but each agent/MCP there is still its **own Spring Boot app + Dockerfile + container** (co-location ≠ one process). Adding a domain = a new `domains/<domain>/` folder; adding a piece = a sub-module + register in root `pom.xml` `<modules>` + docker-compose. No edits to existing services.
 
@@ -150,7 +150,7 @@ ai-life/
 | A **domain tool** that owns data | `domains/<domain>/mcp-<name>` (domain-MCP) | has a schema + Liquibase feature |
 | A **shared tool** over an external API (weather, web search) | `shared/mcp/<name>` (capability-MCP) | **no schema**; bound by any agent; PATTERNS "add a capability-MCP" |
 | A **behaviour/instruction** (prompt) for one domain | `domains/<domain>/skills/<name>/` | loaded by that domain's agent |
-| A **cross-cutting behaviour** reused by several agents | `shared/skills/<name>/` | each agent opts in via its `agent.skills-classpath` glob |
+| A **cross-cutting behaviour** reused by several agents | `shared/skills/<name>/` | mechanism available but **zero tenants today** (mirrors the unused `SKILL.ru.md` — see below). In practice cross-cutting *behaviour* has been lifted into `libs/agent-runtime` as Java (`SkillClassifier` #475, `PickConfirmActRunner` ADR-0004, `PersonalizationProfiler` ADR-0005), while *prompts* stay per-domain; nothing has yet needed a shared prompt. To add the first tenant an agent must extend its narrow `agent.skills-classpath` (default globs only its own `skills/<domain>/*`) to also match `skills/shared/*`. |
 | A **rule that is data** (gift budgets, who-is-who) | structured in Postgres (`core`/preferences), editable from chat | NOT a skill — a prompt can't be edited by the user at runtime |
 
 Rule of thumb: **tools = MCP, reasoning = agent, instructions = skill, editable rules = data.** Group by domain (`domains/<domain>/`); shared runtime capabilities go in `shared/`; the brain + infra stay in `platform/` (they are not specialists). `libs/` = shared compile-time Java code (a dependency), `shared/` = shared *deployable* runtime capabilities — two different "shared".
