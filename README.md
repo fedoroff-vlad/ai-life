@@ -36,6 +36,7 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 - **Identity & membership** epic → [ADR-0001](plans/adr/ADR-0001-identity-membership-scope.md)
 - **Sharing as a capability** epic → [ADR-0002](plans/adr/ADR-0002-sharing-shared-capability.md)
 - **skills-vs-flows** in-agent refactor (shared `SkillClassifier`) → [`skills-vs-flows.md`](plans/skills-vs-flows.md)
+- **Assistant hardening (road-test)** epic ([#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): transparency · routing · CRUD/undo · proactive-UX · memory-quality · multimodal/reply-UX · family-onboarding → [`plans/HISTORY.md`](plans/HISTORY.md)
 
 **Paused / not done:** coach-agent (CO-1/CO-2 shipped, then PARKED mid-epic — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289), [`coach.md`](plans/coach.md)) · Mac deployment + hot/cold lifecycle (PARKED, hardware-blocked — [`lifecycle.md`](plans/lifecycle.md)) · future agents health/email/smart-home. Next pick → [`plans/STATUS.md`](plans/STATUS.md).
 
