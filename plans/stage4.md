@@ -321,6 +321,47 @@ confirms first and is itself undoable where feasible (soft-delete + restore).
 - Scenario: **destructive delete confirms.** WHEN a delete is destructive → THEN it confirms first (reuses the
   pending-action confirm gate) and is itself undoable where feasible (soft-delete + restore).
 
+## Track I — real agent-led multi-domain coordination ([#477](https://github.com/fedoroff-vlad/ai-life/issues/477))
+The coordinator substrate (Track E / #290) is built, but in practice almost every flow is
+**single-domain** gather→synthesize — the genuine cross-domain path is thin and under-exercised (only
+`finance` + `calendar` expose `brief`, so the FAST planner rarely picks >1). #477 lands **1–2 real
+cross-domain scenarios** end-to-end through the hub, proving the architecture invariants hold on a real
+multi-agent path (not just the coordinator demo). Canonical scenario: **"спланируй выходные"** →
+calendar free dates + finance budget + tasks to-dos (weather later, via a briefing exposer). Reuses
+everything above: the hub (C1), the `Coordinator` (D1), the `brief` primitive (E-B1), conversation-state
+(A). Doctrine unchanged — coordination is **agent-led via the hub**; no agent calls another directly.
+
+**Slices (≤5 files each):**
+- **I1** — **tasks-agent as the 3rd `brief` exposer** (mirror of E-B2-followup, calendar-as-second):
+  `register("brief", briefResponder::answer)` on tasks' `ActionController` + `tasks` in the
+  `coordinator-agent.specialists[]` roster, so the FAST planner now chooses among ≥3 real specialists.
+  Memory-only recall, exactly like the finance/calendar exposers (live domain reads via the
+  `answer(request, extraGather)` overload is a separate, all-exposer concern — see I3). A `BriefActionTest`
+  proves the tasks `brief` hop (recall → FAST synthesis → `{agent, answer}`).
+- **I2 (stage-closer)** — the mandatory multi-domain **E2E**: `E2ECoordinateMultiDomainTest` in
+  coordinator-agent — one real coordinator context, MockWebServers **forwarding** the hub
+  `/v1/agents/invoke` to ≥2 stub specialists, asserting the invariants below: one synthesized answer
+  grounded in all sources, per-source **soft-fail** (a killed specialist degrades, never 500s), and the
+  architecture invariant that coordination flows **only through the hub** (no direct agent-to-agent call).
+- **I3 (later, optional)** — enrich the specialist briefs with **live domain reads** (the
+  `answer(request, extraGather)` overload) so a brief carries real data (tasks' open next-actions,
+  finance's spend snapshot) rather than memory-only recall. Applies equally to every exposer; not needed
+  to prove #477, so it trails the E2E closer.
+
+**Acceptance criteria (WHEN/THEN)** — SSOT for the scenarios (mirrors [#477](https://github.com/fedoroff-vlad/ai-life/issues/477)):
+- Scenario: **a multi-domain ask fans out to one synthesized answer.** WHEN the owner asks something
+  spanning ≥2 domains ("спланируй выходные") → THEN the lead agent gathers each relevant specialist's
+  read-only `brief` via the hub and returns **one** reply grounded in all of them, with per-source
+  soft-fail (a missing source degrades, never 500s).
+- Scenario: **no direct agent-to-agent calls (invariant).** WHEN coordination happens → THEN it flows
+  only through the orchestrator hub (or the bus) — asserted by the I2 `E2E…Test`.
+- Scenario: **outbound stays behind confirm.** WHEN a coordinated flow reaches an outbound external
+  action → THEN it still hits the conversation-state confirm gate (propose-freely / act-on-confirm holds
+  across the coordinated path).
+- Scenario: **recall drives agent selection.** WHEN the classifier/planner has memory-service recall as
+  context → THEN a well-curated brain lets it pull the relevant specialists from the data, asserted at
+  least at the routing/golden level.
+
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
 - New domain agents (chef, researcher, stylist, creator, …) — **Stage 6+**. (creator may be pulled

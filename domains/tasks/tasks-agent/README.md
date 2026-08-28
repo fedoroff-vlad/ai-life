@@ -30,7 +30,7 @@ in dev/degraded environments.
 | POST | `/agents/tasks/resume`          | hit when the user replies to an open tasks question (route-locked); dispatches on `pendingAction.flow` (`inbox-clarify-apply` / `task-delete-confirm` / `task-edit-confirm` / `task-status-confirm` / `sharing-confirm`) |
 | POST | `/agents/tasks/triggers/{kind}` | scheduler-driven wake → skill + notifier fan-out (`weekly.review` live; unknown kinds 404) |
 | POST | `/agents/tasks/internal/task-to-event` | turn a hard-deadline task into a calendar event (orchestrator → calendar `create_event` → link); internal/admin |
-| POST | `/agents/tasks/actions/{action}` | inter-agent action (C1 envelope). `undo` reverses a just-captured task by deleting it — the "отмени последнее" reversal (#486/H3) |
+| POST | `/agents/tasks/actions/{action}` | inter-agent action (C1 envelope). `undo` reverses a just-captured task by deleting it — the "отмени последнее" reversal (#486/H3); `brief` answers a focused read-only sub-question for the coordinator (#290 Slice B / #477 Track I — tasks is the 3rd `brief` exposer) |
 | GET  | `/actuator/health`              | liveness |
 
 ## Config (env vars)
@@ -140,7 +140,11 @@ in dev/degraded environments.
 - `web/ActionController` — the inter-agent action envelope (`POST /agents/tasks/actions/{action}`,
   extends `agent-runtime`'s `AgentActionController`). Registers `undo` (#486/H3, Track H — tasks is the
   reference producer): reverses a just-captured task by deleting it via `DeleteTaskClient`, returning a
-  user-facing `{message}` confirmation; a missing/already-deleted task → an honest `ok=false`.
+  user-facing `{message}` confirmation; a missing/already-deleted task → an honest `ok=false`. Also
+  registers `brief` (#290 Slice B / #477 Track I — tasks is the 3rd `brief` exposer after finance +
+  calendar): delegates to the shared `agent-runtime` `BriefResponder` (memory recall → one FAST read-only
+  synthesis → `{agent, answer}`), the leg the coordinator gathers live so a multi-domain ask
+  ("спланируй выходные") fans out to ≥3 real specialists. Proven by `BriefActionTest`.
 - `http/AddTaskClient` — `POST /internal/task` passthrough (capture under a resolved household).
 - `http/NextActionClient` — `GET /internal/tasks` read passthrough. `fetchNextActions(household, limit)`
   (status=next, for `next-action-suggester`) delegates to the general `fetchTasks(household, status, limit)`

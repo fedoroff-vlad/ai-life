@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.tasks.web;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agentruntime.web.AgentActionController;
 import dev.fedorov.ailife.agents.tasks.http.DeleteTaskClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
@@ -25,6 +26,12 @@ import java.util.UUID;
  * {@code DELETE /internal/task/{id}} ({@link DeleteTaskClient}). Returns the agent's own user-facing
  * confirmation ({@code {message}}) naming the deleted task; a missing/already-deleted task → an honest
  * {@code ok=false} the orchestrator surfaces verbatim (never a silent no-op).
+ *
+ * <p>Also registers the generic <b>{@code brief}</b> read-action (#290, Slice B / #477 Track I — tasks is
+ * the third {@code brief} exposer after finance + calendar): it delegates to the shared
+ * {@link BriefResponder} so the coordinator can ask tasks a focused sub-question (open to-dos, what's due,
+ * GTD next-actions) and fold the grounded, read-only answer into a multi-domain synthesis — the leg that
+ * lets a "спланируй выходные" ask fan out to ≥3 real specialists.
  */
 @RestController
 public class ActionController extends AgentActionController {
@@ -32,11 +39,14 @@ public class ActionController extends AgentActionController {
     private final DeleteTaskClient deleteTask;
     private final ObjectMapper json;
 
-    public ActionController(DeleteTaskClient deleteTask, ObjectMapper json) {
+    public ActionController(DeleteTaskClient deleteTask, BriefResponder briefResponder, ObjectMapper json) {
         super("tasks");
         this.deleteTask = deleteTask;
         this.json = json;
         register("undo", this::undo);
+        // Generic read-only cross-agent query (#290, Slice B / #477 Track I): the coordinator can ask
+        // tasks a focused sub-question and fold the grounded answer into a multi-domain synthesis.
+        register("brief", briefResponder::answer);
     }
 
     @PostMapping("/agents/tasks/actions/{action}")

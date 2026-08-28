@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.tasks.web;
 
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
+import dev.fedorov.ailife.agentruntime.brief.BriefResponder;
 import dev.fedorov.ailife.agents.tasks.http.DeleteTaskClient;
 import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
 import dev.fedorov.ailife.contracts.tasks.TaskItemDto;
@@ -23,8 +24,9 @@ import static org.mockito.Mockito.when;
 class ActionControllerTest {
 
     private final DeleteTaskClient deleteTask = mock(DeleteTaskClient.class);
+    private final BriefResponder briefResponder = mock(BriefResponder.class);
     private final ObjectMapper json = new ObjectMapper();
-    private final ActionController controller = new ActionController(deleteTask, json);
+    private final ActionController controller = new ActionController(deleteTask, briefResponder, json);
 
     private AgentActionRequest undoRequest(String taskId) {
         ObjectNode args = json.createObjectNode();
