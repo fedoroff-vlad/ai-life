@@ -139,8 +139,11 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   `config/OutboundHttpConfig` (`mcpTravel`/`mcpWeather`/`mcpWeb`/`orchestrator`/`mediaService`/
   `mcpChartRender` WebClient beans + the `OrchestratorInvokeClient`, `MediaStoreClient` and the TR-e
   `DeliverablePublisher`).
-- `profile/TravelProfiler` — the LLM extract → geocode → upsert flow; **vocabulary filtering** for
-  `restTypes`/`companions`.
+- `profile/TravelProfiler` — the travel `ProfileSpec` (ADR-0005) on the shared `agent-runtime`
+  `PersonalizationProfiler` template (LLM extract via `travel-profiler` SKILL → parse → self/household scope
+  → geocode post-step → upsert). Keeps the **vocabulary filtering** for `restTypes`/`companions` in its
+  `build`. Trip/packing reads resolve the profile via the shared `ProfileScopeResolver` (self → own
+  household-default → family/shared household-default → empty, #490 FO-3 now inherited).
 - `flow/WalletFlow` — the trip-wallet flow: extract → store dispatch (create/fund/exchange/spend) or
   tally (fetch ledger → `TripLedger` → text + HTML wallet board via `DeliverablePublisher`). Resolves the
   household's active trip for non-create actions. **close** (EX-c) tallies → `closeTrip` → deposits a
@@ -175,7 +178,8 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
   discreet `⚠️` degraded-state notice, #485). Live options are
   ranked min-transfers→price, flagged over-budget, and degrade to the MVP plan when the capability is
   `unconfigured`.
-- `http/TravelProfileClient` (upsert/resolve `mcp-travel`) + `http/GeocodeClient` (`mcp-weather` geocode)
+- `http/TravelProfileClient` — travel's typed binding of the shared `PersonalizationProfileClient`
+  (upsert/read `mcp-travel`; ADR-0005) + `http/GeocodeClient` (`mcp-weather` geocode)
   + `http/ClimateClient` (`mcp-weather` climate) + `http/WebSearchClient` (`mcp-web` search) +
   `http/ChartRenderClient` (`mcp-chart-render` `/internal/render` for the board's climate chart) +
   `http/TravelSearchClient` (`mcp-travel-search` resolve-place/search-flights/search-hotels, TR-f2).

@@ -180,7 +180,9 @@ ADR-0002 reached for sharing.
    per-member profile read — the one lacking family handling, now self→own-default→family-default→empty);
    `MealPlanner`/`MealReads` keep their richer own + household-default *set* gather (a superior family
    mechanism that predates this ADR — the single-profile resolver is not forced there).
-6. [ ] **travel** — same; family-default now applies (home base inheritance).
+6. [x] **travel** — same (`TravelProfiler` → `ProfileSpec` keeping its geocode + vocabulary-enforcement in
+   `build`, `TravelProfileClient` → generic subclass, `TripComposer`/`PackingFlow` `resolveProfile` →
+   `ProfileScopeResolver`); family-default now applies (home base + rest-types inheritance).
 7. [ ] **stylist** — same (its split set/get clients collapse onto the generic client). **All five
    retrofitted → capability complete.**
 

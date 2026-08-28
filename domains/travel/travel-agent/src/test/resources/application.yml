@@ -24,7 +24,10 @@ travel-agent:
   mcp-weather-url: ${MCP_WEATHER_URL:http://mcp-weather:8113}
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
   orchestrator-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
-  profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
+  # ADR-0005: the shared ProfileScopeResolver's family-default step reads profile-service. No travel test
+  # wires a real one, so point it at a fast-fail loopback port — the no-profile read soft-fails to empty
+  # instantly instead of blocking on an unrouted host.
+  profile-service-url: ${PROFILE_SERVICE_URL:http://127.0.0.1:1}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
 
