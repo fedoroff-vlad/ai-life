@@ -179,7 +179,11 @@ Audited before committing to the plan. Verdict: **feasible, with one prerequisit
     dropping media-processing/whisper to cold too (ensure them on an inbound photo/voice attachment at
     the gateway/orchestrator) to reclaim their hot footprint.
   - **LC-3a — CDS/AOT fast cold-start** for the agent modules (Spring Boot 4 AOT + CDS archive in the
-    Dockerfile). Lands before/with LC-3.
+    Dockerfile). Lands before/with LC-3. **Scope note:** LC-3a is the *cold-start-latency* lever
+    (~2–3 s → ~ms); the *RAM-footprint* lever (process consolidation + GraalVM native-image to free memory
+    for the model) is a separate, larger track — [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) /
+    [#584](https://github.com/fedoroff-vlad/ai-life/issues/584). CDS/AOT composes with it (it stays the
+    latency half); native-image there is the footprint half.
 - **LC-4 — model-manager in llm-gateway. ✅ SHIPPED 2026-07-21.** Runtime default-model override +
   `/v1/model-profile` + clean unload, **opt-in via `LLM_MODEL_PROFILE_ENABLED` (default off)**, both tags
   from env. See §B for the design + the evict-before-load handshake.
