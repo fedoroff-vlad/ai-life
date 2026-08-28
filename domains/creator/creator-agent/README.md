@@ -74,17 +74,21 @@ the **creator-profile flow** (CR-c) + the **headline trend → ideas → drafts 
   qualified beans back the shared runtime clients, `mcpCreator` + the four trend sources + `mediaService`
   back the flows.
 - `chat/CreatorChat` — the chat fallback (one LLM turn, AGENT.md as system prompt).
-- `profile/CreatorProfiler` — the creator-profile flow: a typed profile cue → LLM extract via the
-  `creator-profiler` SKILL → upsert via `/internal/creator-profile` (self or household-default).
-- `flow/ContentStrategist` — the headline flow: resolve the track → gather web/youtube/reddit(+feed)
-  on the `Coordinator` → one `content-strategist` synthesis → render HTML board (+ provenance links) →
-  store in media-service → reply with the link.
+- `profile/CreatorProfiler` — the creator-profile flow (ADR-0005): the creator `ProfileSpec` (field
+  mapping + reply wording) run through the shared `agent-runtime` `PersonalizationProfiler` template
+  (LLM extract via `creator-profiler` SKILL → parse → self/household scope → upsert via
+  `/internal/creator-profile`).
+- `flow/ContentStrategist` — the headline flow: resolve the track via the shared `ProfileScopeResolver`
+  (self → own household-default → family/shared household-default → empty, #490 FO-3 now inherited;
+  ADR-0005) → gather web/youtube/reddit(+feed) on the `Coordinator` → one `content-strategist` synthesis →
+  render HTML board (+ provenance links) → store in media-service → reply with the link.
 - `flow/GreetingDrafter` — the `draft_greeting` core (CR-g): one LLM turn via the `greeting-drafter`
   skill → a short greeting for `{person, occasion}`. No gather/media; returns plain text.
 - `web/ActionController` — `POST /agents/creator/actions/draft_greeting` (the inter-agent action);
   always an `AgentActionResult`. Extends the shared `AgentActionController` (`libs/agent-runtime`) for
   the unknown-action + error envelope.
-- `http/CreatorProfileClient` — `POST` (upsert) + `GET` (read, 404→empty) `/internal/creator-profile`.
+- `http/CreatorProfileClient` — creator's typed binding of the shared `PersonalizationProfileClient`
+  (`POST` upsert + `GET` read, 404→empty, `/internal/creator-profile`; ADR-0005).
 - `http/CreatorCacheClient` — the CR-e persist: `POST /internal/trends` (batch trend cache) +
   `POST /internal/content-piece` (the draft), over `mcp-creator`.
 - `http/TrendGatherClient` — one client binding the four source passthroughs (`/internal/search`,

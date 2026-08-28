@@ -171,7 +171,9 @@ ADR-0002 reached for sharing.
    briefing tests + goldens green). Briefing is the canonical example the PATTERNS recipe points at. The
    `PersonalizationProfiler` template is wired as a shared `AgentRuntimeConfig` bean, so the remaining
    domains just inject it.
-4. [ ] **creator** — thin `profile/` adapter + wiring onto the shared mechanism; family-default now applies.
+4. [x] **creator** — thin `profile/` adapter + wiring onto the shared mechanism; family-default now applies
+   (`CreatorProfiler` → `ProfileSpec`, `CreatorProfileClient` → generic subclass,
+   `ContentStrategist.resolveProfile` → `ProfileScopeResolver`).
 5. [ ] **nutrition (diet)** — same; family-default now applies to the diet profile read.
 6. [ ] **travel** — same; family-default now applies (home base inheritance).
 7. [ ] **stylist** — same (its split set/get clients collapse onto the generic client). **All five

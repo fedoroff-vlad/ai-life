@@ -91,6 +91,10 @@ class ContentStrategistTest {
         r.add("creator-agent.media-service-url", () -> "http://localhost:" + media.getPort());
         r.add("creator-agent.public-media-base-url", () -> "http://localhost:" + media.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        // ADR-0005: the shared ProfileScopeResolver's family-default step reads profile-service. These
+        // scenarios never set a shared/family track, so point it at a fast-fail URL — the no-profile path
+        // soft-fails to empty instantly instead of blocking on an unrouted host.
+        r.add("creator-agent.profile-service-url", () -> "http://127.0.0.1:1");
     }
 
     @Autowired WebTestClient http;
