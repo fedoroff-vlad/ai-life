@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 /**
  * MP-d2b: {@link WhisperSttEngine} talks to the whisper ASR sidecar over plain HTTP, so it's
@@ -58,6 +59,46 @@ class WhisperSttEngineTest {
         assertThat(sent.getPath()).startsWith("/asr");
         assertThat(sent.getPath()).contains("output=json");
         assertThat(sent.getHeader("content-type")).startsWith("multipart/form-data");
+    }
+
+    @Test
+    void derivesConfidenceFromSegmentAvgLogprob() {
+        // avg_logprob -0.2 and -0.4 → mean -0.3 → exp(-0.3) ≈ 0.741 (#489 RU-3 gate signal).
+        asr.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("""
+                        {"text":"привет","language":"ru",
+                         "segments":[{"end":1.0,"avg_logprob":-0.2},{"end":2.0,"avg_logprob":-0.4}]}
+                        """));
+
+        TranscriptResult result = engine.transcribe("audio".getBytes(), "audio/ogg");
+
+        assertThat(result.confidence()).isCloseTo(Math.exp(-0.3), within(1e-6));
+    }
+
+    @Test
+    void nullConfidenceWhenSegmentsCarryNoLogprob() {
+        // Non-empty text but no avg_logprob anywhere → "unknown" confidence (gateway treats as not-low).
+        asr.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("{\"text\":\"привет\",\"segments\":[{\"end\":1.0}]}"));
+
+        TranscriptResult result = engine.transcribe("audio".getBytes(), "audio/ogg");
+
+        assertThat(result.text()).isEqualTo("привет");
+        assertThat(result.confidence()).isNull();
+    }
+
+    @Test
+    void emptyTextReportsZeroConfidence() {
+        asr.enqueue(new MockResponse()
+                .setHeader("content-type", "application/json")
+                .setBody("{\"text\":\"\",\"segments\":[{\"end\":1.0,\"avg_logprob\":-0.2}]}"));
+
+        TranscriptResult result = engine.transcribe("silence".getBytes(), "audio/ogg");
+
+        assertThat(result.text()).isEmpty();
+        assertThat(result.confidence()).isEqualTo(0.0);
     }
 
     @Test

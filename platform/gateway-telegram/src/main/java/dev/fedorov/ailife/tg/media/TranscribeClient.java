@@ -22,12 +22,17 @@ public class TranscribeClient {
         this.http = mediaProcessingWebClient;
     }
 
-    /** @param mediaId media-service object id of the stored audio (an attachment's storageUri). */
-    public Mono<String> transcribe(String mediaId) {
+    /**
+     * Returns the full {@link TranscriptResult} (not just the text) so the caller can apply the RU-3
+     * reliability gate on {@code confidence} — an empty or low-confidence transcript is asked to be
+     * repeated rather than routed as garbage (#489 RU-3).
+     *
+     * @param mediaId media-service object id of the stored audio (an attachment's storageUri).
+     */
+    public Mono<TranscriptResult> transcribe(String mediaId) {
         return http.post().uri("/internal/transcribe")
                 .bodyValue(new TranscribeInput(mediaId))
                 .retrieve()
-                .bodyToMono(TranscriptResult.class)
-                .map(r -> r.text() == null ? "" : r.text());
+                .bodyToMono(TranscriptResult.class);
     }
 }

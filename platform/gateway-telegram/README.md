@@ -49,6 +49,15 @@ exactly like a typed message — so a spoken request reaches any agent, not a si
 **not soft-failed**: for a voice message the transcript is the payload, so an STT failure surfaces as an
 error reply rather than a silent empty route. Video lands later alongside the same capability.
 
+**STT reliability gate (road-test [#489](https://github.com/fedoroff-vlad/ai-life/issues/489) RU-3).** A voice
+note is the owner's only payload, so routing a garbled transcript wastes a turn. The transcribe passthrough now
+returns a `0..1` `confidence` on `TranscriptResult`; the gateway checks it before routing. An **empty** transcript
+(no speech) or one whose confidence is **known and below `gateway.stt.min-confidence`** (default `0.55`, an
+internal tunable — env `GATEWAY_STT_MINCONFIDENCE`) is treated as unintelligible: the bot replies "не расслышал,
+повтори голосом ещё раз" and **does not call the orchestrator**, so the owner just re-records. A `null` confidence
+(engine reported no signal) is "unknown", never low, so the transcript still routes (back-compat). Deterministic,
+never an LLM call.
+
 ## Configuration
 
 | env var                          | default                              | required |
@@ -98,9 +107,9 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `bot/ConfirmKeyboard` — the RU-2 shared inline-button primitive (#489; PX-4 will extend it): builds the two-button Да / Нет keyboard (localised labels, stable `cf:y`/`cf:n` callback ids) and decodes a tap's `callback_data` back into the "да"/"нет" text a route-locked `/resume` expects.
 - `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
-- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio (`transcribeIfVoice`) and routes the transcript as `text`.
+- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`).
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
-- `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → transcript text (front-door STT for voice notes). Not soft-failed: the transcript is the voice message's payload.
+- `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → the full `TranscriptResult` (text + `confidence` for the RU-3 gate). Front-door STT for voice notes; not soft-failed: the transcript is the voice message's payload.
 - `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join (resolve → redeem → resolve inviter → `InviteOutcome`) — and `mintInvite(...)` — the owner-side mint (resolve → `POST /v1/invites` → format the `t.me/<bot>?start=<token>` deep-link reply).
 - `identity/InviteOutcome` — the reply to show the invitee + the (optional) holder-ping target/text; keeps the redeem logic free of any Telegram API dependency (the bot layer does the sends).
 - `identity/ProfileClient` — WebClient → profile-service (`by-telegram`/create identity + `mintInvite`/`redeem` + `findById` for the inviter's Telegram id).

@@ -25,7 +25,7 @@ call, reused not re-embedded.
 |------|------|---------|---------|
 | `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). |
 | `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
-| `transcribe` | `mediaId` (media-service object id) | `TranscriptResult{text, lang?, durationSeconds?}` | fetch the audio/video bytes from media-service, run STT (local engine), return recognised speech (empty when none). For voice notes / dictated messages. |
+| `transcribe` | `mediaId` (media-service object id) | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | fetch the audio/video bytes from media-service, run STT (local engine), return recognised speech (empty when none). `confidence` is a 0..1 recognition confidence (whisper: `exp(mean segment avg_logprob)`; `0.0` on empty text, `null` when the engine reports no signal) — the gateway's RU-3 gate uses it to ask for a repeat on an unintelligible voice note. For voice notes / dictated messages. |
 
 ## HTTP passthrough
 
@@ -33,7 +33,7 @@ call, reused not re-embedded.
 |--------|------|------|---------|---------|
 | POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 | POST | `/internal/ocr` | `OcrInput{mediaId}` | `OcrResult{text, lang?, confidence?}` | non-MCP passthrough to the `ocr` tool (the OCR twin of `/internal/caption`). Same rationale — a caller that deterministically wants OCR text hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by docs-agent's `doc-archiver` (D-c) to turn a document photo into the full text it archives + indexes. |
-| POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it. |
+| POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it (and to gate an unintelligible one via `confidence`, #489 RU-3). |
 
 ## Env
 

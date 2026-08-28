@@ -7,6 +7,7 @@ public class GatewayProperties {
 
     private Telegram telegram = new Telegram();
     private Services services = new Services();
+    private Stt stt = new Stt();
     /**
      * Bearer token required on {@code POST /internal/send} from notifier-service and
      * any other in-cluster caller. Empty in dev = endpoint refuses every request.
@@ -15,9 +16,25 @@ public class GatewayProperties {
 
     public Telegram getTelegram() { return telegram; }
     public Services getServices() { return services; }
+    public Stt getStt() { return stt; }
     public String getInternalApiToken() { return internalApiToken; }
     public void setInternalApiToken(String internalApiToken) {
         this.internalApiToken = internalApiToken;
+    }
+
+    /** Front-door speech-to-text reliability gate (#489 RU-3). */
+    public static class Stt {
+        /**
+         * A captionless voice note whose transcript confidence (0..1) is <b>known and below</b> this
+         * value is treated as unintelligible: the gateway asks the owner to repeat instead of routing a
+         * garbled transcript. An empty transcript is always treated as unintelligible; a {@code null}
+         * confidence (engine gave no signal) is "unknown", never low, so it still routes. Internal
+         * tunable — override via {@code gateway.stt.min-confidence} / env {@code GATEWAY_STT_MINCONFIDENCE}.
+         */
+        private double minConfidence = 0.55;
+
+        public double getMinConfidence() { return minConfidence; }
+        public void setMinConfidence(double minConfidence) { this.minConfidence = minConfidence; }
     }
 
     public static class Telegram {

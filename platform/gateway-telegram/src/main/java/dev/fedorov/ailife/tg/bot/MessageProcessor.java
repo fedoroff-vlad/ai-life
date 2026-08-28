@@ -4,7 +4,9 @@ import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.contracts.profile.UserDto;
+import dev.fedorov.ailife.tg.config.GatewayProperties;
 import dev.fedorov.ailife.tg.identity.IdentityResolver;
 import dev.fedorov.ailife.tg.identity.InviteOutcome;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
@@ -15,6 +17,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Pure logic, no Telegram API dependency — easy to unit test.
@@ -24,19 +27,26 @@ import java.util.List;
 @Component
 public class MessageProcessor {
 
+    /** RU-3: reply shown when a voice note can't be understood, asking the owner to re-record. */
+    static final String ASK_TO_REPEAT =
+            "🎤 Не расслышал — повтори, пожалуйста, голосом ещё раз.";
+
     private final IdentityResolver identity;
     private final OrchestratorClient orchestrator;
     private final MediaServiceClient media;
     private final TranscribeClient transcribe;
+    private final double minConfidence;
 
     public MessageProcessor(IdentityResolver identity,
                             OrchestratorClient orchestrator,
                             MediaServiceClient media,
-                            TranscribeClient transcribe) {
+                            TranscribeClient transcribe,
+                            GatewayProperties properties) {
         this.identity = identity;
         this.orchestrator = orchestrator;
         this.media = media;
         this.transcribe = transcribe;
+        this.minConfidence = properties.getStt().getMinConfidence();
     }
 
     /**
@@ -63,29 +73,53 @@ public class MessageProcessor {
     public Mono<IntentResponse> process(IncomingMessage incoming) {
         return identity.resolve(incoming.telegramUserId(), incoming.displayName(), incoming.languageCode())
                 .flatMap(user -> attachmentsFor(user, incoming)
-                        .flatMap(attachments -> transcribeIfVoice(incoming, attachments)
-                                .map(text -> normalise(user, incoming, attachments, text))
-                                .defaultIfEmpty(normalise(user, incoming, attachments, incoming.text()))
-                                .flatMap(orchestrator::handle)));
+                        .flatMap(attachments -> route(user, incoming, attachments)));
     }
 
     /**
-     * Front-door speech-to-text: a voice note carries no caption, so its uploaded audio is
-     * transcribed to text (via mcp-media-processing) before routing — the orchestrator then handles
-     * it exactly like a typed message. Emits the transcript ONLY for a captionless voice note; empty
-     * otherwise, so the caller falls back to the original text (a captionless photo keeps a null text).
-     * Not soft-failed: for a voice message the transcript IS the payload, so an STT failure surfaces
-     * as an error reply rather than a silent empty route.
+     * Route a message: a captionless voice note is transcribed at the front door first (so a spoken
+     * request reaches any agent as ordinary text), then either routed on the transcript or — when the
+     * transcript can't be understood — bounced back with an ask-to-repeat reply (#489 RU-3). Anything
+     * that already carries text (a typed message, a captioned photo/voice) routes straight through.
      */
-    private Mono<String> transcribeIfVoice(IncomingMessage incoming, List<Attachment> attachments) {
+    private Mono<IntentResponse> route(UserDto user, IncomingMessage incoming, List<Attachment> attachments) {
+        return voiceToTranscribe(incoming, attachments)
+                .map(voice -> transcribe.transcribe(voice.storageUri())
+                        .flatMap(result -> unintelligible(result)
+                                ? Mono.just(askToRepeat())
+                                : orchestrator.handle(normalise(user, incoming, attachments, result.text()))))
+                .orElseGet(() -> orchestrator.handle(
+                        normalise(user, incoming, attachments, incoming.text())));
+    }
+
+    /**
+     * The voice attachment whose audio must be transcribed before routing — present ONLY for a
+     * captionless voice note (a caption or typed text is the payload, so no STT). Not soft-failed:
+     * for a voice message the transcript IS the payload, so an STT failure surfaces as an error reply
+     * rather than a silent empty route.
+     */
+    private Optional<Attachment> voiceToTranscribe(IncomingMessage incoming, List<Attachment> attachments) {
         if (incoming.text() != null && !incoming.text().isBlank()) {
-            return Mono.empty();
+            return Optional.empty();
         }
         return attachments.stream()
                 .filter(a -> "voice".equals(a.kind()))
-                .findFirst()
-                .map(a -> transcribe.transcribe(a.storageUri()))
-                .orElseGet(Mono::empty);
+                .findFirst();
+    }
+
+    /**
+     * RU-3 reliability gate: a transcript is unintelligible when it is empty/blank (no speech heard) or
+     * its confidence is <b>known and below</b> {@code gateway.stt.min-confidence}. A {@code null}
+     * confidence is "unknown", never low, so such a transcript still routes (back-compat).
+     */
+    private boolean unintelligible(TranscriptResult result) {
+        boolean empty = result.text() == null || result.text().isBlank();
+        boolean lowConfidence = result.confidence() != null && result.confidence() < minConfidence;
+        return empty || lowConfidence;
+    }
+
+    private IntentResponse askToRepeat() {
+        return new IntentResponse("gateway", ASK_TO_REPEAT, null);
     }
 
     /**
