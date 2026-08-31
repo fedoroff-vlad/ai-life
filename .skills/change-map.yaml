@@ -88,6 +88,24 @@ couplings:
       refusal. Weakening either one lets both models load at once, which is the failure the whole
       mechanism exists to prevent.
 
+  - id: ingestion-source
+    trigger: >
+      Added or changed a surface that folds untrusted external text into an LLM prompt
+      (web fetch/search, OCR of user files, audio transcript, feed/reddit/youtube pull,
+      recalled ambient note) — a new prompt-injection entry point.
+    ssot: libs/agent-runtime/src/main/java/dev/fedorov/ailife/agentruntime/coordinate/UntrustedContent.java
+    must_update:
+      - the flow's prompt assembly            # include UntrustedContent.GUARD as a system prompt (fence values spliced into free text)
+      - a Golden…InjectionResistanceTest       # prove a payload in the retrieved content is not obeyed
+      - plans/architecture.md                  # §Security ingestion checklist (provenance · framed-as-data · outbound-behind-confirm · third-party-MCP-reviewed)
+    notes: >
+      The inbound half of the untrusted-input doctrine (architecture.md §Security). To an LLM,
+      retrieved text is indistinguishable from instructions; the outbound confirm-gate only stops
+      the *act*, so every new ingestion surface must also frame its content as DATA at the prompt
+      (UntrustedContent.GUARD) and ship an injection golden. Canonical example: researcher
+      (Researcher.synthesize + GoldenResearchInjectionResistanceTest). Not yet mechanized — a lint
+      that flags a Coordinator gather over an /internal fetch/OCR without GUARD is a future check.
+
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring
     must_update:
