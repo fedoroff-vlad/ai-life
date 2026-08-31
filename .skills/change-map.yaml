@@ -103,8 +103,11 @@ couplings:
       retrieved text is indistinguishable from instructions; the outbound confirm-gate only stops
       the *act*, so every new ingestion surface must also frame its content as DATA at the prompt
       (UntrustedContent.GUARD) and ship an injection golden. Canonical example: researcher
-      (Researcher.synthesize + GoldenResearchInjectionResistanceTest). Not yet mechanized — a lint
-      that flags a Coordinator gather over an /internal fetch/OCR without GUARD is a future check.
+      (Researcher.synthesize + GoldenResearchInjectionResistanceTest). Mechanized (web half):
+      scripts/check-consistency.sh check 7 fails CI when a *-agent flow calls coordinate() and ingests
+      web content (WebSearchClient/PageFetchClient) but omits UntrustedContent.GUARD — a shrinking
+      GUARD_ALLOWLIST tracks the not-yet-migrated flows (#599). OCR clients join INGEST_MARKERS when
+      the docs path migrates.
 
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring
