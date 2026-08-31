@@ -157,6 +157,34 @@ else
   done
 fi
 
+# ── Check 7: untrusted-ingestion synthesis flows frame retrieved content as data ──────
+# The change-map `ingestion-source` coupling (#599; architecture.md §Security). A flow that folds
+# text from an untrusted external source into an LLM synthesis must prepend UntrustedContent.GUARD
+# to its coordinate() system prompts, so an injected instruction in a fetched page / OCR'd file is
+# not obeyed (the outbound confirm-gate only stops the *act*; this stops the *obey*). We flag any
+# *-agent flow that both calls .coordinate( AND ingests web content (WebSearchClient / PageFetchClient)
+# but never references UntrustedContent.GUARD. OCR clients join INGEST_MARKERS when the docs path
+# migrates (#599). ALLOWLIST = flows known-unmigrated (tracked in #599); each must gain GUARD or be
+# removed. A listed file that HAS GUARD is a stale entry and also fails — so the list can only shrink.
+echo "check 7: untrusted-ingestion flows include UntrustedContent.GUARD (injection doctrine, #599)"
+INGEST_MARKERS='WebSearchClient|PageFetchClient'
+GUARD_ALLOWLIST="domains/briefing/briefing-agent/src/main/java/dev/fedorov/ailife/agents/briefing/flow/BriefingComposer.java
+domains/nutrition/chef-agent/src/main/java/dev/fedorov/ailife/agents/chef/flow/RecipeFinder.java
+domains/nutrition/nutritionist-agent/src/main/java/dev/fedorov/ailife/agents/nutritionist/flow/MealPlanner.java
+domains/stylist/stylist-agent/src/main/java/dev/fedorov/ailife/agents/stylist/flow/StylistAdvisor.java
+domains/travel/travel-agent/src/main/java/dev/fedorov/ailife/agents/travel/flow/TripComposer.java"
+for f in $(grep -rlE '\.coordinate\(' domains/*/*-agent/src/main --include=*.java 2>/dev/null || true); do
+  grep -qE "$INGEST_MARKERS" "$f" || continue
+  has_guard=no; grep -q 'UntrustedContent.GUARD' "$f" && has_guard=yes
+  listed=no; printf '%s\n' "$GUARD_ALLOWLIST" | grep -qxF "$f" && listed=yes
+  if [ "$has_guard" = no ] && [ "$listed" = no ]; then
+    err "untrusted-ingestion flow '$f' calls coordinate() over web content but omits UntrustedContent.GUARD"
+    err "→ prepend UntrustedContent.GUARD to its coordinate() system prompts + add a Golden…InjectionResistanceTest (#599); or, if it genuinely never feeds retrieved text to the LLM, allowlist it in GUARD_ALLOWLIST in $0 with a why"
+  elif [ "$has_guard" = yes ] && [ "$listed" = yes ]; then
+    err "'$f' now includes UntrustedContent.GUARD but is still in GUARD_ALLOWLIST — remove the stale entry in $0 (the list only shrinks)"
+  fi
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

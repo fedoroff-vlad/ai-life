@@ -4,17 +4,18 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **hardening §#599 injection guard (inbound half of the untrusted-input doctrine) — 🔶 slice 1 in flight.**
-  From the 2026-08-31 architecture-checkup: the doctrine ([architecture.md](architecture.md) §Security) was
-  documented + the outbound confirm-gate real, but the **inbound** half (framing retrieved text as data) was
-  unenforced in code and untested. Slice 1: shared `UntrustedContent.GUARD`+`fence` in `libs/agent-runtime`,
-  wired into the researcher synthesis (fetched pages are attacker-controlled), proved by
-  `GoldenResearchInjectionResistanceTest` (passes on real qwen3:8b — an embedded "ignore instructions" payload
-  is not obeyed), + an `ingestion-source` coupling in `.skills/change-map.yaml`. **Follow-ups (in #599):** the
-  docs-agent OCR path + other Coordinator flows over untrusted gather; a lint that flags a gather-over-`/internal`
-  fetch/OCR without GUARD. Sibling findings filed: model-strategy↔env drift
-  [#600](https://github.com/fedoroff-vlad/ai-life/issues/600), root AGENTS.md
-  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601).
+- **hardening §#599 injection guard (inbound half of the untrusted-input doctrine) — 🔶 slices 1–2 shipped;
+  rollout follow-ups open.** From the 2026-08-31 architecture-checkup: the doctrine
+  ([architecture.md](architecture.md) §Security) was documented + the outbound confirm-gate real, but the
+  **inbound** half (framing retrieved text as data) was unenforced in code and untested. **Slice 1 (PR#602):**
+  shared `UntrustedContent.GUARD`+`fence` in `libs/agent-runtime`, wired into the researcher synthesis, proved
+  by `GoldenResearchInjectionResistanceTest` (passes on real qwen3:8b), + an `ingestion-source` coupling.
+  **Slice 2 (lint):** `check-consistency.sh` **check 7** fails CI when a `*-agent` flow calls `coordinate()` and
+  ingests web content (`WebSearchClient`/`PageFetchClient`) but omits `GUARD` — a shrinking `GUARD_ALLOWLIST`
+  tracks the 5 not-yet-migrated flows. **Follow-ups (in #599):** migrate those 5 (briefing/chef/nutritionist/
+  stylist/travel) + the docs-agent OCR path (join `INGEST_MARKERS`). Sibling findings:
+  [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔env drift,
+  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root AGENTS.md.
 - **arch §#477 real agent-led multi-domain coordination — ✅ COMPLETE (2026-08-28), #477 closed (Track I,
   [stage4.md](stage4.md) §Track I).** The coordinator substrate (#290) was built but the cross-domain path was
   thin (only finance + calendar exposed `brief`). Both slices shipped: **I1** tasks-agent as the 3rd `brief`
