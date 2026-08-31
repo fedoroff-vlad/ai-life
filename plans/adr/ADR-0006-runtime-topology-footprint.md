@@ -128,9 +128,12 @@ count**, which becomes a deploy-time grouping choice.
 
 ## Action Items (measurement-first; each its own PR; hardware-gated where noted)
 
-1. [ ] **Measurement harness** — a script capturing per-process RSS + the total, and the **JVM vs model vs
+1. [~] **Measurement harness** — a script capturing per-process RSS + the total, and the **JVM vs model vs
    Postgres** split on the running stack, establishing the real baseline (it may show 64 GB is already
-   ample, or pinpoint the worst offenders). *Authorable now; run at deploy.*
+   ample, or pinpoint the worst offenders). *Authorable now; run at deploy.* **Authored:
+   [`scripts/measure-footprint.sh`](../../scripts/measure-footprint.sh)** (signal-driven classification,
+   `--json` for slice-3 diffing, exits 0 when the stack/Docker is down). Real numbers land at deploy on the
+   Mac. Spec + scenarios: [topology-map.md](../topology-map.md) §Slice 1.
 2. [~] **Topology map** — classify every **runtime** module as must-be-resident (hot) / on-demand (cold) /
    consolidatable-together, and propose the host groupings (domain-MCP host / agent host / platform host /
    isolated singletons: `llm-gateway`, **`memory-service`**, Postgres). *Design doc, no code.* **Drafted:
