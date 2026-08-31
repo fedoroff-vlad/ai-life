@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.coordinate.UntrustedContent;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
@@ -167,7 +168,8 @@ public class BriefingComposer {
         payload.put("userText", msg.text() == null ? "" : msg.text());
 
         return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
+                        // News is fetched from the web (untrusted) — frame the corpus as data (#599).
+                        List.of(UntrustedContent.GUARD, manifest.body(), skillBody()),
                         payload,
                         gather,
                         LlmChannel.DEFAULT)

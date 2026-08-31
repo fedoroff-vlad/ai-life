@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.coordinate.UntrustedContent;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -111,7 +112,8 @@ public class StylistAdvisor {
         payload.put("season", season);
 
         return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
+                        // Trend context comes from web search (untrusted) — frame the corpus as data (#599).
+                        List.of(UntrustedContent.GUARD, manifest.body(), skillBody()),
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
