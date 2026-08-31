@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.coordinate.UntrustedContent;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.researcher.config.ResearcherAgentProperties;
@@ -142,8 +143,11 @@ public class Researcher {
         Map<String, Mono<JsonNode>> gather = new LinkedHashMap<>();
         gather.put("web", Mono.just(corpus));
 
+        // The corpus is attacker-controlled (fetched page bodies + search snippets). Frame it as
+        // untrusted data so an "ignore previous instructions"-style payload in a page is not obeyed
+        // (plans/architecture.md §Security, inbound half). GUARD leads so the rule is set before the data.
         return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
+                        List.of(UntrustedContent.GUARD, manifest.body(), skillBody()),
                         payload,
                         gather,
                         LlmChannel.DEFAULT)

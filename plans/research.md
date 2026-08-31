@@ -57,6 +57,9 @@ deferred — revisit only if self-hosting SearXNG proves costly to run on the ta
   `Coordinator` (copy calendar-agent's `GiftRecommender`): gather `search` → `fetch` top N (parallel,
   soft-fail per page) → one LLM synthesis → summary + grouped links (articles vs videos by host).
   `research/SKILL.md`. `ResearcherFlowTest` (MockWebServers for mcp-web `/internal/*` + llm-gateway).
+  **Injection guard (#599):** fetched page bodies are attacker-controlled, so `synthesize` prepends
+  `UntrustedContent.GUARD` (agent-runtime) to frame the corpus as data; `GoldenResearchInjectionResistanceTest`
+  proves a payload in a page is not obeyed. See `architecture.md` §Security.
 
 ## Out of scope (recorded, later)
 - **Video transcripts** (YouTube/Insta deep content) — a later tool/slice (an `mcp-youtube-transcript`

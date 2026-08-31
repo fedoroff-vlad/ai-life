@@ -78,6 +78,18 @@ synthesis (generalises the by-hand memory-recall enrichment in `TriggerControlle
 Coordination is **agent-led** (architecture.md routing doctrine): the agent owns the flow
 and reaches specialists via the hub; the orchestrator stays a thin router.
 
+## UntrustedContent (inbound injection guard)
+The front-door half of the untrusted-input doctrine (`plans/architecture.md` §Security), paired with
+`Coordinator`. A flow that folds text retrieved from an untrusted source (web fetch/search, OCR of
+user files, transcripts, feeds, recalled notes) into a prompt prepends **`UntrustedContent.GUARD`** to
+its `systemPrompts` — it frames the gathered `context` as DATA and forbids obeying any instruction
+embedded in it, so an "ignore previous instructions" payload in a page is not executed (the outbound
+confirm-gate only stops the *act*; this stops the *obey*). `fence(label, value)` is the optional
+delimiter for a value spliced into free text (a JSON `text` field already reads as data). Canonical
+wiring + model-side proof: `Researcher.synthesize` + `GoldenResearchInjectionResistanceTest`. Every new
+ingestion surface must include the guard + ship an injection golden — enforced by the `ingestion-source`
+coupling in `.skills/change-map.yaml`.
+
 ## SkillClassifier (the shared in-agent router)
 Turns a user message into one **decision** — invoke an MCP tool, run one of the agent's own
 multi-step flows/skills, or reply in chat. It owns the two halves the finance and tasks
@@ -174,6 +186,7 @@ so their tests stay byte-for-byte — new flows take the defaults. Consumers: `T
 - `config/AgentRuntimeConfig` — `@Configuration` + `@EnableConfigurationProperties`. Single entry point agents `@Import`.
 - `config/AgentRuntimeProperties` — `agent.*` binding.
 - `config/SharedClientProperties` — interface (`getProfileServiceUrl/getNotifierUrl/getMemoryServiceUrl`) each agent's `*AgentProperties` implements, so `AgentRuntimeConfig` builds the three platform-service `WebClient` beans once instead of every agent re-declaring them.
+- `coordinate/UntrustedContent` — the inbound injection guard: `GUARD` (system prompt framing retrieved content as data) + `fence(label, value)`. Prepended to `Coordinator` `systemPrompts` by any flow gathering untrusted external text (see §UntrustedContent above).
 - `manifest/ManifestParser` — splits YAML frontmatter + body, validates required fields, returns `AgentManifest` (contract lives in `libs/contracts`).
 - `skill/SkillParser` — same shape for `SKILL.md`.
 - `skill/Skill` — record (name, description, version, triggers, languages, body).
