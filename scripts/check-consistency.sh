@@ -183,6 +183,41 @@ for f in $(grep -rlE '\.coordinate\(|\.chat\(' domains/*/*-agent/src/main --incl
   fi
 done
 
+# ── Check 8: every intent skill is referenced in its agent's routing golden ───────────
+# The change-map `intent-skill-routing-golden` coupling (#543). A cue-routed agent's
+# Golden*RoutingTest hardcodes its routable intent-skill set (a SKILLS allowlist + a loadXSkills name
+# list) separate from the classpath SKILL.md files production loads — so adding an intent skill silently
+# leaves the golden stale (hit adding task-delete, #486). An **intent skill** = a SKILL.md with NO
+# non-empty `triggers:` list (trigger-less → routed by the LLM classifier; a skill WITH triggers is
+# deterministic, not the router's job). Each such skill's name must appear (quoted) in a
+# Golden*RoutingTest under its domain. ALLOWLIST = trigger-less skills that are still NOT intent-router
+# choices — attachment/photo-driven pre-checks invoked deterministically on a media upload (a photo →
+# receipt-parser / style-analyst / wardrobe-cataloguer / doc-archiver), so they never reach the text
+# classifier. A domain with no routing golden at all (researcher single-skill, coach parked) is skipped.
+echo "check 8: intent skills (trigger-less) appear in their agent's Golden*RoutingTest (#543)"
+ROUTING_GOLDEN_ALLOWLIST="doc-archiver receipt-parser style-analyst wardrobe-cataloguer"
+for sk in $(git ls-files 'domains/*/skills/*/SKILL.md'); do
+  # Skip trigger skills (a non-empty `triggers:` list — inline [x] or a `- ` item under it).
+  is_trig="$(awk '
+    /^---/ {f++; if(f==2) exit; next}
+    f==1 && /^triggers:[ \t]*\[[ \t]*[^] \t]/ {print "T"; exit}
+    f==1 && /^triggers:[ \t]*$/ {p=1; next}
+    f==1 && p && /^[ \t]*-/ {print "T"; exit}
+    f==1 && p && /^[^ \t]/ {p=0}
+  ' "$sk")"
+  [ -n "$is_trig" ] && continue
+  name="$(awk -F': ' '/^name:/{print $2; exit}' "$sk")"
+  case " $ROUTING_GOLDEN_ALLOWLIST " in *" $name "*) continue ;; esac
+  domain="$(printf '%s' "$sk" | sed -E 's#domains/([^/]+)/skills/.*#\1#')"
+  goldens="$(git ls-files | grep -E "^domains/$domain/.*/Golden[A-Za-z]*RoutingTest\.java$" || true)"
+  [ -z "$goldens" ] && continue   # no routing golden in this domain — coupling does not apply
+  if ! printf '%s\n' $goldens | xargs grep -lqF "\"$name\"" 2>/dev/null; then
+    err "intent skill '$name' ($sk) is trigger-less but not referenced in its routing golden:"
+    echo "$goldens" | sed 's/^/        /' >&2
+    err "→ add \"$name\" to the SKILLS set + loadXSkills list (+ a behaviour case) in that Golden*RoutingTest (#543); or, if it's an attachment/deterministic flow (not an intent-router choice), add it to ROUTING_GOLDEN_ALLOWLIST in $0 with a why"
+  fi
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

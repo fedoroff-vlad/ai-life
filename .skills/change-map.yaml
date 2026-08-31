@@ -117,6 +117,22 @@ couplings:
       and ingests web (WebSearchClient/PageFetchClient) or OCR (OcrClient) content but omits GUARD. All flows
       migrated (#599); GUARD_ALLOWLIST is empty.
 
+  - id: intent-skill-routing-golden
+    trigger: >
+      Added a cue-routed intent skill — a trigger-less domains/<d>/skills/<name>/SKILL.md
+      (empty/absent `triggers:` → routed by the LLM classifier, not deterministically).
+    must_update:
+      - the domain's Golden*RoutingTest      # add "<name>" to the SKILLS allowlist + loadXSkills list + a behaviour case
+    notes: >
+      The golden hardcodes its routable set in ≥2 spots separate from the classpath SKILL.md files
+      production loads, so a new intent skill silently leaves it stale (hit adding task-delete, #486).
+      Mechanized: scripts/check-consistency.sh check 8 fails CI when a trigger-less SKILL.md is not
+      referenced (quoted) in a Golden*RoutingTest under its domain. NOT every trigger-less skill is an
+      intent-router choice — attachment/photo-driven pre-checks (receipt-parser / style-analyst /
+      wardrobe-cataloguer / doc-archiver, invoked on a media upload) are in ROUTING_GOLDEN_ALLOWLIST; a
+      domain with no routing golden (researcher single-skill, coach parked) is skipped. A new
+      attachment-driven skill trips the lint → add it to the golden if routed, else to the allowlist.
+
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring
     must_update:
