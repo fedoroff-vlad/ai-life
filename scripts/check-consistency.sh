@@ -159,26 +159,25 @@ fi
 
 # ── Check 7: untrusted-ingestion synthesis flows frame retrieved content as data ──────
 # The change-map `ingestion-source` coupling (#599; architecture.md §Security). A flow that folds
-# text from an untrusted external source into an LLM synthesis must prepend UntrustedContent.GUARD
-# to its coordinate() system prompts, so an injected instruction in a fetched page / OCR'd file is
-# not obeyed (the outbound confirm-gate only stops the *act*; this stops the *obey*). We flag any
-# *-agent flow that both calls .coordinate( AND ingests web content (WebSearchClient / PageFetchClient)
-# but never references UntrustedContent.GUARD. OCR clients join INGEST_MARKERS when the docs path
-# migrates (#599). ALLOWLIST = flows known-unmigrated (tracked in #599); each must gain GUARD or be
-# removed. A listed file that HAS GUARD is a stale entry and also fails — so the list can only shrink.
+# text from an untrusted external source into an LLM turn must include UntrustedContent.GUARD as a
+# system prompt, so an injected instruction in a fetched page / OCR'd document is not obeyed (the
+# outbound confirm-gate only stops the *act*; this stops the *obey*). We flag any *-agent flow that
+# both makes an LLM call (.coordinate( or .chat() AND ingests untrusted external content — web
+# (WebSearchClient / PageFetchClient) or OCR (OcrClient) — but never references UntrustedContent.GUARD.
+# ALLOWLIST = a flow that provably never feeds the retrieved text to the LLM (e.g. uses the client for a
+# deterministic, non-prompt path); a flow that DOES must gain GUARD, not an allowlist entry. A listed
+# file that HAS GUARD is a stale entry and also fails — so the list can only shrink.
 echo "check 7: untrusted-ingestion flows include UntrustedContent.GUARD (injection doctrine, #599)"
-INGEST_MARKERS='WebSearchClient|PageFetchClient'
-# Empty — all web-ingestion flows now carry GUARD (researcher + the 5 migrated in #599). Add a path
-# here (with a why) only for a flow that provably never feeds retrieved text to the LLM; a flow that
-# DOES must gain GUARD, not an allowlist entry.
+INGEST_MARKERS='WebSearchClient|PageFetchClient|OcrClient'
+# Empty — every untrusted-ingestion flow now carries GUARD (researcher web + the 5 web flows + docs OCR).
 GUARD_ALLOWLIST=""
-for f in $(grep -rlE '\.coordinate\(' domains/*/*-agent/src/main --include=*.java 2>/dev/null || true); do
+for f in $(grep -rlE '\.coordinate\(|\.chat\(' domains/*/*-agent/src/main --include=*.java 2>/dev/null || true); do
   grep -qE "$INGEST_MARKERS" "$f" || continue
   has_guard=no; grep -q 'UntrustedContent.GUARD' "$f" && has_guard=yes
   listed=no; printf '%s\n' "$GUARD_ALLOWLIST" | grep -qxF "$f" && listed=yes
   if [ "$has_guard" = no ] && [ "$listed" = no ]; then
-    err "untrusted-ingestion flow '$f' calls coordinate() over web content but omits UntrustedContent.GUARD"
-    err "→ prepend UntrustedContent.GUARD to its coordinate() system prompts + add a Golden…InjectionResistanceTest (#599); or, if it genuinely never feeds retrieved text to the LLM, allowlist it in GUARD_ALLOWLIST in $0 with a why"
+    err "untrusted-ingestion flow '$f' makes an LLM call over web/OCR content but omits UntrustedContent.GUARD"
+    err "→ include UntrustedContent.GUARD as a system prompt + add a Golden…InjectionResistanceTest for a new mechanism (#599); or, if it genuinely never feeds retrieved text to the LLM, allowlist it in GUARD_ALLOWLIST in $0 with a why"
   elif [ "$has_guard" = yes ] && [ "$listed" = yes ]; then
     err "'$f' now includes UntrustedContent.GUARD but is still in GUARD_ALLOWLIST — remove the stale entry in $0 (the list only shrinks)"
   fi

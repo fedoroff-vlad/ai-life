@@ -103,13 +103,19 @@ couplings:
       retrieved text is indistinguishable from instructions; the outbound confirm-gate only stops
       the *act*, so every ingestion surface must frame its content as DATA at the prompt
       (UntrustedContent.GUARD). **Golden scope:** the injection golden proves the *mechanism*
-      (GUARD + Coordinator), so it is written ONCE per mechanism — GoldenResearchInjectionResistanceTest
-      covers the GUARD+Coordinator path that every web/OCR/feed synthesis flow reuses; a flow that reuses
-      it needs GUARD but not a new golden. A genuinely *new* mechanism (a different transport, or content
-      spliced into free text rather than the labeled JSON corpus) does need its own golden. Mechanized
-      (web half): scripts/check-consistency.sh check 7 fails CI when a *-agent flow calls coordinate() and
-      ingests web content (WebSearchClient/PageFetchClient) but omits UntrustedContent.GUARD. All web flows
-      migrated (#599); GUARD_ALLOWLIST is empty. OCR clients join INGEST_MARKERS when the docs path migrates.
+      (GUARD + Coordinator/chat), so it is written ONCE per mechanism. Two proven so far:
+      GoldenResearchInjectionResistanceTest (GUARD + Coordinator JSON corpus, reused by every web synthesis
+      flow) and GoldenDocArchiverInjectionResistanceTest (GUARD + fence on a direct llm.chat where OCR text
+      is spliced into free text — the docs path). A flow reusing one of these needs GUARD but not a new
+      golden; a genuinely *new* mechanism (different transport, or a new splice shape) does. **What the
+      golden asserts:** the injection cannot make the agent emit the attacker's chosen content (no marker in
+      the reply or any model-derived field) — NOT that extraction still succeeds. A weak model may fail
+      *safe* under injection (empty output → generic save); that is denial, not a hijack, so the security
+      contract is no-hijack, and extraction robustness is a deploy-model quality property. Free-text splices
+      also get UntrustedContent.fence (a JSON corpus field is already self-labeling). Mechanized:
+      scripts/check-consistency.sh check 7 fails CI when a *-agent flow makes an LLM call (coordinate()/chat())
+      and ingests web (WebSearchClient/PageFetchClient) or OCR (OcrClient) content but omits GUARD. All flows
+      migrated (#599); GUARD_ALLOWLIST is empty.
 
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring

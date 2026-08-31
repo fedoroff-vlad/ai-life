@@ -23,7 +23,10 @@ private); **7b (read)** widens "find my X" to the member's personal ∪ shared h
   filing a blank, unsearchable row — a caption exempts it (the caption carries the metadata) and a `null`/unknown
   confidence still archives → one llm-gateway turn with
   the `doc-archiver` SKILL extracts the metadata (doc_type / title / party / date / amount / currency /
-  tags) from the OCR text + the user's caption → **resolve the shared vs personal `household_id`** via the
+  tags) from the OCR text + the user's caption — the OCR text is **untrusted** (whatever the photographed
+  document says), so it enters the extraction turn under `UntrustedContent.GUARD` + `fence` (#599, the
+  inbound injection guard; `GoldenDocArchiverInjectionResistanceTest` proves an embedded "ignore
+  instructions" line can't hijack the extract) → **resolve the shared vs personal `household_id`** via the
   shared `SharingResolver` + `DocsSharingPolicy` (a warranty/contract is a household asset → the family's
   shared household; a receipt/note/ID stays private; degrades to personal with no family household or on a
   profile hiccup) → archive via `mcp-docs` `POST /internal/documents` under that household, storing the
