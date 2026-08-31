@@ -8,9 +8,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   flows (researcher web + 5 web synthesis + docs OCR) frame retrieved text as data via
   `agent-runtime` `UntrustedContent.GUARD`(+`fence`); enforced by `check-consistency.sh` check 7; two
   model-proven injection goldens. Detail → [HISTORY.md](HISTORY.md) + [architecture.md](architecture.md)
-  §Security. **Open sibling findings from the same 2026-08-31 architecture-checkup** (see `## Next`):
-  [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔`.env.mac.example` drift,
-  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root `AGENTS.md`.
+  §Security. **Sibling findings from the same 2026-08-31 architecture-checkup — both ✅ closed
+  (2026-08-31):** [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔`.env.mac.example`
+  drift (reconciled with cross-references — interim tags vs MoE deploy targets, hardware-gated) +
+  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root `AGENTS.md` (thin pointer to `CLAUDE.md`).
+  **The architecture-checkup is fully resolved.** Detail → [HISTORY.md](HISTORY.md).
 - **arch §#477 real agent-led multi-domain coordination — ✅ COMPLETE (2026-08-28), #477 closed (Track I,
   [stage4.md](stage4.md) §Track I).** The coordinator substrate (#290) was built but the cross-domain path was
   thin (only finance + calendar exposed `brief`). Both slices shipped: **I1** tasks-agent as the 3rd `brief`

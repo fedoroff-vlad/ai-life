@@ -19,6 +19,11 @@ params per token, so it delivers ~dense-32B quality at small-model speed and mem
 Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedding`); STT is separate
 (inside `mcp-media-processing`); the coder is a separate tenant (the `coding-agent` repo).
 
+> These are the **deploy targets**, adopted at the Mac cutover. Until then
+> [`infra/.env.mac.example`](../infra/.env.mac.example) deliberately runs the **interim validated tags**
+> (qwen3:32b / qwen3:8b / minicpm-v / nomic-embed-text 768-dim) — swapping to the picks below is
+> hardware-gated (and the embedding change needs a reindex + an `embed-1024` migration). See #600.
+
 | Channel | Pick | ~Q4 size | Why |
 |---|---|---|---|
 | **default** (reasoning / agentic / synthesis) | **Qwen3.5-35B-A3B** (MoE, 35B/~3.3B act) | ~19.5 GB | dense-32B quality at ~3B active → **2–3× faster** than a dense 27–32B at the same footprint; Apache-2.0; strong RU. Thinking-toggle → run with `LLM_SUPPRESS_THINKING` for strict-JSON skills. |
