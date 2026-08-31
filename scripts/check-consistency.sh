@@ -168,11 +168,10 @@ fi
 # removed. A listed file that HAS GUARD is a stale entry and also fails — so the list can only shrink.
 echo "check 7: untrusted-ingestion flows include UntrustedContent.GUARD (injection doctrine, #599)"
 INGEST_MARKERS='WebSearchClient|PageFetchClient'
-GUARD_ALLOWLIST="domains/briefing/briefing-agent/src/main/java/dev/fedorov/ailife/agents/briefing/flow/BriefingComposer.java
-domains/nutrition/chef-agent/src/main/java/dev/fedorov/ailife/agents/chef/flow/RecipeFinder.java
-domains/nutrition/nutritionist-agent/src/main/java/dev/fedorov/ailife/agents/nutritionist/flow/MealPlanner.java
-domains/stylist/stylist-agent/src/main/java/dev/fedorov/ailife/agents/stylist/flow/StylistAdvisor.java
-domains/travel/travel-agent/src/main/java/dev/fedorov/ailife/agents/travel/flow/TripComposer.java"
+# Empty — all web-ingestion flows now carry GUARD (researcher + the 5 migrated in #599). Add a path
+# here (with a why) only for a flow that provably never feeds retrieved text to the LLM; a flow that
+# DOES must gain GUARD, not an allowlist entry.
+GUARD_ALLOWLIST=""
 for f in $(grep -rlE '\.coordinate\(' domains/*/*-agent/src/main --include=*.java 2>/dev/null || true); do
   grep -qE "$INGEST_MARKERS" "$f" || continue
   has_guard=no; grep -q 'UntrustedContent.GUARD' "$f" && has_guard=yes

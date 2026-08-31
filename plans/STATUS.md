@@ -11,9 +11,10 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   shared `UntrustedContent.GUARD`+`fence` in `libs/agent-runtime`, wired into the researcher synthesis, proved
   by `GoldenResearchInjectionResistanceTest` (passes on real qwen3:8b), + an `ingestion-source` coupling.
   **Slice 2 (lint):** `check-consistency.sh` **check 7** fails CI when a `*-agent` flow calls `coordinate()` and
-  ingests web content (`WebSearchClient`/`PageFetchClient`) but omits `GUARD` — a shrinking `GUARD_ALLOWLIST`
-  tracks the 5 not-yet-migrated flows. **Follow-ups (in #599):** migrate those 5 (briefing/chef/nutritionist/
-  stylist/travel) + the docs-agent OCR path (join `INGEST_MARKERS`). Sibling findings:
+  ingests web content (`WebSearchClient`/`PageFetchClient`) but omits `GUARD`. **Slice 3 (batch migration):**
+  all 5 web-ingestion flows (briefing/chef/nutritionist/stylist/travel) now prepend `GUARD` — `GUARD_ALLOWLIST`
+  is empty; the golden proves the mechanism once (researcher), reused flows need `GUARD` not a new golden.
+  **Only follow-up left (in #599):** the docs-agent OCR path (add its OCR client to `INGEST_MARKERS`). Sibling findings:
   [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔env drift,
   [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root AGENTS.md.
 - **arch §#477 real agent-led multi-domain coordination — ✅ COMPLETE (2026-08-28), #477 closed (Track I,

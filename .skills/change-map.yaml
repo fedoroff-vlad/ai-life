@@ -96,18 +96,20 @@ couplings:
     ssot: libs/agent-runtime/src/main/java/dev/fedorov/ailife/agentruntime/coordinate/UntrustedContent.java
     must_update:
       - the flow's prompt assembly            # include UntrustedContent.GUARD as a system prompt (fence values spliced into free text)
-      - a Golden…InjectionResistanceTest       # prove a payload in the retrieved content is not obeyed
+      - a Golden…InjectionResistanceTest       # ONLY for a new ingestion *mechanism* — see notes
       - plans/architecture.md                  # §Security ingestion checklist (provenance · framed-as-data · outbound-behind-confirm · third-party-MCP-reviewed)
     notes: >
       The inbound half of the untrusted-input doctrine (architecture.md §Security). To an LLM,
       retrieved text is indistinguishable from instructions; the outbound confirm-gate only stops
-      the *act*, so every new ingestion surface must also frame its content as DATA at the prompt
-      (UntrustedContent.GUARD) and ship an injection golden. Canonical example: researcher
-      (Researcher.synthesize + GoldenResearchInjectionResistanceTest). Mechanized (web half):
-      scripts/check-consistency.sh check 7 fails CI when a *-agent flow calls coordinate() and ingests
-      web content (WebSearchClient/PageFetchClient) but omits UntrustedContent.GUARD — a shrinking
-      GUARD_ALLOWLIST tracks the not-yet-migrated flows (#599). OCR clients join INGEST_MARKERS when
-      the docs path migrates.
+      the *act*, so every ingestion surface must frame its content as DATA at the prompt
+      (UntrustedContent.GUARD). **Golden scope:** the injection golden proves the *mechanism*
+      (GUARD + Coordinator), so it is written ONCE per mechanism — GoldenResearchInjectionResistanceTest
+      covers the GUARD+Coordinator path that every web/OCR/feed synthesis flow reuses; a flow that reuses
+      it needs GUARD but not a new golden. A genuinely *new* mechanism (a different transport, or content
+      spliced into free text rather than the labeled JSON corpus) does need its own golden. Mechanized
+      (web half): scripts/check-consistency.sh check 7 fails CI when a *-agent flow calls coordinate() and
+      ingests web content (WebSearchClient/PageFetchClient) but omits UntrustedContent.GUARD. All web flows
+      migrated (#599); GUARD_ALLOWLIST is empty. OCR clients join INGEST_MARKERS when the docs path migrates.
 
   - id: skills-pointer
     trigger: Changed the reusable-skills wiring

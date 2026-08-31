@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.node.StringNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.coordinate.UntrustedContent;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.transparency.DegradedNotice;
 import dev.fedorov.ailife.agentruntime.http.OrchestratorInvokeClient;
@@ -243,7 +244,8 @@ public class TripComposer {
         payload.set("profile", profileNode(profile));
 
         return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
+                        // Destination/season material comes from web search (untrusted) — frame the corpus as data (#599).
+                        List.of(UntrustedContent.GUARD, manifest.body(), skillBody()),
                         payload,
                         gather,
                         LlmChannel.DEFAULT)

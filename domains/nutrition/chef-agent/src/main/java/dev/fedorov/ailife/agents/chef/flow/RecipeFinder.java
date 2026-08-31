@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import dev.fedorov.ailife.agentruntime.coordinate.Coordinator;
+import dev.fedorov.ailife.agentruntime.coordinate.UntrustedContent;
 import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
@@ -128,7 +129,8 @@ public class RecipeFinder {
         payload.put("request", request);
 
         return coordinator.coordinate(
-                        List.of(manifest.body(), skillBody()),
+                        // Recipes are fetched from the web (untrusted) — frame the corpus as data (#599).
+                        List.of(UntrustedContent.GUARD, manifest.body(), skillBody()),
                         payload,
                         gather,
                         LlmChannel.DEFAULT)
