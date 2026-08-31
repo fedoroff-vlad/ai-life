@@ -4,19 +4,13 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
-- **hardening §#599 injection guard (inbound half of the untrusted-input doctrine) — 🔶 slices 1–2 shipped;
-  rollout follow-ups open.** From the 2026-08-31 architecture-checkup: the doctrine
-  ([architecture.md](architecture.md) §Security) was documented + the outbound confirm-gate real, but the
-  **inbound** half (framing retrieved text as data) was unenforced in code and untested. **Slice 1 (PR#602):**
-  shared `UntrustedContent.GUARD`+`fence` in `libs/agent-runtime`, wired into the researcher synthesis, proved
-  by `GoldenResearchInjectionResistanceTest` (passes on real qwen3:8b), + an `ingestion-source` coupling.
-  **Slice 2 (lint):** `check-consistency.sh` **check 7** fails CI when a `*-agent` flow calls `coordinate()` and
-  ingests web content (`WebSearchClient`/`PageFetchClient`) but omits `GUARD`. **Slice 3 (batch migration):**
-  all 5 web-ingestion flows (briefing/chef/nutritionist/stylist/travel) now prepend `GUARD` — `GUARD_ALLOWLIST`
-  is empty; the golden proves the mechanism once (researcher), reused flows need `GUARD` not a new golden.
-  **Only follow-up left (in #599):** the docs-agent OCR path (add its OCR client to `INGEST_MARKERS`). Sibling findings:
-  [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔env drift,
-  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root AGENTS.md.
+- **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion
+  flows (researcher web + 5 web synthesis + docs OCR) frame retrieved text as data via
+  `agent-runtime` `UntrustedContent.GUARD`(+`fence`); enforced by `check-consistency.sh` check 7; two
+  model-proven injection goldens. Detail → [HISTORY.md](HISTORY.md) + [architecture.md](architecture.md)
+  §Security. **Open sibling findings from the same 2026-08-31 architecture-checkup** (see `## Next`):
+  [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔`.env.mac.example` drift,
+  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root `AGENTS.md`.
 - **arch §#477 real agent-led multi-domain coordination — ✅ COMPLETE (2026-08-28), #477 closed (Track I,
   [stage4.md](stage4.md) §Track I).** The coordinator substrate (#290) was built but the cross-domain path was
   thin (only finance + calendar exposed `brief`). Both slices shipped: **I1** tasks-agent as the 3rd `brief`
