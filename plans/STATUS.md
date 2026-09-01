@@ -4,6 +4,19 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+## Now
+- **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — 🚧 IN FLIGHT (docs-opener V-0 done 2026-09-01).**
+  Any video source (YouTube/Instagram/Threads/TikTok **link** or an uploaded **file**) → text/understanding.
+  Design LOCKED in [research.md](research.md) §Video understanding + [media.md](media.md) MP-e: a new
+  acquisition capability **`mcp-media-fetch`** (yt-dlp sidecar, `fetch_media(url)→mediaId`; kept
+  **separate** from the zero-dependency `mcp-web` — owner 2026-09-01, reversing roadmap's "mcp-web
+  extension" steer) + **reuse** `mcp-media-processing` `transcribe` (STT) with a **new `frames`
+  (ffmpeg keyframes)** visual channel for speechless video (ASMR/landscape), synthesised by a
+  researcher multimodal flow (**STT-first → visual fallback**, cheap-first). Injection-guarded (#599).
+  **Next slice = V-a** (`mcp-media-fetch` scaffold + `fetch_media` on the stub engine, no yt-dlp yet).
+  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+
+## Done (awaiting move to HISTORY at next closer)
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion
   flows (researcher web + 5 web synthesis + docs OCR) frame retrieved text as data via
   `agent-runtime` `UntrustedContent.GUARD`(+`fence`); enforced by `check-consistency.sh` check 7; two
@@ -123,7 +136,8 @@ _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migr
 
 ## Backlog (all mirrored as Issues — not near-term)
 Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
-Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293, mcp-web video transcripts #294.
+Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293 (GPU-gated, parked). (**#294 video
+understanding is now IN FLIGHT — see `## Now`.**)
 **Lists capability** (owner idea, 2026-08-14) — **COMPLETE** (LI-a + LI-b + LI-c), see [lists.md](lists.md):
 grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
 **notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list

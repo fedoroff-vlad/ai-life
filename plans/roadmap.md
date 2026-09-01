@@ -88,7 +88,7 @@ as its own service and bind a thin capability-MCP. Language of the upstream proj
 
 | Tool | Verdict | Fit | Note |
 |---|---|---|---|
-| [Agent-Reach](https://github.com/Panniantong/Agent-Reach) | 🟢 strong (35.5k★, MIT, active) | researcher **extension** | Python CLI "capability layer" w/ fallbacks: YouTube/Twitter/Reddit/Bilibili/**RSS** + **video transcripts**. Closes the deferred video/social slice. But CLI-oriented, pulls external svcs (Jina/Exa) + cookie auth. Take its *tools* (yt-dlp, RSS) as a follow-up `mcp-web` extension — don't replace the clean self-hosted SearXNG core. |
+| [Agent-Reach](https://github.com/Panniantong/Agent-Reach) | 🟢 strong (35.5k★, MIT, active) | researcher **extension** | Python CLI "capability layer" w/ fallbacks: YouTube/Twitter/Reddit/Bilibili/**RSS** + **video transcripts**. Closes the deferred video/social slice. But CLI-oriented, pulls external svcs (Jina/Exa) + cookie auth. Take its *tools* (yt-dlp, RSS) as a follow-up — **NOT** an `mcp-web` extension (this note's original steer): a downloader is a Python+ffmpeg binary that would bloat the zero-dependency SearXNG toolbox, so acquisition lands as the **separate `mcp-media-fetch` capability-MCP** ([research.md](research.md) §Video understanding, [#294](https://github.com/fedoroff-vlad/ai-life/issues/294)). Don't replace the clean self-hosted SearXNG core. |
 | [Whisper](https://github.com/openai/whisper) | 🟢 adopt | MP-d2 (STT) | Already planned. Use faster-whisper/whisper.cpp for speed; run as a service behind `mcp-media-processing`'s `transcribe`. |
 | [CatVTON](https://github.com/Zheng-Chong/CatVTON) | 🟢 good | stylist (virtual try-on) | Python/diffusers, ICLR 2025, <8GB VRAM, self-host (Gradio/ComfyUI). **License CC-BY-NC-SA (non-commercial)** — fine for family. ⚠️ CUDA → on Apple-Silicon Mac Studio runs via MPS, not turnkey. |
 | [Fooocus](https://github.com/lllyasviel/Fooocus) | 🟢 good | stylist (image-gen) — **engine candidate for `mcp-image-gen` `local`** | SDXL gen by the ControlNet author, free/local. Needs API mode / ComfyUI for programmatic calls (Fooocus itself is a UI). Same Apple-Silicon GPU caveat. The `mcp-image-gen` `LocalImageEngine` seam (ST-l) is where it plugs in. |
@@ -99,7 +99,8 @@ as its own service and bind a thin capability-MCP. Language of the upstream proj
 **Live-verified (2026-06-20):** `docker compose up searxng mcp-web` → real SearXNG returns live hits
 (incl. YouTube links) and `fetch_url` extracts real article text; the full researcher chain runs to
 a (mock-LLM) synthesis. **Finding:** JS-rendered pages (YouTube) yield only boilerplate via jsoup —
-confirms the **video-transcript follow-up** (yt-dlp / Agent-Reach) is genuinely needed for video content.
+confirms the **video-transcript follow-up** (yt-dlp / Agent-Reach) is genuinely needed for video content
+— now scoped as multimodal video understanding on `mcp-media-fetch` ([research.md](research.md) §Video understanding).
 
 ## Risks
 - Spring AI MCP young — may need own client; keep behind interface in libs/mcp-client.

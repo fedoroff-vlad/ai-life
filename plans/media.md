@@ -118,7 +118,24 @@ JNI-mature; whisper's isn't.
   host 9100); mcp-media-processing depends on it `service_started` (not healthy — ocr/caption mustn't
   block on whisper's first-boot model pull) + env `MCP_MEDIA_PROCESSING_STT_ENGINE`/`WHISPER_ASR_URL`.
 
+## PR-sized slices (cont.)
+- **MP-e — `frames(mediaId, n)` video keyframe extraction (ffmpeg).** The consumer this tool was
+  waiting for has arrived — the researcher's **video-understanding** flow ([research.md](research.md)
+  §Video understanding, [#294](https://github.com/fedoroff-vlad/ai-life/issues/294)) needs a visual
+  channel for speechless video (ASMR / landscape) where `transcribe` returns empty. `frames(mediaId,
+  n)` fetches the video bytes from media-service → extracts `n` evenly-spaced keyframes via **ffmpeg**
+  → stores each as a media-service image → returns `FramesResult(frameMediaIds)`; the caller then runs
+  the existing `caption` (MP-d1) per frame. Slice like MP-a/b: **stub → real** behind a
+  `FrameExtractor` seam (`StubFrameExtractor` returns deterministic placeholder ids, native-free CI;
+  `FfmpegFrameExtractor` = `@ConditionalOnProperty mediaprocessing.frame-extractor=ffmpeg`,
+  matchIfMissing). `/internal/frames` passthrough (the deterministic path researcher calls). ffmpeg is
+  installed in the module's Docker image (same in-image posture as Tess4J's tesseract; ffmpeg is a
+  small mature native tool, unlike whisper's model). New contract `media/FramesResult`. Test =
+  MockWebServer for media-service + stub extractor.
+
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.
 - New domain agents that consume the capability (docs / stylist / health) — **Stage 6+**.
-- Video-frames extraction (`ffmpeg`) — a later tool once a consumer needs it.
+- **Media acquisition** (downloading a platform link / a raw video into media-service) — a *separate*
+  capability by doctrine (this MCP takes ids, never fetches external URLs); it lives in
+  **`mcp-media-fetch`** ([research.md](research.md) §Video understanding).
