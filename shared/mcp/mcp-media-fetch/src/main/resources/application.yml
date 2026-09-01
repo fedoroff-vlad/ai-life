@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: mcp-media-fetch
+
+  ai:
+    mcp:
+      server:
+        name: ai-life-media-fetch
+        version: 0.0.1
+        type: ASYNC
+        instructions: >
+          Media-acquisition capability. transcribe_video: pull a video's spoken text
+          from its subtitles/captions (yt-dlp) — the cheap way to read video content.
+          Raw retrieval — the caller's agent synthesizes the answer.
+
+server:
+  port: ${MCP_MEDIA_FETCH_PORT:8126}
+
+media-fetch:
+  # transcribe_video (yt-dlp) tuning. Engine: yt-dlp (real, binary in image) | stub.
+  transcript-engine: ${MCP_MEDIA_FETCH_TRANSCRIPT_ENGINE:yt-dlp}
+  transcript-langs: ${MCP_MEDIA_FETCH_TRANSCRIPT_LANGS:en.*,ru.*}
+  transcript-timeout-sec: ${MCP_MEDIA_FETCH_TRANSCRIPT_TIMEOUT_SEC:60}
+  transcript-max-chars: ${MCP_MEDIA_FETCH_TRANSCRIPT_MAX_CHARS:12000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    root: INFO
+    dev.fedorov.ailife: DEBUG

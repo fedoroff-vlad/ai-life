@@ -1,7 +1,7 @@
-package dev.fedorov.ailife.mcp.web.engine;
+package dev.fedorov.ailife.mcp.mediafetch.engine;
 
-import dev.fedorov.ailife.contracts.web.VideoTranscript;
-import dev.fedorov.ailife.mcp.web.config.McpWebProperties;
+import dev.fedorov.ailife.contracts.mediafetch.VideoTranscript;
+import dev.fedorov.ailife.mcp.mediafetch.config.McpMediaFetchProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,7 +21,7 @@ import java.util.stream.Stream;
  * Default {@link VideoTranscriptEngine}: shells out to <b>yt-dlp</b> (the standalone binary bundled
  * in the image — the same tool Agent-Reach uses) to download a video's subtitles / auto-captions as
  * WebVTT, then turns them into plain text with {@link SubtitleParser}. No download of the video
- * itself ({@code --skip-download}). Selected by {@code mcp-web.transcript-engine=yt-dlp} (default).
+ * itself ({@code --skip-download}). Selected by {@code media-fetch.transcript-engine=yt-dlp} (default).
  *
  * <p>Blocking ({@code ProcessBuilder} + a bounded {@code waitFor}) — callers invoke it on a blocking
  * scheduler. Best-effort: a video without subtitles, a yt-dlp error, or a timeout all yield empty
@@ -29,14 +29,14 @@ import java.util.stream.Stream;
  * {@code mcp-media-processing}'s native-in-image OCR engine.
  */
 @Component
-@ConditionalOnProperty(name = "mcp-web.transcript-engine", havingValue = "yt-dlp", matchIfMissing = true)
+@ConditionalOnProperty(name = "media-fetch.transcript-engine", havingValue = "yt-dlp", matchIfMissing = true)
 public class YtDlpTranscriptEngine implements VideoTranscriptEngine {
 
     private static final Logger log = LoggerFactory.getLogger(YtDlpTranscriptEngine.class);
 
-    private final McpWebProperties props;
+    private final McpMediaFetchProperties props;
 
-    public YtDlpTranscriptEngine(McpWebProperties props) {
+    public YtDlpTranscriptEngine(McpMediaFetchProperties props) {
         this.props = props;
     }
 

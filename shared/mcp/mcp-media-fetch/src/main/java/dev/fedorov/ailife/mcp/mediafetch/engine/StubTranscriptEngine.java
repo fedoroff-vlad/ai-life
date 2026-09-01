@@ -1,6 +1,6 @@
-package dev.fedorov.ailife.mcp.web.engine;
+package dev.fedorov.ailife.mcp.mediafetch.engine;
 
-import dev.fedorov.ailife.contracts.web.VideoTranscript;
+import dev.fedorov.ailife.contracts.mediafetch.VideoTranscript;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Native-free transcript engine: returns a deterministic marker so the tool/passthrough wiring is
- * provable without yt-dlp or a network. Selected only by {@code mcp-web.transcript-engine=stub}
+ * provable without yt-dlp or a network. Selected only by {@code media-fetch.transcript-engine=stub}
  * (the wiring test, degraded boxes). Mirrors {@code mcp-media-processing}'s {@code StubOcrEngine}.
  */
 @Component
-@ConditionalOnProperty(name = "mcp-web.transcript-engine", havingValue = "stub")
+@ConditionalOnProperty(name = "media-fetch.transcript-engine", havingValue = "stub")
 public class StubTranscriptEngine implements VideoTranscriptEngine {
 
     private static final Logger log = LoggerFactory.getLogger(StubTranscriptEngine.class);

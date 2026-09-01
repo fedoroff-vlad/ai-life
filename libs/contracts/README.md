@@ -19,7 +19,8 @@ boundaries, the DTO goes here.
 | `nutrition` | `MealLogDto`/`LogMealInput`, `DietProfileDto`/`SetDietProfileInput`, `BasketDto`/`BasketItem`/`SaveBasketInput`. |
 | `basket` | `BasketCapturedEvent` — the grocery-receipt fan-out bus event (finance → nutrition). |
 | `media` | mcp-media-processing: `MediaObjectDto`, `OcrResult`, `CaptionInput`/`CaptionResult`, `TranscriptResult`. |
-| `web` | mcp-web: `WebSearchInput`/`WebSearchHit`/`WebSearchResult`, `FetchUrlInput`/`PageContent`, `TranscribeInput`/`VideoTranscript`. |
+| `web` | mcp-web: `WebSearchInput`/`WebSearchHit`/`WebSearchResult`, `FetchUrlInput`/`PageContent`. |
+| `mediafetch` | mcp-media-fetch: `TranscribeInput`/`VideoTranscript` (video acquisition; moved from `web`). |
 | `market` | mcp-market-data: `QuoteInput`/`Quote`. |
 | `imagegen` | mcp-image-gen: `ImageGenInput`/`ImageGenResult`. |
 | `memory` | memory-service: `WriteMemoryRequest`/`MemoryDto`, `RecallMemoryRequest`/`RecallMemoryHit`, `CaptureRequest`, relations (`WriteRelationRequest`/`RelationDto`/`PersonRelationsResponse`). |

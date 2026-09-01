@@ -84,6 +84,7 @@
         <module>domains/assistant/coordinator-agent</module>
         <module>shared/mcp/mcp-media-processing</module>
         <module>shared/mcp/mcp-web</module>
+        <module>shared/mcp/mcp-media-fetch</module>
         <module>shared/mcp/mcp-market-data</module>
         <module>shared/mcp/mcp-food-data</module>
         <module>shared/mcp/mcp-youtube</module>

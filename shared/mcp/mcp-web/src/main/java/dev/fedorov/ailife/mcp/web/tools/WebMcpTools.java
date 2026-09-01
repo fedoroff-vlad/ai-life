@@ -1,13 +1,11 @@
 package dev.fedorov.ailife.mcp.web.tools;
 
 import dev.fedorov.ailife.contracts.web.PageContent;
-import dev.fedorov.ailife.contracts.web.VideoTranscript;
 import dev.fedorov.ailife.contracts.web.WebSearchHit;
 import dev.fedorov.ailife.contracts.web.WebSearchResult;
 import dev.fedorov.ailife.mcp.web.config.McpWebProperties;
 import dev.fedorov.ailife.mcp.web.engine.PageFetcher;
 import dev.fedorov.ailife.mcp.web.engine.SearchEngine;
-import dev.fedorov.ailife.mcp.web.engine.VideoTranscriptEngine;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
@@ -25,14 +23,11 @@ public class WebMcpTools {
 
     private final SearchEngine engine;
     private final PageFetcher fetcher;
-    private final VideoTranscriptEngine transcriber;
     private final McpWebProperties props;
 
-    public WebMcpTools(SearchEngine engine, PageFetcher fetcher,
-                       VideoTranscriptEngine transcriber, McpWebProperties props) {
+    public WebMcpTools(SearchEngine engine, PageFetcher fetcher, McpWebProperties props) {
         this.engine = engine;
         this.fetcher = fetcher;
-        this.transcriber = transcriber;
         this.props = props;
     }
 
@@ -64,20 +59,6 @@ public class WebMcpTools {
             return new PageContent(url, null, "", false);
         }
         return fetcher.fetch(url);
-    }
-
-    @Tool(description = """
-            Get the transcript (spoken text) of a video by URL — YouTube and other sites yt-dlp
-            supports. Use this instead of 'fetch_url' for video links: a video page returns almost no
-            readable text, but its subtitles/captions are the actual content. Returns empty text when
-            the video has no transcript. The text may be truncated for very long videos. You do the
-            summarising — this returns the raw transcript only.
-            """)
-    public VideoTranscript transcribe_video(String url, String lang) {
-        if (url == null || url.isBlank()) {
-            return new VideoTranscript(url, null, "", null, false);
-        }
-        return transcriber.transcribe(url, lang);
     }
 
     private int resolveLimit(Integer limit) {
