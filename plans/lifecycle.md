@@ -21,9 +21,9 @@ Unified memory is shared CPU+GPU; macOS caps GPU working set at ~75% of RAM → 
 - Model plan (never two 32B resident): normal = ai-life **32B**; coder active = ai-life **14B** + coder
   **32B-code** ≈ 33 GB of models, comfortably under the 48 GB GPU ceiling.
 - Peak (coder on) ≈ OS 5 + hot JVM 6 + backing 4 + models 33 ≈ **~50 GB** → fits 64 GB with ~14 GB spare.
-- **64 GB is sufficient for this exact design**; 128 GB is only needed to hold two 32B resident (no
-  downshift) or run 70B-class models. Because 64 GB has modest margin, the supervisor + clean model swap
-  are **load-bearing** — they must be robust.
+- **64 GB is sufficient for this exact design** and is the **fixed target** (bought, arriving — no larger
+  config planned). Because 64 GB has modest margin, the supervisor + clean model swap are **load-bearing**
+  — they must be robust.
 
 ## Two independent mechanisms (different owners, different cadence)
 

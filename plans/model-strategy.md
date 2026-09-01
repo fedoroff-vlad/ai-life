@@ -11,9 +11,10 @@
 
 ## The box (constraint)
 Mac Studio M4 Max, 64 GB unified → **~48 GB GPU model ceiling**, shared with the JVMs + backing +
-(occasionally) the coder tenant. 70B-class does not fit; 128 GB would be needed to hold two dense-32B
-resident. The stack is therefore **MoE-first**: a Mixture-of-Experts model activates only ~3B of its
-params per token, so it delivers ~dense-32B quality at small-model speed and memory on Apple Silicon.
+(occasionally) the coder tenant. **The box is fixed at 64 GB** (bought, arriving — no larger config
+planned). 70B-class does not fit, and two dense-32B can't be co-resident in this budget. The stack is
+therefore **MoE-first**: a Mixture-of-Experts model activates only ~3B of its params per token, so it
+delivers ~dense-32B quality at small-model speed and memory on Apple Silicon.
 
 ## Per-channel picks
 Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedding`); STT is separate
@@ -51,6 +52,22 @@ mandatory. **Do not retire it on paper:** measure two-tenant residency live at d
 a safety valve until proven. This is the real "freed resources" — architectural (MoE), not from collapsing
 JVM services (the hot set is only ~6 GB).
 
+## Image generation — a separate model, not the LLM
+Image **generation** (creating pictures — e.g. the stylist's outfit visualisations) is **not** something the
+default LLM does. Qwen3.6 and Gemma 4 are multimodal for **understanding** (image/video *in*), not generation
+(image *out*) — a common mix-up (so "Gemma 4 can generate" is wrong; it reads images, doesn't draw them).
+Generating an image needs a **dedicated diffusion/image model**, which the architecture already isolates
+behind the `mcp-image-gen` capability-MCP (real engine + stylist binding tracked by
+[#293](https://github.com/fedoroff-vlad/ai-life/issues/293), GPU-gated). It is a **cold, on-demand**
+capability (stylist is a cold agent), so it loads only on a request and never sits in the resident 64 GB
+budget — no change to the LLM channel math above.
+- **Engine pick (local, M4 Max, MLX/MPS):** **Qwen-Image / Qwen-Image-Edit** — same lab as the default LLM,
+  local leader on text-in-image, permissive licence; **FLUX.2 [klein]** — strongest aesthetics, permissive;
+  **SANA** — tiny/fast for quick iteration. All run via Diffusers-MPS / ComfyUI / native Metal (e.g. mlx-gen).
+- **Stylist try-on caveat:** accurate *garment* virtual try-on is a specialised, harder task with limited
+  local open-weight options today. The stylist MVP starts with **general outfit visualisation** (Qwen-Image/
+  FLUX from a text/reference prompt); true try-on is a later slice — matches #293 being deferred.
+
 ## Plan B / watch list
 Consolidation options (default + vision in one model, dropping a resident model):
 - **Qwen3.6-35B-A3B itself is natively multimodal** — the default could also serve vision, dropping the
@@ -61,22 +78,19 @@ Consolidation options (default + vision in one model, dropping a resident model)
 - **Gemma 3 27B** (dense, multimodal) — conservative consolidation; dense 27B is slow on Apple Silicon,
   same downside as the rejected dense-27B class below.
 
-Watch-list triggers (revisit the default only when one fires):
+Watch-list trigger (revisit the default only when it fires):
 - **A Qwen 3.8 / Qwen4 model in the A3B-MoE ~30–35B format** — the only reason to jump off 3.6. Today's
   3.8 has no fitting fast variant: `3.8-Max`/`2.4T-A95B` don't fit, `3.8-27B` is **dense** (slow, below).
   `Qwen3.8-Flash-Next` (MoE, "Qwen4 preview") is the one to watch.
-- **A 128 GB Mac instead of 64 GB** — changes the whole slot: unlocks **GLM 5.2 Air** (~106B MoE, MIT,
-  ~30 tok/s) and **DeepSeek V4 Flash** (284B-A13B, MIT, strong RU reasoning) — both need 96–128 GB and are
-  out of reach on 64 GB. Re-run this whole file if the box grows.
 
-Rejected for the 64 GB interactive default (recorded so we don't re-litigate at deploy):
+Rejected for the 64 GB box (recorded so we don't re-litigate at deploy — the box is **fixed at 64 GB**):
 - **Dense ~27–30B (Qwen3.8-27B, Meta Muse Glimmer 30B)** — all params active per token → **~5–15 tok/s on
   M4/M4 Max**, vs ~50–130 tok/s for MoE-A3B. Newer-gen quality doesn't buy back a ~5–10× throughput loss on
   a 24/7 interactive assistant. (Muse Glimmer also benches mediocre, ~#119/228, and Meta is weak in RU.)
-- **DeepSeek V4 Flash** — 2-bit floor ~81 GB, practical 96–128 GB; on 64 GB it streams experts from disk
-  and crawls. Great model, wrong box (see 128 GB trigger).
-- **GLM 5.2 Air (~106B)** — ~55–60 GB Q4 eats almost the whole 64 GB, leaving no room for the ~6 GB hot-set
-  JVMs + backing + coder tenant. (See 128 GB trigger.)
+- **DeepSeek V4 Flash** (284B-A13B, MIT) — needs ~90 GB+ (2-bit floor ~81 GB); on 64 GB it streams experts
+  from disk and crawls. Great model, wrong box.
+- **GLM 5.2 Air (~106B, MIT)** — ~55–60 GB Q4 eats almost the whole 64 GB, leaving no room for the ~6 GB
+  hot-set JVMs + backing + coder tenant.
 - **Kimi K2.6** — top of the leaderboard but needs 8× H100; not a local model.
 
 ## Rollout (config swap, low-risk)
@@ -101,4 +115,4 @@ Qwen3.5/3.6/3.8 lineup + MLX sizing; MLX vs llama.cpp/Ollama on Apple Silicon; o
 Gemma / GLM); embedding leaderboards (Qwen3-Embedding / bge-m3); STT (whisper v3-turbo vs Parakeet).
 2026-09-01 competitive scan (Plan B) covered Qwen3.6/3.8, DeepSeek V4 Flash, GLM 5.2 Air, Meta Muse
 Glimmer 30B, Gemma 4, Kimi K2.6 — confirmed the fits-in-64GB-fast-MoE-with-strong-RU slot is still Qwen's;
-the "much cooler" models (DeepSeek V4, GLM 5.2, Kimi) all need 96–128 GB+. Re-verify tok/s + RU at deploy.
+the "much cooler" models (DeepSeek V4, GLM 5.2, Kimi) all need far more than 64 GB. Re-verify tok/s + RU at deploy.
