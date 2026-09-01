@@ -13,9 +13,11 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   web *retrieval* only + `fetch_audio(url)→mediaId` new) + **reuse** `mcp-media-processing` `transcribe`
   (STT) with a **new `frames` (ffmpeg keyframes)** visual channel for speechless video (ASMR/landscape),
   orchestrated by a **`video` skill on researcher** (three-tier cheap-first: captions → audio-STT →
-  visual; no new agent, per ADR-0006 footprint). Injection-guarded (#599). **Next slice = V-a**
-  (`mcp-media-fetch` scaffold + relocate `transcribe_video` out of `mcp-web`, behaviour-preserving).
-  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+  visual; no new agent, per ADR-0006 footprint). Injection-guarded (#599). **V-a DONE (2026-09-01):**
+  `mcp-media-fetch` capability-MCP scaffolded (port 8126, yt-dlp in image) + `transcribe_video`
+  relocated out of `mcp-web` (behaviour-preserving; contracts `web`→`mediafetch`; mcp-web back to pure
+  `web_search`+`fetch_url`); module suite green (media-fetch 3, web 4). **Next = V-b** (`fetch_audio`
+  tool + media-service client). Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
 
 ## Done (awaiting move to HISTORY at next closer)
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion

@@ -50,8 +50,8 @@ public class Researcher {
     /**
      * Video hosts whose pages return only boilerplate via {@code fetch_url} (JS-rendered) — we skip
      * fetching them and let the search snippet supply the short description + the link. (Reading a
-     * video's actual content is {@code mcp-web}'s {@code transcribe_video} tool, used by a future
-     * "summarise this video" flow, not the default research path.)
+     * video's actual content is {@code mcp-media-fetch}'s {@code transcribe_video} tool, used by the
+     * video-understanding flow (V-c), not the default research path.)
      */
     private static final Set<String> VIDEO_HOSTS = Set.of(
             "youtube.com", "youtu.be", "vimeo.com", "tiktok.com",

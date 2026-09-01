@@ -1,4 +1,4 @@
-package dev.fedorov.ailife.mcp.web.engine;
+package dev.fedorov.ailife.mcp.mediafetch.engine;
 
 import org.junit.jupiter.api.Test;
 

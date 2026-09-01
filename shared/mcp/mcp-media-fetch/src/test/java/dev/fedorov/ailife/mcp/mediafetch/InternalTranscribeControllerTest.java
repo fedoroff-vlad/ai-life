@@ -1,7 +1,7 @@
-package dev.fedorov.ailife.mcp.web;
+package dev.fedorov.ailife.mcp.mediafetch;
 
-import dev.fedorov.ailife.contracts.web.TranscribeInput;
-import dev.fedorov.ailife.contracts.web.VideoTranscript;
+import dev.fedorov.ailife.contracts.mediafetch.TranscribeInput;
+import dev.fedorov.ailife.contracts.mediafetch.VideoTranscript;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
@@ -11,13 +11,13 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V-a: the {@code POST /internal/transcribe} passthrough → {@code transcribe_video} tool →
+ * The {@code POST /internal/transcribe} passthrough → {@code transcribe_video} tool →
  * {@code VideoTranscriptEngine} wiring, proved with the native-free <b>stub</b> engine
  * ({@code transcript-engine=stub}) so no yt-dlp / network is needed. The real yt-dlp path is
  * exercised manually (like the OCR engine's real test).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "mcp-web.transcript-engine=stub")
+        properties = "media-fetch.transcript-engine=stub")
 @AutoConfigureWebTestClient
 class InternalTranscribeControllerTest {
 

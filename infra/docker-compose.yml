@@ -734,6 +734,25 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-media-fetch:
+    profiles: ["cold"]
+    image: ai-life/mcp-media-fetch:local
+    container_name: ai-life-mcp-media-fetch
+    build:
+      context: ..
+      dockerfile: shared/mcp/mcp-media-fetch/Dockerfile
+    restart: unless-stopped
+    # No backing container — yt-dlp (bundled in the image) fetches from public sites over HTTPS.
+    environment:
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      MCP_MEDIA_FETCH_PORT: 8126
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8126/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-market-data:
     profiles: ["cold"]
     image: ai-life/mcp-market-data:local
