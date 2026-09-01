@@ -6,17 +6,26 @@ import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmImage;
 import dev.fedorov.ailife.contracts.llm.LlmMessage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
+import dev.fedorov.ailife.contracts.media.FramesResult;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.media.OcrResult;
 import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.llm.LlmClient;
+import dev.fedorov.ailife.mcp.mediaprocessing.config.McpMediaProcessingProperties;
+import dev.fedorov.ailife.mcp.mediaprocessing.engine.FrameExtractor;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.OcrEngine;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.SttEngine;
 import dev.fedorov.ailife.mcp.mediaprocessing.http.MediaClient;
+import dev.fedorov.ailife.mcp.mediaprocessing.http.MediaStoreClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The shared media-understanding toolbox. {@code ocr} (MP-a/b) reads text off an image
@@ -31,17 +40,26 @@ import java.util.List;
 public class MediaProcessingMcpTools {
 
     private static final String DEFAULT_CAPTION_INSTRUCTION = "Describe this image.";
+    private static final Logger log = LoggerFactory.getLogger(MediaProcessingMcpTools.class);
 
     private final MediaClient media;
+    private final MediaStoreClient mediaStore;
     private final OcrEngine ocr;
     private final SttEngine stt;
+    private final FrameExtractor frames;
     private final LlmClient llm;
+    private final McpMediaProcessingProperties props;
 
-    public MediaProcessingMcpTools(MediaClient media, OcrEngine ocr, SttEngine stt, LlmClient llm) {
+    public MediaProcessingMcpTools(MediaClient media, MediaStoreClient mediaStore, OcrEngine ocr,
+                                   SttEngine stt, FrameExtractor frames, LlmClient llm,
+                                   McpMediaProcessingProperties props) {
         this.media = media;
+        this.mediaStore = mediaStore;
         this.ocr = ocr;
         this.stt = stt;
+        this.frames = frames;
         this.llm = llm;
+        this.props = props;
     }
 
     @Tool(description = """
@@ -100,5 +118,44 @@ public class MediaProcessingMcpTools {
             return new CaptionResult("", null);
         }
         return new CaptionResult(resp.content() == null ? "" : resp.content(), resp.model());
+    }
+
+    @Tool(description = """
+            Extract evenly-spaced keyframes from a stored video by its media-service object id and store
+            each as an image, returning the frames' media ids. Use this as the visual channel for a video
+            with no informative speech (when 'transcribe' returns empty): run 'caption' on each returned
+            frame id to understand what the scene shows. Provide 'n' (how many frames). Returns an empty
+            list when no frame can be produced — the signal the visual tier yielded nothing. The extracted
+            frames are stored under the given householdId/ownerId scope.
+            """)
+    public FramesResult frames(String mediaId, int n, UUID householdId, UUID ownerId) {
+        if (mediaId == null || mediaId.isBlank() || householdId == null) {
+            return FramesResult.empty();
+        }
+        int count = Math.max(1, Math.min(n, props.getFrameMaxCount()));
+        MediaClient.FetchedMedia fetched = media.fetch(mediaId).block();
+        if (fetched == null || fetched.bytes() == null || fetched.bytes().length == 0) {
+            return FramesResult.empty();
+        }
+        List<byte[]> extracted = frames.extract(fetched.bytes(), fetched.mimeType(), count);
+        if (extracted.isEmpty()) {
+            return FramesResult.empty();
+        }
+        List<String> ids = new ArrayList<>(extracted.size());
+        for (int i = 0; i < extracted.size(); i++) {
+            try {
+                MediaObjectDto stored = mediaStore
+                        .upload(householdId, ownerId, "frame-" + i + ".jpg", "image/jpeg", extracted.get(i))
+                        .block();
+                if (stored != null && stored.id() != null) {
+                    ids.add(stored.id().toString());
+                } else {
+                    log.warn("media-service upload returned no id for frame {} of {}", i, mediaId);
+                }
+            } catch (Exception e) {
+                log.warn("frame {} upload failed for {}: {}", i, mediaId, e.toString());
+            }
+        }
+        return ids.isEmpty() ? FramesResult.empty() : new FramesResult(ids);
     }
 }

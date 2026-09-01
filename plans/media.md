@@ -119,19 +119,28 @@ JNI-mature; whisper's isn't.
   block on whisper's first-boot model pull) + env `MCP_MEDIA_PROCESSING_STT_ENGINE`/`WHISPER_ASR_URL`.
 
 ## PR-sized slices (cont.)
-- **MP-e — `frames(mediaId, n)` video keyframe extraction (ffmpeg).** The consumer this tool was
-  waiting for has arrived — the researcher's **video-understanding** flow ([research.md](research.md)
-  §Video understanding, [#294](https://github.com/fedoroff-vlad/ai-life/issues/294)) needs a visual
-  channel for speechless video (ASMR / landscape) where `transcribe` returns empty. `frames(mediaId,
-  n)` fetches the video bytes from media-service → extracts `n` evenly-spaced keyframes via **ffmpeg**
-  → stores each as a media-service image → returns `FramesResult(frameMediaIds)`; the caller then runs
-  the existing `caption` (MP-d1) per frame. Slice like MP-a/b: **stub → real** behind a
-  `FrameExtractor` seam (`StubFrameExtractor` returns deterministic placeholder ids, native-free CI;
-  `FfmpegFrameExtractor` = `@ConditionalOnProperty mediaprocessing.frame-extractor=ffmpeg`,
-  matchIfMissing). `/internal/frames` passthrough (the deterministic path researcher calls). ffmpeg is
-  installed in the module's Docker image (same in-image posture as Tess4J's tesseract; ffmpeg is a
-  small mature native tool, unlike whisper's model). New contract `media/FramesResult`. Test =
-  MockWebServer for media-service + stub extractor.
+- **MP-e — `frames(mediaId, n)` video keyframe extraction (ffmpeg).** ✅ **DONE.** The consumer this
+  tool was waiting for has arrived — the researcher's **video-understanding** flow
+  ([research.md](research.md) §Video understanding, [#294](https://github.com/fedoroff-vlad/ai-life/issues/294))
+  needs a visual channel for speechless video (ASMR / landscape) where `transcribe` returns empty.
+  `frames(mediaId, n, householdId, ownerId?)` fetches the video bytes from media-service → extracts `n`
+  evenly-spaced keyframes via **ffmpeg** → stores each as a media-service image (module-local write-side
+  `MediaStoreClient`, mirror of `mcp-media-fetch`'s) → returns `FramesResult(frameMediaIds)`; the caller
+  then runs the existing `caption` (MP-d1) per frame. **stub → real** behind a `FrameExtractor` seam
+  (`StubFrameExtractor` = deterministic placeholder frames, native-free CI; `FfmpegFrameExtractor` =
+  `@ConditionalOnProperty mediaprocessing.frame-extractor=ffmpeg`, matchIfMissing — ffprobe duration
+  then seek to `duration*i/(n+1)` per frame, per-frame soft-fail). `/internal/frames` passthrough (the
+  deterministic path researcher calls in V-c). ffmpeg (+ffprobe) installed in the module's Docker image
+  (same in-image posture as Tess4J's tesseract; ffmpeg is a small mature native tool, unlike whisper's
+  model). New contracts `media/{FramesInput, FramesResult}`; `n` clamped to `frame-max-count` (20).
+  Test = `MediaProcessingFramesTest` (MockWebServer for media-service GET + N uploads, stub extractor).
+  - **Scenario (extract+store):** WHEN `frames(videoId, 3, household)` is called on a stored video,
+    THEN 3 evenly-spaced keyframes are extracted, each uploaded to media-service, and their ids are
+    returned in temporal order.
+  - **Scenario (no scope):** WHEN `householdId` is missing, THEN it returns an empty result and never
+    fetches or uploads (frames must be storable under a scope).
+  - **Scenario (nothing produced):** WHEN the extractor yields no frame (unreadable bytes / ffmpeg
+    error), THEN it returns an empty `frameMediaIds` — the visual tier's "nothing" signal, not a 500.
 
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.

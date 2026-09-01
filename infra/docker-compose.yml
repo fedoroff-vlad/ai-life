@@ -705,6 +705,7 @@ services:
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_MEDIA_PROCESSING_STT_ENGINE: whisper
       WHISPER_ASR_URL: http://whisper:9000
+      MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR: ffmpeg
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8097/actuator/health"]
       interval: 10s

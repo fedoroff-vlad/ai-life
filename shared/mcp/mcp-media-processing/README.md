@@ -5,13 +5,17 @@ media bytes into text/structure so any agent can reuse it — a receipt→financ
 sick-note→docs, an outfit→stylist. Bound by agents over MCP/SSE; it owns no data and
 never stores blobs (it reads them from media-service by object id). Plan: [media.md](../../../plans/media.md).
 
-**Status (MP-d2b):** `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
+**Status (MP-e):** `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
 default; native-free `StubOcrEngine` via `mediaprocessing.ocr-engine=stub`). `caption`
 asks llm-gateway's **vision** channel about an image with a caller-supplied instruction —
 the centralised vision call (no agent re-embeds it). `transcribe` runs **real STT** via a
 whisper ASR **sidecar over HTTP** (`WhisperSttEngine`, deployed default; native-free
 `StubSttEngine` via `mediaprocessing.stt-engine=stub`) — engine decision LOCKED = sidecar
 service (polyglot-by-design: the model runs in its own container, the JVM image stays slim).
+`frames` extracts **evenly-spaced video keyframes** via in-image **ffmpeg**
+(`FfmpegFrameExtractor`, deployed default; native-free `StubFrameExtractor` via
+`mediaprocessing.frame-extractor=stub`) and stores each as a media-service image — the visual
+channel for speechless video (researcher's video-understanding flow, [#294](https://github.com/fedoroff-vlad/ai-life/issues/294)).
 The `POST /internal/caption` HTTP passthrough (below) is the MockWebServer-testable transport
 callers use deterministically. **`caption` is now bound by** finance (`receipt-parser`, MP-c), the
 stylist (garment / self-photo), and the nutritionist (meal / basket photo) — the centralised vision
@@ -25,6 +29,7 @@ call, reused not re-embedded.
 |------|------|---------|---------|
 | `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). `confidence` is the mean per-word Tesseract confidence (0..1; `0.0` on empty text, `null` when no signal) — docs-agent's RU-4 gate asks for a clearer shot on an unreadable document photo. |
 | `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
+| `frames` | `mediaId`, `n`, `householdId`, `ownerId?` | `FramesResult{frameMediaIds}` | fetch the video bytes, extract `n` evenly-spaced keyframes (ffmpeg), store each as a media-service image under the given scope, return the frames' ids (temporal order). Empty list when none produced. The visual channel for speechless video — run `caption` on each returned id. `n` is clamped to `frame-max-count` (20). |
 | `transcribe` | `mediaId` (media-service object id) | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | fetch the audio/video bytes from media-service, run STT (local engine), return recognised speech (empty when none). `confidence` is a 0..1 recognition confidence (whisper: `exp(mean segment avg_logprob)`; `0.0` on empty text, `null` when the engine reports no signal) — the gateway's RU-3 gate uses it to ask for a repeat on an unintelligible voice note. For voice notes / dictated messages. |
 
 ## HTTP passthrough
@@ -34,6 +39,7 @@ call, reused not re-embedded.
 | POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 | POST | `/internal/ocr` | `OcrInput{mediaId}` | `OcrResult{text, lang?, confidence?}` | non-MCP passthrough to the `ocr` tool (the OCR twin of `/internal/caption`). Same rationale — a caller that deterministically wants OCR text hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by docs-agent's `doc-archiver` (D-c) to turn a document photo into the full text it archives + indexes. |
 | POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it (and to gate an unintelligible one via `confidence`, #489 RU-3). |
+| POST | `/internal/frames` | `FramesInput{mediaId, n, householdId, ownerId?}` | `FramesResult{frameMediaIds}` | non-MCP passthrough to the `frames` tool (the visual twin of `/internal/transcribe`). Same rationale — a caller that deterministically wants keyframes hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by researcher-agent's video-understanding flow (V-c) for the visual tier on speechless video. |
 
 ## Env
 
@@ -45,6 +51,7 @@ call, reused not re-embedded.
 | `MCP_MEDIA_PROCESSING_TESS_LANG` | `rus+eng` | Tesseract languages ('+'-joined). |
 | `MCP_MEDIA_PROCESSING_STT_ENGINE` | `whisper` | `whisper` (real, calls the ASR sidecar) or `stub` (native-free marker). |
 | `WHISPER_ASR_URL` | `http://whisper:9000` | whisper ASR sidecar base URL — `transcribe` POSTs audio to `/asr`. |
+| `MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR` | `ffmpeg` | `ffmpeg` (real, native tool in the image) or `stub` (native-free marker frames). |
 | `TESSDATA_PREFIX` | `/usr/share/tesseract-ocr/5/tessdata` (image) | tessdata dir; blank → resolved by a path probe. |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway base URL for the `caption` vision call (via `libs/llm-client`). |
 
@@ -59,6 +66,8 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
 - `config/HttpConfig` — `mediaWebClient` (media-service) + `whisperWebClient` (ASR sidecar) beans.
 - `http/MediaClient` — `GET /v1/media/{id}` → `FetchedMedia(mimeType, bytes)`. Local copy
   of the per-agent pattern; lift to `libs/media-client` if a third copy appears.
+- `http/MediaStoreClient` — write-side twin (MP-e): `POST /v1/media` (multipart) → `MediaObjectDto`,
+  used by `frames` to store each extracted keyframe. Local like `MediaClient`.
 - `engine/OcrEngine` — pluggable OCR backend interface.
 - `engine/TesseractOcrEngine` — deployed default (MP-b); Tess4J + native tesseract.
   Decodes bytes via `ImageIO`, runs `doOCR`; `tessdata` resolved from
@@ -73,10 +82,19 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   No-speech → empty text; a genuine sidecar failure (5xx/timeout) → `IllegalStateException`.
 - `engine/StubSttEngine` — native-free marker (`[stub-stt] <N> bytes`); selected only by
   `mediaprocessing.stt-engine=stub` (wiring test / degraded boxes).
+- `engine/FrameExtractor` — pluggable video-keyframe backend interface (visual path mirror of
+  `SttEngine`).
+- `engine/FfmpegFrameExtractor` — deployed default (MP-e); shells out to ffmpeg — ffprobe the
+  duration, then seek to `duration*i/(n+1)` per frame and grab one JPEG. Best-effort: a per-frame
+  failure/timeout drops that frame; unprobeable/no frames → empty list (not an error).
+- `engine/StubFrameExtractor` — native-free marker frames (`[stub-frame] <i> …`); selected only
+  by `mediaprocessing.frame-extractor=stub` (wiring test / degraded boxes).
 - `tools/MediaProcessingMcpTools` — `@Tool`s (blocking `.block()`, the MCP `@Tool`
   convention here): `ocr(mediaId)` → `OcrEngine.extract` → `OcrResult`; `caption(mediaId,
   instruction)` → fetch → llm-gateway `vision` channel (`LlmClient`) → `CaptionResult`;
-  `transcribe(mediaId)` → `SttEngine.transcribe` → `TranscriptResult`.
+  `transcribe(mediaId)` → `SttEngine.transcribe` → `TranscriptResult`; `frames(mediaId, n,
+  householdId, ownerId)` → fetch → `FrameExtractor.extract` → upload each via `MediaStoreClient`
+  → `FramesResult`.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider` exposing the `@Tool`s.
 - `web/InternalCaptionController` — `POST /internal/caption` passthrough (MP-c1); delegates to
   the `caption` tool on `Schedulers.boundedElastic()` (the tool blocks). The MockWebServer-testable
@@ -86,3 +104,6 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
 - `web/InternalTranscribeController` — `POST /internal/transcribe` passthrough, the STT twin of the OCR
   one; delegates to the `transcribe` tool on `Schedulers.boundedElastic()`. Called by gateway-telegram's
   voice-input path.
+- `web/InternalFramesController` — `POST /internal/frames` passthrough (MP-e), the visual twin of the
+  transcribe one; delegates to the `frames` tool on `Schedulers.boundedElastic()` (ffmpeg + uploads
+  block). Called by researcher-agent's video-understanding flow (V-c).
