@@ -26,8 +26,8 @@ Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedd
 
 | Channel | Pick | ~Q4 size | Why |
 |---|---|---|---|
-| **default** (reasoning / agentic / synthesis) | **Qwen3.5-35B-A3B** (MoE, 35B/~3.3B act) | ~19.5 GB | dense-32B quality at ~3B active → **2–3× faster** than a dense 27–32B at the same footprint; Apache-2.0; strong RU. Thinking-toggle → run with `LLM_SUPPRESS_THINKING` for strict-JSON skills. |
-| **fast** (routing / classify / JSON) | **Qwen3.5-9B** (non-thinking), or reuse the A3B | ~6 GB | non-thinking is safer for the strict-JSON classifier surface; the A3B is fast enough to **double as fast** and drop a model if we want fewer. |
+| **default** (reasoning / agentic / synthesis) | **Qwen3.6-35B-A3B** (MoE, 35B/~3B act) | ~20 GB | same MoE-A3B slot as 3.5 at the same footprint, one generation newer (Apr 2026): stronger agentic/reasoning **and** ~40% less KV-cache at long context via Gated DeltaNet hybrid attention (a real RAM win on this box); Apache-2.0; strong RU; natively multimodal (can double as vision — see Plan B). Thinking-toggle → run with `LLM_SUPPRESS_THINKING` for strict-JSON skills. Bumped from 3.5-35B-A3B 2026-09-01 (still the deploy target, not yet in the interim env tags). |
+| **fast** (routing / classify / JSON) | **Qwen3.5-9B** (non-thinking), or reuse the A3B | ~6 GB | non-thinking is safer for the strict-JSON classifier surface; the A3B is fast enough to **double as fast** and drop a model if we want fewer. Take the 3.6 small-series equivalent if one ships. |
 | **vision** (receipts / docs / outfits) | **Qwen3-VL 8B** | ~7 GB | best-in-class OCR for receipts/documents; replaces the current `minicpm-v`. |
 | **embedding** (second-brain recall, RU) | **Qwen3-Embedding-0.6B** (or `bge-m3`) | <1 GB | tops MTEB v2, strong Russian. ⚠️ dim change from `nomic-embed-text` (768→1024) → **reindex + a pgvector Liquibase migration**, not free. |
 | **stt** | **whisper large-v3-turbo** | ~6 GB | ~5× large-v3, 99 languages incl. good Russian; runs in `mcp-media-processing`, outside the gateway. |
@@ -52,11 +52,32 @@ a safety valve until proven. This is the real "freed resources" — architectura
 JVM services (the hot set is only ~6 GB).
 
 ## Plan B / watch list
-- **Gemma 4 26B-A4B** (MoE + multimodal) — could serve **default + vision in one model** (and it's
-  non-thinking → JSON-safe), but it's fresh/less-verified. **Re-evaluate when the Mac arrives** — it may be
-  properly benchmarked by then, or a newer model may land.
-- **Gemma 3 27B** (dense, multimodal, non-thinking) — the conservative default+vision consolidation; trades
-  speed (dense 27B is slower) for one fewer model + JSON-safety.
+Consolidation options (default + vision in one model, dropping a resident model):
+- **Qwen3.6-35B-A3B itself is natively multimodal** — the default could also serve vision, dropping the
+  separate `Qwen3-VL 8B` (~7 GB saved) with no philosophy change and no speed cost (still A3B). **Preferred
+  consolidation** — validate OCR/receipt quality at deploy; if it lags a dedicated VL, keep Qwen3-VL 8B.
+- **Gemma 4 26B-A4B** (MoE + multimodal, non-thinking → JSON-safe) — a lighter/faster alternative
+  (~15 GB), but Gemma licence (not Apache) + weaker RU than Qwen; a fallback, not a default.
+- **Gemma 3 27B** (dense, multimodal) — conservative consolidation; dense 27B is slow on Apple Silicon,
+  same downside as the rejected dense-27B class below.
+
+Watch-list triggers (revisit the default only when one fires):
+- **A Qwen 3.8 / Qwen4 model in the A3B-MoE ~30–35B format** — the only reason to jump off 3.6. Today's
+  3.8 has no fitting fast variant: `3.8-Max`/`2.4T-A95B` don't fit, `3.8-27B` is **dense** (slow, below).
+  `Qwen3.8-Flash-Next` (MoE, "Qwen4 preview") is the one to watch.
+- **A 128 GB Mac instead of 64 GB** — changes the whole slot: unlocks **GLM 5.2 Air** (~106B MoE, MIT,
+  ~30 tok/s) and **DeepSeek V4 Flash** (284B-A13B, MIT, strong RU reasoning) — both need 96–128 GB and are
+  out of reach on 64 GB. Re-run this whole file if the box grows.
+
+Rejected for the 64 GB interactive default (recorded so we don't re-litigate at deploy):
+- **Dense ~27–30B (Qwen3.8-27B, Meta Muse Glimmer 30B)** — all params active per token → **~5–15 tok/s on
+  M4/M4 Max**, vs ~50–130 tok/s for MoE-A3B. Newer-gen quality doesn't buy back a ~5–10× throughput loss on
+  a 24/7 interactive assistant. (Muse Glimmer also benches mediocre, ~#119/228, and Meta is weak in RU.)
+- **DeepSeek V4 Flash** — 2-bit floor ~81 GB, practical 96–128 GB; on 64 GB it streams experts from disk
+  and crawls. Great model, wrong box (see 128 GB trigger).
+- **GLM 5.2 Air (~106B)** — ~55–60 GB Q4 eats almost the whole 64 GB, leaving no room for the ~6 GB hot-set
+  JVMs + backing + coder tenant. (See 128 GB trigger.)
+- **Kimi K2.6** — top of the leaderboard but needs 8× H100; not a local model.
 
 ## Rollout (config swap, low-risk)
 This is the `llm-model-tag` coupling — a config change, not code:
@@ -75,7 +96,9 @@ API + the Ollama-native evict-before-load handshake LC-4 depends on (`ollama sto
 gaining MLX speed. Switching to LM Studio / `mlx_lm.server` / `llama-server` would change the eviction
 contract → integration cost; only if the Ollama MLX engine underperforms.
 
-## Sources (as-of 2026-07, noisy field — treat figures as directional)
-Qwen3.5/3.6 lineup + MLX sizing; MLX vs llama.cpp/Ollama on Apple Silicon; open-weight VLMs (Qwen3-VL /
-Gemma / GLM); embedding leaderboards (Qwen3-Embedding / bge-m3); STT (whisper v3-turbo vs Parakeet). Some
-names (Gemma 4, GLM-5, DeepSeek V4) are fresh or semi-announced — verify before adopting.
+## Sources (as-of 2026-09-01, noisy field — treat figures as directional)
+Qwen3.5/3.6/3.8 lineup + MLX sizing; MLX vs llama.cpp/Ollama on Apple Silicon; open-weight VLMs (Qwen3-VL /
+Gemma / GLM); embedding leaderboards (Qwen3-Embedding / bge-m3); STT (whisper v3-turbo vs Parakeet).
+2026-09-01 competitive scan (Plan B) covered Qwen3.6/3.8, DeepSeek V4 Flash, GLM 5.2 Air, Meta Muse
+Glimmer 30B, Gemma 4, Kimi K2.6 — confirmed the fits-in-64GB-fast-MoE-with-strong-RU slot is still Qwen's;
+the "much cooler" models (DeepSeek V4, GLM 5.2, Kimi) all need 96–128 GB+. Re-verify tok/s + RU at deploy.
