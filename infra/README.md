@@ -242,7 +242,7 @@ name(s) you configured, then bring the profile up.
 | mcp-travel           | 8123 | Travel domain-MCP (per-owner travel preferences: home base / rest types / companions / budget hint) |
 | travel-agent         | 8124 | On-demand vacation planner (#190): profiler + trip-planner + HTML board; binds mcp-travel + mcp-weather + mcp-web + mcp-chart-render; routes as `travel`. Never books |
 | mcp-travel-search    | 8125 | Live flight/hotel search capability-MCP over Travelpayouts (#190 TR-f). Owner-key-gated: no key → degrades (unconfigured). Options + deep links only — never books |
-| mcp-media-fetch      | 8126 | Media-acquisition capability-MCP (yt-dlp): `transcribe_video` captions; `fetch_audio` → media-service (V-b). No DB, no backing container |
+| mcp-media-fetch      | 8126 | Media-acquisition capability-MCP (yt-dlp): `transcribe_video` captions + `fetch_audio` (audio → media-service id for STT). No DB; uploads audio to media-service |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

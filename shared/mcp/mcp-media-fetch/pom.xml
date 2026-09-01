@@ -25,12 +25,16 @@
             <artifactId>platform-common</artifactId>
         </dependency>
 
-        <!-- Reactive web only: the MCP server is webflux-based. No servlet stack, no JPA, no
-             datasource (a capability-MCP owns no data). yt-dlp is a bundled binary the engine
-             shells out to, not a Java dependency. -->
+        <!-- Reactive web only: the MCP server is webflux-based, and WebClient uploads extracted audio
+             to media-service (fetch_audio). No servlet stack, no JPA, no datasource (a capability-MCP
+             owns no data). yt-dlp is a bundled binary the engine shells out to, not a Java dependency. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webclient</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -50,6 +54,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-webtestclient</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

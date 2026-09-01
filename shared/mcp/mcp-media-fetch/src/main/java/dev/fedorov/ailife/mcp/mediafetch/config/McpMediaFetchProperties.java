@@ -23,6 +23,18 @@ public class McpMediaFetchProperties {
     /** {@code transcribe_video} max characters; longer text is truncated (flag set). */
     private int transcriptMaxChars = 12000;
 
+    /**
+     * Which audio-fetch engine to wire: {@code yt-dlp} (default, needs the binary + ffmpeg in the
+     * image) or {@code stub} (native-free marker bytes, for the wiring test / degraded boxes).
+     */
+    private String audioEngine = "yt-dlp";
+
+    /** {@code fetch_audio} yt-dlp subprocess timeout (seconds) — audio download can be slower than subs. */
+    private int audioTimeoutSec = 120;
+
+    /** Base URL of media-service ({@code fetch_audio} uploads the extracted audio there). */
+    private String mediaServiceUrl = "http://media-service:8088";
+
     public String getTranscriptEngine() { return transcriptEngine; }
     public void setTranscriptEngine(String transcriptEngine) { this.transcriptEngine = transcriptEngine; }
     public String getYtDlpBin() { return ytDlpBin; }
@@ -33,4 +45,10 @@ public class McpMediaFetchProperties {
     public void setTranscriptTimeoutSec(int transcriptTimeoutSec) { this.transcriptTimeoutSec = transcriptTimeoutSec; }
     public int getTranscriptMaxChars() { return transcriptMaxChars; }
     public void setTranscriptMaxChars(int transcriptMaxChars) { this.transcriptMaxChars = transcriptMaxChars; }
+    public String getAudioEngine() { return audioEngine; }
+    public void setAudioEngine(String audioEngine) { this.audioEngine = audioEngine; }
+    public int getAudioTimeoutSec() { return audioTimeoutSec; }
+    public void setAudioTimeoutSec(int audioTimeoutSec) { this.audioTimeoutSec = audioTimeoutSec; }
+    public String getMediaServiceUrl() { return mediaServiceUrl; }
+    public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
 }

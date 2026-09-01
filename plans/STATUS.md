@@ -16,8 +16,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   visual; no new agent, per ADR-0006 footprint). Injection-guarded (#599). **V-a DONE (2026-09-01):**
   `mcp-media-fetch` capability-MCP scaffolded (port 8126, yt-dlp in image) + `transcribe_video`
   relocated out of `mcp-web` (behaviour-preserving; contracts `web`→`mediafetch`; mcp-web back to pure
-  `web_search`+`fetch_url`); module suite green (media-fetch 3, web 4). **Next = V-b** (`fetch_audio`
-  tool + media-service client). Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+  `web_search`+`fetch_url`); module suite green (media-fetch 3, web 4). **V-b DONE (2026-09-01):**
+  `fetch_audio(url, householdId, ownerId?)` tool + `/internal/fetch-audio` passthrough — yt-dlp `-x`
+  (behind a new `AudioFetchEngine` seam, stub→yt-dlp) → media-service upload (module-local
+  `MediaStoreClient`) → `AudioFetchResult{mediaId,…}` for id-based STT; `mediafetch/{AudioFetchInput,
+  AudioFetchResult}` contracts; ffmpeg added to the image; MockWebServer upload test; module suite
+  green (media-fetch 5). **Next = MP-e** (`frames(mediaId,n)` ffmpeg keyframe tool in
+  `mcp-media-processing`, see [media.md](media.md) §MP-e) → then V-c (researcher `video` skill).
+  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
 
 ## Done (awaiting move to HISTORY at next closer)
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion
