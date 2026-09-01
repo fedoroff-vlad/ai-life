@@ -13,7 +13,8 @@ spring:
           the server fetches the bytes and returns text. ocr: recognise text in an
           image (local engine). caption: ask an LLM vision model about an image
           given an instruction. transcribe: speech-to-text on an audio/video clip
-          (local engine).
+          (local engine). frames: extract evenly-spaced video keyframes as images
+          (ffmpeg) for the visual channel — caption each returned frame id.
 
 server:
   port: ${MCP_MEDIA_PROCESSING_PORT:8097}
@@ -31,6 +32,8 @@ mediaprocessing:
   # STT engine: whisper (real, calls the ASR sidecar over HTTP) | stub (native-free marker).
   stt-engine: ${MCP_MEDIA_PROCESSING_STT_ENGINE:whisper}
   whisper-url: ${WHISPER_ASR_URL:http://whisper:9000}
+  # Frame extractor: ffmpeg (real, native tool in image) | stub (native-free marker frames).
+  frame-extractor: ${MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR:ffmpeg}
 
 management:
   endpoints:

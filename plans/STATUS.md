@@ -21,9 +21,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   (behind a new `AudioFetchEngine` seam, stub→yt-dlp) → media-service upload (module-local
   `MediaStoreClient`) → `AudioFetchResult{mediaId,…}` for id-based STT; `mediafetch/{AudioFetchInput,
   AudioFetchResult}` contracts; ffmpeg added to the image; MockWebServer upload test; module suite
-  green (media-fetch 5). **Next = MP-e** (`frames(mediaId,n)` ffmpeg keyframe tool in
-  `mcp-media-processing`, see [media.md](media.md) §MP-e) → then V-c (researcher `video` skill).
-  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+  green (media-fetch 5). **MP-e DONE (2026-09-01):** `frames(mediaId, n, householdId, ownerId?)` tool in
+  `mcp-media-processing` — ffmpeg keyframe extraction (ffprobe duration → seek `duration*i/(n+1)` per
+  frame, per-frame soft-fail) behind a `FrameExtractor` seam (stub→ffmpeg) → each frame uploaded to
+  media-service via a module-local write-side `MediaStoreClient` → `FramesResult{frameMediaIds}`;
+  `media/{FramesInput,FramesResult}` contracts + `/internal/frames` passthrough + ffmpeg in the image;
+  module suite green (media-processing 18). See [media.md](media.md) §MP-e. **Next = V-c** (researcher
+  `video` skill: three-tier cheap-first flow binding `mcp-media-fetch` + `mcp-media-processing`), then
+  V-d (E2E + golden injection). Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
 
 ## Done (awaiting move to HISTORY at next closer)
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion

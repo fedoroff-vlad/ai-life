@@ -34,6 +34,25 @@ public class McpMediaProcessingProperties {
     /** Whisper ASR sidecar base URL — where {@code transcribe} POSTs the audio bytes. */
     private String whisperUrl = "http://whisper:9000";
 
+    /**
+     * Which video-keyframe extractor to wire: {@code ffmpeg} (default, real, needs the native tool
+     * in the image) or {@code stub} (native-free marker frames, for the wiring test / degraded
+     * environments). MP-e — the visual channel for speechless video.
+     */
+    private String frameExtractor = "ffmpeg";
+
+    /** Path/name of the ffmpeg binary (the image bundles it as {@code ffmpeg}). */
+    private String ffmpegBin = "ffmpeg";
+
+    /** Path/name of the ffprobe binary (bundled by the same ffmpeg package). */
+    private String ffprobeBin = "ffprobe";
+
+    /** ffprobe/ffmpeg per-invocation subprocess timeout (seconds). */
+    private int frameTimeoutSec = 30;
+
+    /** Upper bound on {@code frames(mediaId, n)} — a video only needs a handful of keyframes. */
+    private int frameMaxCount = 20;
+
     public String getMediaServiceUrl() { return mediaServiceUrl; }
     public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
     public String getOcrEngine() { return ocrEngine; }
@@ -46,4 +65,14 @@ public class McpMediaProcessingProperties {
     public void setSttEngine(String sttEngine) { this.sttEngine = sttEngine; }
     public String getWhisperUrl() { return whisperUrl; }
     public void setWhisperUrl(String whisperUrl) { this.whisperUrl = whisperUrl; }
+    public String getFrameExtractor() { return frameExtractor; }
+    public void setFrameExtractor(String frameExtractor) { this.frameExtractor = frameExtractor; }
+    public String getFfmpegBin() { return ffmpegBin; }
+    public void setFfmpegBin(String ffmpegBin) { this.ffmpegBin = ffmpegBin; }
+    public String getFfprobeBin() { return ffprobeBin; }
+    public void setFfprobeBin(String ffprobeBin) { this.ffprobeBin = ffprobeBin; }
+    public int getFrameTimeoutSec() { return frameTimeoutSec; }
+    public void setFrameTimeoutSec(int frameTimeoutSec) { this.frameTimeoutSec = frameTimeoutSec; }
+    public int getFrameMaxCount() { return frameMaxCount; }
+    public void setFrameMaxCount(int frameMaxCount) { this.frameMaxCount = frameMaxCount; }
 }
