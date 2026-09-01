@@ -22,6 +22,10 @@ media-fetch:
   transcript-langs: ${MCP_MEDIA_FETCH_TRANSCRIPT_LANGS:en.*,ru.*}
   transcript-timeout-sec: ${MCP_MEDIA_FETCH_TRANSCRIPT_TIMEOUT_SEC:60}
   transcript-max-chars: ${MCP_MEDIA_FETCH_TRANSCRIPT_MAX_CHARS:12000}
+  # fetch_audio (yt-dlp -x → media-service). Engine: yt-dlp (real, binary + ffmpeg in image) | stub.
+  audio-engine: ${MCP_MEDIA_FETCH_AUDIO_ENGINE:yt-dlp}
+  audio-timeout-sec: ${MCP_MEDIA_FETCH_AUDIO_TIMEOUT_SEC:120}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
 
 management:
   endpoints:

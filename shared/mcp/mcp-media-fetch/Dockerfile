@@ -8,11 +8,11 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-# yt-dlp for transcribe_video (and fetch_audio, V-b) — the self-contained linux binary (PyInstaller
-# bundle, no system Python needed). The transcript engine shells out to it; swappable behind
-# VideoTranscriptEngine.
+# yt-dlp for transcribe_video + fetch_audio — the self-contained linux binary (PyInstaller bundle, no
+# system Python needed). The engines shell out to it; swappable behind VideoTranscriptEngine /
+# AudioFetchEngine. ffmpeg is required for fetch_audio's `-x` audio extraction (container demux).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && apt-get install -y --no-install-recommends ca-certificates wget ffmpeg \
     && wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -O /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && rm -rf /var/lib/apt/lists/*
