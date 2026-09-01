@@ -7,13 +7,14 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
 ## Now
 - **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — 🚧 IN FLIGHT (docs-opener V-0 done 2026-09-01).**
   Any video source (YouTube/Instagram/Threads/TikTok **link** or an uploaded **file**) → text/understanding.
-  Design LOCKED in [research.md](research.md) §Video understanding + [media.md](media.md) MP-e: a new
-  acquisition capability **`mcp-media-fetch`** (yt-dlp sidecar, `fetch_media(url)→mediaId`; kept
-  **separate** from the zero-dependency `mcp-web` — owner 2026-09-01, reversing roadmap's "mcp-web
-  extension" steer) + **reuse** `mcp-media-processing` `transcribe` (STT) with a **new `frames`
-  (ffmpeg keyframes)** visual channel for speechless video (ASMR/landscape), synthesised by a
-  researcher multimodal flow (**STT-first → visual fallback**, cheap-first). Injection-guarded (#599).
-  **Next slice = V-a** (`mcp-media-fetch` scaffold + `fetch_media` on the stub engine, no yt-dlp yet).
+  Design LOCKED in [research.md](research.md) §Video understanding + [media.md](media.md) MP-e (owner
+  2026-09-01, three clean homes): a new acquisition capability **`mcp-media-fetch`** owning yt-dlp
+  (`transcribe_video` captions **moves here out of `mcp-web`** — by conceptual cohesion, `mcp-web` is
+  web *retrieval* only + `fetch_audio(url)→mediaId` new) + **reuse** `mcp-media-processing` `transcribe`
+  (STT) with a **new `frames` (ffmpeg keyframes)** visual channel for speechless video (ASMR/landscape),
+  orchestrated by a **`video` skill on researcher** (three-tier cheap-first: captions → audio-STT →
+  visual; no new agent, per ADR-0006 footprint). Injection-guarded (#599). **Next slice = V-a**
+  (`mcp-media-fetch` scaffold + relocate `transcribe_video` out of `mcp-web`, behaviour-preserving).
   Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
 
 ## Done (awaiting move to HISTORY at next closer)
