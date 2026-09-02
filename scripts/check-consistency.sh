@@ -168,7 +168,7 @@ fi
 # deterministic, non-prompt path); a flow that DOES must gain GUARD, not an allowlist entry. A listed
 # file that HAS GUARD is a stale entry and also fails — so the list can only shrink.
 echo "check 7: untrusted-ingestion flows include UntrustedContent.GUARD (injection doctrine, #599)"
-INGEST_MARKERS='WebSearchClient|PageFetchClient|OcrClient'
+INGEST_MARKERS='WebSearchClient|PageFetchClient|OcrClient|MediaFetchClient|MediaProcessingClient'
 # Empty — every untrusted-ingestion flow now carries GUARD (researcher web + the 5 web flows + docs OCR).
 GUARD_ALLOWLIST=""
 for f in $(grep -rlE '\.coordinate\(|\.chat\(' domains/*/*-agent/src/main --include=*.java 2>/dev/null || true); do

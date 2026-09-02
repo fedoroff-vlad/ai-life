@@ -10,7 +10,9 @@ the shared `mcp-web` capability (`web_search` + `fetch_url`) and, for video unde
 `mcp-media-fetch` (acquisition) + `mcp-media-processing` (understanding) capabilities. The same
 capabilities are reused by chef / briefing / finance-investment later.
 
-**Status (V-c):** two flows behind `IntentController`, both cheap-first on the shared `Coordinator`.
+**Status (V-d — #294 complete):** two flows behind `IntentController`, both cheap-first on the shared
+`Coordinator`. The video flow's injection resistance is model-proven (`GoldenVideoInjectionResistanceTest`)
+and its link chain is closed by `E2EVideoUnderstandingFlowTest`.
 - **research (R-d):** **search** the web (`mcp-web` `/internal/search`) → **read** the top hits in full
   (`/internal/fetch`, parallel, soft-fail per page) → **one** LLM synthesis → a summary with grouped
   article/video links. Search + fetch are plain HTTP (no model cost); only the synthesis hits the LLM.

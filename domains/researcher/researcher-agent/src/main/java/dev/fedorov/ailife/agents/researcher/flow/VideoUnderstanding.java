@@ -201,7 +201,11 @@ public class VideoUnderstanding {
         }
         ObjectNode video = json.createObjectNode();
         video.put("channel", scene.source());          // captions | speech | visual
-        video.put("content", scene.text());
+        // The content is a single untrusted blob (a whole transcript / joined frame captions), not one
+        // field among a self-labeling structure — so reinforce GUARD with an explicit fence around it so
+        // the model sees exactly where the untrusted span starts and ends (#599; the fence is the
+        // documented reinforcement for a lone untrusted value).
+        video.put("content", UntrustedContent.fence("video-" + scene.source(), scene.text()));
         if (scene.title() != null) video.put("title", scene.title());
         video.put("origin", src.isLink() ? src.url() : "uploaded file");
 
