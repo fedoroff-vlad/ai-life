@@ -16,6 +16,14 @@ spring:
           connections:
             mcp-web:
               url: ${MCP_WEB_URL:http://mcp-web:8098}
+            # Video-understanding capabilities (V-c). Bound here so a future LLM-driven
+            # flow can pick their tools; the deterministic flow calls their /internal
+            # passthroughs. mcp-media-fetch = acquisition (captions/audio), mcp-media-processing
+            # = understanding (STT/frames/caption).
+            mcp-media-fetch:
+              url: ${MCP_MEDIA_FETCH_URL:http://mcp-media-fetch:8126}
+            mcp-media-processing:
+              url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
 
 server:
   port: ${RESEARCHER_AGENT_PORT:8099}
@@ -27,11 +35,14 @@ agent:
 
 researcher-agent:
   mcp-web-url: ${MCP_WEB_URL:http://mcp-web:8098}
+  mcp-media-fetch-url: ${MCP_MEDIA_FETCH_URL:http://mcp-media-fetch:8126}
+  mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}
   search-limit: ${RESEARCHER_AGENT_SEARCH_LIMIT:6}
   fetch-top-n: ${RESEARCHER_AGENT_FETCH_TOP_N:3}
+  video-frames: ${RESEARCHER_AGENT_VIDEO_FRAMES:4}
 
 ailife:
   llm-client:
