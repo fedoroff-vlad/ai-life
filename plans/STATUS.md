@@ -26,9 +26,16 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   frame, per-frame soft-fail) behind a `FrameExtractor` seam (stub→ffmpeg) → each frame uploaded to
   media-service via a module-local write-side `MediaStoreClient` → `FramesResult{frameMediaIds}`;
   `media/{FramesInput,FramesResult}` contracts + `/internal/frames` passthrough + ffmpeg in the image;
-  module suite green (media-processing 18). See [media.md](media.md) §MP-e. **Next = V-c** (researcher
-  `video` skill: three-tier cheap-first flow binding `mcp-media-fetch` + `mcp-media-processing`), then
-  V-d (E2E + golden injection). Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+  module suite green (media-processing 18). See [media.md](media.md) §MP-e. **V-c DONE (2026-09-02):**
+  researcher `video` skill + `flow/VideoUnderstanding` — `detect` (video-host link vs video-file
+  attachment) routes off `Researcher`; three cheap-first tiers each soft-failing (captions via
+  `mcp-media-fetch transcribe_video` → speech via `fetch_audio`→`transcribe` STT → visual via `frames`→
+  shared `CaptionClient` per keyframe) → one synthesis with the #599 injection guard leading; binds both
+  capabilities (SSE + local `MediaFetchClient`/`MediaProcessingClient`, caption reused from agent-runtime);
+  `VideoUnderstandingFlowTest` covers all three tiers (module green 8, 2 golden-gated skips). Link visual
+  tier deferred (needs a `fetch_video` tool; file path fully works). See [research.md](research.md) §V-c.
+  **Next = V-d** (E2E stage-closer `E2EVideoUnderstandingFlowTest` + `GoldenVideoInjectionResistanceTest`).
+  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
 
 ## Done (awaiting move to HISTORY at next closer)
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion

@@ -157,11 +157,17 @@ a dedicated agent then — a cheap refactor, premature now.
   contracts + `/internal/fetch-audio`. MockWebServer test (media-service upload).
 - **MP-e — `frames(mediaId, n)` tool** (in `media.md`, its home): ffmpeg keyframe extraction, stub →
   real, reuse the existing `caption`. researcher consumes it in V-c.
-- **V-c — researcher `video` skill + the multimodal flow.** `flow/VideoUnderstanding` on the
-  `Coordinator` (copy `Researcher`): the three-tier policy above → synthesize. `video/SKILL.md`. Binds
-  `mcp-media-fetch` (SSE + a `MediaFetchClient`) + the already-bound `mcp-media-processing`. Route a
-  domain-less video drop here. Injection guard. `VideoUnderstandingFlowTest` (MockWebServers for the
-  `/internal/*` hops + llm-gateway).
+- **V-c — researcher `video` skill + the multimodal flow.** ✅ **DONE.** `flow/VideoUnderstanding` on the
+  `Coordinator`: the three-tier policy above (`detect` link-vs-file → captions → speech → visual, each
+  soft-failing) → one synthesis with the injection guard leading. `video/SKILL.md`. Binds `mcp-media-fetch`
+  (SSE + local `MediaFetchClient`: `transcribe_video` + `fetch_audio`) + `mcp-media-processing` (SSE + local
+  `MediaProcessingClient`: `transcribe` STT + `frames`; the visual tier captions each keyframe via the shared
+  `agent-runtime` `CaptionClient` — reused, not re-embedded). `IntentController` routes a video-file
+  attachment or a video-host link here, everything else to `Researcher`. `VideoUnderstandingFlowTest`
+  (MockWebServers for media-fetch/media-processing/llm-gateway) covers all three tiers.
+  **Link visual tier deferred:** `fetch_audio` yields audio only, so a captionless+speechless *link* has no
+  video bytes to frame — a `fetch_video(url)→mediaId` acquisition tool is future work (a speechless *file*
+  reaches the visual tier normally).
 - **V-d — E2E stage-closer + golden injection.** `E2EVideoUnderstandingFlowTest` (real researcher
   context; MockWebServers forward media-fetch → media-processing → llm-gateway, asserting the
   `libs/contracts` DTOs survive each hop) + `GoldenVideoInjectionResistanceTest`.

@@ -1354,11 +1354,17 @@ services:
         condition: service_healthy
       mcp-web:
         condition: service_healthy
+      mcp-media-fetch:
+        condition: service_started
+      mcp-media-processing:
+        condition: service_healthy
     environment:
       JAVA_TOOL_OPTIONS: *jvm-opts
       RESEARCHER_AGENT_PORT: 8099
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_WEB_URL: http://mcp-web:8098
+      MCP_MEDIA_FETCH_URL: http://mcp-media-fetch:8126
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087
