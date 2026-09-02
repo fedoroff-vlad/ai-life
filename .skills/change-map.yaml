@@ -103,10 +103,11 @@ couplings:
       retrieved text is indistinguishable from instructions; the outbound confirm-gate only stops
       the *act*, so every ingestion surface must frame its content as DATA at the prompt
       (UntrustedContent.GUARD). **Golden scope:** the injection golden proves the *mechanism*
-      (GUARD + Coordinator/chat), so it is written ONCE per mechanism. Two proven so far:
+      (GUARD + Coordinator/chat), so it is written ONCE per mechanism. Three proven so far:
       GoldenResearchInjectionResistanceTest (GUARD + Coordinator JSON corpus, reused by every web synthesis
-      flow) and GoldenDocArchiverInjectionResistanceTest (GUARD + fence on a direct llm.chat where OCR text
-      is spliced into free text — the docs path). A flow reusing one of these needs GUARD but not a new
+      flow), GoldenDocArchiverInjectionResistanceTest (GUARD + fence on a direct llm.chat where OCR text
+      is spliced into free text — the docs path), and GoldenVideoInjectionResistanceTest (GUARD + fence on a
+      video transcript / frame caption folded into the Coordinator corpus — the researcher video flow, V-c/d). A flow reusing one of these needs GUARD but not a new
       golden; a genuinely *new* mechanism (different transport, or a new splice shape) does. **What the
       golden asserts:** the injection cannot make the agent emit the attacker's chosen content (no marker in
       the reply or any model-derived field) — NOT that extraction still succeeds. A weak model may fail

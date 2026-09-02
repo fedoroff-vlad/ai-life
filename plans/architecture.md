@@ -216,8 +216,9 @@ per-feature afterthought:
   content as *quoted, untrusted data* and never follow instructions embedded in it. Frame it explicitly in
   the prompt — the reusable mechanism is `libs/agent-runtime` `coordinate/UntrustedContent.GUARD` (+ `fence`),
   prepended to the flow's system prompts; the researcher path is the canonical wiring, proved by
-  `GoldenResearchInjectionResistanceTest`. New ingestion surfaces are held to this by the `ingestion-source`
-  coupling in `.skills/change-map.yaml`.
+  `GoldenResearchInjectionResistanceTest` (web corpus) and `GoldenVideoInjectionResistanceTest` (a video
+  transcript / frame caption fenced into the corpus — a poisoned video can't hijack the summary). New
+  ingestion surfaces are held to this by the `ingestion-source` coupling in `.skills/change-map.yaml`.
 - **The confirm gate is the backstop.** An injected "send X / buy Z" still hits the outbound-confirm wall
   (below) — injection can *propose*, never *act*. Keep that gate on the path for every outbound action.
 - **Memory / second-brain can be poisoned.** Ambient capture writes notes from chat/observations and recall

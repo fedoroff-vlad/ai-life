@@ -5,39 +5,19 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — 🚧 IN FLIGHT (docs-opener V-0 done 2026-09-01).**
-  Any video source (YouTube/Instagram/Threads/TikTok **link** or an uploaded **file**) → text/understanding.
-  Design LOCKED in [research.md](research.md) §Video understanding + [media.md](media.md) MP-e (owner
-  2026-09-01, three clean homes): a new acquisition capability **`mcp-media-fetch`** owning yt-dlp
-  (`transcribe_video` captions **moves here out of `mcp-web`** — by conceptual cohesion, `mcp-web` is
-  web *retrieval* only + `fetch_audio(url)→mediaId` new) + **reuse** `mcp-media-processing` `transcribe`
-  (STT) with a **new `frames` (ffmpeg keyframes)** visual channel for speechless video (ASMR/landscape),
-  orchestrated by a **`video` skill on researcher** (three-tier cheap-first: captions → audio-STT →
-  visual; no new agent, per ADR-0006 footprint). Injection-guarded (#599). **V-a DONE (2026-09-01):**
-  `mcp-media-fetch` capability-MCP scaffolded (port 8126, yt-dlp in image) + `transcribe_video`
-  relocated out of `mcp-web` (behaviour-preserving; contracts `web`→`mediafetch`; mcp-web back to pure
-  `web_search`+`fetch_url`); module suite green (media-fetch 3, web 4). **V-b DONE (2026-09-01):**
-  `fetch_audio(url, householdId, ownerId?)` tool + `/internal/fetch-audio` passthrough — yt-dlp `-x`
-  (behind a new `AudioFetchEngine` seam, stub→yt-dlp) → media-service upload (module-local
-  `MediaStoreClient`) → `AudioFetchResult{mediaId,…}` for id-based STT; `mediafetch/{AudioFetchInput,
-  AudioFetchResult}` contracts; ffmpeg added to the image; MockWebServer upload test; module suite
-  green (media-fetch 5). **MP-e DONE (2026-09-01):** `frames(mediaId, n, householdId, ownerId?)` tool in
-  `mcp-media-processing` — ffmpeg keyframe extraction (ffprobe duration → seek `duration*i/(n+1)` per
-  frame, per-frame soft-fail) behind a `FrameExtractor` seam (stub→ffmpeg) → each frame uploaded to
-  media-service via a module-local write-side `MediaStoreClient` → `FramesResult{frameMediaIds}`;
-  `media/{FramesInput,FramesResult}` contracts + `/internal/frames` passthrough + ffmpeg in the image;
-  module suite green (media-processing 18). See [media.md](media.md) §MP-e. **V-c DONE (2026-09-02):**
-  researcher `video` skill + `flow/VideoUnderstanding` — `detect` (video-host link vs video-file
-  attachment) routes off `Researcher`; three cheap-first tiers each soft-failing (captions via
-  `mcp-media-fetch transcribe_video` → speech via `fetch_audio`→`transcribe` STT → visual via `frames`→
-  shared `CaptionClient` per keyframe) → one synthesis with the #599 injection guard leading; binds both
-  capabilities (SSE + local `MediaFetchClient`/`MediaProcessingClient`, caption reused from agent-runtime);
-  `VideoUnderstandingFlowTest` covers all three tiers (module green 8, 2 golden-gated skips). Link visual
-  tier deferred (needs a `fetch_video` tool; file path fully works). See [research.md](research.md) §V-c.
-  **Next = V-d** (E2E stage-closer `E2EVideoUnderstandingFlowTest` + `GoldenVideoInjectionResistanceTest`).
-  Slices + WHEN/THEN → [research.md](research.md) §Video understanding.
+- **Nothing in flight.** Pick the next item from `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
 
 ## Done (awaiting move to HISTORY at next closer)
+- **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**
+  Any video source (YouTube/Instagram/Threads/TikTok **link** or uploaded **file**) → one "о чём это видео".
+  Shipped V-0…V-d: new acquisition capability **`mcp-media-fetch`** (yt-dlp `transcribe_video` relocated out
+  of `mcp-web` + `fetch_audio`→mediaId) + **`frames`** ffmpeg keyframe tool in `mcp-media-processing` (MP-e)
+  + a **`video` skill on researcher** (`flow/VideoUnderstanding`: three-tier cheap-first captions→STT→visual,
+  each soft-failing → one guarded synthesis). Injection-guarded (GUARD + `fence`, model-proven by
+  `GoldenVideoInjectionResistanceTest`); `E2EVideoUnderstandingFlowTest` proves the link chain's contract
+  handoffs. **Link visual tier deferred** (needs a `fetch_video` acquisition tool; the file path reaches the
+  visual tier normally). Detail → [HISTORY.md](HISTORY.md) + [research.md](research.md) §Video understanding +
+  [media.md](media.md) §MP-e.
 - **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion
   flows (researcher web + 5 web synthesis + docs OCR) frame retrieved text as data via
   `agent-runtime` `UntrustedContent.GUARD`(+`fence`); enforced by `check-consistency.sh` check 7; two

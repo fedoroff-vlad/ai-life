@@ -168,9 +168,14 @@ a dedicated agent then — a cheap refactor, premature now.
   **Link visual tier deferred:** `fetch_audio` yields audio only, so a captionless+speechless *link* has no
   video bytes to frame — a `fetch_video(url)→mediaId` acquisition tool is future work (a speechless *file*
   reaches the visual tier normally).
-- **V-d — E2E stage-closer + golden injection.** `E2EVideoUnderstandingFlowTest` (real researcher
-  context; MockWebServers forward media-fetch → media-processing → llm-gateway, asserting the
-  `libs/contracts` DTOs survive each hop) + `GoldenVideoInjectionResistanceTest`.
+- **V-d — E2E stage-closer + golden injection.** ✅ **DONE — closes [#294](https://github.com/fedoroff-vlad/ai-life/issues/294).**
+  `E2EVideoUnderstandingFlowTest` (real researcher context; MockWebServers forward media-fetch →
+  media-processing → llm-gateway, asserting the link chain's `libs/contracts` handoffs survive each hop —
+  `AudioFetchResult.mediaId`→`media.TranscribeInput.mediaId`, acting scope→`AudioFetchInput`) +
+  `GoldenVideoInjectionResistanceTest` (model-proven on qwen3:8b: a poisoned transcript can't hijack the
+  summary — holding required the GUARD `fence` around the content **plus** a firm task-anchor in
+  `video/SKILL.md`, since a lone transcript blob is a stronger injection surface than the web corpus).
+  `check-consistency.sh` check 7 markers extended to `MediaFetchClient`/`MediaProcessingClient`.
 
 ## Out of scope (recorded, later)
 - **`market-data`** (stocks/crypto/metals quotes) — a sibling capability-MCP that rides in with
