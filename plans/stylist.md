@@ -209,7 +209,7 @@ copyrighted text. Boards build in this order:
   `:root` CSS variables + the fonts `<link>` from the theme (the layout rules stay constant); any
   value is overridable via `STYLIST_THEME_*` env (e.g. `STYLIST_THEME_PAPER=#f3ece0`). Registered in
   `@EnableConfigurationProperties`; application.yml + .env.example + README updated. Tested
-  (`HtmlStylistRendererTest` +re-skin case: a custom palette/font theme propagates into the page and
+  (`HtmlDocRendererTest` +re-skin case: a custom palette/font theme propagates into the page and
   the locked default disappears). Module suite green (14).
 
 ## Out of scope (here)

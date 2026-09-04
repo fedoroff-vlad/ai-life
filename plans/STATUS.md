@@ -5,7 +5,15 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **Nothing in flight.** Pick the next item from `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
+- **spec→test discipline (mechanize the SDD half) — IN FLIGHT (arch-checkup 2026-09-04, [#618](https://github.com/fedoroff-vlad/ai-life/issues/618)).**
+  Full 7-axis findings + the future backlog live in #618 (axes 3/4/5/6/7 clean). A checkup found the
+  spec-before-code link is a human convention, not an automat: only travel.md follows "each `Scenario:` names
+  its asserting test" (60/60); ~99 of ~168 Scenarios name no test, and nothing lints it (one dangling ref,
+  HtmlStylistRendererTest, had already rotted). Slices: **1 ✅** cheap Check 9 (`plan-test-reference` — every
+  backticked `…Test` in a live plan resolves to a real class; HISTORY.md exempt) + fix the dangling ref;
+  **2** authoring rule in PATTERNS.md §spec-a-slice + the `new-golden` skill; **3–5** backfill `(asserted by
+  `XTest`)` across domains; **6** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders (finance/
+  calendar/tasks/notes/chef/nutritionist — #486 CRUD skills never re-listed); **7** flip Check 9 to strict.
 
 ## Done (awaiting move to HISTORY at next closer)
 - **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**
