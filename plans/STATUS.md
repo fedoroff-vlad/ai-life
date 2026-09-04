@@ -5,7 +5,8 @@
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
 ## Now
-- **spec→test discipline (mechanize the SDD half) — IN FLIGHT (arch-checkup 2026-09-04).** A checkup found the
+- **spec→test discipline (mechanize the SDD half) — IN FLIGHT (arch-checkup 2026-09-04, [#618](https://github.com/fedoroff-vlad/ai-life/issues/618)).**
+  Full 7-axis findings + the future backlog live in #618 (axes 3/4/5/6/7 clean). A checkup found the
   spec-before-code link is a human convention, not an automat: only travel.md follows "each `Scenario:` names
   its asserting test" (60/60); ~99 of ~168 Scenarios name no test, and nothing lints it (one dangling ref,
   HtmlStylistRendererTest, had already rotted). Slices: **1 ✅** cheap Check 9 (`plan-test-reference` — every
