@@ -159,3 +159,19 @@ couplings:
       status, everything else links. The mechanizable half (INDEX must stay statusless) is
       enforced by check-consistency.sh check 4; the rest is judgement — keep README/roadmap
       pointing at the ADR header rather than duplicating its status.
+
+  - id: plan-test-reference
+    trigger: Renamed or removed a test class that a plan's Scenario names as its asserter
+    must_update:
+      - "plans/<domain>.md"          # the WHEN/THEN Scenario that says "asserted by `XTest`"
+    must_not_update:
+      - plans/HISTORY.md             # archive — legitimately names classes by their then-name; exempt from the lint
+    notes: >
+      The spec→test link: a `Scenario:` names the test that asserts it (the travel.md convention,
+      "asserted by `XTest`"). Rename/remove that test and the plan reference rots silently — hit when
+      the stylist HTML renderer lifted to libs/doc-render (HtmlStylistRenderer→HtmlDocRenderer) but the
+      plans still named HtmlStylistRendererTest. Mechanized (phase 1): check-consistency.sh check 9
+      asserts every backticked `…Test` in a LIVE plan (plans/*.md minus HISTORY.md) resolves to a real
+      `<name>.java`. Phase 2 (strict, gated on backfilling the ~99 test-less Scenarios): also require
+      each `Scenario:` in a changed plan to carry an `(asserted by `XTest`)` link. Authoring guidance
+      lives in PATTERNS.md §Recipe: spec a slice + the new-golden skill.

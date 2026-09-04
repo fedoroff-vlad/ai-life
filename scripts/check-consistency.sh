@@ -218,6 +218,26 @@ for sk in $(git ls-files 'domains/*/skills/*/SKILL.md'); do
   fi
 done
 
+# ── Check 9: every `*Test` named in a LIVE plan file resolves to a real test class ─────
+# The change-map `plan-test-reference` coupling. A plan's WHEN/THEN `Scenario:` should name the
+# test that asserts it ("asserted by `XTest`" — the travel.md convention); when that test is
+# renamed or removed, the reference rots silently (hit when the stylist HTML renderer lifted to
+# libs/doc-render: HtmlStylistRenderer→HtmlDocRenderer, and plans still named HtmlStylistRendererTest).
+# Phase 1 (cheap, here): every backticked `…Test` in a live plan must resolve to a `<name>.java` in
+# the tree. HISTORY.md is EXCLUDED — it is an archive (out of the session reading order per CLAUDE.md)
+# that legitimately names classes by the name they had at the time. Phase 2 (strict, later, gated on
+# the backfill): also require each `Scenario:` in a changed plan to carry an `(asserted by `XTest`)` link.
+echo "check 9: *Test references in live plans resolve to a real test class (plan-test-reference)"
+ALL_TESTS="$(git ls-files | grep -E '/[A-Za-z0-9]*Test\.java$' | sed -E 's#.*/##; s#\.java$##' | sort -u)"
+for pf in $(git ls-files 'plans/*.md' | grep -vx 'plans/HISTORY.md'); do
+  refs="$(grep -oE '`[A-Z][A-Za-z0-9]*Test`' "$pf" 2>/dev/null | tr -d '`' | sort -u || true)"
+  for t in $refs; do
+    printf '%s\n' "$ALL_TESTS" | grep -qxF "$t" && continue
+    err "plan '$pf' references test '$t' which no longer exists (renamed/removed)"
+    err "→ update the reference to the current test class, or drop it (HISTORY.md is exempt as an archive)"
+  done
+done
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
