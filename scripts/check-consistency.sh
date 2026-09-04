@@ -229,9 +229,12 @@ done
 # the backfill): also require each `Scenario:` in a changed plan to carry an `(asserted by `XTest`)` link.
 echo "check 9: *Test references in live plans resolve to a real test class (plan-test-reference)"
 ALL_TESTS="$(git ls-files | grep -E '/[A-Za-z0-9]*Test\.java$' | sed -E 's#.*/##; s#\.java$##' | sort -u)"
+# Documented placeholders used in authoring guidance ("asserted by `XTest`") — not real classes.
+PLACEHOLDER_TESTS="XTest"
 for pf in $(git ls-files 'plans/*.md' | grep -vx 'plans/HISTORY.md'); do
   refs="$(grep -oE '`[A-Z][A-Za-z0-9]*Test`' "$pf" 2>/dev/null | tr -d '`' | sort -u || true)"
   for t in $refs; do
+    case " $PLACEHOLDER_TESTS " in *" $t "*) continue ;; esac
     printf '%s\n' "$ALL_TESTS" | grep -qxF "$t" && continue
     err "plan '$pf' references test '$t' which no longer exists (renamed/removed)"
     err "→ update the reference to the current test class, or drop it (HISTORY.md is exempt as an archive)"
