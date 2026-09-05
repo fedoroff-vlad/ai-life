@@ -85,19 +85,19 @@ error on a genuinely unknown name — never invents one). Creating a category fr
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали трату про X / последнюю
   трату" → THEN finance resolves the target from context (no id) and asks to confirm before deleting
-  (destructive-delete gate); the "да" reply deletes and confirms.
+  (destructive-delete gate); the "да" reply deletes and confirms (asserted by `TransactionDeleterTest`).
 - Scenario: **ambiguous target is clarified.** WHEN more than one recent transaction matches → THEN finance
-  lists the matches and asks which, rather than deleting the wrong one.
+  lists the matches and asks which, rather than deleting the wrong one (asserted by `TransactionDeleterTest`).
 - Scenario: **no match.** WHEN nothing matches the description → THEN finance says it found no such trata,
-  never a silent no-op or a wrong delete.
+  never a silent no-op or a wrong delete (asserted by `TransactionDeleterTest`).
 - Scenario: **edit confirms first.** WHEN the owner says "исправь сумму последней траты на X" (or a new note)
   → THEN finance resolves the target from context, echoes the change, and asks to confirm before writing;
-  the "да" reply PUTs only the changed fields (sign preserved) and confirms.
+  the "да" reply PUTs only the changed fields (sign preserved) and confirms (asserted by `TransactionEditorTest`).
 - Scenario: **named a trata but no change.** WHEN the owner names a trata to edit but does not say what to
-  change → THEN finance asks what to change, rather than writing nothing or guessing.
+  change → THEN finance asks what to change, rather than writing nothing or guessing (asserted by `TransactionEditorTest`).
 - Scenario: **re-categorise to an existing category.** WHEN the owner says "переведи трату про X в категорию
   Y" and Y is one of the household's categories → THEN finance confirms and, on "да", re-assigns the trata
-  to Y (resolved name→id, never cross-household); a category the household does not have is not invented.
+  to Y (resolved name→id, never cross-household); a category the household does not have is not invented (asserted by `TransactionEditorTest`).
 
 ## Reminders → scheduler-service
 `fin_recurring.auto_remind=true` → agent registers `mcp-scheduler.schedule_recurring(target=finance, payload=pay X)`. Scheduler wakes finance-agent via orchestrator on due date.
