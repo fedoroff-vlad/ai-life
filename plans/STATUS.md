@@ -12,8 +12,9 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   HtmlStylistRendererTest, had already rotted). Slices: **1 ✅** cheap Check 9 (`plan-test-reference` — every
   backticked `…Test` in a live plan resolves to a real class; HISTORY.md exempt) + fix the dangling ref;
   **2 ✅** authoring rule in PATTERNS.md §spec-a-slice + CLAUDE.md §Spec-each-slice + `new-golden` step 6
-  (submodule bumped to 44a321c); **3–5** backfill `(asserted by
-  `XTest`)` across domains; **6** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders (finance/
+  (submodule bumped to 44a321c); **3 ✅** backfill `(asserted by
+  `XTest`)` — finance + calendar (12 scenarios); **4–5** remaining domains (platform/lists/stage4/
+  second-brain/tasks/core…); **6** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders (finance/
   calendar/tasks/notes/chef/nutritionist — #486 CRUD skills never re-listed); **7** flip Check 9 to strict.
 
 ## Done (awaiting move to HISTORY at next closer)

@@ -86,19 +86,22 @@ shared `SharingResolver` exactly as `create_event` already does.
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **create by chat.** WHEN the owner says "запиши встречу с врачом завтра в 15:00" → THEN calendar
   parses the time, creates the event in the resolved household, and confirms naming it (no id, no inter-agent
-  hop).
+  hop) (asserted by `EventCapturerTest`).
 - Scenario: **undo the just-created event.** WHEN the owner then says "отмени последнее" → THEN the event is
-  cancelled and it confirms (undo primitive, HC-2).
+  cancelled and it confirms (undo primitive, HC-2) (calendar side — the create attaches the undo handle —
+  asserted by `EventCapturerTest`).
 - Scenario: **not an event.** WHEN the message isn't an event op ("когда у Маши др?") → THEN it falls through
-  to the chat reply (and the first-message ICS-feed nudge still fires), never a spurious create.
+  to the chat reply (and the first-message ICS-feed nudge still fires), never a spurious create (asserted by
+  `IntentFeedAutoIssueTest`).
 - Scenario: **cancel by description confirms first.** WHEN the owner says "отмени встречу с врачом" → THEN
-  calendar resolves the target and asks to confirm before deleting (destructive-delete gate, HC-3).
+  calendar resolves the target and asks to confirm before deleting (destructive-delete gate, HC-3) (asserted
+  by `EventCancellerTest`).
 - Scenario: **move by chat confirms first.** WHEN the owner says "перенеси встречу с врачом на 16:00" → THEN
   calendar resolves the target and the new time and asks to confirm before rescheduling; on "да" it updates
   only the time via the `/internal/event/{id}` PUT passthrough (HC-4). WHEN a target matches but no new time
-  was given → THEN it asks for the new time rather than guessing.
+  was given → THEN it asks for the new time rather than guessing (asserted by `EventMoverTest`).
 - Scenario: **ambiguous time is clarified.** WHEN the time can't be resolved → THEN calendar asks rather than
-  filing a wrong-time event (standing "clarify ambiguous time" principle).
+  filing a wrong-time event (standing "clarify ambiguous time" principle) (asserted by `EventCapturerTest`).
 
 The create/cancel/move-vs-chat **routing** of these scenarios is proven against a real model by
 `GoldenCalendarRoutingTest` (#544, `@GoldenLlmTest`, structure-not-text) — the calendar sibling of the other
