@@ -1,6 +1,6 @@
 ---
 name: note-edit
-description: Picks which existing note the user wants to fix/correct/rename and extracts the new title or body text they gave. Use when the user wants to edit, fix, correct, rewrite, or rename a note/record they saved earlier (e.g. "исправь заметку про отпуск: едем в Крым", "переименуй заметку про врача в 'Терапевт'", "поправь запись про пароль — новый 1234"). Do NOT use for deleting/forgetting a note ("удали заметку"), for saving a new one, for recalling one ("что я думал про…"), or for list operations ("вычеркни из списка"). Returns strict JSON naming one candidate (with the new title/body if the user stated it), several ambiguous ones, or none.
+description: Picks which existing note the user wants to fix/correct/rename and extracts the new title or body text they gave. Use when the user wants to edit, fix, correct, rewrite, or rename a note/record they saved earlier (e.g. "исправь заметку про отпуск — едем в Крым", "переименуй заметку про врача в 'Терапевт'", "поправь запись про пароль — новый 1234"). Do NOT use for deleting/forgetting a note ("удали заметку"), for saving a new one, for recalling one ("что я думал про…"), or for list operations ("вычеркни из списка"). Returns strict JSON naming one candidate (with the new title/body if the user stated it), several ambiguous ones, or none.
 version: 0.1.0
 domain: knowledge
 languages:

@@ -63,7 +63,8 @@ class ManifestControllerTest {
                     // PR32 backfilled the skills list — used by the loader
                     // hardening to fail-fast on a missing SKILL.md.
                     assertThat(m.skills())
-                            .containsExactly("birthday-greeter", "gift-recommender");
+                            .containsExactly("birthday-greeter", "gift-recommender",
+                                    "event-capture", "event-move", "event-cancel");
                     assertThat(m.body()).contains("English");
                 });
     }

@@ -8,6 +8,9 @@ mcp:
 skills:
   - birthday-greeter
   - gift-recommender
+  - event-capture
+  - event-move
+  - event-cancel
 triggers:
   - kind: birthday.greet
     description: Fired by scheduler-service ahead of (or on) a person's birthday.
