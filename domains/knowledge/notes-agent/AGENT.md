@@ -8,6 +8,9 @@ skills:
   - note-finder
   - list-manager
   - memory-review
+  - note-edit
+  - note-delete
+  - fact-forget
 triggers:
   - kind: notes.resurface
     description: Fired by scheduler-service on the household resurface schedule. Picks one stale second-brain note (untouched for a while) via memory-service and delivers a gentle "you noted this a while ago" reminder — to the note's owner if set, else fanned out to the household — through notifier-service. No payload required.

@@ -9,6 +9,10 @@ skills:
   - weekly-review
   - inbox-clarify
   - next-action-suggester
+  - task-capture
+  - task-edit
+  - task-delete
+  - task-status
 triggers:
   - kind: weekly.review
     description: Fired by scheduler-service on a weekly schedule per household. tasks-agent enriches the wake payload via mcp-tasks /internal/review into inbox/waiting counts + capped samples + stuck active projects; the weekly-review skill composes a short GTD nudge (or "SKIP" when everything is clean).

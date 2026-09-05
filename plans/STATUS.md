@@ -20,8 +20,18 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   outbound flow exists yet — coordinator is read-only `brief` gather) + the 4 topology-map
   `measure-footprint.sh` scenarios (a shell harness, mac-gated — no Docker on the dev VDI; real assertions
   land at deploy). Slice 7 (strict flip) must resolve or scope-exempt these.
-  **6** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders (finance/
-  calendar/tasks/notes/chef/nutritionist — #486 CRUD skills never re-listed); **7** flip Check 9 to strict.
+  **6 ✅** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders: backfilled the missing
+  entries — finance (+6: transaction-edit/-delete, category-manager, account-manager, monthly/year-report),
+  calendar (+3: event-capture/-move/-cancel), tasks (+4: task-capture/-edit/-delete/-status), notes (+3:
+  note-edit/-delete, fact-forget); chef/nutritionist already correct (each declares its owned subset of the
+  shared nutrition folder). **Surfaced + fixed a latent prod bug:** `note-edit/SKILL.md` had a `: `
+  colon-space in its `description` → SnakeYAML rejected the frontmatter → the skill *silently* never loaded
+  (invisible on main because it wasn't declared, so the loader cross-check skipped it; the routing golden that
+  would exercise it is model-gated/skipped). Now declared → `AgentRuntimeConfig.verifyDeclaredSkillsLoaded`
+  fails-fast if any of these stops loading (all 4 ManifestControllerTests green). **No mechanical folder==declared
+  lint added** — nutrition's two agents share one skills folder and each declares only its subset, so a naive
+  check would false-positive; declared⊆loaded is already enforced at startup. **7** flip Check 9 to strict
+  (resolve/scope-exempt the 2 unlinked scenarios from slice 5).
 
 ## Done (awaiting move to HISTORY at next closer)
 - **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**

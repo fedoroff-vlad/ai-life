@@ -12,6 +12,12 @@ skills:
   - receipt-parser
   - financial-advisor
   - investment-advisor
+  - transaction-edit
+  - transaction-delete
+  - category-manager
+  - account-manager
+  - monthly-report
+  - year-report
 triggers:
   - kind: budget.alert
     description: Fired by scheduler-service on a recurring schedule per (household, category) budget. Payload carries categoryName + limit + spent + currency + period; the LLM composes the alert text (or "SKIP" when ratio < 0.8).
