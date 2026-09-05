@@ -50,7 +50,7 @@ second member (the wife) is productive in minutes with minimal friction. Slices 
   in chat, and the privacy line. Gateway-level (`IdentityResolver.joinedReply`).
   - `Scenario:` WHEN the wife opens the invite deep-link and joins → THEN the reply names her relationship,
     lists what works immediately (capture / recall / briefing), shows a chat example for personal prefs,
-    and states personal items stay private — in her locale.
+    and states personal items stay private — in her locale (asserted by `E2EInviteRedeemFlowTest`).
 - **FO-2 — preferences-in-chat, keyword-free.** A plain conversational preference ("я встаю в 7, брифинг в
   7:15", "я живу в Казани") is captured **per-member** without a domain-specific cue, routed to the right
   per-domain profiler (briefing/travel/nutrition/stylist), self-scoped to the sender. **The mechanism is
@@ -59,14 +59,14 @@ second member (the wife) is productive in minutes with minimal friction. Slices 
   structural, not new code. FO-2 proves the keyword-free path end-to-end with **golden** tests (real
   model, gated): a bare statement routes to the profiler and extracts self-scoped.
   - `Scenario:` WHEN a member states a preference in chat with no config keyword → THEN it is stored for
-    that member (`owner_id` = sender) and honoured, not applied household-wide.
+    that member (`owner_id` = sender) and honoured, not applied household-wide (asserted by `GoldenBriefingProfileTest`).
 - **FO-3 — sensible defaults on join.** A new member with nothing set gets working defaults immediately by
   **inheriting the family's shared household-default** (e.g. the briefing home base + interests, via
   profile-service `household-routing`), so nothing is a dead-end and no owner pre-config per member is
   needed; personal stays personal, shared stays shared (ADR-0002).
   - `Scenario:` WHEN a member who has set nothing asks for a briefing and the family has a shared
     household-default → THEN the digest uses the inherited home base (weather/news work), not a bare
-    default — and never reads any member's personal profile.
+    default — and never reads any member's personal profile (asserted by `BriefingComposerTest`).
 
 ## Notes
 - Growth happens as **rows / JSONB**, never runtime DDL.
