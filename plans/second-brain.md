@@ -216,11 +216,11 @@ reversal the undo primitive uses; drops the recall seed + wiki-link edges).
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали заметку про X" → THEN notes
   resolves the target from context (no id) and asks to confirm before deleting (destructive-delete gate); the
-  "да" reply deletes and confirms.
+  "да" reply deletes and confirms (asserted by `NoteDeleterTest`).
 - Scenario: **ambiguous target is clarified.** WHEN more than one note matches → THEN notes lists the matches
-  and asks which, rather than deleting the wrong one.
+  and asks which, rather than deleting the wrong one (asserted by `NoteDeleterTest`).
 - Scenario: **no match.** WHEN nothing matches the description → THEN notes says it found no such note, never
-  a silent no-op or a wrong delete.
+  a silent no-op or a wrong delete (asserted by `NoteDeleterTest`).
 
 ### Fix/edit a note by chat (H.2 edit hole) — DONE
 The second H.2 hole: **edit a saved note by description** ("исправь заметку про отпуск: едем в Крым",
@@ -237,11 +237,11 @@ still Deferred below).
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **edit by description confirms first.** WHEN the owner says "исправь заметку про X: <new text>" →
   THEN notes resolves the target (no id), shows the change, and asks to confirm before writing; the "да"
-  reply applies the edit and confirms.
+  reply applies the edit and confirms (asserted by `NoteEditorTest`).
 - Scenario: **change not stated → ask.** WHEN the owner names a note but not what to change ("исправь заметку
-  про X") → THEN notes asks what to change, rather than writing an empty edit.
+  про X") → THEN notes asks what to change, rather than writing an empty edit (asserted by `NoteEditorTest`).
 - Scenario: **ambiguous / no match.** WHEN more than one note matches → THEN notes lists them and asks which;
-  WHEN nothing matches → THEN it says so, never a silent or wrong edit.
+  WHEN nothing matches → THEN it says so, never a silent or wrong edit (asserted by `NoteEditorTest`).
 
 ## MQ — memory quality: precise, correctable, reviewable (road-test [#488](https://github.com/fedoroff-vlad/ai-life/issues/488))
 Daily use makes memory *quality* visible: a false auto-save annoys, a miss loses value, a **wrong**
@@ -273,13 +273,14 @@ system remembers. The note tier already has chat delete/edit (H.2 above); the ga
 
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **review lists stored facts.** WHEN the owner asks "что ты про меня запомнил" → THEN a readable
-  list of stored facts (+ notes), each with a way to drop it, is returned — not a silent empty or a raw dump.
+  list of stored facts (+ notes), each with a way to drop it, is returned — not a silent empty or a raw dump
+  (asserted by `MemoryReviewerTest`).
 - Scenario: **forget a wrong fact.** WHEN the owner says "забудь, что …" → THEN the matching fact/note is
-  resolved from context, confirmed, deleted, and no longer surfaces in recall.
+  resolved from context, confirmed, deleted, and no longer surfaces in recall (asserted by `FactForgetterTest`).
 - Scenario: **correct a wrong fact.** WHEN the owner says "это неверно, на самом деле …" → THEN the matching
-  fact is confirmed and replaced with the corrected version (old dropped, corrected written).
+  fact is confirmed and replaced with the corrected version (old dropped, corrected written) (asserted by `FactForgetterTest`).
 - Scenario: **ambient precision.** WHEN ambient capture runs on ordinary chatter → THEN trivia is not saved
-  while an explicit durable fact is, per thresholds validated on real messages.
+  while an explicit durable fact is, per thresholds validated on real messages (asserted by `GoldenAmbientPrecisionTest`).
 
 ## Deferred (out of the epic, note when a consumer needs one)
 - **Real UI / vault two-way sync.** Endpoints (SB-7 export + SB-1 CRUD) are the seam; a live editor or

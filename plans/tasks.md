@@ -122,21 +122,21 @@ clarify, not `update_task` — **no mcp-tasks change was needed**. This closes t
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **delete by description confirms first.** WHEN the owner says "удали задачу про X" → THEN tasks
   resolves the target from context (no id) and asks to confirm before deleting (destructive-delete gate);
-  the "да" reply deletes and confirms.
+  the "да" reply deletes and confirms (asserted by `TaskDeleterTest`).
 - Scenario: **ambiguous target is clarified.** WHEN more than one open task matches → THEN tasks lists the
-  matches and asks which, rather than deleting the wrong one.
+  matches and asks which, rather than deleting the wrong one (asserted by `TaskDeleterTest`).
 - Scenario: **no match.** WHEN nothing matches the description → THEN tasks says it found no such task, never
-  a silent no-op or a wrong delete.
+  a silent no-op or a wrong delete (asserted by `TaskDeleterTest`).
 - Scenario: **edit confirms first.** WHEN the owner says "переименуй задачу про X в Y" (or gives a new due)
   → THEN tasks resolves the target from context, echoes the change, and asks to confirm before writing;
-  the "да" reply PUTs only the changed fields and confirms.
+  the "да" reply PUTs only the changed fields and confirms (asserted by `TaskEditorTest`).
 - Scenario: **named a task but no change.** WHEN the owner names a task to edit but does not say what to
-  change → THEN tasks asks what to change, rather than writing nothing or guessing.
+  change → THEN tasks asks what to change, rather than writing nothing or guessing (asserted by `TaskEditorTest`).
 - Scenario: **state move confirms first.** WHEN the owner says "отметь задачу про X выполненной" (or another
   GTD state) → THEN tasks resolves the target from context, echoes the target status, and asks to confirm
-  before applying; the "да" reply moves the task's status (via `clarify_task`) and confirms.
+  before applying; the "да" reply moves the task's status (via `clarify_task`) and confirms (asserted by `TaskStatusMoverTest`).
 - Scenario: **named a task but no clear status.** WHEN the owner names a task to move but not a clear target
-  state → THEN tasks asks which status, rather than guessing.
+  state → THEN tasks asks which status, rather than guessing (asserted by `TaskStatusMoverTest`).
 
 ## Reminders → scheduler-service
 No own tick. On a `due_at`/`defer_until`, tasks-agent registers
