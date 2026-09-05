@@ -33,9 +33,13 @@ it is the spec→test trace. Once the test exists, put the **real class in backt
 convention, e.g. `(asserted by `E2ECoordinateMultiDomainTest`)`), not a prose placeholder. Enforcement:
 `scripts/check-consistency.sh` **check 9** (`plan-test-reference` coupling) fails CI when a live plan names a
 `…Test` that no longer exists — a renamed/removed test is a caught drift, not a silent one (`HISTORY.md` is
-exempt as an archive). A later slice flips check 9 **strict** — every `Scenario:` in a changed plan must carry
-the link — so write it now. The `new-golden` skill's step 6 is the other half: after the golden passes, it
-tells you to record the class name back here.
+exempt as an archive). **Check 9 is now strict (#618 slice 7): every `Scenario:` bullet in every live plan
+must carry the trace** — either `(asserted by `XTest`)` with the real class, or, when the behaviour is
+genuinely untested (e.g. a mac-gated shell harness, or a flow that doesn't exist yet), an explicit
+`(not yet asserted — <reason>)` marker. The escape hatch keeps the trace HONEST — never invent a link to
+dodge the lint; mark it untested and say why. So write the link the moment you author the scenario. The
+`new-golden` skill's step 6 is the other half: after the golden passes, it tells you to record the class
+name back here.
 
 ## Recipe: add a new domain-MCP (`domains/<domain>/mcp-<name>`)
 Canonical example: [mcp-ics-import](../domains/calendar/mcp-ics-import) (Stage-1 closer of the

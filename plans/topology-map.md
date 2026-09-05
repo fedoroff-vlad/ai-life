@@ -117,14 +117,17 @@ Classification is signal-driven, no embedded topology copy (avoids a second SSOT
 (not a container), read from `ps`. Cold hosts that are stopped simply don't appear — the snapshot reflects
 whatever is actually resident, which is the number that matters.
 
+These four are asserted at deploy, not in CI: `measure-footprint.sh` is a shell harness whose real
+numbers need the Mac (no Docker on the dev VDI), so each carries `not yet asserted` until then.
+
 - Scenario: measuring a running stack → a per-process table (name · tier · RSS, sorted desc) **and** a
-  split summary (JVM total + count · Postgres · model · backing · grand total).
+  split summary (JVM total + count · Postgres · model · backing · grand total) (not yet asserted — mac-gated shell harness).
 - Scenario: the local model runs as a host Ollama process → its RSS is captured separately from the
-  containers and reported in the `model` line (with the unified-memory caveat noted).
+  containers and reported in the `model` line (with the unified-memory caveat noted) (not yet asserted — mac-gated shell harness).
 - Scenario: `--json` → the same numbers as one machine-readable object, so slice 3 can diff before/after
-  consolidation without re-parsing the table.
+  consolidation without re-parsing the table (not yet asserted — mac-gated shell harness).
 - Scenario: the stack (or Docker) is down → the script reports only what is running and exits 0 (a
-  measurement tool never fails a pipeline), naming what it could not reach.
+  measurement tool never fails a pipeline), naming what it could not reach (not yet asserted — mac-gated shell harness).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

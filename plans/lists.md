@@ -160,7 +160,7 @@ blocking the board. Second consumer of note list/update → those two methods ar
 - Scenario: **the owner then checks items off through LI-a**
   WHEN the saved «список вещей» note exists and the owner says "вычеркни зонт из списка вещей"
   THEN LI-a's `ListManager` resolves that `type=list` note by title and marks the item done — no travel
-  code involved (the note is a plain LI-a list; covered by the existing LI-a `ListManagerTest`).
+  code involved (the note is a plain LI-a list) (asserted by `ListManagerTest`).
 - Scenario: **the note write soft-fails**
   WHEN memory-service is unreachable while packing
   THEN the owner still gets the text list + HTML board and only the "saved to list" line is omitted
