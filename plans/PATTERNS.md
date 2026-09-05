@@ -19,14 +19,23 @@ Template:
 
 - **Scenario: <name>**
   - WHEN <trigger / input state>
-  - THEN <observable outcome> (asserted by <golden | E2E | unit> test)
+  - THEN <observable outcome> (asserted by `<Name>Test` — the real class, once it exists)
 - **Scenario: <edge / negative case>**
   - WHEN <condition>
-  - THEN <fallback / refusal / clarify>
+  - THEN <fallback / refusal / clarify> (asserted by `<Name>Test`)
 ```
 
 Keep them at plan altitude (behaviour, not implementation). Outbound/side-effectful behaviour (send,
 book, pay) MUST have a scenario asserting it **stops for user confirm** — that is a criterion, not a detail.
+
+**Name the asserting test, and keep the name live.** The `(asserted by …)` link is not optional decoration —
+it is the spec→test trace. Once the test exists, put the **real class in backticks** (the `travel.md`
+convention, e.g. `(asserted by `E2ECoordinateMultiDomainTest`)`), not a prose placeholder. Enforcement:
+`scripts/check-consistency.sh` **check 9** (`plan-test-reference` coupling) fails CI when a live plan names a
+`…Test` that no longer exists — a renamed/removed test is a caught drift, not a silent one (`HISTORY.md` is
+exempt as an archive). A later slice flips check 9 **strict** — every `Scenario:` in a changed plan must carry
+the link — so write it now. The `new-golden` skill's step 6 is the other half: after the golden passes, it
+tells you to record the class name back here.
 
 ## Recipe: add a new domain-MCP (`domains/<domain>/mcp-<name>`)
 Canonical example: [mcp-ics-import](../domains/calendar/mcp-ics-import) (Stage-1 closer of the
