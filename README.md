@@ -27,7 +27,10 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 > the ADR headers, and [`HISTORY.md`](plans/HISTORY.md) (timeline); in-flight + next + parked live in
 > [`plans/STATUS.md`](plans/STATUS.md).
 
-**Shipped** — each line links to its source of truth; presence here = done, detail lives at the link:
+> **Built ≠ live.** "Shipped"/"done" here means **`built + CI-green`** (merged, tests pass) — **not** running in
+> production. There is **no 24/7 deployment yet** (hardware-gated, Mac not purchased — [#483](https://github.com/fedoroff-vlad/ai-life/issues/483)); nothing is `live`. See [`plans/STATUS.md`](plans/STATUS.md) §Deployment reality.
+
+**Shipped** (`built+green`, not `live` — see above) — each line links to its source of truth; presence here = done, detail lives at the link:
 - **Stages 0–5** — foundation · calendar · finance · tasks · memory + inter-agent · real-LLM golden tests → [`roadmap.md`](plans/roadmap.md)
 - **Stage 6 domain agents** — researcher, stylist, nutrition (nutritionist + chef), creator → [`roadmap.md`](plans/roadmap.md)
 - **Future agents** — briefing ([#186](https://github.com/fedoroff-vlad/ai-life/issues/186)) · docs ([#188](https://github.com/fedoroff-vlad/ai-life/issues/188)) · travel ([#190](https://github.com/fedoroff-vlad/ai-life/issues/190) — MVP + live search + trip wallet + route import + packing) → [`briefing.md`](plans/briefing.md) · [`docs.md`](plans/docs.md) · [`travel.md`](plans/travel.md)

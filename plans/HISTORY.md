@@ -8,6 +8,11 @@ done". For the *authoritative detail* of any item, follow its link to the **doma
 - **Live/next work** → [STATUS.md](STATUS.md).
 - **Per-domain detail** → the domain plan in [INDEX.md](INDEX.md) (e.g. `finance.md`, `tasks.md`) + the module `README.md`.
 
+> **"Shipped" here = `built+green`, not `live`.** Every row below means the code is merged into `main` with CI
+> (unit/slice/golden/E2E) green — **not** that it is running in a deployed instance. There is no 24/7 deployment
+> yet (hardware-gated, [#483](https://github.com/fedoroff-vlad/ai-life/issues/483)); see [STATUS.md](STATUS.md)
+> §Deployment reality for the built-vs-live distinction.
+
 ## Timeline (terse — detail lives at the linked source)
 
 | When | Milestone | Source of truth |
