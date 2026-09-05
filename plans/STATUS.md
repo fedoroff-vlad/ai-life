@@ -4,6 +4,18 @@
 (archive, out of the reading order). Authoritative detail for anything done lives in the **domain plan
 file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for specifics; STATUS stays lean.
 
+## Deployment reality — built ≠ live (read before trusting a ✅)
+Two different claims live in these docs; keep them apart (FUT-2, arch-checkup 2026-09-04 "built vs running" gap):
+- **`built+green`** — code merged into `main`, CI (unit/slice/golden/E2E) green. This is what **every ✅ / DONE /
+  COMPLETE here and in HISTORY means** unless a bullet says otherwise.
+- **`live`** — actually running in a deployed instance serving the household.
+**Nothing is `live` yet.** There is **no 24/7 deployment** — the target host (Mac Studio) isn't purchased, so
+the whole system is `built+green`, dev/CI-only ([#483](https://github.com/fedoroff-vlad/ai-life/issues/483),
+[lifecycle.md](lifecycle.md)). A "✅ COMPLETE" agent/skill means *the code is proven in tests*, **not** "an agent
+is using it in production". The **`## Parked`** Mac-gated tracks are a stricter case — blocked even for
+build/validation (no Docker on the dev VDI): they are `designed`/`partially-built`, not fully `built+green`. When
+the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
+
 ## Now
 - _Nothing in flight._ The **spec→test discipline epic [#618](https://github.com/fedoroff-vlad/ai-life/issues/618)
   is COMPLETE (2026-09-05, slices 1–7)** — `check-consistency.sh` check 9 is now **strict** (every live-plan
