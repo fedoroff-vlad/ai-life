@@ -68,6 +68,15 @@ couplings:
     must_update:
       - both sides' code
       - "E2E<Stage/Feature>...Test"
+    notes: >
+      Mechanized (FUT-1): scripts/check-consistency.sh check 10 is a per-change (diff) gate — a
+      net-new libs/contracts file in a PR must ship with an E2E<Feature>Test added/modified in the
+      SAME change (proving the DTO survives the real HTTP/SSE hop). Not every new contracts file is a
+      fresh wire contract — a nested sub-DTO of an existing message, or a capability-MCP input/output
+      proven by that MCP's own integration test, opts out with an in-file `// wire-contract-exempt:
+      <reason>` marker (conscious + self-documenting, next to the code it excuses). Diff-based, so it
+      runs on PRs (base = origin/$GITHUB_BASE_REF) + main push (HEAD^) and skips when no base ref is
+      resolvable (never a false failure out of context).
 
   - id: model-profile-cross-repo
     trigger: Changed the /v1/model-profile contract (profile names, status semantics, ordering)
