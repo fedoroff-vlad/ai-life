@@ -271,6 +271,51 @@ if [ -n "$strict_hits" ]; then
   err "→ append '(asserted by \`XTest\`)' naming the real @Test class, or '(not yet asserted — <reason>)' when genuinely untested (see PATTERNS.md §Recipe: spec a slice)"
 fi
 
+# ── Check 10: a NEW cross-service wire contract ships with an E2E in the same change ───
+# The change-map `new-wire-contract` coupling (CLAUDE.md §Change-propagation + §Test strategy;
+# arch-checkup FUT-1). Adding a cross-service wire contract under libs/contracts means proving the
+# DTO survives the real HTTP/SSE hop — an `E2E<Feature>Test` must land in the SAME change (not a
+# later PR), the same "same-PR propagation" discipline the other change-map couplings enforce.
+# This is a PER-CHANGE (diff) gate, so it runs ONLY when a base ref is resolvable — PR:
+# origin/$GITHUB_BASE_REF · main push: HEAD^ · local: origin/main — and otherwise SKIPS (never a
+# false failure out of context). Zero false positives by design: most of libs/contracts is NOT a
+# fresh wire contract (nested sub-DTOs of an existing message, capability-MCP inputs/outputs proven
+# by that MCP's own integration test, enums/common types) — such a NEW file opts out with an in-file
+# marker `wire-contract-exempt: <reason>`, a conscious + self-documenting exemption (like check 7/8's
+# allowlists, but living next to the code it excuses).
+echo "check 10: a new libs/contracts wire contract ships with an E2E in the same change (new-wire-contract)"
+c10_base=""
+if [ -n "${GITHUB_BASE_REF:-}" ]; then
+  git fetch --no-tags --quiet origin "$GITHUB_BASE_REF" 2>/dev/null || true
+  git rev-parse --verify -q "origin/$GITHUB_BASE_REF" >/dev/null 2>&1 && c10_base="origin/$GITHUB_BASE_REF...HEAD"
+elif [ "${GITHUB_EVENT_NAME:-}" = "push" ]; then
+  git rev-parse --verify -q "HEAD^" >/dev/null 2>&1 && c10_base="HEAD^ HEAD"
+elif git rev-parse --verify -q origin/main >/dev/null 2>&1; then
+  c10_base="origin/main...HEAD"
+fi
+if [ -z "$c10_base" ]; then
+  echo "        (no base ref resolvable — per-change check, skipped outside CI/PR)"
+else
+  new_contracts="$(git diff --diff-filter=A --name-only $c10_base -- libs/contracts/ 2>/dev/null \
+                    | grep -E '/src/main/.*\.java$' | grep -v '/package-info\.java$' || true)"
+  required=""
+  for f in $new_contracts; do
+    # An in-file `wire-contract-exempt:` marker opts a nested / capability-covered DTO out.
+    [ -f "$f" ] && grep -q 'wire-contract-exempt:' "$f" && continue
+    required="$required$f"$'\n'
+  done
+  required="$(printf '%s' "$required" | sed '/^$/d')"
+  if [ -n "$required" ]; then
+    e2e_touched="$(git diff --diff-filter=AMR --name-only $c10_base 2>/dev/null \
+                    | grep -E '/E2E[A-Za-z0-9]*Test\.java$' || true)"
+    if [ -z "$e2e_touched" ]; then
+      err "new cross-service wire contract(s) added with no E2E in the same change:"
+      echo "$required" | sed 's/^/        /' >&2
+      err "→ add/extend an E2E<Feature>Test asserting the DTO survives the real HTTP/SSE hop, OR, for a nested sub-DTO / capability-MCP I/O covered by another test, add a '// wire-contract-exempt: <reason>' line to the new file (see CLAUDE.md §Change-propagation → new-wire-contract)"
+    fi
+  fi
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
