@@ -48,44 +48,54 @@ epic sliced small:
 
 **Acceptance criteria (WHEN/THEN) — RU-4:**
 - Scenario: **a readable document archives.** WHEN a document photo's OCR is non-empty with confidence ≥
-  `docs-agent.ocr-min-confidence` (or a `null`/unknown confidence) → THEN docs-agent archives it as before.
+  `docs-agent.ocr-min-confidence` (or a `null`/unknown confidence) → THEN docs-agent archives it as before
+  (asserted by `DocArchiverTest`).
 - Scenario: **an unreadable captionless photo asks for a re-shoot.** WHEN the OCR text is empty or its confidence
   is known and below the threshold, and the message carries no caption → THEN docs-agent replies asking for a
-  clearer shot and does not file anything (no LLM extract, no archive write).
+  clearer shot and does not file anything (no LLM extract, no archive write) (asserted by `DocArchiverTest`).
 - Scenario: **a caption exempts the gate.** WHEN the same unreadable OCR arrives with a user caption → THEN
-  docs-agent still archives (the caption carries the metadata).
+  docs-agent still archives (the caption carries the metadata) (asserted by `DocArchiverTest`).
 - Scenario: **a blurry receipt to finance still asks for the amount.** WHEN a receipt photo's vision extract has
-  no amount → THEN finance replies «Не удалось распознать сумму… Пришлите фото почётче» (pre-existing, unchanged).
+  no amount → THEN finance replies «Не удалось распознать сумму… Пришлите фото почётче» (pre-existing, unchanged)
+  (asserted by `ReceiptFlowTest`).
 
 **Acceptance criteria (WHEN/THEN) — RU-3:**
 - Scenario: **a confident voice note routes.** WHEN a captionless voice note transcribes to non-empty text with
   confidence ≥ `gateway.stt.min-confidence` (or a `null`/unknown confidence) → THEN the gateway routes the
-  transcript to the orchestrator exactly as before.
+  transcript to the orchestrator exactly as before (asserted by `MessageProcessorTest`; end-to-end in
+  `E2EVoiceInboundFlowTest`).
 - Scenario: **a low-confidence voice note asks for a repeat.** WHEN the transcript's confidence is known and
-  below the threshold → THEN the gateway replies asking the owner to repeat and never calls the orchestrator.
+  below the threshold → THEN the gateway replies asking the owner to repeat and never calls the orchestrator
+  (asserted by `MessageProcessorTest`).
 - Scenario: **an empty transcript asks for a repeat.** WHEN the transcript text is empty/blank (no speech heard)
-  → THEN the gateway replies asking the owner to repeat and never calls the orchestrator.
+  → THEN the gateway replies asking the owner to repeat and never calls the orchestrator (asserted by
+  `MessageProcessorTest`).
 - Scenario: **a captioned voice / typed message is unaffected.** WHEN the message already carries text (a
-  caption or a typed message) → THEN no STT gate applies and it routes normally.
+  caption or a typed message) → THEN no STT gate applies and it routes normally (asserted by `MessageProcessorTest`).
 
 **Acceptance criteria (WHEN/THEN) — RU-1:**
 - Scenario: **slow flow shows a typing indicator.** WHEN an inbound message starts a round-trip that takes more
   than a moment → THEN the owner sees "печатает…" immediately and continuously until the reply arrives, not
-  silence (`TypingIndicator.start` fires now + refreshes every ~4s; the `Handle` stops it when the reply sends).
+  silence (`TypingIndicator.start` fires now + refreshes every ~4s; the `Handle` stops it when the reply sends)
+  (asserted by `TypingIndicatorTest`).
 - Scenario: **typing never breaks the reply.** WHEN the typing chat-action send fails → THEN it is swallowed and
-  the actual reply is still produced and sent (best-effort, cosmetic-only).
+  the actual reply is still produced and sent (best-effort, cosmetic-only) (asserted by `TypingIndicatorTest`).
 
 **Acceptance criteria (WHEN/THEN) — RU-2:**
 - Scenario: **binary confirm renders buttons.** WHEN an agent reply carries a `pendingAction` hinted
-  `PendingActionHints.CONFIRM` → THEN the bot sends the reply text with a two-button Да / Нет inline keyboard.
+  `PendingActionHints.CONFIRM` → THEN the bot sends the reply text with a two-button Да / Нет inline keyboard
+  (asserted by `AiLifeBotConfirmTest`; keyboard markup in `ConfirmKeyboardTest`).
 - Scenario: **open-question pendingAction gets no buttons.** WHEN a `pendingAction` lacks the confirm hint (a
-  clarify, a "личное/общее?" sharing confirm) → THEN no keyboard is attached (it expects a free-text answer).
+  clarify, a "личное/общее?" sharing confirm) → THEN no keyboard is attached (it expects a free-text answer)
+  (asserted by `AiLifeBotConfirmTest`).
 - Scenario: **a tap confirms via resume.** WHEN the owner taps "Да" → THEN the gateway routes the affirmative
-  text "да" through the orchestrator, the route-lock resumes the awaiting agent, and its reply is shown.
+  text "да" through the orchestrator, the route-lock resumes the awaiting agent, and its reply is shown
+  (asserted by `AiLifeBotConfirmTest`).
 - Scenario: **a tap cancels via resume.** WHEN the owner taps "Нет" → THEN the gateway routes "нет" (non-
-  affirmative) → the agent leaves the action, and the decline reply is shown.
+  affirmative) → the agent leaves the action, and the decline reply is shown (asserted by `AiLifeBotConfirmTest`).
 - Scenario: **buttons are one-shot + acknowledged.** WHEN a button is tapped → THEN the callback query is
-  answered (spinner stops) and the prompt's keyboard is stripped so it can't be tapped again (both best-effort).
+  answered (spinner stops) and the prompt's keyboard is stripped so it can't be tapped again (both best-effort)
+  (asserted by `AiLifeBotConfirmTest`).
 
 ## llm-gateway (platform/)
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
@@ -131,35 +141,38 @@ with the #489 button infra).
 **Acceptance criteria (WHEN/THEN) — PX-1:**
 - Scenario: **proactive push in quiet hours is held.** WHEN a `proactive` send is due for a user inside their
   quiet-hours window (evaluated in the user's tz) → THEN notifier does **not** deliver it; it stores the message
-  in `core.notification_held` with `deliver_after` = the window's next end, and returns a "held" outcome (PX-1a).
+  in `core.notification_held` with `deliver_after` = the window's next end, and returns a "held" outcome (PX-1a)
+  (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **reactive send is never gated.** WHEN a send is reactive (`proactive=false`/absent) → THEN it
-  delivers immediately regardless of quiet hours.
+  delivers immediately regardless of quiet hours (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **no preference = no gating.** WHEN the user has no `notification_preference` row → THEN every send
-  delivers immediately (back-compat).
+  delivers immediately (back-compat) (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **window wraps midnight.** WHEN quiet hours span midnight (e.g. 22:00–08:00) → THEN a 03:00-local
-  send is correctly detected as inside the window (pure `QuietHours` logic, unit-tested).
+  send is correctly detected as inside the window (pure `QuietHours` logic, unit-tested) (asserted by `QuietHoursTest`).
 - Scenario: **redeliver at window open.** WHEN the quiet window ends and a held message is still fresh (held
   under the staleness TTL) → THEN notifier redelivers it; a held message older than the TTL is dropped, never
-  delivered late (PX-1b).
+  delivered late (PX-1b) (asserted by `HeldRedrainIntegrationTest`).
 
 **Acceptance criteria (WHEN/THEN) — PX-2:**
 - Scenario: **overflow is suppressed.** WHEN a user has already had `daily_cap` proactive pushes delivered
   today (their tz) and another proactive send arrives → THEN it is dropped (not delivered, not queued), and a
-  `202` is returned to the caller.
+  `202` is returned to the caller (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **under the cap delivers and counts.** WHEN today's delivered count is below the cap → THEN the
-  push is delivered and recorded in `core.notification_sent`, so it counts toward the cap.
-- Scenario: **no cap = unlimited.** WHEN `daily_cap` is null → THEN no capping (only quiet hours may gate).
+  push is delivered and recorded in `core.notification_sent`, so it counts toward the cap (asserted by
+  `NotificationGateIntegrationTest`).
+- Scenario: **no cap = unlimited.** WHEN `daily_cap` is null → THEN no capping (only quiet hours may gate)
+  (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **yesterday does not count.** WHEN deliveries happened on prior days → THEN they do not count
-  against today's cap (the count is per calendar day in the user's tz).
+  against today's cap (the count is per calendar day in the user's tz) (asserted by `NotificationGateIntegrationTest`).
 
 **Acceptance criteria (WHEN/THEN) — PX-3:**
 - Scenario: **a muted stream is suppressed.** WHEN a proactive send's `source` (stream) is in the user's
   `notification_stream_optout` set → THEN it is dropped, and checked **before** quiet hours/cap (a muted
-  stream is never held or counted); other streams still deliver.
+  stream is never held or counted); other streams still deliver (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **muting is per member.** WHEN one household member mutes a stream → THEN only that member stops
-  receiving it (the opt-out row is per user).
+  receiving it (the opt-out row is per user) (asserted by `NotificationGateIntegrationTest`).
 - Scenario: **unattributed send is never opt-out-able.** WHEN a proactive send has no `source` → THEN no
-  stream opt-out can match it (it still faces quiet hours/cap).
+  stream opt-out can match it (it still faces quiet hours/cap) (asserted by `NotificationGateIntegrationTest`).
 
 ## Schemas owned here
 - `memory` — pgvector + AGE.

@@ -170,13 +170,15 @@ classifier, *not* a separate detector hop or `*_CUES` keywords — one classifie
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **misroute corrected in one turn.** WHEN the owner replies "не то, я имел в виду … / я про
   задачи" right after a reply → THEN the orchestrator re-classifies that turn with the prior route as
-  context and routes to the corrected intent, instead of treating it as a fresh unrelated message.
+  context and routes to the corrected intent, instead of treating it as a fresh unrelated message
+  (asserted by `IntentRouterLockTest` + model-proven by `GoldenMisrouteRepairTest`).
 - Scenario: **last-route ages out.** WHEN the correction window (short TTL) has elapsed since the last
-  routing → THEN the next message classifies normally (no stale prior-route context leaks in).
+  routing → THEN the next message classifies normally (no stale prior-route context leaks in) (asserted
+  by `GoldenMisrouteRepairTest`).
 - Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
-  resumes that agent as today; last-route is not consulted.
+  resumes that agent as today; last-route is not consulted (asserted by `IntentRouterLockTest`).
 - Scenario: **correction logged.** WHEN a correction re-routes to a different agent → THEN it is at least
-  logged as a routing-quality signal (agent_from → agent_to + phrasing).
+  logged as a routing-quality signal (agent_from → agent_to + phrasing) (asserted by `IntentRouterLockTest`).
 
 ## Track G — "why did you do that" trace (road-test [#485](https://github.com/fedoroff-vlad/ai-life/issues/485))
 Daily-use trust: right after a reply the owner should be able to ask **why the assistant handled it that
@@ -222,15 +224,16 @@ like #485's board-store rollout); not G1, which would otherwise touch every agen
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **owner asks why.** WHEN the owner replies "почему ты так сделал / как ты это понял" right after
   a fresh specialist reply → THEN the assistant returns a one-sentence trace naming the agent that handled
-  the prior turn and why it was chosen, without routing that meta-query to a domain agent.
+  the prior turn and why it was chosen, without routing that meta-query to a domain agent (asserted by
+  `IntentRouterLockTest` + model-proven by `GoldenExplainTraceTest`).
 - Scenario: **nothing to explain.** WHEN there is no fresh prior route (correction window elapsed, or the
   first message of a conversation) → THEN "почему …" classifies normally — no stale `explain` — degrading to
-  echo or its real intent.
+  echo or its real intent (asserted by `IntentRouterLockTest` + model-proven by `GoldenExplainTraceTest`).
 - Scenario: **explain doesn't disturb state.** WHEN an explain turn is answered → THEN it does not overwrite
   `last_route` (a subsequent correction still repairs the *original* route) and leaks no payload from the
-  prior turn.
+  prior turn (asserted by `IntentRouterLockTest`).
 - Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
-  resumes that agent; explain is not consulted (same precedence as Track F).
+  resumes that agent; explain is not consulted (same precedence as Track F) (asserted by `IntentRouterLockTest`).
 
 ## Track H — CRUD/undo (road-test [#486](https://github.com/fedoroff-vlad/ai-life/issues/486))
 Daily-use completeness: the MVP domains are strong on *create/read* but daily use immediately needs
@@ -304,22 +307,24 @@ confirms first and is itself undoable where feasible (soft-delete + restore).
 **Acceptance criteria (WHEN/THEN):**
 - Scenario: **undo the last mutation.** WHEN the owner says "отмени последнее / верни как было" right after a
   mutating write whose agent attached an undo handle → THEN the orchestrator dispatches the inverse to the
-  recording agent, the write is reversed, and it confirms — no id needed.
+  recording agent, the write is reversed, and it confirms — no id needed (asserted by `IntentRouterLockTest`
+  + model-proven by `GoldenUndoTest`).
 - Scenario: **nothing to undo.** WHEN no fresh undoable mutation exists (none recorded, TTL elapsed, or the
   last turn was a read) → THEN the assistant says there is nothing to undo (or classifies "отмени …" as its
-  real intent) — never a silent no-op.
+  real intent) — never a silent no-op (asserted by `IntentRouterLockTest` + model-proven by `GoldenUndoTest`).
 - Scenario: **irreversible action.** WHEN the last action is truly irreversible → THEN the assistant says so
-  honestly instead of pretending it undid something.
+  honestly instead of pretending it undid something (asserted by `IntentRouterLockTest`).
 - Scenario: **undo doesn't disturb routing state.** WHEN an undo turn is answered → THEN it does not overwrite
   `last_route` (a later correction still repairs the original route) and clears only the consumed
-  `last_mutation`.
+  `last_mutation` (asserted by `IntentRouterLockTest`).
 - Scenario: **lock still wins.** WHEN an agent has an open question (active `routeLock`) → THEN the reply
-  resumes that agent; undo is not consulted (same precedence as F/G).
+  resumes that agent; undo is not consulted (same precedence as F/G) (asserted by `IntentRouterLockTest`).
 - Scenario: **edit without an id.** WHEN the owner says "поменяй сумму последней траты на 1500 / удали задачу
   про X / исправь заметку …" → THEN the domain resolves the target from context and applies the edit/delete,
-  confirming.
+  confirming (asserted by `PickConfirmActRunnerTest`).
 - Scenario: **destructive delete confirms.** WHEN a delete is destructive → THEN it confirms first (reuses the
-  pending-action confirm gate) and is itself undoable where feasible (soft-delete + restore).
+  pending-action confirm gate) and is itself undoable where feasible (soft-delete + restore) (asserted by
+  `PickConfirmActRunnerTest`).
 
 ## Track I — real agent-led multi-domain coordination ([#477](https://github.com/fedoroff-vlad/ai-life/issues/477))
 The coordinator substrate (Track E / #290) is built, but in practice almost every flow is
@@ -357,15 +362,16 @@ everything above: the hub (C1), the `Coordinator` (D1), the `brief` primitive (E
 - Scenario: **a multi-domain ask fans out to one synthesized answer.** WHEN the owner asks something
   spanning ≥2 domains ("спланируй выходные") → THEN the lead agent gathers each relevant specialist's
   read-only `brief` via the hub and returns **one** reply grounded in all of them, with per-source
-  soft-fail (a missing source degrades, never 500s).
+  soft-fail (a missing source degrades, never 500s) (asserted by `E2ECoordinateMultiDomainTest`).
 - Scenario: **no direct agent-to-agent calls (invariant).** WHEN coordination happens → THEN it flows
-  only through the orchestrator hub (or the bus) — asserted by the I2 `E2E…Test`.
+  only through the orchestrator hub (or the bus) (asserted by `E2ECoordinateMultiDomainTest`).
 - Scenario: **outbound stays behind confirm.** WHEN a coordinated flow reaches an outbound external
   action → THEN it still hits the conversation-state confirm gate (propose-freely / act-on-confirm holds
-  across the coordinated path).
+  across the coordinated path). _(No coordinated-path outbound flow exists yet — the coordinator is
+  read-only `brief` gather; asserted when the first coordinated outbound action lands.)_
 - Scenario: **recall drives agent selection.** WHEN the classifier/planner has memory-service recall as
-  context → THEN a well-curated brain lets it pull the relevant specialists from the data, asserted at
-  least at the routing/golden level.
+  context → THEN a well-curated brain lets it pull the relevant specialists from the data (asserted by
+  `E2ECoordinateFlowTest`, with planner-selection unit coverage in `SpecialistBriefsTest`).
 
 ## Out of scope for Stage 4
 - Real LLM providers / golden tests on real models — **Stage 5** (blocked on model access).
