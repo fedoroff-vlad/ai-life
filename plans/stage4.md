@@ -367,8 +367,8 @@ everything above: the hub (C1), the `Coordinator` (D1), the `brief` primitive (E
   only through the orchestrator hub (or the bus) (asserted by `E2ECoordinateMultiDomainTest`).
 - Scenario: **outbound stays behind confirm.** WHEN a coordinated flow reaches an outbound external
   action → THEN it still hits the conversation-state confirm gate (propose-freely / act-on-confirm holds
-  across the coordinated path). _(No coordinated-path outbound flow exists yet — the coordinator is
-  read-only `brief` gather; asserted when the first coordinated outbound action lands.)_
+  across the coordinated path). _(not yet asserted — no coordinated-path outbound flow exists yet; the
+  coordinator is read-only `brief` gather, so this lands with the first coordinated outbound action.)_
 - Scenario: **recall drives agent selection.** WHEN the classifier/planner has memory-service recall as
   context → THEN a well-curated brain lets it pull the relevant specialists from the data (asserted by
   `E2ECoordinateFlowTest`, with planner-selection unit coverage in `SpecialistBriefsTest`).

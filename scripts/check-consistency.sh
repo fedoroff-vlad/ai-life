@@ -223,10 +223,17 @@ done
 # test that asserts it ("asserted by `XTest`" — the travel.md convention); when that test is
 # renamed or removed, the reference rots silently (hit when the stylist HTML renderer lifted to
 # libs/doc-render: HtmlStylistRenderer→HtmlDocRenderer, and plans still named HtmlStylistRendererTest).
-# Phase 1 (cheap, here): every backticked `…Test` in a live plan must resolve to a `<name>.java` in
-# the tree. HISTORY.md is EXCLUDED — it is an archive (out of the session reading order per CLAUDE.md)
-# that legitimately names classes by the name they had at the time. Phase 2 (strict, later, gated on
-# the backfill): also require each `Scenario:` in a changed plan to carry an `(asserted by `XTest`)` link.
+# Phase 1: every backticked `…Test` in a live plan must resolve to a `<name>.java` in the tree.
+# HISTORY.md is EXCLUDED — it is an archive (out of the session reading order per CLAUDE.md) that
+# legitimately names classes by the name they had at the time.
+# Phase 2 (strict, #618 slice 7): every WHEN/THEN `Scenario:` bullet in a live plan must carry a
+# spec→test trace — either `asserted by `XTest`` (the real class) or, when genuinely untested, an
+# explicit `not yet asserted — <reason>` marker (the escape hatch keeps the trace HONEST rather than
+# forcing a fake link; the two current holders are stage4 §Track-I outbound-confirm and topology-map's
+# mac-gated measure-footprint.sh scenarios). A scenario "block" is the bullet line plus its continuation
+# lines up to the next blank line / heading / scenario; whitespace is squeezed so an `(asserted\n by …)`
+# line-wrap still matches. Scenario bullets use several markups (`- Scenario:`, `- **Scenario (x):**`,
+# `` - `Scenario:` ``) — the regex matches "Scenario" after the bullet's optional non-space markup.
 echo "check 9: *Test references in live plans resolve to a real test class (plan-test-reference)"
 ALL_TESTS="$(git ls-files | grep -E '/[A-Za-z0-9]*Test\.java$' | sed -E 's#.*/##; s#\.java$##' | sort -u)"
 # Documented placeholders used in authoring guidance ("asserted by `XTest`") — not real classes.
@@ -240,6 +247,29 @@ for pf in $(git ls-files 'plans/*.md' | grep -vx 'plans/HISTORY.md'); do
     err "→ update the reference to the current test class, or drop it (HISTORY.md is exempt as an archive)"
   done
 done
+
+echo "check 9 (strict): every Scenario in a live plan carries an (asserted by …) link or 'not yet asserted'"
+strict_hits="$(
+  for pf in $(git ls-files 'plans/*.md' | grep -vx 'plans/HISTORY.md'); do
+    awk -v FN="$pf" '
+      function flush() {
+        if (inblk) {
+          b = blk; gsub(/[[:space:]]+/, " ", b)
+          if (b !~ /asserted by|not yet asserted/) print FN ":" start
+          inblk = 0; blk = ""
+        }
+      }
+      /^[[:space:]]*-[[:space:]]+[^[:space:]]*Scenario[[:space:]:(]/ { flush(); inblk = 1; start = NR; blk = $0; next }
+      { if (inblk) { if ($0 ~ /^[[:space:]]*$/ || $0 ~ /^#/) flush(); else blk = blk " " $0 } }
+      END { flush() }
+    ' "$pf"
+  done
+)"
+if [ -n "$strict_hits" ]; then
+  err "these Scenario(s) in a live plan name no asserting test (strict spec→test trace, #618):"
+  echo "$strict_hits" | sed 's/^/        /' >&2
+  err "→ append '(asserted by \`XTest\`)' naming the real @Test class, or '(not yet asserted — <reason>)' when genuinely untested (see PATTERNS.md §Recipe: spec a slice)"
+fi
 
 echo ""
 if [ "$fail" -ne 0 ]; then
