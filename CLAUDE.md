@@ -82,7 +82,10 @@ Extend the lint whenever a new coupling is mechanically checkable (a stale ref t
 Before writing a slice, state its acceptance criteria as **WHEN/THEN scenarios** in the domain plan
 (`plans/<domain>.md`) — one short `Scenario:` per observable behaviour, not prose. They are the spec the
 slice is judged against and the seed for its **golden/E2E** tests (a scenario that can't fail as a test
-isn't a criterion). Keep them at the plan/domain-plan altitude — SSOT is still the plan file; STATUS/README
+isn't a criterion). Once a scenario's test exists, **name it in the scenario** — `(asserted by `XTest`)`, the
+real class — so the spec→test link is traceable; `check-consistency.sh` **check 9** (`plan-test-reference`)
+fails CI when a live plan names a `…Test` that no longer exists (a later slice flips it strict: a link on
+every `Scenario:`). Keep them at the plan/domain-plan altitude — SSOT is still the plan file; STATUS/README
 **link**, don't restate. Template: [`plans/PATTERNS.md`](plans/PATTERNS.md) §Recipe: spec a slice.
 This is the one habit borrowed from spec-driven kits (OpenSpec's WHEN/THEN); the tool itself is **not**
 adopted — a parallel `openspec/` tree would be a second source of truth beside `plans/` (drift + a Node
