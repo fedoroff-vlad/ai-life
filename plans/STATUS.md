@@ -14,7 +14,12 @@ file** ([INDEX.md](INDEX.md)) + the **module README** — go to the source for s
   **2 ✅** authoring rule in PATTERNS.md §spec-a-slice + CLAUDE.md §Spec-each-slice + `new-golden` step 6
   (submodule bumped to 44a321c); **3 ✅** backfill `(asserted by
   `XTest`)` — finance + calendar (12 scenarios); **4 ✅** tasks + second-brain + core (20 scenarios);
-  **5** remaining domains (platform/lists/stage4/research/media/architecture/topology, ~55 scenarios);
+  **5 ✅** remaining domains — platform (27) / lists (21) / stage4 (18 of 19) / research (6) / media (3) /
+  architecture (4); backfilled against real `@Test` methods, check 9 green. **Two scenarios stay unlinked
+  by design, awaiting a test:** stage4 §Track-I "outbound stays behind confirm" (no coordinated-path
+  outbound flow exists yet — coordinator is read-only `brief` gather) + the 4 topology-map
+  `measure-footprint.sh` scenarios (a shell harness, mac-gated — no Docker on the dev VDI; real assertions
+  land at deploy). Slice 7 (strict flip) must resolve or scope-exempt these.
   **6** reconcile 6 AGENT.md `skills:` lists vs their `skills/` folders (finance/
   calendar/tasks/notes/chef/nutritionist — #486 CRUD skills never re-listed); **7** flip Check 9 to strict.
 

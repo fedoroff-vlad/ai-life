@@ -52,31 +52,35 @@ Ops: `add` · `check` (check off / mark done) · `clear` (empty the list) · `sh
   WHEN the owner says "добавь молоко в список покупок" and no `type=list` note titled "список покупок"
   exists in the household
   THEN a household-shared note is created (`type=list`, `title="список покупок"`, body `- [ ] молоко`)
-  and the reply confirms молоко was added.
+  and the reply confirms молоко was added (asserted by `ListManagerTest`).
 
 - Scenario: **add to an existing list appends one line**
   WHEN "добавь хлеб в список покупок" and the list already holds `- [ ] молоко`
-  THEN the note is updated in place (`PUT`) to `- [ ] молоко` + `- [ ] хлеб`.
+  THEN the note is updated in place (`PUT`) to `- [ ] молоко` + `- [ ] хлеб` (asserted by `ListManagerTest`).
 
 - Scenario: **adding a duplicate item is a no-op**
   WHEN "добавь молоко" and `молоко` is already an item (case-insensitive)
-  THEN the body is unchanged and the reply says it is already on the list.
+  THEN the body is unchanged and the reply says it is already on the list (asserted by `ListManagerTest`;
+  checklist idempotency in `MarkdownChecklistTest`).
 
 - Scenario: **check off an item marks it done**
   WHEN "вычеркни яйца из списка покупок" and `- [ ] яйца` is present
-  THEN that line becomes `- [x] яйца` and the reply confirms.
+  THEN that line becomes `- [x] яйца` and the reply confirms (asserted by `ListManagerTest`).
 
 - Scenario: **clear empties the list**
   WHEN "очисти список покупок"
-  THEN the list note body becomes empty (all items removed); the note itself is kept.
+  THEN the list note body becomes empty (all items removed); the note itself is kept (asserted by
+  `MarkdownChecklistTest`).
 
 - Scenario: **show renders the current state**
   WHEN "покажи список покупок"
-  THEN the reply lists every item with its ✅/⬜ state; an unknown list name replies "нет такого списка".
+  THEN the reply lists every item with its ✅/⬜ state; an unknown list name replies "нет такого списка"
+  (asserted by `ListManagerTest`).
 
 - Scenario: **check/show/clear on a missing list is graceful**
   WHEN the op is `check`/`clear`/`show` and no matching list exists
-  THEN nothing is written and the reply says the list wasn't found (no empty note is created).
+  THEN nothing is written and the reply says the list wasn't found (no empty note is created) (asserted by
+  `ListManagerTest`).
 
 ### LI-b — ambient list capture (keyword-free) ✅ DONE (LI-b1 + LI-b2)
 Fill a list *without* a keyword: "надо купить молоко" / "заканчивается кофе" → append to the grocery
@@ -94,17 +98,22 @@ genuine add-to-list intent. Conservative by design (most chatter is not a list i
 auto-save posture is safe. Decide-only, **no writes**.
 
 - Scenario: **a buy intent yields an item**
-  WHEN the message is "надо купить молоко" THEN one candidate `{item: "молоко"}` is emitted.
+  WHEN the message is "надо купить молоко" THEN one candidate `{item: "молоко"}` is emitted (asserted by
+  `GoldenListIntentExtractorTest`).
 - Scenario: **running-low implies a buy**
-  WHEN "дома заканчивается кофе" THEN a candidate for `кофе` is emitted.
+  WHEN "дома заканчивается кофе" THEN a candidate for `кофе` is emitted (asserted by
+  `GoldenListIntentExtractorTest`).
 - Scenario: **several things split into several items**
-  WHEN "нужно купить молоко и хлеб" THEN two candidates (`молоко`, `хлеб`).
+  WHEN "нужно купить молоко и хлеб" THEN two candidates (`молоко`, `хлеб`) (asserted by `ListIntentExtractorTest`).
 - Scenario: **a named list is captured**
-  WHEN "добавь зонт в список на поездку" THEN the candidate carries that list name (else `list=null`).
+  WHEN "добавь зонт в список на поездку" THEN the candidate carries that list name (else `list=null`)
+  (asserted by `ListIntentExtractorTest`).
 - Scenario: **small-talk / a past purchase yield nothing**
-  WHEN "привет, как дела?" or "сегодня купил молоко" THEN no candidate (a past purchase is not an add).
+  WHEN "привет, как дела?" or "сегодня купил молоко" THEN no candidate (a past purchase is not an add)
+  (asserted by `GoldenListIntentExtractorTest`).
 - Scenario: **a malformed model reply never breaks capture**
-  WHEN the LLM returns non-JSON THEN `extract` returns an empty list (best-effort), never throws.
+  WHEN the LLM returns non-JSON THEN `extract` returns an empty list (best-effort), never throws (asserted
+  by `ListIntentExtractorTest`).
 
 #### LI-b2 — wire the write into `CaptureService` ✅ DONE (LI-b2a [PR470](https://github.com/fedoroff-vlad/ai-life/pull/470) lift · LI-b2b [PR471](https://github.com/fedoroff-vlad/ai-life/pull/471) wire)
 LI-a's `MarkdownChecklist` was lifted to `libs/platform-common` (`common.list.MarkdownChecklist`, the
@@ -118,13 +127,15 @@ Flag-gated by `memory.ambient-capture.enabled`. New list notes are household-sha
 
 - Scenario: **a keyword-free buy intent creates the list**
   WHEN "надо купить молоко" and no `type=list` "список покупок" note exists (ambient on)
-  THEN a household-shared `type=list` note is created with body `- [ ] молоко` and the owner gets a "➕ …" ack.
+  THEN a household-shared `type=list` note is created with body `- [ ] молоко` and the owner gets a "➕ …" ack
+  (asserted by `CaptureServiceTest`; end-to-end in `AmbientCaptureIntegrationTest`).
 - Scenario: **a second item appends to the same list**
-  WHEN "ещё нужен хлеб" and the list holds `- [ ] молоко` THEN the note is updated to hold both.
+  WHEN "ещё нужен хлеб" and the list holds `- [ ] молоко` THEN the note is updated to hold both (asserted by
+  `CaptureServiceTest`; end-to-end in `AmbientCaptureIntegrationTest`).
 - Scenario: **an item already on the list is a silent no-op**
-  WHEN the item is already present THEN nothing is written and no ack is pushed.
+  WHEN the item is already present THEN nothing is written and no ack is pushed (asserted by `CaptureServiceTest`).
 - Scenario: **ambient off → nothing happens**
-  WHEN `memory.ambient-capture.enabled=false` THEN the extractor isn't even called.
+  WHEN `memory.ambient-capture.enabled=false` THEN the extractor isn't even called (asserted by `CaptureServiceTest`).
 
 ### LI-c — travel packing-list as a list note ✅ DONE
 Let travel's `PackingFlow` (#438, PK-a) emit its result as a `type=list` note so the owner can then check
@@ -153,6 +164,7 @@ blocking the board. Second consumer of note list/update → those two methods ar
 - Scenario: **the note write soft-fails**
   WHEN memory-service is unreachable while packing
   THEN the owner still gets the text list + HTML board and only the "saved to list" line is omitted
+  (asserted by `PackingFlowTest`)
   (asserted by `PackingFlowTest`).
 
 ## Verification

@@ -136,11 +136,12 @@ JNI-mature; whisper's isn't.
   Test = `MediaProcessingFramesTest` (MockWebServer for media-service GET + N uploads, stub extractor).
   - **Scenario (extract+store):** WHEN `frames(videoId, 3, household)` is called on a stored video,
     THEN 3 evenly-spaced keyframes are extracted, each uploaded to media-service, and their ids are
-    returned in temporal order.
+    returned in temporal order (asserted by `MediaProcessingFramesTest`).
   - **Scenario (no scope):** WHEN `householdId` is missing, THEN it returns an empty result and never
-    fetches or uploads (frames must be storable under a scope).
+    fetches or uploads (frames must be storable under a scope) (asserted by `MediaProcessingFramesTest`).
   - **Scenario (nothing produced):** WHEN the extractor yields no frame (unreadable bytes / ffmpeg
-    error), THEN it returns an empty `frameMediaIds` — the visual tier's "nothing" signal, not a 500.
+    error), THEN it returns an empty `frameMediaIds` — the visual tier's "nothing" signal, not a 500
+    (asserted by `MediaProcessingFramesTest`).
 
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.
