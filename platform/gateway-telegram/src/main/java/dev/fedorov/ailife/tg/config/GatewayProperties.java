@@ -2,6 +2,9 @@ package dev.fedorov.ailife.tg.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @ConfigurationProperties(prefix = "gateway")
 public class GatewayProperties {
 
@@ -13,6 +16,20 @@ public class GatewayProperties {
      * any other in-cluster caller. Empty in dev = endpoint refuses every request.
      */
     private String internalApiToken = "";
+    /**
+     * Owner-allowlist of Telegram user ids permitted to <b>create an account on first contact</b>
+     * (issue #627 — close the LLM/infra cost-abuse vector). The bot auto-provisions a personal
+     * household for a brand-new sender, so an ungated bot lets any stranger who finds it consume the
+     * owner's LLM budget (data stays isolated per household, but the spend does not).
+     *
+     * <p><b>Empty (the default) = allow all</b> — the gate is off, preserving the pre-#627 behaviour
+     * for dev/CI/local runs. In prod the owner sets this (their own id plus anyone they trust) and
+     * only listed ids may onboard. Two paths bypass the gate on purpose: an <b>already-provisioned</b>
+     * user (a member onboarded earlier) always passes, and a <b>{@code /start <token>} family
+     * invite</b> provisions the invitee regardless — the invite token is the authorization
+     * (ADR-0001). Env: {@code GATEWAY_ALLOWED_TELEGRAM_IDS} (CSV).
+     */
+    private Set<Long> allowedTelegramIds = new HashSet<>();
 
     public Telegram getTelegram() { return telegram; }
     public Services getServices() { return services; }
@@ -20,6 +37,20 @@ public class GatewayProperties {
     public String getInternalApiToken() { return internalApiToken; }
     public void setInternalApiToken(String internalApiToken) {
         this.internalApiToken = internalApiToken;
+    }
+
+    public Set<Long> getAllowedTelegramIds() { return allowedTelegramIds; }
+    public void setAllowedTelegramIds(Set<Long> allowedTelegramIds) {
+        this.allowedTelegramIds = allowedTelegramIds;
+    }
+
+    /**
+     * Whether a <em>new</em> Telegram id may be onboarded (a personal household created for it). An
+     * empty allowlist means the gate is off (allow all, back-compat); otherwise only listed ids pass.
+     * Existing users and invite redemptions are handled by the caller and do not consult this.
+     */
+    public boolean isOnboardingAllowed(long telegramUserId) {
+        return allowedTelegramIds.isEmpty() || allowedTelegramIds.contains(telegramUserId);
     }
 
     /** Front-door speech-to-text reliability gate (#489 RU-3). */

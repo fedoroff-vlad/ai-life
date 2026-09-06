@@ -163,4 +163,97 @@ class IdentityResolverTest {
         assertThat(outcome.inviteeReply()).isEqualTo("Приглашение недействительно или уже использовано.");
         verify(profile, never()).findById(anyString()); // no inviter lookup when the redeem failed
     }
+
+    // --- Owner-allowlist onboarding gate (issue #627) ---------------------------------------------
+
+    /** A resolver whose onboarding allowlist contains exactly the given ids. */
+    private IdentityResolver resolverAllowing(Long... ids) {
+        GatewayProperties gated = new GatewayProperties();
+        gated.setAllowedTelegramIds(new java.util.HashSet<>(java.util.List.of(ids)));
+        return new IdentityResolver(profile, gated);
+    }
+
+    @Test
+    void newUserNotOnAllowlistIsNotOnboarded() {
+        when(profile.findByTelegramId(99L)).thenReturn(Mono.empty());
+
+        UserDto result = resolverAllowing(42L).resolve(99L, "stranger", "ru").block();
+
+        assertThat(result).isNull(); // empty resolve → caller declines, never routes
+        verify(profile).findByTelegramId(99L);
+        verifyNoMoreInteractions(profile); // no household/user created for an unlisted new id
+    }
+
+    @Test
+    void newUserOnAllowlistIsOnboarded() {
+        UUID householdId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UserDto created = new UserDto(userId, householdId, "vlad", "ru-RU", 42L, "admin", Instant.now());
+
+        when(profile.findByTelegramId(42L)).thenReturn(Mono.empty());
+        when(profile.createHousehold("vlad"))
+                .thenReturn(Mono.just(new HouseholdDto(householdId, "vlad", Instant.now())));
+        when(profile.createUser(eq(householdId.toString()), eq("vlad"), eq(42L), eq("ru"), eq("admin")))
+                .thenReturn(Mono.just(created));
+
+        UserDto result = resolverAllowing(42L).resolve(42L, "vlad", "ru").block();
+
+        assertThat(result).isEqualTo(created);
+        verify(profile).createHousehold("vlad");
+    }
+
+    @Test
+    void existingUserBypassesTheAllowlist() {
+        UserDto existing = new UserDto(
+                UUID.randomUUID(), UUID.randomUUID(), "member", "ru-RU", 99L, "member", Instant.now());
+        when(profile.findByTelegramId(99L)).thenReturn(Mono.just(existing));
+
+        // 99 is NOT on the allowlist, but it's already provisioned → still allowed (the gate only
+        // guards new-account creation, not returning members onboarded earlier).
+        UserDto result = resolverAllowing(42L).resolve(99L, "member", "ru").block();
+
+        assertThat(result).isEqualTo(existing);
+        verify(profile).findByTelegramId(99L);
+        verifyNoMoreInteractions(profile);
+    }
+
+    @Test
+    void invitedNewUserJoinsEvenWhenNotOnAllowlist() {
+        UUID inviteeId = UUID.randomUUID();
+        UUID inviteeHome = UUID.randomUUID();
+        UUID inviterId = UUID.randomUUID();
+        UUID family = UUID.randomUUID();
+        UserDto invitee = new UserDto(inviteeId, inviteeHome, "Masha", "ru-RU", 555L, "admin", Instant.now());
+        UserDto inviter = new UserDto(inviterId, family, "vlad", "ru-RU", 42L, "admin", Instant.now());
+
+        // A brand-new invitee (555) not on the allowlist: the invite token authorizes onboarding, so
+        // find-or-create runs ungated and provisions their personal household before the redeem.
+        when(profile.findByTelegramId(555L)).thenReturn(Mono.empty());
+        when(profile.createHousehold("Masha"))
+                .thenReturn(Mono.just(new HouseholdDto(inviteeHome, "Masha", Instant.now())));
+        when(profile.createUser(eq(inviteeHome.toString()), eq("Masha"), eq(555L), eq("ru"), eq("admin")))
+                .thenReturn(Mono.just(invitee));
+        when(profile.redeem("tok", inviteeId.toString())).thenReturn(Mono.just(new HouseholdInviteDto(
+                UUID.randomUUID(), "tok", family, inviterId, "daughter", true,
+                "accepted", inviteeId, Instant.now(), Instant.now())));
+        when(profile.findById(inviterId.toString())).thenReturn(Mono.just(inviter));
+
+        InviteOutcome outcome = resolverAllowing(42L).redeemInvite(555L, "Masha", "ru", "tok").block();
+
+        assertThat(outcome).isNotNull();
+        assertThat(outcome.inviteeReply()).contains("daughter");
+        assertThat(outcome.holderTelegramId()).isEqualTo(42L);
+        verify(profile).createUser(eq(inviteeHome.toString()), eq("Masha"), eq(555L), eq("ru"), eq("admin"));
+    }
+
+    @Test
+    void strangerCannotMintAnInviteToSlipPastTheGate() {
+        when(profile.findByTelegramId(77L)).thenReturn(Mono.empty());
+
+        String reply = resolverAllowing(42L).mintInvite(77L, "stranger", "en", "x", "friend").block();
+
+        assertThat(reply).isEqualTo(IdentityResolver.notAllowedReply("en"));
+        verify(profile).findByTelegramId(77L);
+        verifyNoMoreInteractions(profile); // no account created, no invite minted
+    }
 }
