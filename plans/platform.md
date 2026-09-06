@@ -97,6 +97,31 @@ epic sliced small:
   answered (spinner stops) and the prompt's keyboard is stripped so it can't be tapped again (both best-effort)
   (asserted by `AiLifeBotConfirmTest`).
 
+### Owner-allowlist onboarding ([#627](https://github.com/fedoroff-vlad/ai-life/issues/627), security)
+The bot auto-provisions a personal household on first contact, so an ungated bot lets any stranger who finds
+it spend the owner's LLM budget (household data stays isolated, the spend does not). `GATEWAY_ALLOWED_TELEGRAM_IDS`
+(CSV) gates **new-account creation** in `IdentityResolver.resolve`; empty = allow all (dev/CI back-compat).
+Existing members and family-invite redemptions bypass the gate. Deterministic, never an LLM call.
+
+**Acceptance criteria (WHEN/THEN) — #627:**
+- Scenario: **an unlisted stranger is declined.** WHEN a Telegram id not on `GATEWAY_ALLOWED_TELEGRAM_IDS`
+  (non-empty) sends a message and has no account yet → THEN no household/user is created, the gateway replies
+  invite-only, and the orchestrator is never called (asserted by `IdentityResolverTest.newUserNotOnAllowlistIsNotOnboarded`
+  + `MessageProcessorGateTest.blockedNewUserGetsInviteOnlyDeclineAndNeverReachesOrchestrator`).
+- Scenario: **a listed owner onboards.** WHEN a listed id sends its first message → THEN a personal household +
+  user are created as before (asserted by `IdentityResolverTest.newUserOnAllowlistIsOnboarded`).
+- Scenario: **an existing member bypasses the gate.** WHEN an already-provisioned id not on the list sends a
+  message → THEN it is reused without creation and routes normally (asserted by
+  `IdentityResolverTest.existingUserBypassesTheAllowlist`).
+- Scenario: **a family invite onboards regardless.** WHEN a brand-new id not on the list opens a valid
+  `/start <token>` invite → THEN it is provisioned and joins the family household (asserted by
+  `IdentityResolverTest.invitedNewUserJoinsEvenWhenNotOnAllowlist`).
+- Scenario: **an empty allowlist allows all.** WHEN `GATEWAY_ALLOWED_TELEGRAM_IDS` is empty → THEN first-contact
+  onboarding behaves exactly as before #627 (asserted by `MessageProcessorTest.firstContactCreatesHouseholdAndUserThenReachesOrchestrator`).
+- Scenario: **minting can't slip past the gate.** WHEN an unlisted new id sends `/invite` → THEN no account is
+  created and it gets the invite-only decline instead of a deep-link (asserted by
+  `IdentityResolverTest.strangerCannotMintAnInviteToSlipPastTheGate`).
+
 ## llm-gateway (platform/)
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
 

@@ -14,6 +14,11 @@ import reactor.core.publisher.Mono;
  * user's household. profile-service records the self-membership on user creation. Joining a shared
  * (family) household is a separate, owner-gated invite/approve step (slice 4), not part of first
  * contact — so a friend who simply DMs the bot stays fully isolated in their own space.
+ *
+ * <p><b>Onboarding is owner-allowlisted (issue #627).</b> First-contact account creation is gated by
+ * {@link GatewayProperties#isOnboardingAllowed(long)} so a stranger who finds the bot can't burn the
+ * owner's LLM budget: an unlisted new id is declined (empty resolve → {@link #notAllowedReply}), while
+ * an empty allowlist keeps the old allow-all behaviour and a valid family invite still onboards.
  */
 @Component
 public class IdentityResolver {
@@ -26,19 +31,44 @@ public class IdentityResolver {
         this.props = props;
     }
 
+    /**
+     * Resolve identity for a normal inbound message, <b>owner-gated on first contact</b> (issue #627):
+     * a returning user is reused as-is, but a brand-new id is provisioned only when
+     * {@link GatewayProperties#isOnboardingAllowed(long)} permits it (an empty allowlist = allow all,
+     * back-compat). A blocked new id yields an <b>empty</b> {@link Mono} — the caller turns that into a
+     * polite "invite-only" decline and never routes to the orchestrator, so a stranger can't burn the
+     * owner's LLM budget. The invite path ({@link #redeemInvite}) uses the ungated
+     * {@link #findOrCreate} instead, since the token is its own authorization.
+     */
     public Mono<UserDto> resolve(long telegramUserId, String displayName, String languageCode) {
+        return profile.findByTelegramId(telegramUserId)
+                .switchIfEmpty(Mono.defer(() -> props.isOnboardingAllowed(telegramUserId)
+                        ? createPersonal(telegramUserId, displayName, languageCode)
+                        : Mono.empty()));
+    }
+
+    /**
+     * Find-or-create with <b>no allowlist gate</b> — used only where creation is already authorized by
+     * something other than the allowlist (a family-invite redemption). Everyday message routing goes
+     * through the gated {@link #resolve} instead.
+     */
+    private Mono<UserDto> findOrCreate(long telegramUserId, String displayName, String languageCode) {
+        return profile.findByTelegramId(telegramUserId)
+                .switchIfEmpty(Mono.defer(() -> createPersonal(telegramUserId, displayName, languageCode)));
+    }
+
+    /** Provision a new user + their own personal household (ADR-0001). */
+    private Mono<UserDto> createPersonal(long telegramUserId, String displayName, String languageCode) {
         String locale = languageCode != null && !languageCode.isBlank() ? languageCode : "ru-RU";
         String name = displayName != null && !displayName.isBlank()
                 ? displayName : "user-" + telegramUserId;
-        return profile.findByTelegramId(telegramUserId)
-                .switchIfEmpty(Mono.defer(() ->
-                        profile.createHousehold(personalHouseholdName(name))
-                                .flatMap(h -> profile.createUser(
-                                        h.id().toString(),
-                                        name,
-                                        telegramUserId,
-                                        locale,
-                                        "admin"))));
+        return profile.createHousehold(personalHouseholdName(name))
+                .flatMap(h -> profile.createUser(
+                        h.id().toString(),
+                        name,
+                        telegramUserId,
+                        locale,
+                        "admin"));
     }
 
     /**
@@ -52,7 +82,9 @@ public class IdentityResolver {
     public Mono<InviteOutcome> redeemInvite(long telegramUserId, String displayName,
                                             String languageCode, String token) {
         boolean ru = languageCode == null || languageCode.startsWith("ru");
-        return resolve(telegramUserId, displayName, languageCode)
+        // Ungated find-or-create: a valid invite token authorizes onboarding regardless of the
+        // owner-allowlist (issue #627), so a redeemed invitee joins even when their id isn't listed.
+        return findOrCreate(telegramUserId, displayName, languageCode)
                 .flatMap(invitee -> profile.redeem(token, invitee.id().toString())
                         .flatMap(invite -> joined(invitee, invite, ru))
                         .onErrorResume(WebClientResponseException.class,
@@ -69,10 +101,14 @@ public class IdentityResolver {
     public Mono<String> mintInvite(long telegramUserId, String displayName, String languageCode,
                                    String personLabel, String relationship) {
         boolean ru = languageCode == null || languageCode.startsWith("ru");
+        // Gated: a stranger's `/invite` must not create an account either — otherwise minting would be
+        // a trivial way to slip past the owner-allowlist (issue #627). A blocked new id gets the same
+        // invite-only decline as a normal message.
         return resolve(telegramUserId, displayName, languageCode)
                 .flatMap(owner -> profile.mintInvite(
                         owner.householdId().toString(), owner.id().toString(), relationship)
-                        .map(invite -> mintReply(ru, personLabel, relationship, deepLink(invite.token()))));
+                        .map(invite -> mintReply(ru, personLabel, relationship, deepLink(invite.token()))))
+                .switchIfEmpty(Mono.just(notAllowedReply(languageCode)));
     }
 
     /** Build the join outcome, resolving the inviter's Telegram id for the holder ping. */
@@ -130,6 +166,17 @@ public class IdentityResolver {
     private static String failedReply(boolean ru) {
         return ru ? "Приглашение недействительно или уже использовано."
                 : "This invite is invalid or already used.";
+    }
+
+    /**
+     * Reply shown to an unlisted new Telegram id when onboarding is owner-gated (issue #627). Kept
+     * generic on purpose — it neither confirms an account was created nor leaks who the owner is.
+     */
+    public static String notAllowedReply(String languageCode) {
+        boolean ru = languageCode == null || languageCode.startsWith("ru");
+        return ru
+                ? "Это приватный бот. Доступ по приглашению — попросите владельца прислать ссылку-приглашение."
+                : "This is a private bot. Access is invite-only — ask the owner to send you an invite link.";
     }
 
     /** The `t.me/<bot>?start=<token>` deep-link an invitee opens to redeem the invite (slice 4b-i). */

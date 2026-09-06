@@ -73,7 +73,11 @@ public class MessageProcessor {
     public Mono<IntentResponse> process(IncomingMessage incoming) {
         return identity.resolve(incoming.telegramUserId(), incoming.displayName(), incoming.languageCode())
                 .flatMap(user -> attachmentsFor(user, incoming)
-                        .flatMap(attachments -> route(user, incoming, attachments)));
+                        .flatMap(attachments -> route(user, incoming, attachments)))
+                // An empty resolve means an unlisted new id was blocked by the owner-allowlist
+                // (issue #627): reply "invite-only" and never reach the orchestrator/LLM.
+                .switchIfEmpty(Mono.fromSupplier(() -> new IntentResponse(
+                        "gateway", IdentityResolver.notAllowedReply(incoming.languageCode()), null)));
     }
 
     /**

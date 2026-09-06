@@ -58,6 +58,17 @@ internal tunable — env `GATEWAY_STT_MINCONFIDENCE`) is treated as unintelligib
 (engine reported no signal) is "unknown", never low, so the transcript still routes (back-compat). Deterministic,
 never an LLM call.
 
+**Owner-allowlist onboarding ([#627](https://github.com/fedoroff-vlad/ai-life/issues/627)).** The bot
+auto-provisions a personal household for a brand-new sender (see step 2 above), so an ungated bot lets
+anyone who finds it consume the owner's LLM budget — data stays isolated per household, but the *spend*
+does not. `GATEWAY_ALLOWED_TELEGRAM_IDS` (CSV of Telegram user ids) gates **first-contact account
+creation**: an unlisted new id is declined with an invite-only reply and **never reaches the
+orchestrator/LLM**. Two paths bypass the gate on purpose — an **already-provisioned** user (onboarded
+earlier) always passes, and a **`/start <token>` family invite** onboards the invitee regardless (the
+token is the authorization). **Empty (the default) = allow all**, preserving the pre-#627 behaviour for
+dev/CI/local runs; set it in prod to your own id plus anyone you trust. `IdentityResolver.resolve` is the
+gate; a stranger's `/invite` is gated too (else minting would be a trivial bypass).
+
 ## Configuration
 
 | env var                          | default                              | required |
@@ -66,6 +77,7 @@ never an LLM call.
 | `GATEWAY_TELEGRAM_BOT_USERNAME`  | `ai_life_bot`                        |          |
 | `GATEWAY_TELEGRAM_BOT_TOKEN`     | *(empty — bot won't start)*          | yes for prod |
 | `GATEWAY_DEFAULT_HOUSEHOLD_NAME` | `default household`                  |          |
+| `GATEWAY_ALLOWED_TELEGRAM_IDS`   | *(empty — allow all)*                | prod (see below) |
 | `PROFILE_SERVICE_URL`            | `http://profile-service:8082`        |          |
 | `ORCHESTRATOR_URL`               | `http://orchestrator:8083`           |          |
 | `MEDIA_SERVICE_URL`              | `http://media-service:8088`          |          |
