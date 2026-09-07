@@ -231,6 +231,13 @@ per-feature afterthought:
   they never execute actions derived from fetched content.
 - **Checklist when adding an ingestion source or MCP:** provenance tagged · content framed as data ·
   outbound stays behind confirm · third-party MCP reviewed. Ref: OWASP LLM Top-10 + MCP Top-10.
+- **Authorization posture (2026-09-06 review) → [ADR-0007](adr/ADR-0007-authorization-posture.md) (Proposed).**
+  The trust-boundary / inter-service-authN / bot-token-blast-radius decision. Recommends: the private
+  single-box network is the primary boundary, made real (loopback ports #628 + Tailscale-only off-host) and
+  defended in depth with a shared-secret on all `/internal/*` (#630, generalizing the gateway `/internal/send`
+  Bearer guard); human authN = bot-token + owner-allowlist (#627); authZ = household tenant-routing
+  (ADR-0001); mTLS/Spring-Security deferred behind a multi-tenant/multi-host trigger. This §Security /
+  §Locked-decisions is cemented only when ADR-0007 is Accepted.
 
 ## Locked decisions (do NOT relitigate)
 - **Untrusted-input doctrine (2026-07-10):** all ingested/retrieved text (web / OCR / STT / recall / briefs) is data, not instructions; outbound stays behind the confirm gate; external MCPs need review. See §Security above.
