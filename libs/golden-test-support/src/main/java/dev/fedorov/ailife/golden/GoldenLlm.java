@@ -5,10 +5,14 @@ import dev.fedorov.ailife.agentruntime.skill.SkillParser;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.llm.LlmClient;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -31,9 +35,19 @@ public final class GoldenLlm {
         return (url == null || url.isBlank()) ? "http://localhost:8081" : url.trim();
     }
 
-    /** An {@link LlmClient} pointed at the live gateway ({@link #gatewayUrl()}). */
+    /**
+     * An {@link LlmClient} pointed at the live gateway ({@link #gatewayUrl()}). Resilience is
+     * deliberately pass-through for the golden harness: no retry (measure the model's real answer,
+     * don't mask a flake) and a breaker that never trips within a run, with a generous timeout for a
+     * slow local model.
+     */
     public static LlmClient client() {
-        return new LlmClient(WebClient.builder().baseUrl(gatewayUrl()).build());
+        Retry noRetry = Retry.of("golden", RetryConfig.custom().maxAttempts(1).build());
+        return new LlmClient(
+                WebClient.builder().baseUrl(gatewayUrl()).build(),
+                CircuitBreaker.ofDefaults("golden"),
+                noRetry,
+                Duration.ofSeconds(120));
     }
 
     /** A private-scope message with random household + user ids. */
