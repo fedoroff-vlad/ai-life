@@ -1,0 +1,43 @@
+# Dependency-vulnerability + freshness automation (#629). Dependabot opens PRs for outdated /
+# vulnerable dependencies; the owner triages them through the normal branch → PR → green CI flow
+# (and the `bump-deps` skill for any coupled SSOT/pin propagation). Weekly + a low PR cap keeps the
+# noise bounded. Complements the gitleaks secret-scan job in ci.yml; neither replaces the manual
+# scrub-identity discipline.
+version: 2
+updates:
+  # Java dependencies — the root pom carries the dependencyManagement / BOM pins that are the
+  # version SSOT for the whole monorepo, so watching the root reactor covers the shared pins.
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 5
+    labels:
+      - tech-debt
+      - security
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Batch the low-risk patch/minor bumps into one PR so routine churn is a single review.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions — the workflow pins actions (checkout@v4, setup-java@v4) + the gitleaks release
+  # tag lives in ci.yml; keep those current too.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 3
+    labels:
+      - tech-debt
+    commit-message:
+      prefix: "chore(ci)"
