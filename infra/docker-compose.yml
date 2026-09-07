@@ -572,6 +572,10 @@ services:
       dockerfile: platform/gateway-telegram/Dockerfile
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
       profile-service:
         condition: service_healthy
       orchestrator:
@@ -587,6 +591,11 @@ services:
       GATEWAY_TELEGRAM_BOT_USERNAME: ${GATEWAY_TELEGRAM_BOT_USERNAME:-ai_life_bot}
       GATEWAY_TELEGRAM_BOT_TOKEN: ${GATEWAY_TELEGRAM_BOT_TOKEN:-}
       GATEWAY_DEFAULT_HOUSEHOLD_NAME: ${GATEWAY_DEFAULT_HOUSEHOLD_NAME:-default household}
+      # Durable inbound inbox (#633): persist-before-process to bus.inbox so a downstream outage
+      # can't silently drop a user message; a scheduled redrive delivers the answer when it clears.
+      GATEWAY_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      GATEWAY_DB_USER: ${POSTGRES_USER:-ailife}
+      GATEWAY_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
       PROFILE_SERVICE_URL: http://profile-service:8082
       ORCHESTRATOR_URL: http://orchestrator:8083
       MEDIA_SERVICE_URL: http://media-service:8088

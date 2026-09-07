@@ -2,6 +2,7 @@ package dev.fedorov.ailife.tg.bot;
 
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
+import dev.fedorov.ailife.inbox.InboxWriter;
 import dev.fedorov.ailife.tg.config.GatewayProperties;
 import dev.fedorov.ailife.tg.identity.IdentityResolver;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
@@ -9,6 +10,7 @@ import dev.fedorov.ailife.tg.media.TranscribeClient;
 import dev.fedorov.ailife.tg.orchestrator.OrchestratorClient;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,8 +32,9 @@ class MessageProcessorGateTest {
     private final OrchestratorClient orchestrator = mock(OrchestratorClient.class);
     private final MediaServiceClient media = mock(MediaServiceClient.class);
     private final TranscribeClient transcribe = mock(TranscribeClient.class);
-    private final MessageProcessor processor =
-            new MessageProcessor(identity, orchestrator, media, transcribe, new GatewayProperties());
+    private final InboxWriter inbox = mock(InboxWriter.class);
+    private final MessageProcessor processor = new MessageProcessor(
+            identity, orchestrator, media, transcribe, inbox, new ObjectMapper(), new GatewayProperties());
 
     @Test
     void blockedNewUserGetsInviteOnlyDeclineAndNeverReachesOrchestrator() {

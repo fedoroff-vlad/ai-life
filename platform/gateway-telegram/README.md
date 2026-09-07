@@ -69,6 +69,23 @@ token is the authorization). **Empty (the default) = allow all**, preserving the
 dev/CI/local runs; set it in prod to your own id plus anyone you trust. `IdentityResolver.resolve` is the
 gate; a stranger's `/invite` is gated too (else minting would be a trivial bypass).
 
+**Durable inbound inbox ([#633](https://github.com/fedoroff-vlad/ai-life/issues/633)).** The inbound path
+`gateway → orchestrator → agent → MCP → LLM` is synchronous, so before #633 any downstream failure meant the
+user's message was logged and **dropped**. The gateway now **persists-before-process**: right before it calls
+the orchestrator, `MessageProcessor.dispatch` writes the normalized message + reply target to `bus.inbox` (via
+[`libs/inbox`](../../libs/inbox/README.md) — the outbox's inbound mirror), deduped on the Telegram `update_id`.
+On success the row is marked `PROCESSED`; on a downstream outage it stays `PENDING`, the user gets a *"сервис
+временно недоступен — поставил в очередь"* notice instead of a silent drop, and a background redriver
+(`GatewayInboxHandler` on `libs/inbox`'s `InboxRedriverContainer`) re-attempts due rows with backoff and
+delivers the answer once the outage clears — retiring a poison message to `DEAD` + a dead-letter notice after
+`INBOX_MAX_ATTEMPTS`. Media is already durable in media-service, so a redrive re-dispatches without
+re-uploading. This gives the gateway a **direct Postgres connection** (its only stateful dependency); the
+`bus.inbox` schema is applied by the central Liquibase container, and the DataSource is configured to boot and
+degrade gracefully when the DB is briefly down (`minimum-idle: 0`, `initialization-fail-timeout: -1`), so
+durability is best-effort — a DB blip falls back to plain dispatch, never worse than pre-#633. The redrive loop
+starts **only when the bot token is set** (there must be a bot to deliver the reply). Distinct from #631
+(in-request breaker/retry) and the outbox (async *outbound*).
+
 ## Configuration
 
 | env var                          | default                              | required |
@@ -78,6 +95,14 @@ gate; a stranger's `/invite` is gated too (else minting would be a trivial bypas
 | `GATEWAY_TELEGRAM_BOT_TOKEN`     | *(empty — bot won't start)*          | yes for prod |
 | `GATEWAY_DEFAULT_HOUSEHOLD_NAME` | `default household`                  |          |
 | `GATEWAY_ALLOWED_TELEGRAM_IDS`   | *(empty — allow all)*                | prod (see below) |
+| `GATEWAY_DB_URL`                 | `jdbc:postgresql://localhost:5432/ailife` | (durable inbox #633) |
+| `GATEWAY_DB_USER`                | `ailife`                             |          |
+| `GATEWAY_DB_PASSWORD`            | `ailife`                             |          |
+| `INBOX_ENABLED`                  | `true`                               | (gates the redrive loop; writer always on) |
+| `INBOX_POLL_INTERVAL`            | `15s`                                |          |
+| `INBOX_INITIAL_DELAY`            | `30s`                                | (grace before a fresh row is redrive-eligible) |
+| `INBOX_BACKOFF` / `INBOX_MAX_BACKOFF` | `30s` / `10m`                   |          |
+| `INBOX_MAX_ATTEMPTS`             | `6`                                  | (attempts before a message goes `DEAD`) |
 | `PROFILE_SERVICE_URL`            | `http://profile-service:8082`        |          |
 | `ORCHESTRATOR_URL`               | `http://orchestrator:8083`           |          |
 | `MEDIA_SERVICE_URL`              | `http://media-service:8088`          |          |
@@ -120,7 +145,9 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `bot/ConfirmKeyboard` — the RU-2 shared inline-button primitive (#489; PX-4 will extend it): builds the two-button Да / Нет keyboard (localised labels, stable `cf:y`/`cf:n` callback ids) and decodes a tap's `callback_data` back into the "да"/"нет" text a route-locked `/resume` expects.
 - `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
-- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`).
+- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`). `dispatch` is the durable-inbox seam (#633): persist-before-process to `bus.inbox`, mark `PROCESSED` on success, reply "queued" (not drop) + leave `PENDING` for the redriver on a downstream outage. `IncomingMessage` now carries `chatId` + `updateId` for that (a null `updateId` disables durability — invite/callback/test paths).
+- `inbox/GatewayInboxHandler` — the redrive + dead-letter handler on `libs/inbox`'s `InboxRedriverContainer`: re-dispatches a persisted message to the orchestrator and delivers the answer to the original chat; on terminal `DEAD`, DMs the user a "couldn't process" notice. `inbox/InboundEnvelope` is the serialised `bus.inbox` payload (chatId + languageCode + `NormalizedMessage`); `inbox/InboundReplies` holds the localised queued / dead-letter texts.
+- `config/InboxWiringConfig` — `@Import`s `libs/inbox`'s `InboxConfig` (always-on `InboxWriter`) and registers the redrive container **only when the bot token is set** (nothing to deliver otherwise). Datasource + `inbox.*` tuning live in `application.yml`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
 - `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → the full `TranscriptResult` (text + `confidence` for the RU-3 gate). Front-door STT for voice notes; not soft-failed: the transcript is the voice message's payload.
 - `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join (resolve → redeem → resolve inviter → `InviteOutcome`) — and `mintInvite(...)` — the owner-side mint (resolve → `POST /v1/invites` → format the `t.me/<bot>?start=<token>` deep-link reply).

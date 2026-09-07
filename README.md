@@ -63,7 +63,8 @@ ai-life/
 │   ├── contracts/           DTOs, NormalizedMessage, agent/event contracts
 │   ├── llm-client/          channel-based client for llm-gateway
 │   ├── mcp-client/          wrapper around Spring AI MCP
-│   ├── event-bus/           Postgres LISTEN/NOTIFY + outbox adapter
+│   ├── event-bus/           Postgres LISTEN/NOTIFY + outbox adapter (async outbound)
+│   ├── inbox/               durable inbound inbox — persist-before-process + redrive (#633)
 │   ├── platform-common/     logging, metrics, error envelopes
 │   ├── agent-runtime/       AGENT.md/SKILL.md loaders + shared HTTP clients (agents @Import this)
 │   ├── doc-render/           shared HTML deliverable renderer (stylist/nutrition boards)

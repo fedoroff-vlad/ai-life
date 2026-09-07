@@ -6,14 +6,20 @@ import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.contracts.profile.UserDto;
+import dev.fedorov.ailife.inbox.InboxWriter;
 import dev.fedorov.ailife.tg.config.GatewayProperties;
 import dev.fedorov.ailife.tg.identity.IdentityResolver;
 import dev.fedorov.ailife.tg.identity.InviteOutcome;
+import dev.fedorov.ailife.tg.inbox.InboundEnvelope;
+import dev.fedorov.ailife.tg.inbox.InboundReplies;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
 import dev.fedorov.ailife.tg.media.TranscribeClient;
 import dev.fedorov.ailife.tg.orchestrator.OrchestratorClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,6 +33,8 @@ import java.util.Optional;
 @Component
 public class MessageProcessor {
 
+    private static final Logger log = LoggerFactory.getLogger(MessageProcessor.class);
+
     /** RU-3: reply shown when a voice note can't be understood, asking the owner to re-record. */
     static final String ASK_TO_REPEAT =
             "🎤 Не расслышал — повтори, пожалуйста, голосом ещё раз.";
@@ -35,17 +43,23 @@ public class MessageProcessor {
     private final OrchestratorClient orchestrator;
     private final MediaServiceClient media;
     private final TranscribeClient transcribe;
+    private final InboxWriter inbox;
+    private final ObjectMapper json;
     private final double minConfidence;
 
     public MessageProcessor(IdentityResolver identity,
                             OrchestratorClient orchestrator,
                             MediaServiceClient media,
                             TranscribeClient transcribe,
+                            InboxWriter inbox,
+                            ObjectMapper json,
                             GatewayProperties properties) {
         this.identity = identity;
         this.orchestrator = orchestrator;
         this.media = media;
         this.transcribe = transcribe;
+        this.inbox = inbox;
+        this.json = json;
         this.minConfidence = properties.getStt().getMinConfidence();
     }
 
@@ -91,9 +105,60 @@ public class MessageProcessor {
                 .map(voice -> transcribe.transcribe(voice.storageUri())
                         .flatMap(result -> unintelligible(result)
                                 ? Mono.just(askToRepeat())
-                                : orchestrator.handle(normalise(user, incoming, attachments, result.text()))))
-                .orElseGet(() -> orchestrator.handle(
-                        normalise(user, incoming, attachments, incoming.text())));
+                                : dispatch(user, incoming, attachments, result.text())))
+                .orElseGet(() -> dispatch(user, incoming, attachments, incoming.text()));
+    }
+
+    /**
+     * Durable dispatch (#633): persist the normalized message to the inbox <b>before</b> calling the
+     * orchestrator, so a downstream outage (orchestrator / agent / MCP / llm-gateway) or a gateway
+     * restart mid-request can't silently drop it. On success the row is marked {@code PROCESSED} (the
+     * redriver never touches it); on a downstream failure the row stays {@code PENDING} for the redriver
+     * and the user gets a "queued, will reply once it's back" notice instead of a silent drop.
+     *
+     * <p>Durability is best-effort: it applies only to real inbound messages (a Telegram {@code update_id}
+     * is present) and degrades to plain dispatch when the inbox itself is unavailable — so a DB blip never
+     * makes things worse than the pre-#633 behaviour.
+     */
+    private Mono<IntentResponse> dispatch(UserDto user, IncomingMessage incoming,
+                                          List<Attachment> attachments, String text) {
+        NormalizedMessage message = normalise(user, incoming, attachments, text);
+        Long updateId = incoming.updateId();
+        if (inbox == null || updateId == null) {
+            return orchestrator.handle(message);
+        }
+        String dedupKey = "telegram:" + updateId;
+        boolean recorded = recordQuietly(dedupKey, incoming, message);
+        return orchestrator.handle(message)
+                .doOnNext(response -> markProcessedQuietly(dedupKey))
+                .onErrorResume(error -> {
+                    if (recorded) {
+                        log.warn("downstream dispatch failed; message {} queued for redrive", dedupKey, error);
+                        return Mono.just(new IntentResponse(
+                                "gateway", InboundReplies.queued(incoming.languageCode()), null));
+                    }
+                    // Not durably recorded (inbox unavailable) — surface as before (bot shows a generic error).
+                    return Mono.error(error);
+                });
+    }
+
+    /** Persist the inbound envelope; never throws — a DB failure just disables durability for this message. */
+    private boolean recordQuietly(String dedupKey, IncomingMessage incoming, NormalizedMessage message) {
+        try {
+            var envelope = new InboundEnvelope(incoming.chatId(), incoming.languageCode(), message);
+            return inbox.record(dedupKey, json.writeValueAsString(envelope));
+        } catch (RuntimeException e) {
+            log.warn("inbox unavailable; dispatching {} without durability", dedupKey, e);
+            return false;
+        }
+    }
+
+    private void markProcessedQuietly(String dedupKey) {
+        try {
+            inbox.markProcessed(dedupKey);
+        } catch (RuntimeException e) {
+            log.warn("failed to mark inbox row {} PROCESSED (will be reconciled by redrive)", dedupKey, e);
+        }
     }
 
     /**
@@ -163,16 +228,54 @@ public class MessageProcessor {
             String text,
             MessageScope scope,
             String messageId,
-            IncomingMedia media) {
+            IncomingMedia media,
+            long chatId,
+            Long updateId) {
 
-        /** Text-only message — no attached media. */
+        /** Text-only message — no attached media, no durable-inbox context (invite/callback/test paths). */
         public IncomingMessage(long telegramUserId,
                                String displayName,
                                String languageCode,
                                String text,
                                MessageScope scope,
                                String messageId) {
-            this(telegramUserId, displayName, languageCode, text, scope, messageId, null);
+            this(telegramUserId, displayName, languageCode, text, scope, messageId, null, 0L, null);
+        }
+
+        /** Media message without durable-inbox context (test paths). */
+        public IncomingMessage(long telegramUserId,
+                               String displayName,
+                               String languageCode,
+                               String text,
+                               MessageScope scope,
+                               String messageId,
+                               IncomingMedia media) {
+            this(telegramUserId, displayName, languageCode, text, scope, messageId, media, 0L, null);
+        }
+
+        /**
+         * Main inbound path (durable): carries the Telegram {@code chatId} (so a deferred redrive can
+         * deliver the reply) and {@code updateId} (the inbox dedup key). A {@code null} {@code updateId}
+         * disables durability for this message.
+         */
+        public IncomingMessage(long telegramUserId,
+                               String displayName,
+                               String languageCode,
+                               String text,
+                               MessageScope scope,
+                               String messageId,
+                               IncomingMedia media,
+                               long chatId,
+                               Long updateId) {
+            this.telegramUserId = telegramUserId;
+            this.displayName = displayName;
+            this.languageCode = languageCode;
+            this.text = text;
+            this.scope = scope;
+            this.messageId = messageId;
+            this.media = media;
+            this.chatId = chatId;
+            this.updateId = updateId;
         }
     }
 

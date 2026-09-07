@@ -41,6 +41,7 @@
         <module>libs/llm-client</module>
         <module>libs/mcp-client</module>
         <module>libs/event-bus</module>
+        <module>libs/inbox</module>
         <module>libs/platform-common</module>
         <module>libs/agent-runtime</module>
         <module>libs/doc-render</module>
@@ -188,6 +189,11 @@
             <dependency>
                 <groupId>dev.fedorov.ailife</groupId>
                 <artifactId>event-bus</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.fedorov.ailife</groupId>
+                <artifactId>inbox</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

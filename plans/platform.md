@@ -122,6 +122,43 @@ Existing members and family-invite redemptions bypass the gate. Deterministic, n
   created and it gets the invite-only decline instead of a deep-link (asserted by
   `IdentityResolverTest.strangerCannotMintAnInviteToSlipPastTheGate`).
 
+### Durable inbound inbox ([#633](https://github.com/fedoroff-vlad/ai-life/issues/633), reliability)
+The inbound path `gateway → orchestrator → agent → MCP → LLM` is synchronous (`Mono…block()`); before #633 a
+downstream failure just logged and **dropped** the user's message. The gateway now **persists-before-process**:
+right before `orchestrator.handle`, `MessageProcessor.dispatch` writes the normalized message + reply target
+to `bus.inbox` (via the new [`libs/inbox`](../libs/inbox/README.md), a mirror of the outbox in the opposite
+direction), deduped on the Telegram `update_id`. On success the row is marked `PROCESSED`; on a downstream
+outage it stays `PENDING`, the user gets a *"queued, will reply once it's back"* notice (not a silent drop),
+and a background `PostgresInboxRedriver` re-attempts due rows with backoff and delivers the answer when the
+outage clears — retiring a poison message to `DEAD` + a dead-letter notice after `inbox.max-attempts`. Media
+is already durable in media-service, so a redrive re-dispatches without re-uploading. Durability is
+best-effort: it degrades to plain dispatch if the inbox DB itself is unavailable (never worse than pre-#633).
+Distinct from #631 (in-request breaker/retry — seconds, in-memory) and the outbox (async *outbound*). See
+[architecture.md](architecture.md) §Inter-service comms + [`libs/inbox/README.md`](../libs/inbox/README.md).
+
+**Acceptance criteria (WHEN/THEN) — #633:**
+- Scenario: **a downstream outage queues instead of dropping.** WHEN the orchestrator (or anything below it)
+  is down for a message that was durably recorded → THEN the gateway replies with the "queued" notice and the
+  row is left un-`PROCESSED` for the redriver (asserted by
+  `MessageProcessorInboxTest.downstreamOutageQueuesInsteadOfDropping`).
+- Scenario: **a successful send is not re-delivered.** WHEN the in-request dispatch succeeds → THEN the row is
+  marked `PROCESSED` so the redriver never re-sends it (asserted by `MessageProcessorInboxTest.successMarksProcessed`
+  + `InboxIntegrationTest.markProcessedKeepsRedriverOffTheRow`).
+- Scenario: **the redrive delivers a queued message exactly once.** WHEN a `PENDING` row (its in-request attempt
+  failed) becomes due → THEN the redriver dispatches it once and marks it `PROCESSED` (asserted by
+  `InboxIntegrationTest.redriveDeliversAPendingRowExactlyOnce`).
+- Scenario: **a transient failure is retried then delivered.** WHEN the handler fails a few times then succeeds →
+  THEN the row ends `PROCESSED` after the successful attempt (asserted by
+  `InboxIntegrationTest.redriveRetriesTransientFailureThenDelivers`).
+- Scenario: **a re-delivered update is deduped.** WHEN the same `update_id` is recorded twice (Telegram
+  re-delivery / redrive re-entry) → THEN only one row exists (asserted by `InboxIntegrationTest.recordDedupsOnKey`).
+- Scenario: **a poison message dies and the user is told.** WHEN a message fails `max-attempts` redrives → THEN
+  it goes terminal `DEAD` and the dead-letter hook fires once (asserted by
+  `InboxIntegrationTest.poisonMessageGoesDeadAndFiresDeadLetterOnce`).
+- Scenario: **a DB blip never makes it worse.** WHEN the inbox itself is unavailable and downstream then fails →
+  THEN dispatch degrades to the pre-#633 error behaviour (asserted by
+  `MessageProcessorInboxTest.inboxUnavailableDegradesToPlainDispatch`).
+
 ## llm-gateway (platform/)
 Single LLM entry. Channels default/fast/vision/embedding. Provider via env (mock/anthropic/openai-compatible/Ollama). Tracing via Langfuse. See architecture.md §LLM strategy.
 
