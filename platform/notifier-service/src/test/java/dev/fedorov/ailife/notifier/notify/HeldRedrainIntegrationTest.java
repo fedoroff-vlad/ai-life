@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * removed; one held past the staleness TTL is dropped without delivering; a still-in-window row is left.
  */
 @SpringBootTest(properties = {
-        "notifier.internal-api-token=test-token",
+        "internal.shared-secret=test-token",
         "event-bus.enabled=false",
         "notifier.held-redrain-enabled=false" // drive drain() directly, no auto-tick
 })

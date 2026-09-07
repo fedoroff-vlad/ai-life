@@ -12,11 +12,6 @@ public class GatewayProperties {
     private Services services = new Services();
     private Stt stt = new Stt();
     /**
-     * Bearer token required on {@code POST /internal/send} from notifier-service and
-     * any other in-cluster caller. Empty in dev = endpoint refuses every request.
-     */
-    private String internalApiToken = "";
-    /**
      * Owner-allowlist of Telegram user ids permitted to <b>create an account on first contact</b>
      * (issue #627 — close the LLM/infra cost-abuse vector). The bot auto-provisions a personal
      * household for a brand-new sender, so an ungated bot lets any stranger who finds it consume the
@@ -34,10 +29,6 @@ public class GatewayProperties {
     public Telegram getTelegram() { return telegram; }
     public Services getServices() { return services; }
     public Stt getStt() { return stt; }
-    public String getInternalApiToken() { return internalApiToken; }
-    public void setInternalApiToken(String internalApiToken) {
-        this.internalApiToken = internalApiToken;
-    }
 
     public Set<Long> getAllowedTelegramIds() { return allowedTelegramIds; }
     public void setAllowedTelegramIds(Set<Long> allowedTelegramIds) {

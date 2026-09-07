@@ -6,7 +6,7 @@ IntentRouter → `LlmIntentClassifier` on `fast` channel; few-shot prompt built 
 Also the single entry the scheduler uses to wake any agent (so human-triggered and schedule-triggered wake-ups are identical).
 
 ## gateway-telegram (platform/)
-Long polling at start → webhook when TLS. Resolve telegram_user_id → user/household/scope. Store incoming media in MinIO, pass links. BEFORE orchestrator call mcp-media-processing: audio→STT, image→vision-caption+OCR, video→keyframes+STT, file→text. Output: unified NormalizedMessage. Bot token lives ONLY here; `/internal/send` endpoint (shared INTERNAL_API_TOKEN) used by notifier.
+Long polling at start → webhook when TLS. Resolve telegram_user_id → user/household/scope. Store incoming media in MinIO, pass links. BEFORE orchestrator call mcp-media-processing: audio→STT, image→vision-caption+OCR, video→keyframes+STT, file→text. Output: unified NormalizedMessage. Bot token lives ONLY here; `/internal/send` endpoint (guarded by the central `INTERNAL_SHARED_SECRET` filter, #630) used by notifier.
 
 ### Multimodal & reply UX ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489), road-test)
 The daily surface is Telegram (voice / photo / text); its rough edges are felt on every interaction. A broad

@@ -62,7 +62,7 @@ NOTIFIER_DB_USER=ailife
 NOTIFIER_DB_PASSWORD=ailife
 PROFILE_SERVICE_URL=http://profile-service:8082
 GATEWAY_TELEGRAM_URL=http://gateway-telegram:8080
-INTERNAL_API_TOKEN=<shared with gateway-telegram>
+INTERNAL_SHARED_SECRET=<shared across all services; added to the /internal/send call centrally, #630>
 EVENT_BUS_CHANNEL=ailife_events
 ```
 
@@ -75,7 +75,7 @@ EVENT_BUS_CHANNEL=ailife_events
 
 ## Key classes
 - `NotifierApplication` — `@Import(EventBusConfig.class)` for the bus producer/consumer wiring.
-- `config/NotifierProperties` — `notifier.{profile-base-url, gateway-base-url, internal-api-token}`.
+- `config/NotifierProperties` — `notifier.{profile-base-url, gateway-base-url, held-stale-hours}`. The `/internal/send` bearer is added centrally (platform-common `INTERNAL_SHARED_SECRET`, #630), not here.
 - `config/HttpConfig` — separate WebClients for profile + gateway (each via `.clone()` to avoid shared-builder leakage).
 - `config/EventBusListenerConfig` — registers the `EventBusListenerContainer` consumer bean.
 - `notify/NotifySender` — apply the proactive-UX gate, then resolve user → forward to gateway; shared by the REST and bus paths. `send(userId, text)` stays the reactive default; `send(userId, text, proactive, source)` is the gated overload.
