@@ -12,7 +12,7 @@ From a fresh clone (each step has detail in [`infra/README.md`](infra/README.md)
    Installs the toolchain + apps, starts Ollama, seeds `infra/.env`, and pulls the models (~26 GB). Idempotent.
 2. **Configure `infra/.env`.** Apply the [`.env.mac.example`](infra/.env.mac.example) LLM block, then fill the 4 secrets:
    - `GATEWAY_TELEGRAM_BOT_TOKEN` — create a bot via [@BotFather](https://t.me/BotFather).
-   - `GATEWAY_INTERNAL_API_TOKEN` **and** `INTERNAL_API_TOKEN` — one random string, identical in both (`openssl rand -hex 32`).
+   - `INTERNAL_SHARED_SECRET` — one random string (`openssl rand -hex 32`) guarding all `/internal/*` inter-service calls (#630); shared across every service. Leave empty to disable the guard.
    - `CALDAV_USER` / `CALDAV_PASSWORD` — pick any credentials; they create the Radicale CalDAV account.
 3. **Launch.** macOS: `./scripts/start-mac.sh` · Windows: `.\scripts\start-win.ps1`. First run builds every image (~5–10 min).
 4. **Verify.** `docker compose -f infra/docker-compose.yml logs -f gateway-telegram` shows it listening — then message your bot on Telegram and it replies.

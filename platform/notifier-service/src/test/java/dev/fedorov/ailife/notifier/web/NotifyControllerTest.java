@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {
-                        "notifier.internal-api-token=test-token",
+                        "internal.shared-secret=test-token",
                         // no DB in this slice — keep the bus listener from opening a connection
                         "event-bus.enabled=false",
                         "notifier.held-redrain-enabled=false"

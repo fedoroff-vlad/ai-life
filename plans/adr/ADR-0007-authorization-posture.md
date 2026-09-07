@@ -131,10 +131,12 @@ network, or a compliance requirement for encryption-in-transit / per-service ide
 
 ## Action Items
 
-1. [ ] **#630 — shared-secret filter on all `/internal/*`.** Generalize the existing gateway `/internal/send`
-   Bearer guard into a `platform-common` filter; `INTERNAL_SHARED_SECRET` in `.env{,.mac}.example`; every
-   `libs/agent-runtime/http/*Client` sends it; health/actuator exempt. Scoped by this ADR as the standing
-   answer, not an interim.
+1. [x] **#630 — shared-secret filter on all `/internal/*`.** Shipped: a `platform-common` autoconfig
+   guards `/internal/*` (servlet + reactive filters) and a `WebClientCustomizer` stamps the bearer on
+   outbound `/internal/*` calls fleet-wide (all clients build from the auto-configured `WebClient.Builder`);
+   `INTERNAL_SHARED_SECRET` (`internal.shared-secret`) empty = disabled. The old gateway `GATEWAY_INTERNAL_API_TOKEN`
+   / notifier `INTERNAL_API_TOKEN` are folded into it. Compose injects the secret into every service via a
+   YAML anchor.
 2. [ ] **Household-authZ seam audit.** Verify every `/internal/*` read/write applies the household/tenant
    filter (ADR-0001) rather than trusting the caller-supplied id. File findings as their own issue(s).
 3. [ ] **Bot-token blast-radius note.** Document the rotation procedure and confirm the token lives only in

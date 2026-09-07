@@ -21,11 +21,15 @@ import static org.mockito.Mockito.verify;
  * Bot token left empty so the live OkHttp bot doesn't attempt long-polling against
  * Telegram. {@link MockitoBean} injects a stand-in {@link TelegramClient} so the
  * conditional bean is satisfied for the controller path only.
+ *
+ * <p>Auth on {@code /internal/*} is now enforced centrally by platform-common's shared-secret
+ * WebFilter (#630/ADR-0007), not by the controller — so setting {@code internal.shared-secret} here
+ * doubles as an integration proof that the filter guards this real WebFlux gateway context.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
                 properties = {
                         "gateway.telegram.bot-token=",
-                        "gateway.internal-api-token=secret-test-token"
+                        "internal.shared-secret=secret-test-token"
                 })
 @AutoConfigureWebTestClient
 class InternalSendControllerTest {
@@ -65,15 +69,13 @@ class InternalSendControllerTest {
     }
 
     @Test
-    void missingBearerIs400OrUnauthorized() throws Exception {
-        // Spring rejects @RequestHeader-mandatory header with 400 before our handler runs;
-        // either 400 or 401 is acceptable for the security goal of "must present auth".
+    void missingBearerIsUnauthorized() throws Exception {
+        // The central shared-secret filter rejects a missing Authorization header before the handler.
         client.post().uri("/internal/send")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(new InternalSendRequest(1L, "hi"))
                 .exchange()
-                .expectStatus().value(status ->
-                        assertThat(status).isIn(400, 401));
+                .expectStatus().isUnauthorized();
 
         verify(telegramClient, never()).execute(any(SendMessage.class));
     }

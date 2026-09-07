@@ -5,6 +5,13 @@ mcp/*). Logging MDC, error envelopes, metrics, request context — plus small pu
 utilities that a second module needs (the "second consumer lifts it" rule).
 
 ## Contents
+- `internalauth/` — the shared-secret guard for inter-service `/internal/*` calls
+  (#630, [ADR-0007](../../plans/adr/ADR-0007-authorization-posture.md)). Auto-configured for every
+  service that has this lib: a `WebClientCustomizer` stamps `Authorization: Bearer ${INTERNAL_SHARED_SECRET}`
+  onto outbound `/internal/*` requests, and an inbound filter (servlet **and** reactive twins,
+  conditional on the stack) rejects an unauthenticated `/internal/*` request with 401. **Empty secret
+  (`internal.shared-secret`, env `INTERNAL_SHARED_SECRET`) = disabled**, so it's a no-op until the
+  owner sets it fleet-wide. Web deps are `optional` so the 50 consumers aren't forced to take them.
 - `jackson/Jackson3JsonFormatMapper` — Hibernate `AbstractJsonFormatMapper` over Jackson 3
   (`tools.jackson`), opted into per JPA service via `hibernate.type.json_format_mapper`
   (Hibernate is `provided` here so non-JPA consumers don't pull it).

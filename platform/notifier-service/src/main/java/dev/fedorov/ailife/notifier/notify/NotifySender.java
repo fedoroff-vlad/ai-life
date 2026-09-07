@@ -2,10 +2,8 @@ package dev.fedorov.ailife.notifier.notify;
 
 import dev.fedorov.ailife.contracts.notify.InternalSendRequest;
 import dev.fedorov.ailife.contracts.profile.UserDto;
-import dev.fedorov.ailife.notifier.config.NotifierProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,16 +36,13 @@ public class NotifySender {
 
     private final WebClient profile;
     private final WebClient gateway;
-    private final NotifierProperties props;
     private final NotificationGate gate;
 
     public NotifySender(WebClient profileWebClient,
                         WebClient gatewayWebClient,
-                        NotifierProperties props,
                         NotificationGate gate) {
         this.profile = profileWebClient;
         this.gateway = gatewayWebClient;
-        this.props = props;
         this.gate = gate;
     }
 
@@ -95,10 +90,11 @@ public class NotifySender {
     }
 
     private Mono<ResponseEntity<Void>> forwardToGateway(long telegramUserId, String text) {
+        // The Authorization: Bearer <INTERNAL_SHARED_SECRET> header is added centrally by the
+        // platform-common WebClient customizer for /internal/* calls (#630/ADR-0007) — not set here.
         return gateway.post()
                 .uri("/internal/send")
                 .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.getInternalApiToken())
                 .bodyValue(new InternalSendRequest(telegramUserId, text))
                 .retrieve()
                 .toBodilessEntity()

@@ -109,8 +109,9 @@ Then DM your bot. The first message creates your personal household and you as `
 ## `POST /internal/send`
 
 Internal-only outbound channel for notifier-service (notifier never touches the
-Telegram bot API directly — the token stays here). Bearer-gated by
-`GATEWAY_INTERNAL_API_TOKEN` (must match `INTERNAL_API_TOKEN` in notifier-service).
+Telegram bot API directly — the token stays here). Guarded by the central shared-secret
+`/internal/*` filter in platform-common (`INTERNAL_SHARED_SECRET`, #630/ADR-0007) — the caller's
+`Authorization: Bearer` header is added and checked centrally, not by this controller.
 Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailife/contracts/notify/InternalSendRequest.java).
 
 ## Key classes
