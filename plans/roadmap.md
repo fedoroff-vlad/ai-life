@@ -49,6 +49,8 @@ label — pick one up independently, don't reopen "Stage 6" as a bucket:
 
 - **assistant hardening — daily-drive road-test** — [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) — **✅ COMPLETE (2026-08-28).** Harden the assistant as a reliable daily driver *before* any autonomy: transparency (#485) + routing (#484) → CRUD/undo (#486) → proactive-UX (#487) + memory-quality (#488) → multimodal/reply-UX (#489) + family-onboarding (#490). Only the 24/7 instance (#483) remains, hardware-blocked. Unblocks Jarvis-style autonomy (smart-home #192, coordination #477). Detail → [HISTORY.md](HISTORY.md).
 
+- **security & reliability hardening — 2026-09-06 review** — [#632](https://github.com/fedoroff-vlad/ai-life/issues/632) (authZ ADR) + siblings. A review found injection/SQL/secret hygiene already solid, and surfaced a backlog: **✅ #627** owner-allowlist onboarding (close LLM cost-abuse) · **✅ #628** loopback port binding (`BIND_ADDR`) · **✅ #629** gitleaks + Dependabot in CI · **✅ #631** resilience4j (timeout + retry + circuit breaker) on the LLM path. Open: **#632** authorization-posture ADR ([ADR-0007](adr/ADR-0007-authorization-posture.md), Proposed) → scopes **#630** shared-secret on `/internal/*`; **#633** durable inbound inbox (mirror the outbox, don't drop user messages on a downstream outage).
+
 ## UI & reporting (issues)
 The system has no UI of its own (entry is Telegram; deliverables are HTML boards). Read surfaces are
 tracked as their own issues:
