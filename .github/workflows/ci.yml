@@ -11,6 +11,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Secret scanning (#629). Runs on every push/PR, independent of the build, so a leaked
+  # credential is caught before it lands. Uses the pinned gitleaks binary directly (no
+  # marketplace action → no org-license gate); the full git history is clean as of 2026-09-07
+  # (713 commits, no findings), so this is BLOCKING from the start. A future false positive is
+  # allowlisted via a committed `.gitleaks.toml` in the PR that trips it — don't disable the gate.
+  secret-scan:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Scan the whole history, not just the tip — a secret removed from HEAD but alive in
+          # an older commit is still leaked.
+          fetch-depth: 0
+      - name: run gitleaks
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1
+
   build:
     name: build & test
     runs-on: ubuntu-latest

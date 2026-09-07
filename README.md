@@ -53,7 +53,7 @@ See [`docs/REFERENCE.md`](docs/REFERENCE.md) for the two-lens overview and [`CLA
 - Java 25 LTS, Maven 3.9+, Spring Boot 4.0.x (Framework 7, Jackson 3), Spring AI 2 (MCP).
 - Postgres 16 + pgvector + Apache AGE + pg_trgm.
 - Liquibase (XML master, YAML features, raw SQL for complex DDL).
-- Docker Compose for local infra. GitHub Actions for CI.
+- Docker Compose for local infra. GitHub Actions for CI (build & test + a gitleaks secret scan; Dependabot watches Maven + Actions deps).
 
 ## Layout (group-by-domain)
 ```
