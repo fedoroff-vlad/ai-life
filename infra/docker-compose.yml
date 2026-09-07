@@ -29,6 +29,12 @@
 # http://llm-gateway:8081); the matching env vars in .env.example carry
 # localhost defaults that suit IDE-driven dev — compose overrides those
 # here so the same .env works in both modes.
+#
+# Port binding (#628): every published host port is bound to ${BIND_ADDR:-127.0.0.1}, i.e.
+# loopback-only by default — nothing is reachable from the LAN/tailnet even if the host sits on an
+# untrusted network. Off-host access is deliberate and narrow: calendar-web's ICS feed goes out via
+# the Tailscale Funnel sidecar (the `tunnel` profile), NOT a wide-open port. If you ever need a port
+# on the LAN, set BIND_ADDR (e.g. to a specific tailscale IP) rather than reverting to 0.0.0.0.
 
 name: ai-life
 
@@ -51,7 +57,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
       POSTGRES_DB: ${POSTGRES_DB:-ailife}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${BIND_ADDR:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
@@ -174,7 +180,7 @@ services:
     container_name: ai-life-radicale
     restart: unless-stopped
     ports:
-      - "${RADICALE_PORT:-5232}:5232"
+      - "${BIND_ADDR:-127.0.0.1}:${RADICALE_PORT:-5232}:5232"
     volumes:
       - radicale-data:/data
       - ./radicale/config:/etc/radicale/config:ro
@@ -196,8 +202,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ailife}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ailife-secret}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${BIND_ADDR:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
+      - "${BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -212,7 +218,7 @@ services:
     container_name: ai-life-searxng
     restart: unless-stopped
     ports:
-      - "${SEARXNG_PORT:-8888}:8080"
+      - "${BIND_ADDR:-127.0.0.1}:${SEARXNG_PORT:-8888}:8080"
     environment:
       SEARXNG_BASE_URL: http://localhost:${SEARXNG_PORT:-8888}/
       SEARXNG_SECRET: ${SEARXNG_SECRET:-ailife-dev-secret-change-me}
@@ -235,7 +241,7 @@ services:
       ASR_ENGINE: ${WHISPER_ASR_ENGINE:-faster_whisper}
       ASR_MODEL: ${WHISPER_ASR_MODEL:-base}
     ports:
-      - "${WHISPER_PORT:-9100}:9000"
+      - "${BIND_ADDR:-127.0.0.1}:${WHISPER_PORT:-9100}:9000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/docs')"]
       interval: 30s
@@ -264,7 +270,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-ailife}
       GF_USERS_DEFAULT_THEME: light
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "${BIND_ADDR:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -304,7 +310,7 @@ services:
       LLM_ANTHROPIC_VERSION: ${LLM_ANTHROPIC_VERSION:-}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
     ports:
-      - "${LLM_GATEWAY_PORT:-8081}:8081"
+      - "${BIND_ADDR:-127.0.0.1}:${LLM_GATEWAY_PORT:-8081}:8081"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
       interval: 10s
@@ -565,9 +571,10 @@ services:
       # Front-door STT: transcribe inbound voice notes to text before routing.
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
     ports:
-      # Only the gateway needs to be reachable from outside the compose
-      # network — Telegram webhooks hit it. Everything else is internal.
-      - "${GATEWAY_PORT:-8080}:8080"
+      # The bot uses long-polling (it dials OUT to Telegram), so it needs no inbound from the
+      # internet — this host port is loopback-only (BIND_ADDR, #628), exposed just for host-local
+      # ops/health and the notifier's /internal/send (which rides the compose network anyway).
+      - "${BIND_ADDR:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
       interval: 10s
