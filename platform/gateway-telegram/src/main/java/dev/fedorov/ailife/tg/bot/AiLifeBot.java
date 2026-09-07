@@ -115,6 +115,10 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
                 text = msg.getText();
             }
 
+            // Carry the chatId + update_id so the durable inbox (#633) can redrive-and-deliver on a
+            // downstream outage: chatId is the reply target, update_id the dedup key. A null update_id
+            // (only in tests) simply disables durability for that message.
+            Long updateId = update.getUpdateId() == null ? null : update.getUpdateId().longValue();
             var incoming = new MessageProcessor.IncomingMessage(
                     from.getId(),
                     displayNameOf(from),
@@ -122,7 +126,9 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
                     text,
                     scopeFor(msg),
                     String.valueOf(msg.getMessageId()),
-                    media);
+                    media,
+                    msg.getChatId(),
+                    updateId);
 
             var response = processor.process(incoming).block();
             reply(msg.getChatId(), response, from.getLanguageCode());

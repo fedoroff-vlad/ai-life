@@ -25,6 +25,17 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   Mac-gated threads).
 
 ## Done (awaiting move to HISTORY at next closer)
+- **hardening §#633 durable inbound inbox — ✅ COMPLETE (2026-09-07).** The synchronous inbound path no
+  longer drops a user message on a downstream outage. New [`libs/inbox`](inbox is the outbox's inbound mirror)
+  (`InboxWriter` persist-before-process + `PostgresInboxRedriver` poll-based deferred redrive, dedup on
+  Telegram `update_id`, bounded → `DEAD` + dead-letter) + `bus.inbox` (`016-inbox.yml`). Gateway wired: gains a
+  **direct Postgres connection** (its only stateful dep), persists each normalized message before
+  `orchestrator.handle`, replies *"поставил в очередь"* instead of a silent drop on a downstream failure, and
+  `GatewayInboxHandler` redrives to deliver the answer when it clears. Best-effort (degrades to plain dispatch
+  if the inbox DB is down). Distinct from #631 (in-request breaker) + the outbox (async outbound). **Closes the
+  security/reliability backlog #627–#633** (all seven shipped). Detail → [platform.md](platform.md) §Durable
+  inbound inbox + [architecture.md](architecture.md) §Inter-service comms + [`libs/inbox/README.md`](../libs/inbox/README.md).
+  _(Testcontainers `InboxIntegrationTest` runs in CI — no Docker on the dev VDI.)_
 - **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**
   Any video source (YouTube/Instagram/Threads/TikTok **link** or uploaded **file**) → one "о чём это видео".
   Shipped V-0…V-d: new acquisition capability **`mcp-media-fetch`** (yt-dlp `transcribe_video` relocated out

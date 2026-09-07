@@ -3,9 +3,32 @@ spring:
     name: gateway-telegram
   main:
     web-application-type: reactive
+  # Durable inbound inbox (#633): the gateway persists each normalized message to bus.inbox before
+  # dispatch so a downstream outage cannot silently drop it. The central Liquibase container owns the
+  # schema, so this service only reads/writes (no migrations here).
+  datasource:
+    url: ${GATEWAY_DB_URL:jdbc:postgresql://localhost:5432/ailife}
+    username: ${GATEWAY_DB_USER:ailife}
+    password: ${GATEWAY_DB_PASSWORD:ailife}
+    hikari:
+      # Do not fail startup or eagerly connect when the DB is briefly unavailable — the gateway must
+      # still boot (bot up = still answering) and, when the DB is down, degrade to best-effort direct
+      # dispatch. Connections are opened lazily on first inbox use.
+      minimum-idle: 0
+      initialization-fail-timeout: -1
 
 server:
   port: ${GATEWAY_PORT:8080}
+
+# Durable inbound inbox tuning (#633; see libs/inbox). Redrive (consumer) side starts only when the bot
+# is running (a TelegramClient exists to deliver the redriven reply); the writer is always available.
+inbox:
+  enabled: ${INBOX_ENABLED:true}
+  poll-interval: ${INBOX_POLL_INTERVAL:15s}
+  initial-delay: ${INBOX_INITIAL_DELAY:30s}
+  backoff: ${INBOX_BACKOFF:30s}
+  max-backoff: ${INBOX_MAX_BACKOFF:10m}
+  max-attempts: ${INBOX_MAX_ATTEMPTS:6}
 
 gateway:
   telegram:

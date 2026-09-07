@@ -1,0 +1,92 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 016-inbox
+      author: ai-life
+      comment: |
+        bus.inbox — the durable inbound inbox backing persist-before-process +
+        deferred redrive at the Telegram ingress (#633). Mirror of bus.outbox
+        (007-bus), opposite direction: the outbox durably records outbound events
+        on their way OUT; the inbox durably records inbound user messages on their
+        way IN, so a downstream outage (orchestrator/agent/MCP/llm-gateway) or an
+        ingress restart mid-request can no longer silently drop a user message.
+
+        dedup_key is the ingress-idempotency key (Telegram update_id) with a UNIQUE
+        constraint: a re-delivered update or a redrive re-entry can never
+        double-persist. status is a small PENDING/PROCESSED/FAILED/DEAD enum kept
+        as varchar. next_attempt_at drives the poll-based redriver — a fresh row is
+        scheduled a grace window ahead so the synchronous in-request attempt wins
+        the common case; only rows the in-request path failed to complete are
+        redriven (backoff via next_attempt_at, bounded by attempts -> DEAD).
+        payload is the caller's serialised envelope (normalized message + reply
+        target), jsonb, payload-agnostic like the outbox.
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS bus;
+            stripComments: false
+
+        - createTable:
+            schemaName: bus
+            tableName: inbox
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: dedup_key
+                  type: varchar(128)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_inbox_dedup_key
+              - column:
+                  name: payload
+                  type: jsonb
+                  defaultValueComputed: "'{}'::jsonb"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+              - column:
+                  name: attempts
+                  type: integer
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_error
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_attempt_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: processed_at
+                  type: timestamptz
+
+        # The redriver's claim query: due rows (status + schedule), oldest schedule first.
+        - createIndex:
+            schemaName: bus
+            tableName: inbox
+            indexName: ix_inbox_due
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: next_attempt_at

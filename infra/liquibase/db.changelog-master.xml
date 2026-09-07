@@ -50,6 +50,8 @@
     <include file="features/014-notification-cap.yml" relativeToChangelogFile="true"/>
     <!-- 015 proactive-UX PX-3 (#487): core.notification_stream_optout (per-user muted streams). -->
     <include file="features/015-notification-stream-optout.yml" relativeToChangelogFile="true"/>
+    <!-- 016 durable inbound inbox (#633): bus.inbox — persist-before-process + deferred redrive at the gateway ingress. -->
+    <include file="features/016-inbox.yml" relativeToChangelogFile="true"/>
     <include file="features/061-calendar-feeds.yml" relativeToChangelogFile="true"/>
     <include file="features/070-briefing.yml" relativeToChangelogFile="true"/>
     <include file="features/080-docs.yml" relativeToChangelogFile="true"/>
