@@ -97,9 +97,15 @@ points `LLM_BASE_URL` at host Ollama, and names the real chat/fast/vision/embedd
 Fill the four required secrets there too (`GATEWAY_TELEGRAM_BOT_TOKEN`, the two internal
 tokens, CalDAV creds).
 
-Only `gateway-telegram` exposes a host port (default 8080) — everything else
-talks via the internal `ai-life` docker network. `postgres` / `radicale` host
-ports are still exposed for psql / Radicale UI access.
+### Host port binding (#628)
+Every published host port (postgres, radicale, minio, searxng, whisper, grafana, llm-gateway,
+gateway-telegram) is bound to **`${BIND_ADDR:-127.0.0.1}` — loopback-only by default**, so nothing is
+reachable from the LAN/tailnet even if the box sits on an untrusted network; they exist for host-local
+ops (psql, the Radicale/MinIO/Grafana UIs) and inter-service calls ride the internal `ai-life` docker
+network regardless. The Telegram bot uses **long-polling** (it dials out), so it needs no inbound.
+Off-host access is deliberate and narrow: `calendar-web`'s ICS feed is published via the **Tailscale
+Funnel** sidecar (`tunnel` profile), not a wide-open port. If you ever need a port on the LAN, set
+`BIND_ADDR` (prefer a specific tailscale IP over `0.0.0.0`).
 
 ## Stop
 
@@ -196,7 +202,7 @@ name(s) you configured, then bring the profile up.
 | radicale             | 5232 | CalDAV server (calendar source of truth)                      |
 | grafana              | 3000 | Zero-code finance dashboards over `finance.*` matviews (provisioned; see `grafana/`) |
 | minio                | 9000 / 9001 | S3-compatible object store / web console               |
-| gateway-telegram     | 8080 | Telegram webhook receiver — **the only externally-exposed app** |
+| gateway-telegram     | 8080 | Telegram bot (long-polling, dials out) — host port is loopback-only (#628) |
 | llm-gateway          | 8081 | Provider-agnostic LLM channel                                 |
 | profile-service      | 8082 | Identity / households / people                                |
 | orchestrator         | 8083 | Intent routing                                                |
