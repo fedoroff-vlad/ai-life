@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — web_search/fetch_url are HTTP calls (the JRE image ships
 # the CA certificates). Video transcription moved to mcp-media-fetch (which bundles yt-dlp).
-COPY --from=build /src/shared/mcp/mcp-web/target/mcp-web.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-web/target/mcp-web-exec.jar /app/app.jar
 EXPOSE 8098
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

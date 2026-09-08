@@ -1,7 +1,10 @@
 package dev.fedorov.ailife.deploy.mcphost;
 
-import dev.fedorov.ailife.mcp.briefing.McpBriefingApplication;
-import dev.fedorov.ailife.mcp.travel.McpTravelApplication;
+import dev.fedorov.ailife.mcp.caldav.McpCaldavApplication;
+import dev.fedorov.ailife.mcp.finance.McpFinanceApplication;
+import dev.fedorov.ailife.mcp.mediaprocessing.McpMediaProcessingApplication;
+import dev.fedorov.ailife.mcp.tasks.McpTasksApplication;
+import dev.fedorov.ailife.mcp.web.McpWebApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
@@ -21,12 +24,13 @@ import java.util.Map;
  * {@code application.yml} resources (all at {@code classpath:/application.yml}) do not collide — every
  * value is supplied explicitly by the caller ({@link #boot}) or the deploy environment.
  *
- * <p>Consuming the pilot modules is possible because #584 slice 3a made their main Maven artifact a
+ * <p>Consuming these modules is possible because #584 slice 3a made each module's main Maven artifact a
  * plain classes jar (the executable moved to the {@code -exec} classifier).
  *
- * <p><b>Slice status (3b):</b> the co-residency mechanism is proven by {@code DomainMcpHostFootprintIT}.
- * Wiring each context's real config from the deploy environment (so {@link #main} is a drop-in for the
- * separate service processes) + the RAM measurement land as consolidation rolls out (ADR-0006 item 4).
+ * <p><b>Slice status (3c):</b> {@link #RESIDENT_HOT} is the always-on Domain-MCP-hot set
+ * (topology-map.md §Resident). Co-residency is proven by {@code DomainMcpHostFootprintIT}. Wiring each
+ * context's real config from the deploy environment (so {@link #main} is a drop-in for the separate
+ * service processes) + the RAM measurement land at deploy (Mac; ADR-0006 slices 1/3).
  */
 public final class DomainMcpHost {
 
@@ -35,10 +39,17 @@ public final class DomainMcpHost {
     /** One co-hosted module: its {@code @SpringBootApplication} class + a config-name that skips its yml. */
     public record Hosted(Class<?> app, String configName) {}
 
-    /** The pilot set for the slice-3 spike. Extend as consolidation rolls out (ADR-0006 item 4). */
-    public static final List<Hosted> PILOT = List.of(
-            new Hosted(McpBriefingApplication.class, "host-mcp-briefing"),
-            new Hosted(McpTravelApplication.class, "host-mcp-travel"));
+    /**
+     * The resident Domain-MCP-hot set — the always-in-memory MCP contexts (topology-map.md §Resident:
+     * caldav · finance · tasks · web · media-processing). Cold hosts (Content, Lifestyle, Brief+Travel,
+     * …) each get their own launcher list as consolidation rolls out (ADR-0006 item 4).
+     */
+    public static final List<Hosted> RESIDENT_HOT = List.of(
+            new Hosted(McpCaldavApplication.class, "host-mcp-caldav"),
+            new Hosted(McpFinanceApplication.class, "host-mcp-finance"),
+            new Hosted(McpTasksApplication.class, "host-mcp-tasks"),
+            new Hosted(McpWebApplication.class, "host-mcp-web"),
+            new Hosted(McpMediaProcessingApplication.class, "host-mcp-media-processing"));
 
     /**
      * Boot one module context in the current JVM. {@code props} supplies everything the module would
@@ -57,7 +68,7 @@ public final class DomainMcpHost {
         // Deploy path: each context reads its own config from the environment (the per-module env vars
         // the standalone services already use), keeping its port. Wiring env → per-context property map
         // lands with the deployable-host rollout; the co-residency mechanism is proven by the IT.
-        for (Hosted h : PILOT) {
+        for (Hosted h : RESIDENT_HOT) {
             new SpringApplicationBuilder(h.app())
                     .properties("spring.config.name=" + h.configName())
                     .run(args);

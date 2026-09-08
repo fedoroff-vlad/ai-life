@@ -7,24 +7,36 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * ADR-0006 / #584 slice 3b — proves the Path B / B1 mechanism: two real domain-MCP module contexts
- * boot <b>side-by-side in one JVM</b>, each on its own port with its own MCP server, with zero change
- * to the modules. This is the consolidation building block; the RAM delta (one host vs N separate
- * JVMs) is measured separately by {@code scripts/measure-footprint.sh} at deploy.
+ * ADR-0006 / #584 slice 3c — proves the Path B / B1 mechanism on the real <b>resident Domain-MCP-hot</b>
+ * set: the five always-on MCP module contexts (caldav · finance · tasks · web · media-processing) boot
+ * <b>side-by-side in one JVM</b>, each on its own port with its own MCP server, with zero change to the
+ * modules. This is the consolidation building block; the RAM delta (one host vs five separate JVMs) is
+ * measured separately by {@code scripts/measure-footprint.sh} at deploy (Mac).
  *
- * <p>Contexts boot against the shared Testcontainers PG with {@code ddl-auto=none} (the modules apply
- * no Liquibase at boot, so no schema is required to start the web + MCP servers — enough to prove
- * co-residency).
+ * <p>Contexts boot against the shared Testcontainers PG with {@code ddl-auto=none} (the modules apply no
+ * Liquibase at boot and hold no fatal startup bean, so no schema is required to start the web + MCP
+ * servers — enough to prove co-residency). The two schema-less capability MCPs (web, media-processing)
+ * ignore the datasource props.
  */
 class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationTest {
 
     private static final List<ConfigurableApplicationContext> CONTEXTS = new ArrayList<>();
+
+    /** Each hot module's default Spring bean name (decapitalised {@code @SpringBootApplication} class). */
+    private static final List<String> APP_BEANS = List.of(
+            "mcpCaldavApplication",
+            "mcpFinanceApplication",
+            "mcpTasksApplication",
+            "mcpWebApplication",
+            "mcpMediaProcessingApplication");
 
     @AfterAll
     static void closeAll() {
@@ -34,6 +46,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
 
     private static Map<String, Object> baseProps(String mcpServerName) {
         Map<String, Object> p = new HashMap<>();
+        // Only the three JPA modules read these; the capability MCPs ignore them.
         p.put("spring.datasource.url", jdbcUrl());
         p.put("spring.datasource.username", username());
         p.put("spring.datasource.password", password());
@@ -50,38 +63,48 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
     }
 
     @Test
-    void twoDomainMcpContextsCoexistInOneJvmOnDistinctPorts() {
+    void residentHotDomainMcpContextsCoexistInOneJvmOnDistinctPorts() {
         long pid = ProcessHandle.current().pid();
 
-        // briefing context (carries its custom mcp-briefing.* props)
-        Map<String, Object> briefing = baseProps("ai-life-briefing-hosted");
-        briefing.put("mcp-briefing.scheduler-url", "http://localhost:1");
-        ConfigurableApplicationContext c1 = DomainMcpHost.boot(DomainMcpHost.PILOT.get(0), briefing);
-        CONTEXTS.add(c1);
+        List<ConfigurableApplicationContext> booted = new ArrayList<>();
+        for (DomainMcpHost.Hosted hosted : DomainMcpHost.RESIDENT_HOT) {
+            ConfigurableApplicationContext ctx =
+                    DomainMcpHost.boot(hosted, baseProps("ai-life-" + hosted.configName() + "-hosted"));
+            booted.add(ctx);
+            CONTEXTS.add(ctx);
+        }
 
-        // travel context
-        ConfigurableApplicationContext c2 =
-                DomainMcpHost.boot(DomainMcpHost.PILOT.get(1), baseProps("ai-life-travel-hosted"));
-        CONTEXTS.add(c2);
+        assertThat(booted).hasSize(5);
 
-        // both are live, independent contexts...
-        assertThat(c1.isRunning()).isTrue();
-        assertThat(c2.isRunning()).isTrue();
-        assertThat(c1).isNotSameAs(c2);
+        // all five are live, independent contexts, all in THIS single JVM process
+        assertThat(booted).allSatisfy(ctx -> assertThat(ctx.isRunning()).isTrue());
         assertThat(ProcessHandle.current().pid())
-                .as("both contexts run in this single JVM process")
+                .as("all co-hosted contexts run in this single JVM process")
                 .isEqualTo(pid);
 
-        // ...on distinct web ports (each MCP kept its own server, no port collision)
-        int p1 = c1.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
-        int p2 = c2.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
-        assertThat(p1).isPositive();
-        assertThat(p2).isPositive();
-        assertThat(p1).as("co-hosted MCPs bind distinct ports").isNotEqualTo(p2);
+        // ...on five distinct web ports (each MCP kept its own server, no port collision)
+        Set<Integer> ports = new LinkedHashSet<>();
+        for (ConfigurableApplicationContext ctx : booted) {
+            int port = ctx.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            assertThat(port).isPositive();
+            ports.add(port);
+        }
+        assertThat(ports).as("each co-hosted MCP binds a distinct port").hasSize(5);
 
-        // ...each loaded its OWN module's beans (config-name skip did not cross-wire them)
-        assertThat(c1.containsBean("mcpBriefingApplication")).isTrue();
-        assertThat(c2.containsBean("mcpTravelApplication")).isTrue();
-        assertThat(c1.containsBean("mcpTravelApplication")).isFalse();
+        // ...each context loaded ONLY its own module's application bean (config-name skip did not cross-wire)
+        for (int i = 0; i < booted.size(); i++) {
+            ConfigurableApplicationContext ctx = booted.get(i);
+            String own = APP_BEANS.get(i);
+            assertThat(ctx.containsBean(own))
+                    .as("%s owns its application bean %s", DomainMcpHost.RESIDENT_HOT.get(i).configName(), own)
+                    .isTrue();
+            for (String other : APP_BEANS) {
+                if (!other.equals(own)) {
+                    assertThat(ctx.containsBean(other))
+                            .as("%s must not carry sibling bean %s", own, other)
+                            .isFalse();
+                }
+            }
+        }
     }
 }

@@ -17,6 +17,6 @@ RUN apt-get update \
         tesseract-ocr tesseract-ocr-eng tesseract-ocr-rus ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
-COPY --from=build /src/shared/mcp/mcp-media-processing/target/mcp-media-processing.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-media-processing/target/mcp-media-processing-exec.jar /app/app.jar
 EXPOSE 8097
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

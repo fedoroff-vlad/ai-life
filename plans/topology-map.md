@@ -146,13 +146,18 @@ needs; rolled out per module as consolidation proceeds.
 - **3a (pilot):** `mcp-briefing` + `mcp-travel` switched to the `exec` classifier (pom + Dockerfile). Main
   artifact is now a plain classes jar; Docker runs `-exec.jar`. Both modules build + test green.
 - **3b (done):** `deploy/domain-mcp-host` boots both pilot contexts in one JVM (distinct ports), proven by
-  `DomainMcpHostFootprintIntegrationTest`. The **RAM delta** (one host vs two JVMs) is the next step — it
-  needs the deployable host (env-wired `main`) + `measure-footprint.sh` on the running stack.
+  `DomainMcpHostFootprintIntegrationTest`.
+- **3c (done — resident hot set):** 3a `exec`-classifier rolled out to the resident **Domain-MCP-hot**
+  members (`mcp-caldav` · `mcp-finance` · `mcp-tasks` · `mcp-web` · `mcp-media-processing`; pom + Dockerfile),
+  and `deploy/domain-mcp-host` repointed from the briefing+travel spike to `RESIDENT_HOT` (those five). The
+  footprint IT now boots all five side-by-side. The pilot modules (briefing/travel) keep their `exec`
+  packaging and await their cold **Brief+Travel** host. The **RAM delta** (one host vs five JVMs) is the
+  next step — it needs the deployable host (env-wired `main`) + `measure-footprint.sh` on the running stack.
 
-- Scenario: a co-hosted pilot module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
-  and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the PR-A reactor build).
-- Scenario: the host boots the two pilot MCP contexts in one JVM → both are live on distinct ports, each
-  with only its own module's beans (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
+  and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
+- Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
+  distinct ports, each with only its own module's application bean (asserted by `DomainMcpHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
