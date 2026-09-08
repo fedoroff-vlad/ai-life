@@ -138,10 +138,13 @@ dominates"). Machine: i5-12450H, 8c/12t, 15.7 GB RAM, Docker capped 7.8 GB.
      `testcontainers.version=1.20.4` + `testcontainers-bom` import were dead (overridden by
      `spring-boot-dependencies`). **Removing them was tried and BROKE the build** — Boot 4 does *not*
      manage `org.testcontainers:postgresql` / `junit-jupiter` / `minio`, so our BOM import is the sole
-     version source for them ("`dependencies.dependency.version … is missing`"). Keep the import. There is
-     a latent question worth a *separate* look: `testcontainers-core` logs `2.0.5` at runtime while our
-     BOM pins the modules to `1.20.4` (possible core-vs-module skew) — verify + align to 2.0.5 in its own
-     slice, not as a "drop the pin" freebie.
+     version source for them ("`dependencies.dependency.version … is missing`"). Keep the import. The
+     core-vs-module skew this flagged (`testcontainers-core` logging `2.0.5` while the BOM pinned modules
+     to `1.20.4`) was resolved in its own slice (**#642**, 2026-09-08): the BOM was bumped to **2.0.5** and
+     the four module coordinates renamed to the TC 2.0 `testcontainers-<module>` scheme
+     (`postgresql`→`testcontainers-postgresql`, `junit-jupiter`→`testcontainers-junit-jupiter`,
+     `ollama`→`testcontainers-ollama`, `minio`→`testcontainers-minio`). TC 2.0 keeps relocation stubs for
+     the old `org.testcontainers.containers.*` / `…junit.jupiter.*` FQCNs, so no test code changed.
 4. **Cheaper knobs (only if 1–2 fall short):** Maven build cache (skip unchanged modules), surefire fork
    tuning, dependency-resolution caching on the runner. GIB already prunes PR builds correctly (verified).
 
