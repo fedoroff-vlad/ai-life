@@ -97,6 +97,7 @@
         <module>shared/mcp/mcp-weather</module>
         <module>shared/mcp/mcp-travel-search</module>
         <module>domains/researcher/researcher-agent</module>
+        <module>deploy/domain-mcp-host</module>
     </modules>
 
     <dependencyManagement>

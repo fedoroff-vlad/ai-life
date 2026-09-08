@@ -145,13 +145,14 @@ needs; rolled out per module as consolidation proceeds.
 
 - **3a (pilot):** `mcp-briefing` + `mcp-travel` switched to the `exec` classifier (pom + Dockerfile). Main
   artifact is now a plain classes jar; Docker runs `-exec.jar`. Both modules build + test green.
-- **3b (next):** a `deploy/domain-mcp-host` module boots both pilot contexts in one JVM (distinct ports) +
-  a footprint IT proving co-residency; local RSS delta (one host vs two JVMs) as the PoC number.
+- **3b (done):** `deploy/domain-mcp-host` boots both pilot contexts in one JVM (distinct ports), proven by
+  `DomainMcpHostFootprintIntegrationTest`. The **RAM delta** (one host vs two JVMs) is the next step — it
+  needs the deployable host (env-wired `main`) + `measure-footprint.sh` on the running stack.
 
 - Scenario: a co-hosted pilot module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the PR-A reactor build).
 - Scenario: the host boots the two pilot MCP contexts in one JVM → both are live on distinct ports, each
-  with only its own module's beans (not yet asserted — lands with the 3b host module + footprint IT).
+  with only its own module's beans (asserted by `DomainMcpHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
