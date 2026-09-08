@@ -46,6 +46,14 @@
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
         </dependency>
+        <!-- okhttp 5.x: the `okhttp` artifact is an empty KMP aggregator under Maven (the
+             okhttp->okhttp-jvm link lives only in Gradle metadata Maven ignores), so minio's
+             transitive `okhttp` carries no classes. Pull okhttp-jvm explicitly so minio's
+             okhttp3.HttpUrl / OkHttpClient resolve. Version from okhttp-bom (root pom). -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.postgresql</groupId>
