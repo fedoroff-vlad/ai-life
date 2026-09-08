@@ -17,12 +17,7 @@ build/validation (no Docker on the dev VDI): they are `designed`/`partially-buil
 the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
 
 ## Now
-- _Nothing in flight._ The **spec→test discipline epic [#618](https://github.com/fedoroff-vlad/ai-life/issues/618)
-  is COMPLETE (2026-09-05, slices 1–7)** — `check-consistency.sh` check 9 is now **strict** (every live-plan
-  `Scenario:` carries `(asserted by `XTest`)` or an honest `(not yet asserted — <reason>)` marker). Detail →
-  [HISTORY.md](HISTORY.md) + [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice. **Pick the next item from
-  `## Next`** (owner priority: next future agent — health #187 / email #191 / smart-home #192 — or the
-  Mac-gated threads).
+- **Runtime consolidation ([#584](https://github.com/fedoroff-vlad/ai-life/issues/584), [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md)) — Path B / B1 STARTED (before the Mac, owner direction 2026-09-08).** Goal: collapse ~30 JVMs (~10–15 GB) into a few co-hosting JVM hosts (~2–3 GB), zero contract change. A spike found the prerequisite: MCP modules ship an executable Boot **fat jar** as their main artifact, so a host can't depend on them → decouple packaging first (`exec` classifier → plain classes jar main + `-exec.jar` for Docker). **In flight: slice 3a (packaging enabler, pilot = `mcp-briefing` + `mcp-travel`)** → then **3b** (`deploy/domain-mcp-host` booting both contexts in one JVM + footprint IT). Spec → [topology-map.md](topology-map.md) §Slice 3. Native/GraalVM (path C) stays the later, mac-gated lever. _(Docker is available on the dev box now — local RSS PoC is feasible in 3b.)_
 
 ## Done (awaiting move to HISTORY at next closer)
 - **hardening §#633 durable inbound inbox — ✅ COMPLETE (2026-09-07).** The synchronous inbound path no
