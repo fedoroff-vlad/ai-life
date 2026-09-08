@@ -57,6 +57,20 @@ public abstract class AbstractPostgresIntegrationTest {
      * Spring does not pick up inherited static @DynamicPropertySource methods,
      * so each subclass must call this explicitly.
      */
+    /** Direct JDBC coordinates, for tests that wire the datasource manually (e.g. booting a context
+     *  programmatically rather than via {@code @DynamicPropertySource}). */
+    public static String jdbcUrl() {
+        return POSTGRES.getJdbcUrl();
+    }
+
+    public static String username() {
+        return POSTGRES.getUsername();
+    }
+
+    public static String password() {
+        return POSTGRES.getPassword();
+    }
+
     public static void registerDataSource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);

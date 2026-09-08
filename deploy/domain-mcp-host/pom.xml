@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>domain-mcp-host</artifactId>
+    <name>ai-life :: deploy :: domain-mcp-host</name>
+    <description>
+        ADR-0006 / #584 slice 3b: a single JVM that boots several domain-MCP module contexts
+        side-by-side (each on its own port, its own MCP server — zero contract change), reclaiming the
+        per-process JVM baseline. Path B (process consolidation), approach B1 (multi-context, ports kept).
+        Depends on the pilot MCP modules' plain classes jars (enabled by the #584 3a exec-classifier).
+    </description>
+
+    <dependencies>
+        <!-- Co-hosted pilot domain-MCPs. Since #584 3a their MAIN artifact is a plain classes jar
+             (the executable is the -exec classifier), so this host can depend on them normally. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-briefing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-travel</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>test-support</artifactId>
+        </dependency>
+    </dependencies>
+</project>

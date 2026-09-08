@@ -92,6 +92,8 @@ ai-life/
 │   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
 │                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds,
 │                            mcp-travel-search (capability-MCPs, no schema)
+├── deploy/                  runtime-topology composition (ADR-0006 #584): domain-mcp-host co-hosts
+│                            several MCP contexts in one JVM (mechanism proven; not a live process yet)
 ├── infra/                   docker-compose, liquibase, postgres init, .env.example
 ├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh
 ├── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
