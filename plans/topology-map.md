@@ -129,6 +129,30 @@ numbers need the Mac (no Docker on the dev VDI), so each carries `not yet assert
 - Scenario: the stack (or Docker) is down → the script reports only what is running and exits 0 (a
   measurement tool never fails a pipeline), naming what it could not reach (not yet asserted — mac-gated shell harness).
 
+## Slice 3 — consolidation spike (execution notes)
+ADR-0006 action item 3, Path B / approach **B1** (owner-chosen): several domain-MCP module contexts in
+**one JVM**, each keeping its own port + MCP server, so agents' `/internal/*` URLs and every contract stay
+unchanged. The win is the ~300 MB per-process JVM baseline paid **once per host**.
+
+**Prerequisite found by the spike — packaging must decouple "code module" from "runnable process" (3a).**
+Each MCP module's *main* Maven artifact is today an executable **Boot fat jar** (classes under
+`BOOT-INF/classes`), so a host module cannot depend on it — an in-reactor consumer breaks at the `package`
+phase (`test-compile` passes, `verify` fails: `package … does not exist`). Fix: `spring-boot-maven-plugin`
+with `<classifier>exec</classifier>` — the module's main artifact stays a **plain classes jar** (dependable
+by the host), the executable becomes `<artifact>-exec.jar`, and the module Dockerfile runs that. No runtime
+/ contract change; the module still builds + tests green. This is the enabler every consolidation host
+needs; rolled out per module as consolidation proceeds.
+
+- **3a (pilot):** `mcp-briefing` + `mcp-travel` switched to the `exec` classifier (pom + Dockerfile). Main
+  artifact is now a plain classes jar; Docker runs `-exec.jar`. Both modules build + test green.
+- **3b (next):** a `deploy/domain-mcp-host` module boots both pilot contexts in one JVM (distinct ports) +
+  a footprint IT proving co-residency; local RSS delta (one host vs two JVMs) as the PoC number.
+
+- Scenario: a co-hosted pilot module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
+  and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the PR-A reactor build).
+- Scenario: the host boots the two pilot MCP contexts in one JVM → both are live on distinct ports, each
+  with only its own module's beans (not yet asserted — lands with the 3b host module + footprint IT).
+
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
 - Goldens / E2E must pass against the consolidated (and later native) artifacts, not only the dev topology
