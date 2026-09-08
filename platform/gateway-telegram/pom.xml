@@ -53,6 +53,15 @@
             <artifactId>telegrambots-client</artifactId>
             <version>${telegrambots.version}</version>
         </dependency>
+        <!-- okhttp 5.x: telegrambots-client uses okhttp for the Bot API HTTP client, but the
+             transitive `okhttp` artifact is an empty KMP aggregator under Maven (real classes
+             live in okhttp-jvm; the link is Gradle-metadata-only). Pull okhttp-jvm at runtime so
+             the bot client has okhttp on the packaged classpath. Version from okhttp-bom. -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp-jvm</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -22,7 +22,7 @@
         <postgresql.version>42.7.4</postgresql.version>
         <liquibase.version>4.30.0</liquibase.version>
         <testcontainers.version>2.0.5</testcontainers.version>
-        <okhttp.version>4.12.0</okhttp.version>
+        <okhttp.version>5.5.0</okhttp.version>
         <ical4j.version>4.3.0</ical4j.version>
         <shedlock.version>7.10.0</shedlock.version>
         <minio.version>8.5.14</minio.version>
@@ -126,6 +126,19 @@
                 <groupId>io.github.resilience4j</groupId>
                 <artifactId>resilience4j-bom</artifactId>
                 <version>${resilience4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- okhttp-bom aligns the okhttp CORE (okhttp/okhttp-jvm) to 5.x. Needed because
+                 mockwebserver 5.x pulls okhttp-jvm 5.x, while telegrambots-client drags okhttp
+                 4.12 transitively (its own BOM pins 4.x) — a mixed classpath throws
+                 NoSuchMethodError TaskRunner.<init> at `new MockWebServer()`. The legacy
+                 `mockwebserver` artifact below is still published on 5.x (backward-compat
+                 okhttp3.mockwebserver package), so test code is untouched. -->
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp-bom</artifactId>
+                <version>${okhttp.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
