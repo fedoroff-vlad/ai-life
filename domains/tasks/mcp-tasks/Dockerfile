@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl domains/tasks/mcp-ta
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/tasks/mcp-tasks/target/mcp-tasks.jar /app/app.jar
+COPY --from=build /src/domains/tasks/mcp-tasks/target/mcp-tasks-exec.jar /app/app.jar
 EXPOSE 8095
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

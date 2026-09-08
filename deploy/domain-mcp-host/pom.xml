@@ -14,23 +14,40 @@
     <artifactId>domain-mcp-host</artifactId>
     <name>ai-life :: deploy :: domain-mcp-host</name>
     <description>
-        ADR-0006 / #584 slice 3b: a single JVM that boots several domain-MCP module contexts
+        ADR-0006 / #584 slice 3c: the resident Domain-MCP-hot host — a single JVM that boots the
+        always-on MCP contexts (mcp-caldav, mcp-finance, mcp-tasks, mcp-web, mcp-media-processing)
         side-by-side (each on its own port, its own MCP server — zero contract change), reclaiming the
-        per-process JVM baseline. Path B (process consolidation), approach B1 (multi-context, ports kept).
-        Depends on the pilot MCP modules' plain classes jars (enabled by the #584 3a exec-classifier).
+        per-process JVM baseline once per host. Path B (process consolidation), approach B1 (multi-context,
+        ports kept). Depends on each module's plain classes jar (enabled by the #584 3a exec-classifier).
     </description>
 
     <dependencies>
-        <!-- Co-hosted pilot domain-MCPs. Since #584 3a their MAIN artifact is a plain classes jar
-             (the executable is the -exec classifier), so this host can depend on them normally. -->
+        <!-- The resident Domain-MCP-hot set (topology-map.md §Resident). Each module's MAIN artifact is
+             a plain classes jar (the executable is the -exec classifier, #584 3a), so this host depends
+             on them normally and boots each as its own context, on its own port, with its own MCP server. -->
         <dependency>
             <groupId>dev.fedorov.ailife</groupId>
-            <artifactId>mcp-briefing</artifactId>
+            <artifactId>mcp-caldav</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>dev.fedorov.ailife</groupId>
-            <artifactId>mcp-travel</artifactId>
+            <artifactId>mcp-finance</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-tasks</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-media-processing</artifactId>
             <version>${project.version}</version>
         </dependency>
 

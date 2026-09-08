@@ -1,28 +1,34 @@
 # domain-mcp-host
 
-**Status (2026-09-08):** #584 slice 3b — **mechanism proven**, not yet a deployable process.
-ADR-0006 Path B (process consolidation), approach B1.
+**Status (2026-09-08):** #584 slice 3c — the **resident Domain-MCP-hot** host; co-residency of the real
+hot set proven by IT, not yet a deployable process. ADR-0006 Path B (process consolidation), approach B1.
 
-Boots several `domain-MCP` module contexts **in one JVM**, each an independent Spring context on its
-own port with its own MCP server — so agents keep calling each MCP's `/internal/*` on the same URL/port
-and every contract is unchanged. The win is that the ~300 MB per-process JVM baseline (JIT/code-cache,
-metaspace, GC, thread pools) is paid **once per host** instead of once per module.
+Boots the always-on `Domain-MCP-hot` module contexts **in one JVM**, each an independent Spring context
+on its own port with its own MCP server — so agents keep calling each MCP's `/internal/*` on the same
+URL/port and every contract is unchanged. The win is that the ~300 MB per-process JVM baseline
+(JIT/code-cache, metaspace, GC, thread pools) is paid **once per host** instead of once per module.
 
-Depends on the pilot MCP modules' **plain classes jars** (enabled by #584 slice 3a, which moved each
+The resident hot set ([plans/topology-map.md](../../plans/topology-map.md) §Resident):
+`mcp-caldav · mcp-finance · mcp-tasks · mcp-web · mcp-media-processing`.
+
+Depends on each module's **plain classes jar** (enabled by #584 slice 3a, which moved every co-hosted
 module's executable to the `-exec` classifier). Each context is booted with a unique, non-existent
 `spring.config.name` so the modules' `application.yml` resources (all at `classpath:/application.yml`)
-do not collide; every value is supplied by the caller / deploy environment.
+do not collide; every value is supplied by the caller / deploy environment. All five modules'
+`@ConfigurationProperties` self-default in Java, so a config-name-skipped context still starts.
 
 ## Key classes
-- `DomainMcpHost` — the launcher. `PILOT` lists the co-hosted modules (`mcp-briefing`, `mcp-travel`);
-  `boot(Hosted, props)` starts one context; `main` is the deploy entry point (env→per-context wiring
-  lands with the rollout, ADR-0006 item 4).
+- `DomainMcpHost` — the launcher. `RESIDENT_HOT` lists the co-hosted modules; `boot(Hosted, props)`
+  starts one context; `main` is the deploy entry point (env→per-context wiring lands with the rollout,
+  ADR-0006 item 4). Cold hosts (Content, Lifestyle, Brief+Travel, …) each get their own launcher list.
 
 ## Tests
-- `DomainMcpHostFootprintIntegrationTest` (`it`) — boots both pilot contexts in one JVM against a
-  Testcontainers PG and asserts co-residency: both live, distinct ports, each with only its own beans.
+- `DomainMcpHostFootprintIntegrationTest` (`it`) — boots all five resident contexts in one JVM against a
+  Testcontainers PG and asserts co-residency: all live, five distinct ports, each with only its own
+  application bean.
 
 ## Not yet done (see [plans/topology-map.md](../../plans/topology-map.md) §Slice 3)
-- The **RAM delta** measurement (one host vs two JVMs) — needs the env-wired `main` + `measure-footprint.sh`.
-- Rollout across the rest of the MCP / agent / platform tiers (ADR-0006 item 4).
+- The **RAM delta** measurement (one host vs five JVMs) — needs the env-wired `main` + `measure-footprint.sh`
+  on the running stack (Mac; the dev VDI has no Docker daemon).
+- The remaining hosts (Agent-hot, Platform-hot, cold host-units) — same mechanism, per-tier lists.
 - A deployable/runnable host artifact (packaging of a multi-context launcher).
