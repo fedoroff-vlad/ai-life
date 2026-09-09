@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>agent-host</artifactId>
+    <name>ai-life :: deploy :: agent-host</name>
+    <description>
+        ADR-0006 / #584 slice 3d: the resident Agent-hot host — a single JVM that boots the always-on
+        LLM agent contexts (calendar · finance · tasks · notes · coordinator · researcher) side-by-side
+        (each on its own port — zero contract change), reclaiming the per-process JVM baseline once per
+        host. Path B (process consolidation), approach B1 (multi-context, ports kept). Depends on each
+        agent's plain classes jar (enabled by the #584 3a exec-classifier). Agents are LLM-bound and own
+        no schema, so this host is kept separate from the DB-bound Domain-MCP-hot host (topology-map §2).
+    </description>
+
+    <dependencies>
+        <!-- The resident Agent-hot set (topology-map.md §Resident). Each agent's MAIN artifact is a
+             plain classes jar (the executable is the -exec classifier, #584 3a), so this host depends
+             on them normally and boots each as its own context on its own port. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>calendar-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>finance-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>tasks-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>notes-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>coordinator-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>researcher-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- JUnit/AssertJ only. NOT test-support: it drags JDBC/Testcontainers onto the classpath,
+             which would trigger DataSourceAutoConfiguration in the co-hosted agent contexts (agents own
+             no schema) and fail the boot. The co-residency IT needs no database. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

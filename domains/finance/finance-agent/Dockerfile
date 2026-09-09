@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl domains/finance/fina
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/finance/finance-agent/target/finance-agent.jar /app/app.jar
+COPY --from=build /src/domains/finance/finance-agent/target/finance-agent-exec.jar /app/app.jar
 EXPOSE 8093
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

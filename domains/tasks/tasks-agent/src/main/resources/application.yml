@@ -21,7 +21,7 @@ server:
   port: ${TASKS_AGENT_PORT:8096}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/tasks-agent/AGENT.md
   skills-classpath: classpath*:skills/tasks/*/SKILL.md
   memory-recall-k: ${TASKS_AGENT_MEMORY_RECALL_K:5}
 
