@@ -8,7 +8,7 @@ server:
   port: ${COORDINATOR_AGENT_PORT:8119}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/coordinator-agent/AGENT.md
   # No skills: the coordinator's whole job is synthesis, driven by the AGENT.md body. Leaving
   # skills-classpath unset keeps the registry empty (the anti-cross-leak default).
   memory-recall-k: ${COORDINATOR_AGENT_MEMORY_RECALL_K:5}

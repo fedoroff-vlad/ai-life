@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/assistant/coordinator-agent/target/coordinator-agent.jar /app/app.jar
+COPY --from=build /src/domains/assistant/coordinator-agent/target/coordinator-agent-exec.jar /app/app.jar
 EXPOSE 8119
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

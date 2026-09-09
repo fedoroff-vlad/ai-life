@@ -153,11 +153,24 @@ needs; rolled out per module as consolidation proceeds.
   footprint IT now boots all five side-by-side. The pilot modules (briefing/travel) keep their `exec`
   packaging and await their cold **Brief+Travel** host. The **RAM delta** (one host vs five JVMs) is the
   next step — it needs the deployable host (env-wired `main`) + `measure-footprint.sh` on the running stack.
+- **3d (done — resident Agent-hot set):** 3a `exec`-classifier rolled out to the six agents
+  (`calendar` · `finance` · `tasks` · `notes` · `coordinator` · `researcher`); new
+  `deploy/agent-host` boots them side-by-side. **The agent tier needed a second collision fixed beyond
+  the `application.yml` skip:** every agent's `AGENT.md` landed at `classpath:/AGENT.md`, so co-hosted
+  contexts on the shared classloader would all resolve the *same* manifest and the manifest/skills
+  consistency check would throw. Fix (owner-chosen): each `AGENT.md` now lands at a per-agent
+  `manifest/<name>/AGENT.md` via the module `pom.xml` `<targetPath>` (the file **stays at the module
+  root**; only its classpath location changes), and the launcher points each context's
+  `agent.manifest-classpath` there. Agents keep their own reactive server + ports; MCP client stays
+  enabled at deploy (the IT disables it, tasks-agent's being fail-fast at boot).
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
   distinct ports, each with only its own module's application bean (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: the host boots the six resident Agent-hot contexts in one JVM → all six are live on distinct
+  ports, each with only its own application bean **and its own AGENT.md persona** (proving both the
+  `application.yml` skip and the per-agent manifest-path fix) (asserted by `AgentHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

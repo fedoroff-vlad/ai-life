@@ -29,7 +29,7 @@ server:
   port: ${RESEARCHER_AGENT_PORT:8099}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/researcher-agent/AGENT.md
   skills-classpath: classpath*:skills/researcher/*/SKILL.md
   memory-recall-k: ${RESEARCHER_AGENT_MEMORY_RECALL_K:5}
 

@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/knowledge/notes-agent/target/notes-agent.jar /app/app.jar
+COPY --from=build /src/domains/knowledge/notes-agent/target/notes-agent-exec.jar /app/app.jar
 EXPOSE 8118
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

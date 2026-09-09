@@ -8,7 +8,7 @@ server:
   port: ${NOTES_AGENT_PORT:8118}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/notes-agent/AGENT.md
   skills-classpath: classpath*:skills/knowledge/*/SKILL.md
   memory-recall-k: ${NOTES_AGENT_MEMORY_RECALL_K:5}
 

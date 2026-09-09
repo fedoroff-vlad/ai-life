@@ -98,6 +98,7 @@
         <module>shared/mcp/mcp-travel-search</module>
         <module>domains/researcher/researcher-agent</module>
         <module>deploy/domain-mcp-host</module>
+        <module>deploy/agent-host</module>
     </modules>
 
     <dependencyManagement>

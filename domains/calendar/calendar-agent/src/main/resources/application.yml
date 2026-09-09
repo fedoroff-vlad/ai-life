@@ -8,7 +8,7 @@ server:
   port: ${CALENDAR_AGENT_PORT:8086}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/calendar-agent/AGENT.md
   skills-classpath: classpath*:skills/calendar/*/SKILL.md
   memory-recall-k: ${CALENDAR_AGENT_MEMORY_RECALL_K:5}
 
