@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/docs/mcp-docs/target/mcp-docs.jar /app/app.jar
+COPY --from=build /src/domains/docs/mcp-docs/target/mcp-docs-exec.jar /app/app.jar
 EXPOSE 8116
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
