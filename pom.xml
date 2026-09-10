@@ -100,6 +100,7 @@
         <module>deploy/domain-mcp-host</module>
         <module>deploy/agent-host</module>
         <module>deploy/platform-host</module>
+        <module>deploy/docs-host</module>
     </modules>
 
     <dependencyManagement>

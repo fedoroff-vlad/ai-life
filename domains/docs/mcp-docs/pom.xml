@@ -79,6 +79,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- ADR-0006 / #584 slice 3f: attach the executable (Boot fat) jar under the `exec`
+                     classifier so the module's MAIN artifact stays a plain classes jar that the cold
+                     consolidation host (deploy/docs-host) can depend on. Docker runs `<artifact>-exec.jar`. -->
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

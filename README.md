@@ -93,8 +93,9 @@ ai-life/
 │                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds,
 │                            mcp-travel-search (capability-MCPs, no schema)
 ├── deploy/                  runtime-topology composition (ADR-0006 #584): resident-tier hosts
-│                            (domain-mcp-host · agent-host · platform-host) each co-host several module
-│                            contexts in one JVM (mechanism proven; not a live process yet)
+│                            (domain-mcp-host · agent-host · platform-host) + cold host-units (docs-host,
+│                            …) each co-host several module contexts in one JVM (mechanism proven; not a
+│                            live process yet)
 ├── infra/                   docker-compose, liquibase, postgres init, .env.example
 ├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh
 ├── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)

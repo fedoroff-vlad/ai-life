@@ -178,6 +178,16 @@ needs; rolled out per module as consolidation proceeds.
   resident tier** (Agent-hot 3d + Domain-MCP-hot 3c + Platform-hot 3e). Next: the **RAM delta** across the
   three resident hosts (env-wired `main` + `measure-footprint.sh` on the running stack, Mac) and the cold
   host-units (ADR-0006 item 4).
+- **3f (done — first cold host-unit, the Docs unit):** 3a `exec`-classifier rolled out to `docs-agent` +
+  `mcp-docs`; new `deploy/docs-host` boots them side-by-side. **This is the first host that MIXES the
+  agent tier and its domain-MCP in one JVM** — the cold grouping (co-usage affinity, §Grouping 1), unlike
+  the resident tier's agent/MCP split. Same launcher shape as Platform-hot (per-module `web-application-type`
+  re-supply — `docs-agent` reactive, `mcp-docs` servlet), plus the agent's `agent.skills-classpath` is
+  re-supplied (the config-name skip drops it and the runtime fails startup if `AGENT.md` declares skills the
+  empty registry never loaded). Only one `AGENT.md` on the classpath (docs-agent's), so the 3d per-agent
+  manifest-path fix is not needed here. `docs-agent`'s MCP client is disabled in the IT (co-residency proof,
+  not the agent→MCP SSE binding). **Remaining cold units** (Content, Lifestyle, Brief+Travel, Finance-aux,
+  Coach) follow the same mechanism, per-unit lists.
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -190,6 +200,9 @@ needs; rolled out per module as consolidation proceeds.
   distinct ports, each context carrying only its own application bean, with mixed reactive/servlet web
   stacks side-by-side and media-service's boot-time bucket-ensure satisfied by a live MinIO (asserted by
   `PlatformHostFootprintIntegrationTest`).
+- Scenario: the first cold host-unit boots an agent and its domain-MCP in one JVM → `docs-agent` +
+  `mcp-docs` are both live on distinct ports, each context carrying only its own application bean, proving
+  the agent+MCP co-hosting the cold grouping needs (asserted by `DocsHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
