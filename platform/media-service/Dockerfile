@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl platform/media-servi
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/platform/media-service/target/media-service.jar /app/app.jar
+COPY --from=build /src/platform/media-service/target/media-service-exec.jar /app/app.jar
 EXPOSE 8088
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

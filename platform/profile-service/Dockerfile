@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl platform/profile-ser
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/platform/profile-service/target/profile-service.jar /app/app.jar
+COPY --from=build /src/platform/profile-service/target/profile-service-exec.jar /app/app.jar
 EXPOSE 8082
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

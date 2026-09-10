@@ -163,6 +163,21 @@ needs; rolled out per module as consolidation proceeds.
   root**; only its classpath location changes), and the launcher points each context's
   `agent.manifest-classpath` there. Agents keep their own reactive server + ports; MCP client stays
   enabled at deploy (the IT disables it, tasks-agent's being fail-fast at boot).
+- **3e (done — resident Platform-hot set):** 3a `exec`-classifier rolled out to the seven platform
+  services (`gateway-telegram` · `orchestrator` · `profile-service` · `notifier-service` ·
+  `scheduler-service` · `conversation-service` · `media-service`); new `deploy/platform-host` boots them
+  side-by-side. **The platform tier is DB-bound and mixes web stacks, so two things beyond the
+  `application.yml` config-name skip were needed:** (i) the launcher **re-supplies `web-application-type`
+  per module** (reactive: gateway/orchestrator/notifier; servlet: the rest) because the skip drops each
+  module's own yml declaration and `scheduler-service` carries both `spring-web` and (test-only)
+  `webflux` — auto-detection would be ambiguous; (ii) the co-residency IT wires the shared Testcontainers
+  PG to every context (`ddl-auto=none`) plus a live **MinIO** for media-service's boot-time
+  `ensureBucket`, and keeps the two `@Scheduled` ticks quiet (`notifier.held-redrain-enabled=false`,
+  far-future `scheduler.tick-millis`); gateway boots token-less (bot + inbox redriver off). The isolated
+  singletons `memory-service` + `llm-gateway` are **not** consolidated (§Grouping 3). **This completes the
+  resident tier** (Agent-hot 3d + Domain-MCP-hot 3c + Platform-hot 3e). Next: the **RAM delta** across the
+  three resident hosts (env-wired `main` + `measure-footprint.sh` on the running stack, Mac) and the cold
+  host-units (ADR-0006 item 4).
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -171,6 +186,10 @@ needs; rolled out per module as consolidation proceeds.
 - Scenario: the host boots the six resident Agent-hot contexts in one JVM → all six are live on distinct
   ports, each with only its own application bean **and its own AGENT.md persona** (proving both the
   `application.yml` skip and the per-agent manifest-path fix) (asserted by `AgentHostFootprintIntegrationTest`).
+- Scenario: the host boots the seven resident Platform-hot contexts in one JVM → all seven are live on
+  distinct ports, each context carrying only its own application bean, with mixed reactive/servlet web
+  stacks side-by-side and media-service's boot-time bucket-ensure satisfied by a live MinIO (asserted by
+  `PlatformHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
