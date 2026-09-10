@@ -30,5 +30,6 @@ do not collide; every value is supplied by the caller / deploy environment. All 
 ## Not yet done (see [plans/topology-map.md](../../plans/topology-map.md) §Slice 3)
 - The **RAM delta** measurement (one host vs five JVMs) — needs the env-wired `main` + `measure-footprint.sh`
   on the running stack (Mac; the dev VDI has no Docker daemon).
-- The remaining hosts (Agent-hot, Platform-hot, cold host-units) — same mechanism, per-tier lists.
+- The remaining hosts (cold host-units) — same mechanism, per-tier lists. Agent-hot (#584 3d) and
+  Platform-hot (#584 3e) shipped, completing the resident tier.
 - A deployable/runnable host artifact (packaging of a multi-context launcher).

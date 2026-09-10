@@ -35,5 +35,6 @@ shared-classpath collisions are resolved:
 ## Not yet done (see [plans/topology-map.md](../../plans/topology-map.md) §Slice 3)
 - The **RAM delta** measurement (one host vs six JVMs) — needs the env-wired `main` +
   `measure-footprint.sh` on the running stack (Mac).
-- The remaining hosts (Platform-hot, cold host-units) — same mechanism, per-tier lists.
+- The remaining hosts (cold host-units) — same mechanism, per-tier lists. Platform-hot shipped (#584 3e,
+  `deploy/platform-host`), completing the resident tier.
 - A deployable/runnable host artifact (packaging of a multi-context launcher).

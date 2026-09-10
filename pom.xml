@@ -99,6 +99,7 @@
         <module>domains/researcher/researcher-agent</module>
         <module>deploy/domain-mcp-host</module>
         <module>deploy/agent-host</module>
+        <module>deploy/platform-host</module>
     </modules>
 
     <dependencyManagement>

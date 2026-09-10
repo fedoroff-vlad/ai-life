@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>platform-host</artifactId>
+    <name>ai-life :: deploy :: platform-host</name>
+    <description>
+        ADR-0006 / #584 slice 3e: the resident Platform-hot host — a single JVM that boots the always-on
+        platform services (gateway-telegram · orchestrator · profile-service · notifier-service ·
+        scheduler-service · conversation-service · media-service) side-by-side (each on its own port —
+        zero contract change), reclaiming the per-process JVM baseline once per host. Path B (process
+        consolidation), approach B1 (multi-context, ports kept). Depends on each service's plain classes
+        jar (enabled by the #584 3e exec-classifier). The isolated singletons memory-service and
+        llm-gateway are NOT consolidated (topology-map §Grouping 3).
+    </description>
+
+    <dependencies>
+        <!-- The resident Platform-hot set (topology-map.md §Resident). Each service's MAIN artifact is a
+             plain classes jar (the executable is the -exec classifier, #584 3e), so this host depends on
+             them normally and boots each as its own context on its own port. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>gateway-telegram</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>orchestrator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>profile-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>notifier-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>scheduler-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>conversation-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>media-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Testcontainers PG base (AbstractPostgresIntegrationTest) + JDBC. Unlike the agent-host,
+             the platform tier IS DB-bound, so test-support's datasource wiring is wanted here: every
+             co-hosted context is handed the shared PG so it can boot. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- media-service ensures its bucket at boot (@PostConstruct), so co-hosting it needs a live
+             MinIO — same MinIOContainer the media-service IT uses. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-minio</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
