@@ -188,6 +188,18 @@ needs; rolled out per module as consolidation proceeds.
   manifest-path fix is not needed here. `docs-agent`'s MCP client is disabled in the IT (co-residency proof,
   not the agent→MCP SSE binding). **Remaining cold units** (Content, Lifestyle, Brief+Travel, Finance-aux,
   Coach) follow the same mechanism, per-unit lists.
+- **3g (done — second cold host-unit, the Content unit):** 3a `exec`-classifier rolled out to `creator-agent`
+  + its domain-MCP `mcp-creator` + the three trend capability-MCPs it binds (`mcp-youtube` · `mcp-reddit` ·
+  `mcp-feeds`); new `deploy/content-host` boots all five side-by-side. **Same shape as the Docs unit (3f) — a
+  single agent + its MCPs — now over a larger cluster (5 JVMs → 1).** Launcher re-supplies per-module
+  `web-application-type` (`creator-agent` + the three capability-MCPs webflux-only → reactive; `mcp-creator`
+  carries both `spring-web` and `webflux`, like `mcp-docs`, so it is pinned servlet) **and** the agent's
+  `agent.skills-classpath` (the config-name skip drops it and the runtime fails startup if `AGENT.md` declares
+  skills the empty registry never loaded); single agent → no manifest-path collision. Each MCP re-supplies its
+  MCP-server identity in the IT (config-name skip dropped it). `ContentHostFootprintIntegrationTest` boots all
+  five side-by-side (creator-agent's MCP client off = co-residency proof, not the agent→MCP SSE bindings).
+  **Remaining cold units** (Lifestyle, Brief+Travel, Finance-aux, Coach) follow the same mechanism, per-unit
+  lists.
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -203,6 +215,10 @@ needs; rolled out per module as consolidation proceeds.
 - Scenario: the first cold host-unit boots an agent and its domain-MCP in one JVM → `docs-agent` +
   `mcp-docs` are both live on distinct ports, each context carrying only its own application bean, proving
   the agent+MCP co-hosting the cold grouping needs (asserted by `DocsHostFootprintIntegrationTest`).
+- Scenario: the second cold host-unit boots an agent and its four MCPs in one JVM → `creator-agent` +
+  `mcp-creator` + `mcp-youtube` + `mcp-reddit` + `mcp-feeds` are all live on distinct ports, each context
+  carrying only its own application bean, proving the agent+MCP co-hosting scales past the two-context Docs
+  pilot to a five-context cluster (asserted by `ContentHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

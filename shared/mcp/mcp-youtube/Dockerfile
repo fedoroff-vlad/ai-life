@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — trends come from the YouTube Data API over public HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-youtube/target/mcp-youtube.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-youtube/target/mcp-youtube-exec.jar /app/app.jar
 EXPOSE 8110
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

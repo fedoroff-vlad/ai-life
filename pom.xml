@@ -101,6 +101,7 @@
         <module>deploy/agent-host</module>
         <module>deploy/platform-host</module>
         <module>deploy/docs-host</module>
+        <module>deploy/content-host</module>
     </modules>
 
     <dependencyManagement>

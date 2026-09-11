@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — feeds come from RSS URLs / public Telegram over HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-feeds/target/mcp-feeds.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-feeds/target/mcp-feeds-exec.jar /app/app.jar
 EXPOSE 8112
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

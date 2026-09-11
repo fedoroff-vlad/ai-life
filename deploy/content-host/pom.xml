@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>content-host</artifactId>
+    <name>ai-life :: deploy :: content-host</name>
+    <description>
+        ADR-0006 / #584 slice 3g: the second cold host-unit — the Content unit (creator-agent + its
+        domain-MCP mcp-creator + the three trend capability-MCPs mcp-youtube/mcp-reddit/mcp-feeds) booted
+        as ONE JVM. Cold hosts group by co-usage affinity (topology-map §Grouping 1), so like the Docs unit
+        (3f) this host MIXES the agent tier and its MCPs in one process: started/stopped as a unit, it
+        reclaims the per-process JVM baseline for a whole cold cluster (5 JVMs → 1) at once. Path B (process
+        consolidation), approach B1 (multi-context, ports kept — zero contract change). Depends on each
+        module's plain classes jar (enabled by the #584 3g exec-classifier).
+    </description>
+
+    <dependencies>
+        <!-- The Content cold host-unit (topology-map.md §Cold). Each module's MAIN artifact is a plain
+             classes jar (the executable is the -exec classifier, #584 3g), so this host depends on them
+             normally and boots each as its own context on its own port. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>creator-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-creator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-youtube</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-reddit</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-feeds</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Testcontainers PG base (AbstractPostgresIntegrationTest) + JDBC: mcp-creator is DB-bound, so
+             the shared PG is wired to every context so it can boot (ddl-auto=none — no schema needed to
+             start the web + MCP servers). The three capability-MCPs are schema-less and creator-agent owns
+             no schema; its MCP client is disabled in the IT (co-residency proof, not the agent→MCP SSE
+             wiring, which lands at deploy). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

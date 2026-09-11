@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — trends come from the Reddit API over public HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-reddit/target/mcp-reddit.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-reddit/target/mcp-reddit-exec.jar /app/app.jar
 EXPOSE 8111
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
