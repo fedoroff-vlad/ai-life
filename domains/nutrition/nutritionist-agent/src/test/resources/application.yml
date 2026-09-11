@@ -16,7 +16,7 @@ server:
   port: ${NUTRITIONIST_AGENT_PORT:8105}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/nutritionist-agent/AGENT.md
   skills-classpath: classpath*:skills/nutrition/*/SKILL.md
   memory-recall-k: ${NUTRITIONIST_AGENT_MEMORY_RECALL_K:5}
 

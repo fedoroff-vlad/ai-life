@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>lifestyle-host</artifactId>
+    <name>ai-life :: deploy :: lifestyle-host</name>
+    <description>
+        ADR-0006 / #584 slice 3h: the third cold host-unit — the Lifestyle unit (three agents:
+        stylist-agent + nutritionist-agent + chef-agent; their domain-MCPs mcp-wardrobe + mcp-nutrition;
+        the two capability-MCPs mcp-image-gen + mcp-food-data) booted as ONE JVM. Cold hosts group by
+        co-usage affinity (topology-map §Grouping 1), so like the Docs (3f) and Content (3g) units this
+        host MIXES the agent tier and its MCPs in one process: started/stopped as a unit, it reclaims the
+        per-process JVM baseline for a whole cold cluster (7 JVMs → 1) at once. First cold unit with MORE
+        THAN ONE agent, so it carries the resident tier's per-agent manifest-path fix (#584 3d) to keep the
+        three AGENT.md personas from colliding on classpath:/AGENT.md. Path B (process consolidation),
+        approach B1 (multi-context, ports kept — zero contract change). Depends on each module's plain
+        classes jar (enabled by the #584 3h exec-classifier).
+    </description>
+
+    <dependencies>
+        <!-- The Lifestyle cold host-unit (topology-map.md §Cold). Each module's MAIN artifact is a plain
+             classes jar (the executable is the -exec classifier, #584 3h), so this host depends on them
+             normally and boots each as its own context on its own port. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>stylist-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>nutritionist-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>chef-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-wardrobe</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-image-gen</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-nutrition</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-food-data</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Testcontainers PG base (AbstractPostgresIntegrationTest) + JDBC: mcp-wardrobe + mcp-nutrition
+             are DB-bound, so the shared PG is wired to every context so they can boot (ddl-auto=none — no
+             schema needed to start the web + MCP servers). The two capability-MCPs are schema-less and the
+             three agents own no schema; each agent's MCP client is disabled in the IT (co-residency proof,
+             not the agent→MCP SSE wiring, which lands at deploy). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

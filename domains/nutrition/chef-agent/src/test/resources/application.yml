@@ -16,7 +16,7 @@ server:
   port: ${CHEF_AGENT_PORT:8106}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/chef-agent/AGENT.md
   skills-classpath: classpath*:skills/nutrition/*/SKILL.md
   memory-recall-k: ${CHEF_AGENT_MEMORY_RECALL_K:5}
 

@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/nutrition/nutritionist-agent/target/nutritionist-agent.jar /app/app.jar
+COPY --from=build /src/domains/nutrition/nutritionist-agent/target/nutritionist-agent-exec.jar /app/app.jar
 EXPOSE 8105
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

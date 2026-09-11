@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/nutrition/mcp-nutrition/target/mcp-nutrition.jar /app/app.jar
+COPY --from=build /src/domains/nutrition/mcp-nutrition/target/mcp-nutrition-exec.jar /app/app.jar
 EXPOSE 8104
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
