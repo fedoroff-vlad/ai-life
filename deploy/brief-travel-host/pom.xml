@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>dev.fedorov.ailife</groupId>
+        <artifactId>ai-life-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>brief-travel-host</artifactId>
+    <name>ai-life :: deploy :: brief-travel-host</name>
+    <description>
+        ADR-0006 / #584 slice 3i: the fourth cold host-unit — the Brief+Travel unit (two agents:
+        briefing-agent + travel-agent; their domain-MCPs mcp-briefing + mcp-travel; the two capability-MCPs
+        mcp-weather + mcp-travel-search) booted as ONE JVM. Cold hosts group by co-usage affinity
+        (topology-map §Grouping 1), so like the Docs (3f)/Content (3g)/Lifestyle (3h) units this host MIXES
+        the agent tier and its MCPs in one process: started/stopped as a unit, it reclaims the per-process
+        JVM baseline for a whole cold cluster (6 JVMs → 1) at once. Multi-agent, so it carries the resident
+        tier's per-agent manifest-path fix (#584 3d) to keep the two AGENT.md personas from colliding on
+        classpath:/AGENT.md. Path B (process consolidation), approach B1 (multi-context, ports kept — zero
+        contract change). Depends on each module's plain classes jar (mcp-briefing + mcp-travel got the
+        exec-classifier in the #584 3a pilot; the rest in 3i).
+    </description>
+
+    <dependencies>
+        <!-- The Brief+Travel cold host-unit (topology-map.md §Cold). Each module's MAIN artifact is a plain
+             classes jar (the executable is the -exec classifier), so this host depends on them normally and
+             boots each as its own context on its own port. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>briefing-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>travel-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-briefing</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-travel</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-weather</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>mcp-travel-search</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Testcontainers PG base (AbstractPostgresIntegrationTest) + JDBC: mcp-briefing + mcp-travel are
+             DB-bound, so the shared PG is wired to every context so they can boot (ddl-auto=none — no
+             schema needed to start the web + MCP servers). The two capability-MCPs are schema-less and the
+             two agents own no schema; each agent's MCP client is disabled in the IT (co-residency proof,
+             not the agent→MCP SSE wiring, which lands at deploy). -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

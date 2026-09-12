@@ -214,6 +214,16 @@ needs; rolled out per module as consolidation proceeds.
   `LifestyleHostFootprintIntegrationTest` boots all seven, asserting each agent loaded its own persona (agents'
   MCP clients off = co-residency proof). **Remaining cold units** (Brief+Travel, Finance-aux, Coach) follow
   the same mechanism, per-unit lists.
+- **3i (done — fourth cold host-unit, the Brief+Travel unit; multi-agent):** the two agents
+  (`briefing` · `travel`) + their domain-MCPs (`mcp-briefing` · `mcp-travel`) + the two capability-MCPs they
+  bind (`mcp-weather` · `mcp-travel-search`); new `deploy/brief-travel-host` boots all six side-by-side
+  (6 JVMs → 1). `mcp-briefing` + `mcp-travel` already carried the `exec`-classifier from the **3a pilot**; 3i
+  adds it to the other four (both agents + the two capability-MCPs). Multi-agent → carries the per-agent
+  manifest-path fix (3d) exactly as Lifestyle (3h): each agent's `AGENT.md` → `manifest/<name>/AGENT.md` (pom
+  `<targetPath>` + main & test yml `manifest-classpath` repointed). Web-type re-supply: agents +
+  capability-MCPs reactive; `mcp-briefing` + `mcp-travel` carry both `spring-web`+`webflux` → pinned servlet.
+  `BriefTravelHostFootprintIntegrationTest` boots all six, asserting each agent loaded its own persona.
+  **Remaining cold units** (Finance-aux, Coach) follow the same mechanism, per-unit lists.
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -238,6 +248,10 @@ needs; rolled out per module as consolidation proceeds.
   are all live on distinct ports, each context carrying only its own application bean **and each agent its
   own AGENT.md persona** (proving the per-agent manifest-path fix on the first multi-agent cold unit)
   (asserted by `LifestyleHostFootprintIntegrationTest`).
+- Scenario: the fourth cold host-unit boots two agents and their four MCPs in one JVM → `briefing-agent` +
+  `travel-agent` + `mcp-briefing` + `mcp-travel` + `mcp-weather` + `mcp-travel-search` are all live on
+  distinct ports, each context carrying only its own application bean **and each agent its own AGENT.md
+  persona** (asserted by `BriefTravelHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

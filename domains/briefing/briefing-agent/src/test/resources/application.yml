@@ -15,7 +15,7 @@ server:
   port: ${BRIEFING_AGENT_PORT:8115}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/briefing-agent/AGENT.md
   skills-classpath: classpath*:skills/briefing/*/SKILL.md
   memory-recall-k: ${BRIEFING_AGENT_MEMORY_RECALL_K:5}
 

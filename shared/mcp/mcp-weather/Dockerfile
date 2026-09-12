@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — forecasts come from Open-Meteo over public HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-weather/target/mcp-weather.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-weather/target/mcp-weather-exec.jar /app/app.jar
 EXPOSE 8113
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

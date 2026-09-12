@@ -103,6 +103,7 @@
         <module>deploy/docs-host</module>
         <module>deploy/content-host</module>
         <module>deploy/lifestyle-host</module>
+        <module>deploy/brief-travel-host</module>
     </modules>
 
     <dependencyManagement>
