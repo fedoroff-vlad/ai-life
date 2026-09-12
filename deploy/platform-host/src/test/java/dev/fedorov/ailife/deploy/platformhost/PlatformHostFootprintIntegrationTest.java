@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,7 +42,12 @@ class PlatformHostFootprintIntegrationTest extends AbstractPostgresIntegrationTe
     static final MinIOContainer MINIO;
 
     static {
-        MINIO = new MinIOContainer("minio/minio:RELEASE.2023-09-04T19-57-37Z");
+        // MinIO removed the minio/minio repo from Docker Hub (all tags 404); pull the image from MinIO's
+        // canonical registry, quay.io. asCompatibleSubstituteFor keeps MinIOContainer happy with the
+        // non-Docker-Hub registry path.
+        MINIO = new MinIOContainer(
+                DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z")
+                        .asCompatibleSubstituteFor("minio/minio"));
         MINIO.start();
     }
 
