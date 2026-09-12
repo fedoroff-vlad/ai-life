@@ -20,6 +20,7 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -32,8 +33,13 @@ import static org.springframework.http.client.MultipartBodyBuilder.PartBuilder;
 @AutoConfigureWebTestClient
 class MediaServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
+    // MinIO removed the minio/minio repo from Docker Hub (all tags 404); pull the image from MinIO's
+    // canonical registry, quay.io. asCompatibleSubstituteFor keeps Testcontainers' MinIOContainer happy
+    // with the non-Docker-Hub registry path.
     @Container
-    static MinIOContainer minio = new MinIOContainer("minio/minio:RELEASE.2023-09-04T19-57-37Z");
+    static MinIOContainer minio = new MinIOContainer(
+            DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z")
+                    .asCompatibleSubstituteFor("minio/minio"));
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
