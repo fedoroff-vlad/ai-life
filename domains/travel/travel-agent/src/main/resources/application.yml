@@ -36,7 +36,7 @@ server:
   port: ${TRAVEL_AGENT_PORT:8124}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/travel-agent/AGENT.md
   skills-classpath: classpath*:skills/travel/*/SKILL.md
   memory-recall-k: ${TRAVEL_AGENT_MEMORY_RECALL_K:5}
 

@@ -105,6 +105,10 @@
                 <includes>
                     <include>AGENT.md</include>
                 </includes>
+                <!-- ADR-0006 / #584 3i: land AGENT.md at a per-agent classpath path so co-hosted agent
+                     contexts (the Brief+Travel cold host) don't collide on classpath:/AGENT.md. The file
+                     stays at the module root; manifest-classpath in application.yml points here. -->
+                <targetPath>manifest/briefing-agent</targetPath>
             </resource>
             <!-- Skills live beside the agent at domains/briefing/skills/<name>/SKILL.md. -->
             <resource>
@@ -119,6 +123,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- ADR-0006 / #584 slice 3i: attach the executable (Boot fat) jar under the `exec`
+                     classifier so the module's MAIN artifact stays a plain classes jar that the cold
+                     consolidation host (deploy/brief-travel-host) can depend on. Docker runs `<artifact>-exec.jar`. -->
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
