@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — facts come from Open Food Facts over public HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-food-data/target/mcp-food-data.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-food-data/target/mcp-food-data-exec.jar /app/app.jar
 EXPOSE 8107
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -102,6 +102,7 @@
         <module>deploy/platform-host</module>
         <module>deploy/docs-host</module>
         <module>deploy/content-host</module>
+        <module>deploy/lifestyle-host</module>
     </modules>
 
     <dependencyManagement>

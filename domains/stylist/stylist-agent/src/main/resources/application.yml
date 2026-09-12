@@ -28,7 +28,7 @@ server:
   port: ${STYLIST_AGENT_PORT:8102}
 
 agent:
-  manifest-classpath: AGENT.md
+  manifest-classpath: manifest/stylist-agent/AGENT.md
   skills-classpath: classpath*:skills/stylist/*/SKILL.md
   memory-recall-k: ${STYLIST_AGENT_MEMORY_RECALL_K:5}
 

@@ -8,6 +8,6 @@ RUN --mount=type=cache,target=/root/.m2 \
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/shared/mcp/mcp-image-gen/target/mcp-image-gen.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-image-gen/target/mcp-image-gen-exec.jar /app/app.jar
 EXPOSE 8103
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -99,6 +99,10 @@
                 <includes>
                     <include>AGENT.md</include>
                 </includes>
+                <!-- ADR-0006 / #584 3h: land AGENT.md at a per-agent classpath path so co-hosted agent
+                     contexts (the Lifestyle cold host) don't collide on classpath:/AGENT.md. The file
+                     stays at the module root; manifest-classpath in application.yml points here. -->
+                <targetPath>manifest/chef-agent</targetPath>
             </resource>
             <!-- Skills live beside the agents at domains/nutrition/skills/<name>/SKILL.md.
                  chef ships its first skill (recipe-finder) in CH-b. -->
@@ -114,6 +118,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- ADR-0006 / #584 slice 3h: attach the executable (Boot fat) jar under the `exec`
+                     classifier so the module's MAIN artifact stays a plain classes jar that the cold
+                     consolidation host (deploy/lifestyle-host) can depend on. Docker runs `<artifact>-exec.jar`. -->
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
