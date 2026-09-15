@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl domains/finance/mcp-
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/finance/mcp-money-pro-import/target/mcp-money-pro-import.jar /app/app.jar
+COPY --from=build /src/domains/finance/mcp-money-pro-import/target/mcp-money-pro-import-exec.jar /app/app.jar
 EXPOSE 8094
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -10,6 +10,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 # No native deps and no backing container — quotes come from Stooq over public HTTPS
 # (the JRE image ships the CA certificates needed for the TLS call).
-COPY --from=build /src/shared/mcp/mcp-market-data/target/mcp-market-data.jar /app/app.jar
+COPY --from=build /src/shared/mcp/mcp-market-data/target/mcp-market-data-exec.jar /app/app.jar
 EXPOSE 8100
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

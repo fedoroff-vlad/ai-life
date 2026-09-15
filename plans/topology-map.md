@@ -224,6 +224,19 @@ needs; rolled out per module as consolidation proceeds.
   capability-MCPs reactive; `mcp-briefing` + `mcp-travel` carry both `spring-web`+`webflux` → pinned servlet.
   `BriefTravelHostFootprintIntegrationTest` boots all six, asserting each agent loaded its own persona.
   **Remaining cold units** (Finance-aux, Coach) follow the same mechanism, per-unit lists.
+- **3j (done — fifth cold host-unit, the Finance-aux unit; first MCP-only cold unit):** 3a
+  `exec`-classifier rolled out to the four aux MCPs — two schema-less capability-MCPs (`mcp-market-data` ·
+  `mcp-chart-render`) + two import domain-MCPs (`mcp-money-pro-import` · `mcp-ics-import`); new
+  `deploy/finance-aux-host` boots all four side-by-side (4 JVMs → 1). **This is the first cold unit with no
+  agent** — an MCP-only cluster grouped by co-usage affinity (§Grouping 1: seldom-used finance/calendar
+  helpers that wake together). So, like the resident Domain-MCP-hot host (3c), it needs neither the
+  per-agent manifest-path fix (3d) nor the `agent.skills-classpath` re-supply — only the `application.yml`
+  config-name skip and the web-type pin. Web-type re-supply: `mcp-market-data` + `mcp-chart-render` are
+  webflux-only → reactive; `mcp-money-pro-import` + `mcp-ics-import` carry both `spring-web`+`webflux` (like
+  `mcp-creator`) → pinned servlet. The two import MCPs are DB-bound, so the IT wires the shared
+  Testcontainers PG with `ddl-auto=none` (no schema needed to boot the web + MCP servers).
+  `FinanceAuxHostFootprintIntegrationTest` boots all four, each on its own port, each carrying only its own
+  application bean. **Remaining cold unit:** Coach (parked #289) — same mechanism, per-unit list.
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -252,6 +265,10 @@ needs; rolled out per module as consolidation proceeds.
   `travel-agent` + `mcp-briefing` + `mcp-travel` + `mcp-weather` + `mcp-travel-search` are all live on
   distinct ports, each context carrying only its own application bean **and each agent its own AGENT.md
   persona** (asserted by `BriefTravelHostFootprintIntegrationTest`).
+- Scenario: the fifth cold host-unit boots four aux MCPs (no agent) in one JVM → `mcp-market-data` +
+  `mcp-chart-render` + `mcp-money-pro-import` + `mcp-ics-import` are all live on distinct ports, each
+  context carrying only its own application bean, with mixed reactive/servlet web stacks side-by-side and
+  the two DB-bound import MCPs booted schema-less (asserted by `FinanceAuxHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

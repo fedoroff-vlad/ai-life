@@ -7,6 +7,6 @@ RUN --mount=type=cache,target=/root/.m2     mvn -B -ntp -pl domains/calendar/mcp
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
-COPY --from=build /src/domains/calendar/mcp-ics-import/target/mcp-ics-import.jar /app/app.jar
+COPY --from=build /src/domains/calendar/mcp-ics-import/target/mcp-ics-import-exec.jar /app/app.jar
 EXPOSE 8091
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
