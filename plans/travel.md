@@ -510,8 +510,12 @@ orchestrator routes the ask to `travel`.
   render hiccup (asserted by `PackingFlowTest`).
 
 ## Deferred (further out)
-- **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`
-  (browser-use), which also closes the general scraping gap (roadmap §Candidate capabilities).
+- **TR-f3 — tours** (Travelpayouts has no clean tour API) and **no-API/JS sources** → `mcp-browser`, which
+  also closes the general scraping gap (roadmap §Candidate capabilities) and RT-d's deferred short-link/JS
+  half. **How to build it is now flagged in [ADR-0008](adr/ADR-0008-browser-capability.md)** (Proposed):
+  a cold, read-only, shared capability-MCP, engine forked between Option A (deterministic Playwright-Java
+  fetch, no LLM — recommended, closes RT-d short-links + the `mcp-web` JS gap) and Option B (agentic
+  browser-use, Python + LLM, for interactive tours). No code until the owner picks a direction.
 - **Booking hand-off** — deep links to the provider's own checkout only; the agent never transacts (a
   permanent boundary, not a deferred feature).
 - **Saved trips / itinerary history** — a `travel.trip` store, once plans need to persist/compare. The
