@@ -1,0 +1,246 @@
+# inventory — physical storage & belongings agent
+
+Authority file for the **inventory-agent** + **mcp-inventory** domain (owner idea, 2026-09-22).
+**Spec — nothing built yet.** Flagged per [CLAUDE.md](../CLAUDE.md) §Work style ("new layer → flag
+BEFORE coding"): this proposes a **new domain** (14th) + **one new capability tool**.
+
+## What it is
+"Где что лежит" for physical things. The owner photographs items as they go into a box / onto a
+shelf; each **container** keeps its photo inventory and gets a **QR label**; scanning (or
+photographing) that label returns a rendered card — *what is inside* + *where it stands*. Later,
+"где лежат ёлочные игрушки" answers with the container, the zone, and the card.
+
+Driver: an imminent **move** (packing boxes — the classic "забыл, что куда положил"). Scope is
+deliberately wider: the move is the first use case of a **permanent storage organiser** (кладовка /
+гараж / дача / балкон / антресоль), which is what the owner actually asked for. Move-specific state
+(`status`, `destination`) is two nullable columns on the container, not a separate feature.
+
+## Why a new domain (and not docs / stylist / lists)
+| Candidate | Why it is not the home |
+|---|---|
+| **docs-agent** | Archives *paper*: the record is the OCR **text**, the query is textual ("найди договор"). Here the photo **is** the record (nothing to OCR), the query is **spatial** ("где"), and the unit is a physical container with a printed identity. |
+| **stylist / mcp-wardrobe** | A clothes catalogue with style semantics (capsules, style profile), not generic belongings. |
+| **notes-agent / lists** | `type=list` notes are text checklists on `memory.note` — no per-item media, no zone→container hierarchy, no stable label identity. |
+
+It **owns a schema** (zone → container → item), so by the repo's own rule (`architecture.md`:
+domain-MCP owns a schema, capability-MCP owns none) it is a **domain-MCP + agent**, not a capability.
+
+**Rejected alternative — `mcp-inventory` + skills hung on docs-agent.** Saves one container, but
+fuses two unrelated personas into one `AGENT.md` and buries a "where is my stuff" router inside a
+document archive; the eventual split would cost more than the saving. Under
+[ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) an extra **cold** agent is nearly free — it
+joins a cold host-unit (its own `storage-host`, or a slot beside Docs) rather than a standing JVM.
+
+## Doctrine (what is reused — one new tool, flagged)
+- **Store:** `mcp-inventory` owns the `inventory` schema — the `mcp-docs` / `mcp-creator` shape
+  (`@Tool`s + `/internal/*` passthroughs), tenant-agnostic (writes whatever household it is handed).
+- **Blobs stay in media-service** — the agent already receives a `mediaId` per inbound photo; item
+  rows reference it, bytes are never re-stored.
+- **Item naming is the shared vision capability** — `mcp-media-processing.caption` over
+  `/internal/caption` ("что за предмет на фото, 3–5 слов + тип") gives each photo a searchable
+  title without the owner typing anything. Bound, not re-embedded (finance / stylist / nutrition
+  precedent).
+- **QR *decode* is the one new capability tool** — `decode_qr` + `POST /internal/qr` on
+  `mcp-media-processing`, an exact twin of the D-b OCR passthrough. Image → structure is that
+  capability's remit, so this is a new *tool*, not a new layer.
+- **QR *encode* is a pure function → a lib, not an MCP** — ZXing inside the agent renders the PNG,
+  stored via the existing `MediaStoreClient`. Same reasoning as
+  [`libs/doc-render`](../libs/doc-render/README.md) §"Why a lib (not a capability-MCP)": no external
+  resource, no schema → no container, no HTTP hop. Lift to `libs/qr` only on a **second consumer**.
+- **The label encodes an id, never the contents** — payload is the existing Telegram deep-link
+  shape `https://t.me/<bot>?start=box_<qr_token>`. Consequence (the rule every analogue app
+  converged on): **editing a container never invalidates a printed label.** The gateway already
+  parses `/start <token>` for family invites (ADR-0001 slice 4b-i), so scanning needs a **prefix
+  dispatch** on that existing path, not new plumbing.
+- **Packing is a route-lock, not a new dialog engine** — "открой коробку «кухня»" locks the route in
+  `conversation-service` (the shipped route-lock / `pendingAction` primitive); every following photo
+  lands in that container until "закрой коробку". A batch of photos is therefore N ordinary inbound
+  messages, no batching protocol.
+- **Edit / delete ride [ADR-0004](adr/ADR-0004-confirm-act-flow.md)** `PickConfirmActRunner` — the
+  repo's generic `read candidates → LLM picks → confirm → act` loop; ~30-line adapter, no new flow.
+- **Sharing:** [ADR-0002](adr/ADR-0002-sharing-shared-capability.md) — an `InventorySharingPolicy`
+  defaults household storage to **shared** (a box in the кладовка is a family asset); personal on an
+  explicit cue. Read path unions personal ∪ shared.
+- **Semantic search reuses memory-service** — each item seeds an authored note (SB-5 shape,
+  `frontmatter={kind:item, refId}`) so "где эта штука для гриля" survives a vocabulary mismatch the
+  trigram search misses.
+- **The card is a `libs/doc-render` board** — the "красивый шаблон": container header (code + label +
+  zone + status), the item photo `gallery`, the item list. No new renderer.
+
+### Modelling decision — location is always a container
+A zone holds **containers**, an item lives in **exactly one container**. Loose things (a bike in the
+garage) get a per-zone pseudo-container (`kind=loose`, "открытое хранение") rather than a nullable
+`container_id` + a parallel `zone_id` on the item. One location path → one search query, one label
+story, no "which field wins" ambiguity.
+
+## Data model (`inventory` schema, Liquibase range `120-129`)
+- **`inventory.storage_zone`** — `id`, `household_id`, `owner_id`, `name` (кладовка / гараж / дача),
+  `kind` (`room|garage|dacha|balcony|closet|other`), `note`, `created_at`.
+- **`inventory.container`** — `id`, `household_id`, `owner_id`, `zone_id` (FK), `code` (human
+  "B-07", unique per household), `label` (the owner's name for it), `kind`
+  (`box|shelf|bin|loose`), `qr_token` (opaque, stable, indexed — the printed identity),
+  `status` (`open|packed|in_transit|unpacked`), `destination` (target room after the move,
+  nullable), `note`, `created_at`, `closed_at`.
+- **`inventory.item`** — `id`, `container_id` (FK), `media_id` (media-service), `title`,
+  `description`, `tags text[]`, `qty`, `created_at`. GIN `gin_trgm_ops` index over
+  `title + description`.
+
+`qr_token` is **never** derived from `code` or the label — it must survive a rename.
+
+## Golden tests — from the start
+Per the docs/travel convention, each LLM seam gets an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated,
+not in fast CI), asserting **structure, not wording**: a GoldenItemCaption test (photo → item
+title/tags JSON) and a GoldenItemFinder test (query → search filter JSON), plus an `inventory`
+routing golden in orchestrator. (Names go in backticks once the classes exist — the spec→test trace
+of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.)
+
+## PR slices
+
+### IN-a — `mcp-inventory` domain-MCP + `inventory` schema
+**Requirement:** the system SHALL persist zones, containers and photographed items, tenant-agnostically.
+
+Port **8127**. Tools + `/internal/*` twins: `saveZone` / `listZones` / `saveContainer` /
+`getContainer` / `getContainerByToken` / `listContainers(zoneId?, status?)` / `saveItem` /
+`listItems(containerId)` / `deleteItem` / `searchItems(query, limit)` (pg_trgm over title +
+description + tags). Liquibase `120-inventory.yml` (+ the `120-129` row in
+[PATTERNS.md](PATTERNS.md) §Numbering). Mirrors `mcp-docs`.
+
+- **Scenario: container by token**
+  - WHEN `getContainerByToken` is called with a known `qr_token`
+  - THEN it returns that container with its zone and its items in insertion order
+    (not yet asserted — slice not built)
+- **Scenario: rename keeps the printed identity**
+  - WHEN a container's `label` and `code` are updated
+  - THEN its `qr_token` is unchanged and `getContainerByToken` still resolves
+    (not yet asserted — slice not built)
+- **Scenario: item search**
+  - WHEN `searchItems("гирлянда")` runs over items titled "ёлочная гирлянда"
+  - THEN the owning container id comes back (not yet asserted — slice not built)
+
+### IN-b — `decode_qr` tool + `/internal/qr` on `mcp-media-processing`
+**Requirement:** the media capability SHALL turn a photographed QR code into its payload.
+
+ZXing `MultiFormatReader` over the media-service bytes; the OCR twin (D-b) in shape, README, and
+test style. Unreadable image → **empty payload, not an error** (the `ocr` contract).
+
+- **Scenario: readable label photo**
+  - WHEN `decode_qr` runs on a photo containing the label
+  - THEN it returns the encoded deep-link payload (not yet asserted — slice not built)
+- **Scenario: no code in frame**
+  - WHEN the photo contains no QR code
+  - THEN it returns an empty payload and no exception (not yet asserted — slice not built)
+
+### IN-c — `inventory-agent` scaffold + `box-packer` skill (the packing session)
+**Requirement:** the agent SHALL accept a stream of photos into one open container, hands-free.
+
+Port **8128**. Binds `mcp-inventory` + `mcp-media-processing`. "новая коробка «кухня — посуда» в
+кладовку" → zone resolve/create + container `open` + route-lock; each following photo → `caption` →
+`saveItem` → a terse ack; "закрой коробку" → `packed` + `closed_at`.
+
+- **Scenario: open then photograph**
+  - WHEN a container is open and the owner sends three photos in a row
+  - THEN three items are saved to that container, each titled from its caption, with no further
+    questions asked (not yet asserted — slice not built)
+- **Scenario: photo with no open container**
+  - WHEN a photo arrives and no container is open
+  - THEN the agent asks which container it belongs to instead of guessing
+    (not yet asserted — slice not built)
+- **Scenario: close**
+  - WHEN the owner says "закрой коробку"
+  - THEN the container becomes `packed`, the route-lock releases, and the reply states the item
+    count (not yet asserted — slice not built)
+
+### IN-d — QR issue + the container card (`box-label`, `box-card`)
+**Requirement:** a packed container SHALL yield a printable label image and a readable card.
+
+On close (and on demand): ZXing renders the deep-link PNG → media-service → the owner gets the image
+plus a `libs/doc-render` card (code · label · zone · status · photo gallery · item list).
+
+- **Scenario: label is content-independent**
+  - WHEN items are added to a container after its label was issued
+  - THEN the label image and `qr_token` are unchanged and the card reflects the new items
+    (not yet asserted — slice not built)
+- **Scenario: card render**
+  - WHEN a container card is requested
+  - THEN an HTML board is stored and linked, listing every item with its photo
+    (not yet asserted — slice not built)
+
+### IN-e — `item-finder` ("где лежит X")
+**Requirement:** the agent SHALL answer where a thing is stored.
+
+Trigram `searchItems` ∪ memory-service recall (own ∪ shared households), merged + de-duplicated →
+"Коробка **B-07** «Новый год» · кладовка · полка 2" + the card link.
+
+- **Scenario: literal hit**
+  - WHEN the owner asks "где ёлочные игрушки" and an item is titled so
+  - THEN the reply names the container code, its label and its zone
+    (not yet asserted — slice not built)
+- **Scenario: vocabulary mismatch**
+  - WHEN the query uses words absent from every item title but semantically close
+  - THEN the memory-service recall path still resolves the container
+    (not yet asserted — slice not built)
+- **Scenario: nothing stored**
+  - WHEN no item matches
+  - THEN the agent says so plainly and offers to search a zone, never inventing a location
+    (not yet asserted — slice not built)
+
+### IN-f — the scan path (deep-link + photographed label) — **closer**
+**Requirement:** pointing a camera at a label, or sending its photo, SHALL return the card.
+
+Gateway `/start` gains a **prefix dispatch**: `box_<token>` → route to inventory (invite tokens keep
+today's behaviour, unknown prefixes stay graceful). A photo whose `decode_qr` yields a `box_` payload
+takes the same path. E2E closer (E2EInventoryScanFlow test): photo → decode → container → card,
+asserting the `libs/contracts` DTOs survive each hop.
+
+- **Scenario: camera scan**
+  - WHEN the owner opens `t.me/<bot>?start=box_<token>`
+  - THEN the bot replies with that container's card (not yet asserted — slice not built)
+- **Scenario: photographed label**
+  - WHEN the owner sends a photo of the label
+  - THEN the same card comes back (not yet asserted — slice not built)
+- **Scenario: invite token still redeems**
+  - WHEN a family-invite `/start <token>` arrives
+  - THEN it redeems exactly as before the prefix dispatch (not yet asserted — slice not built)
+
+### IN-g — edit / append / delete / move (on the shared runner)
+**Requirement:** every container and item SHALL be correctable in chat, confirm-gated.
+
+"добавь в B-07 гирлянду" (+photo) · "убери оттуда X" · "переименуй коробку" · "коробка B-07 теперь
+на даче" (zone move) · "распаковал B-07" (`unpacked`) — each an ADR-0004 adapter.
+
+- **Scenario: delete asks first**
+  - WHEN the owner asks to remove an item
+  - THEN the agent names the candidate and waits for confirmation before deleting
+    (not yet asserted — slice not built)
+- **Scenario: zone move**
+  - WHEN a container is moved to another zone
+  - THEN its `zone_id` changes while `code` and `qr_token` stay put
+    (not yet asserted — slice not built)
+
+## Prior art (analogue apps — what is worth copying)
+The category is mature; the conventions below are taken from it deliberately rather than re-derived.
+- **Sortly** — the reference: photo-per-item, folder-as-container, generated QR/barcode, printable
+  label, scan-to-contents. Its data shape (container ↔ item ↔ photo) is what IN-a mirrors.
+- **MovingLabelPro / Just Moved / UpMove** — move-specific: destination room per box, fragile/priority
+  flags, unpacking progress. Justifies `status` + `destination` living on the container from day one.
+- **Nesty / Under My Roof** — permanent home inventory (the after-the-move life of this domain), with
+  the warranty/receipt link that our `docs` domain would eventually supply.
+
+Conventions adopted: the label carries **only an id** (edit without reprinting) · a container has a
+short human **code** alongside its name (readable when the QR won't scan) · **capture is batch-first**
+(a packing session, not one form per item) · scanning must work for a **non-user** (the person
+unpacking opens a link, installs nothing).
+
+## Deferred
+- **The printed label sheet.** The owner has no label printer yet, and sheet geometry is
+  printer-specific (Dymo/Brother roll vs an A4 sticker grid). MVP hands over a **QR image** to print
+  from the phone; a `label-sheet` render (N-up grid, exact mm, page margins) lands when the printer
+  exists and its format is known — it is a genuinely new renderer shape, so flag it then.
+- **Zone/container audit** ("что лежит в кладовке", "покажи все коробки на даче") — a listing board
+  once the packing flow is proven.
+- **Link to `docs`** — a warranty/receipt document attached to an item (needs a cross-domain ref; the
+  `brief` primitive or a shared id, not a direct DB read).
+- **Proactive unpacking nudge** — "осталось 4 нераспакованные коробки" via the notifier's proactive
+  path (#487 gates it).
+- **Non-photo capture** (barcode of a retail item → product name) — a different capability
+  (`decode_qr` returns any symbology, but product lookup is `mcp-food-data`-shaped, out of scope).
