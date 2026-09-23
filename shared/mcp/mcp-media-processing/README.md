@@ -5,7 +5,11 @@ media bytes into text/structure so any agent can reuse it — a receipt→financ
 sick-note→docs, an outfit→stylist. Bound by agents over MCP/SSE; it owns no data and
 never stores blobs (it reads them from media-service by object id). Plan: [media.md](../../../plans/media.md).
 
-**Status (MP-e):** `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
+**Status (MP-f):** `decode_qr` reads a barcode out of a stored image via **ZXing** — pure Java, so
+unlike OCR/STT/frames it has **no engine seam and no stub twin** (nothing environment-dependent to
+degrade to). A frame with no readable code returns an **empty payload**, not an error — the caller
+asks for another shot. Its consumer is inventory-agent (IN-f), which resolves a photographed
+container label. `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
 default; native-free `StubOcrEngine` via `mediaprocessing.ocr-engine=stub`). `caption`
 asks llm-gateway's **vision** channel about an image with a caller-supplied instruction —
 the centralised vision call (no agent re-embeds it). `transcribe` runs **real STT** via a
@@ -28,6 +32,7 @@ call, reused not re-embedded.
 | tool | args | returns | purpose |
 |------|------|---------|---------|
 | `ocr` | `mediaId` (media-service object id) | `OcrResult{text, lang?, confidence?}` | fetch the image bytes from media-service, run OCR (local Tesseract), return recognised text (empty when none). `confidence` is the mean per-word Tesseract confidence (0..1; `0.0` on empty text, `null` when no signal) — docs-agent's RU-4 gate asks for a clearer shot on an unreadable document photo. |
+| `decode_qr` | `mediaId` (media-service object id) | `QrResult{payload, format?}` | fetch the image bytes, decode the **first** QR code / barcode in the frame, return its payload plus the symbology (`QR_CODE`, `EAN_13`, …). **Empty payload when no code is found** — the normal answer for a blurred or badly-framed photo, not an error. Decoding hints `TRY_HARDER` + `ALSO_INVERTED` are set because the input is a *photo of a label*, not a clean render. |
 | `caption` | `mediaId`, `instruction` | `CaptionResult{text, model?}` | fetch the image bytes, ask llm-gateway's `vision` channel the `instruction` (free description or structured extraction), return the model's text. Prefer over `ocr` for understanding/structure. |
 | `frames` | `mediaId`, `n`, `householdId`, `ownerId?` | `FramesResult{frameMediaIds}` | fetch the video bytes, extract `n` evenly-spaced keyframes (ffmpeg), store each as a media-service image under the given scope, return the frames' ids (temporal order). Empty list when none produced. The visual channel for speechless video — run `caption` on each returned id. `n` is clamped to `frame-max-count` (20). |
 | `transcribe` | `mediaId` (media-service object id) | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | fetch the audio/video bytes from media-service, run STT (local engine), return recognised speech (empty when none). `confidence` is a 0..1 recognition confidence (whisper: `exp(mean segment avg_logprob)`; `0.0` on empty text, `null` when the engine reports no signal) — the gateway's RU-3 gate uses it to ask for a repeat on an unintelligible voice note. For voice notes / dictated messages. |
@@ -38,6 +43,7 @@ call, reused not re-embedded.
 |--------|------|------|---------|---------|
 | POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 | POST | `/internal/ocr` | `OcrInput{mediaId}` | `OcrResult{text, lang?, confidence?}` | non-MCP passthrough to the `ocr` tool (the OCR twin of `/internal/caption`). Same rationale — a caller that deterministically wants OCR text hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by docs-agent's `doc-archiver` (D-c) to turn a document photo into the full text it archives + indexes. |
+| POST | `/internal/qr` | `QrInput{mediaId}` | `QrResult{payload, format?}` | non-MCP passthrough to the `decode_qr` tool (the barcode twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a label read hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by inventory-agent (IN-f) when the owner photographs a container's label instead of scanning it with a phone camera. |
 | POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it (and to gate an unintelligible one via `confidence`, #489 RU-3). |
 | POST | `/internal/frames` | `FramesInput{mediaId, n, householdId, ownerId?}` | `FramesResult{frameMediaIds}` | non-MCP passthrough to the `frames` tool (the visual twin of `/internal/transcribe`). Same rationale — a caller that deterministically wants keyframes hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by researcher-agent's video-understanding flow (V-c) for the visual tier on speechless video. |
 
@@ -75,6 +81,10 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   a genuine native failure → `IllegalStateException`.
 - `engine/StubOcrEngine` — native-free marker (`[stub-ocr] <N> bytes`); selected only by
   `mediaprocessing.ocr-engine=stub` (wiring test / degraded boxes).
+- `engine/QrDecoder` — ZXing barcode read (MP-f). A plain class, **not** a seam: pure Java, no native
+  lib and no model, so there is no stub twin. `TRY_HARDER` + `ALSO_INVERTED` hints (photo of a label,
+  possibly light-on-dark); `PURE_BARCODE` deliberately unset. Undecodable bytes / no code → empty
+  payload, never an exception.
 - `engine/SttEngine` — pluggable speech-to-text backend interface (audio path mirror of
   `OcrEngine`).
 - `engine/WhisperSttEngine` — deployed default (MP-d2b); POSTs the audio bytes as multipart
@@ -90,7 +100,8 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
 - `engine/StubFrameExtractor` — native-free marker frames (`[stub-frame] <i> …`); selected only
   by `mediaprocessing.frame-extractor=stub` (wiring test / degraded boxes).
 - `tools/MediaProcessingMcpTools` — `@Tool`s (blocking `.block()`, the MCP `@Tool`
-  convention here): `ocr(mediaId)` → `OcrEngine.extract` → `OcrResult`; `caption(mediaId,
+  convention here): `ocr(mediaId)` → `OcrEngine.extract` → `OcrResult`;
+  `decodeQr(mediaId)` (tool name `decode_qr`) → `QrDecoder.decode` → `QrResult`; `caption(mediaId,
   instruction)` → fetch → llm-gateway `vision` channel (`LlmClient`) → `CaptionResult`;
   `transcribe(mediaId)` → `SttEngine.transcribe` → `TranscriptResult`; `frames(mediaId, n,
   householdId, ownerId)` → fetch → `FrameExtractor.extract` → upload each via `MediaStoreClient`
@@ -101,6 +112,8 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
   transport finance-agent's `receipt-parser` calls instead of the un-mockable MCP/SSE binding.
 - `web/InternalOcrController` — `POST /internal/ocr` passthrough (D-b), the OCR twin of the caption
   one; delegates to the `ocr` tool on `Schedulers.boundedElastic()`. Called by docs-agent (D-c).
+- `web/InternalQrController` — `POST /internal/qr` passthrough (MP-f), the barcode twin of the OCR
+  one. Called by inventory-agent (IN-f).
 - `web/InternalTranscribeController` — `POST /internal/transcribe` passthrough, the STT twin of the OCR
   one; delegates to the `transcribe` tool on `Schedulers.boundedElastic()`. Called by gateway-telegram's
   voice-input path.

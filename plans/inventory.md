@@ -127,18 +127,21 @@ description). Liquibase `120-inventory.yml` (+ the `120-129` row in
   - THEN one zone exists and the second call does not blank the fields it omitted
     (asserted by `McpInventoryIntegrationTest`)
 
-### IN-b — `decode_qr` tool + `/internal/qr` on `mcp-media-processing`
+### IN-b — `decode_qr` tool + `/internal/qr` on `mcp-media-processing` ✅ DONE
 **Requirement:** the media capability SHALL turn a photographed QR code into its payload.
 
 ZXing `MultiFormatReader` over the media-service bytes; the OCR twin (D-b) in shape, README, and
-test style. Unreadable image → **empty payload, not an error** (the `ocr` contract).
+test style. Unreadable image → **empty payload, not an error** (the `ocr` contract). Detail +
+the no-seam rationale → [media.md](media.md) §MP-f.
 
 - **Scenario: readable label photo**
   - WHEN `decode_qr` runs on a photo containing the label
-  - THEN it returns the encoded deep-link payload (not yet asserted — slice not built)
+  - THEN it returns the encoded deep-link payload (asserted by `QrDecoderTest`,
+    `InternalQrControllerTest`)
 - **Scenario: no code in frame**
   - WHEN the photo contains no QR code
-  - THEN it returns an empty payload and no exception (not yet asserted — slice not built)
+  - THEN it returns an empty payload and no exception (asserted by `QrDecoderTest`,
+    `InternalQrControllerTest`)
 
 ### IN-c — `inventory-agent` scaffold + `box-packer` skill (the packing session)
 **Requirement:** the agent SHALL accept a stream of photos into one open container, hands-free.
