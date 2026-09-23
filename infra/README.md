@@ -250,6 +250,7 @@ name(s) you configured, then bring the profile up.
 | mcp-travel-search    | 8125 | Live flight/hotel search capability-MCP over Travelpayouts (#190 TR-f). Owner-key-gated: no key → degrades (unconfigured). Options + deep links only — never books |
 | mcp-media-fetch      | 8126 | Media-acquisition capability-MCP (yt-dlp): `transcribe_video` captions + `fetch_audio` (audio → media-service id for STT). No DB; uploads audio to media-service |
 | mcp-inventory        | 8127 | Inventory domain-MCP (physical storage: zones → QR-labelled containers → photographed items; `getContainerByToken` is the scan path) |
+| inventory-agent      | 8128 | Physical-storage agent (IN-c): packing session on the route-lock — open a box, every photo becomes a vision-captioned item in it, close it. Binds mcp-inventory + mcp-media-processing; routes as `inventory` |
 | searxng              | 8888 | Self-hosted meta-search (backing service for mcp-web; JSON API)  |
 | whisper              | 9100 | Self-hosted ASR sidecar (real STT for mcp-media-processing's `transcribe`) |
 

@@ -553,6 +553,7 @@ services:
       COORDINATOR_AGENT_URL: http://coordinator-agent:8119
       COACH_AGENT_URL: http://coach-agent:8122
       TRAVEL_AGENT_URL: http://travel-agent:8124
+      INVENTORY_AGENT_URL: http://inventory-agent:8128
       ORCHESTRATOR_CATCH_ALL_AGENT: ${ORCHESTRATOR_CATCH_ALL_AGENT:-tasks}
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
@@ -1804,6 +1805,48 @@ services:
       DOCS_AGENT_MEMORY_RECALL_K: ${DOCS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8117/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+  # Physical-storage agent (IN-c): the packing session — open a box, every photo becomes a
+  # vision-captioned item in it, close it. Cold: used in bursts while packing, not continuously.
+  inventory-agent:
+    profiles: ["cold"]
+    image: ai-life/inventory-agent:local
+    container_name: ai-life-inventory-agent
+    build:
+      context: ..
+      dockerfile: domains/inventory/inventory-agent/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      llm-gateway:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
+      notifier-service:
+        condition: service_healthy
+      memory-service:
+        condition: service_healthy
+      mcp-inventory:
+        condition: service_healthy
+      mcp-media-processing:
+        condition: service_healthy
+    environment:
+      <<: *internal-secret
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      INVENTORY_AGENT_PORT: 8128
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_INVENTORY_URL: http://mcp-inventory:8127
+      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
+      PROFILE_SERVICE_URL: http://profile-service:8082
+      NOTIFIER_URL: http://notifier-service:8084
+      MEMORY_SERVICE_URL: http://memory-service:8087
+      INVENTORY_AGENT_MCP_CLIENT_ENABLED: ${INVENTORY_AGENT_MCP_CLIENT_ENABLED:-true}
+      INVENTORY_AGENT_MEMORY_RECALL_K: ${INVENTORY_AGENT_MEMORY_RECALL_K:-5}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8128/actuator/health"]
       interval: 10s
       timeout: 3s
       retries: 10
