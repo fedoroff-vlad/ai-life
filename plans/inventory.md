@@ -75,7 +75,11 @@ story, no "which field wins" ambiguity.
 
 ## Data model (`inventory` schema, Liquibase range `120-129`)
 - **`inventory.storage_zone`** — `id`, `household_id`, `owner_id`, `name` (кладовка / гараж / дача),
-  `kind` (`room|garage|dacha|balcony|closet|other`), `note`, `created_at`.
+  `kind` (`room|garage|dacha|balcony|closet|other`), `label_colour`, `note`, `created_at`. Upserted
+  on `(household_id, lower(name))` — the agent resolves a zone by the spoken name. `label_colour` is
+  the colour of the label **stock** the zone's containers print on: a direct-thermal printer prints
+  black only, so colour coding is a matter of which roll is loaded, and coloured thermal rolls cost
+  about what white ones do. It makes a zone recognisable across a room without scanning anything.
 - **`inventory.container`** — `id`, `household_id`, `owner_id`, `zone_id` (FK), `code` (human
   "B-07", unique per household), `label` (the owner's name for it), `kind`
   (`box|shelf|bin|loose`), `qr_token` (opaque, stable, indexed — the printed identity),
@@ -96,26 +100,32 @@ of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.)
 
 ## PR slices
 
-### IN-a — `mcp-inventory` domain-MCP + `inventory` schema
+### IN-a — `mcp-inventory` domain-MCP + `inventory` schema ✅ DONE
 **Requirement:** the system SHALL persist zones, containers and photographed items, tenant-agnostically.
 
 Port **8127**. Tools + `/internal/*` twins: `saveZone` / `listZones` / `saveContainer` /
 `getContainer` / `getContainerByToken` / `listContainers(zoneId?, status?)` / `saveItem` /
 `listItems(containerId)` / `deleteItem` / `searchItems(query, limit)` (pg_trgm over title +
-description + tags). Liquibase `120-inventory.yml` (+ the `120-129` row in
-[PATTERNS.md](PATTERNS.md) §Numbering). Mirrors `mcp-docs`.
+description). Liquibase `120-inventory.yml` (+ the `120-129` row in
+[PATTERNS.md](PATTERNS.md) §Numbering). Mirrors `mcp-docs`. `searchItems` returns an
+`ItemLocationDto` (item + container + zone), because the question this domain answers is *where*.
 
 - **Scenario: container by token**
   - WHEN `getContainerByToken` is called with a known `qr_token`
   - THEN it returns that container with its zone and its items in insertion order
-    (not yet asserted — slice not built)
+    (asserted by `McpInventoryIntegrationTest`)
 - **Scenario: rename keeps the printed identity**
-  - WHEN a container's `label` and `code` are updated
-  - THEN its `qr_token` is unchanged and `getContainerByToken` still resolves
-    (not yet asserted — slice not built)
-- **Scenario: item search**
+  - WHEN a container is renamed, moved to another zone and closed
+  - THEN its `qr_token` and `code` are unchanged and `getContainerByToken` still resolves
+    (asserted by `McpInventoryIntegrationTest`)
+- **Scenario: item search returns the place**
   - WHEN `searchItems("гирлянда")` runs over items titled "ёлочная гирлянда"
-  - THEN the owning container id comes back (not yet asserted — slice not built)
+  - THEN the hit carries its container code/label and its zone, and another household's identical
+    item is not in the result (asserted by `McpInventoryIntegrationTest`)
+- **Scenario: one zone per spoken name**
+  - WHEN the same zone name is saved twice in different case
+  - THEN one zone exists and the second call does not blank the fields it omitted
+    (asserted by `McpInventoryIntegrationTest`)
 
 ### IN-b — `decode_qr` tool + `/internal/qr` on `mcp-media-processing`
 **Requirement:** the media capability SHALL turn a photographed QR code into its payload.
@@ -232,10 +242,17 @@ short human **code** alongside its name (readable when the QR won't scan) · **c
 unpacking opens a link, installs nothing).
 
 ## Deferred
-- **The printed label sheet.** The owner has no label printer yet, and sheet geometry is
-  printer-specific (Dymo/Brother roll vs an A4 sticker grid). MVP hands over a **QR image** to print
-  from the phone; a `label-sheet` render (N-up grid, exact mm, page margins) lands when the printer
-  exists and its format is known — it is a genuinely new renderer shape, so flag it then.
+- **The native printer template.** MVP hands over a **QR image** (58×40 mm at 203 dpi = 464×320 px)
+  to print from the phone — printer-agnostic, works from day one. The step up is a **TSPL/TSPL2**
+  template: the owner's printer class (Xprinter XP-V3 / XP-365B / XP-420B, direct thermal, 203 dpi,
+  rolls to 80 mm) takes text commands, so a label is `SIZE`/`GAP`/`QRCODE`/`TEXT`/`PRINT` with the
+  container's code, label, zone and deep-link substituted in. Worth doing because the **printer's
+  firmware draws the QR** — sharper and more scannable on a small label than a rasterised image —
+  and the geometry is expressed in millimetres. Gated on the hardware (not yet purchased) and, for
+  *direct* printing, on the printer being reachable from the host running ai-life; otherwise the
+  agent emits a `.prn` the owner prints. Colour coding is not a printer capability here: direct
+  thermal prints black only, so a zone's colour is the colour of the **label stock** loaded
+  (`storage_zone.label_colour`), which the template names rather than renders.
 - **Zone/container audit** ("что лежит в кладовке", "покажи все коробки на даче") — a listing board
   once the packing flow is proven.
 - **Link to `docs`** — a warranty/receipt document attached to an item (needs a cross-domain ref; the

@@ -1,0 +1,239 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 120-inventory
+      author: ai-life
+      comment: |
+        Inventory domain opener: source-of-truth tables for mcp-inventory (plans/inventory.md).
+        Three tables — storage_zone (кладовка/гараж/дача), container (whatever carries a
+        label: box/shelf/bin, or a zone's `loose` pseudo-container for open storage) and
+        item (one photographed thing).
+
+        Location is ALWAYS a container: an item sits in exactly one container, and loose
+        things get a per-zone `loose` container rather than a nullable container_id plus a
+        parallel zone_id — one location path, one search query, no "which field wins".
+
+        qr_token is the container's PRINTED identity: minted once, never derived from code
+        or label, so a rename / zone move / status change leaves an already-printed label
+        valid. code ("B-07") is the short human id printed beside the QR, unique per
+        household. status tracks a move (open|packed|in_transit|unpacked), destination is
+        the target room after it.
+      changes:
+        - createTable:
+            schemaName: inventory
+            tableName: storage_zone
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_storage_zone_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_storage_zone_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: name
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: kind
+                  type: varchar(32)
+              # A direct-thermal printer prints black only, so a zone's colour coding is the
+              # colour of the label STOCK its containers print on — which roll to load.
+              - column:
+                  name: label_colour
+                  type: varchar(32)
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        # The upsert key for saveZone — the agent resolves a zone by the spoken name, so
+        # "в кладовку" twice must not create a second кладовка.
+        - sql:
+            sql: |
+              CREATE UNIQUE INDEX ux_storage_zone_household_name
+                ON inventory.storage_zone (household_id, lower(name));
+            stripComments: false
+
+        - createTable:
+            schemaName: inventory
+            tableName: container
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: household_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_container_household
+                    referencedTableSchemaName: core
+                    referencedTableName: households
+                    referencedColumnNames: id
+              - column:
+                  name: owner_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_container_owner
+                    referencedTableSchemaName: core
+                    referencedTableName: users
+                    referencedColumnNames: id
+              - column:
+                  name: zone_id
+                  type: uuid
+                  constraints:
+                    foreignKeyName: fk_container_zone
+                    referencedTableSchemaName: inventory
+                    referencedTableName: storage_zone
+                    referencedColumnNames: id
+              - column:
+                  name: code
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: label
+                  type: text
+              - column:
+                  name: kind
+                  type: varchar(32)
+                  defaultValue: box
+              - column:
+                  name: qr_token
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: ux_container_qr_token
+              - column:
+                  name: status
+                  type: varchar(32)
+                  defaultValue: open
+                  constraints:
+                    nullable: false
+              - column:
+                  name: destination
+                  type: text
+              - column:
+                  name: note
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: closed_at
+                  type: timestamptz
+
+        - addUniqueConstraint:
+            schemaName: inventory
+            tableName: container
+            columnNames: household_id, code
+            constraintName: ux_container_household_code
+
+        - createIndex:
+            schemaName: inventory
+            tableName: container
+            indexName: ix_container_household_zone
+            columns:
+              - column:
+                  name: household_id
+              - column:
+                  name: zone_id
+
+        - createTable:
+            schemaName: inventory
+            tableName: item
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: container_id
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_item_container
+                    referencedTableSchemaName: inventory
+                    referencedTableName: container
+                    referencedColumnNames: id
+                    deleteCascade: true
+              - column:
+                  name: media_id
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: text
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: tags
+                  type: jsonb
+              - column:
+                  name: qty
+                  type: integer
+                  defaultValueNumeric: 1
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            schemaName: inventory
+            tableName: item
+            indexName: ix_item_container_created
+            columns:
+              - column:
+                  name: container_id
+              - column:
+                  name: created_at
+
+        # Trigram index over the concatenated searchable text so searchItems' ILIKE '%q%' +
+        # similarity() ranking is index-accelerated (pg_trgm is created in
+        # infra/postgres/init.sql). Raw SQL: Liquibase's createIndex can't express an
+        # expression index with an operator class.
+        - sql:
+            sql: |
+              CREATE INDEX ix_item_search
+                ON inventory.item
+                USING GIN ((coalesce(title, '') || ' ' || coalesce(description, '')) gin_trgm_ops);
+            stripComments: false

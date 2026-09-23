@@ -134,6 +134,7 @@ ai-life/
 │   ├── docs/       { docs-agent, mcp-docs, skills/ }
 │   ├── coach/      { coach-agent, mcp-coach, skills/ }
 │   ├── travel/     { travel-agent, mcp-travel, skills/ }  # planner-first vacation agent (#190)
+│   ├── inventory/  { mcp-inventory }                  # physical storage: zones → QR-labelled containers → items (agent lands in IN-c)
 │   ├── knowledge/  { notes-agent }                    # second-brain front, no own MCP
 │   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)
@@ -157,7 +158,7 @@ Rule of thumb: **tools = MCP, reasoning = agent, instructions = skill, editable 
 
 ## DB & migrations
 One Postgres, schemas split by **bounded context, not by service**:
-`core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks, wardrobe, nutrition, creator`.
+`core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks, wardrobe, nutrition, creator, inventory`.
 
 One shared Liquibase changelog, features split by domain. Numbering convention
 is owned by [PATTERNS.md](PATTERNS.md) §"Recipe: add a Liquibase migration" —
