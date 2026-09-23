@@ -143,25 +143,38 @@ the no-seam rationale → [media.md](media.md) §MP-f.
   - THEN it returns an empty payload and no exception (asserted by `QrDecoderTest`,
     `InternalQrControllerTest`)
 
-### IN-c — `inventory-agent` scaffold + `box-packer` skill (the packing session)
+### IN-c — `inventory-agent` scaffold + `box-packer` skill (the packing session) ✅ DONE
 **Requirement:** the agent SHALL accept a stream of photos into one open container, hands-free.
 
 Port **8128**. Binds `mcp-inventory` + `mcp-media-processing`. "новая коробка «кухня — посуда» в
 кладовку" → zone resolve/create + container `open` + route-lock; each following photo → `caption` →
 `saveItem` → a terse ack; "закрой коробку" → `packed` + `closed_at`.
 
+**The session is the shipped route-lock**, not a new mechanism: each turn re-issues the
+`{flow:box-packing, containerId, code, label, count}` `pendingAction`, so the orchestrator keeps
+routing messages to `/resume` until the box closes. A user-written caption wins over the vision
+model; captioning soft-fails to an unnamed item (the photo *is* the record).
+
 - **Scenario: open then photograph**
-  - WHEN a container is open and the owner sends three photos in a row
-  - THEN three items are saved to that container, each titled from its caption, with no further
-    questions asked (not yet asserted — slice not built)
+  - WHEN a container is open and the owner sends a photo
+  - THEN it is saved to that container, titled from its caption, with no further question asked, and
+    the session stays locked for the next one (asserted by `BoxPackerTest`)
+- **Scenario: the owner named the thing**
+  - WHEN the photo carries the user's own caption
+  - THEN that caption is the item's title and the vision capability is not called at all
+    (asserted by `BoxPackerTest`)
 - **Scenario: photo with no open container**
   - WHEN a photo arrives and no container is open
-  - THEN the agent asks which container it belongs to instead of guessing
-    (not yet asserted — slice not built)
+  - THEN the agent asks which container it belongs to instead of guessing, and writes nothing
+    (asserted by `BoxPackerTest`)
 - **Scenario: close**
   - WHEN the owner says "закрой коробку"
-  - THEN the container becomes `packed`, the route-lock releases, and the reply states the item
-    count (not yet asserted — slice not built)
+  - THEN the container becomes `packed`, the route-lock releases (null `pendingAction`), and the
+    reply states the item count (asserted by `BoxPackerTest`)
+- **Scenario: the agent registers**
+  - WHEN the orchestrator scrapes the manifest
+  - THEN `inventory` is advertised with the `box-packer` skill and both bound MCPs
+    (asserted by `ManifestControllerTest`)
 
 ### IN-d — QR issue + the container card (`box-label`, `box-card`)
 **Requirement:** a packed container SHALL yield a printable label image and a readable card.
@@ -256,6 +269,15 @@ unpacking opens a link, installs nothing).
   agent emits a `.prn` the owner prints. Colour coding is not a printer capability here: direct
   thermal prints black only, so a zone's colour is the colour of the **label stock** loaded
   (`storage_zone.label_colour`), which the template names rather than renders.
+- **Seasonal storage ↔ stylist (owner idea, 2026-09-23).** Clothes are a large share of what gets
+  boxed, and the stylist's season planning is blind to anything not hanging in the wardrobe: "зимние
+  вещи лежат в B-07 в кладовке — вот что к ним докупить, вот сочетания из того, что уже есть".
+  **Shape: the `brief` primitive, not a schema link.** inventory exposes a read-only `brief` (as
+  finance / calendar / tasks do — [stage4.md](stage4.md) §Track I) and `stylist-agent` gathers it when
+  planning a capsule; no FK from `wardrobe` to `inventory` and no cross-domain DB read, because a
+  garment and its storage have independent lifetimes (a thing is thrown out; a box is moved). Likely
+  needs a season/category signal on the item — the vision caption already produces one, so it is a
+  tagging question, not a new store. Sized as its own slice; keep it out of the packing flow.
 - **Zone/container audit** ("что лежит в кладовке", "покажи все коробки на даче") — a listing board
   once the packing flow is proven.
 - **Link to `docs`** — a warranty/receipt document attached to an item (needs a cross-domain ref; the

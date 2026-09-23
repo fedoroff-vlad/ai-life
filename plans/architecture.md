@@ -134,7 +134,7 @@ ai-life/
 │   ├── docs/       { docs-agent, mcp-docs, skills/ }
 │   ├── coach/      { coach-agent, mcp-coach, skills/ }
 │   ├── travel/     { travel-agent, mcp-travel, skills/ }  # planner-first vacation agent (#190)
-│   ├── inventory/  { mcp-inventory }                  # physical storage: zones → QR-labelled containers → items (agent lands in IN-c)
+│   ├── inventory/  { inventory-agent, mcp-inventory, skills/ }  # physical storage: zones → QR-labelled containers → items
 │   ├── knowledge/  { notes-agent }                    # second-brain front, no own MCP
 │   └── assistant/  { coordinator-agent }              # cross-cutting multi-domain synthesis (#290), no own MCP
 └── shared/     shared RUNTIME capabilities, fixed path (any agent uses)

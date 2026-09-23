@@ -117,8 +117,13 @@ fi
 #   agent-runtime). calendar-agent reads its OWN domain-MCP for the create_event double-booking sanity
 #   check (#485); briefing-agent reads it cross-domain for the morning digest's calendar section (could
 #   later move onto a calendar `brief`/hub action, like finance's spend read did).
+# - /internal/items — a PATH COLLISION, not a copy: two unrelated domain-MCPs happen to name their
+#   own resource "items" — mcp-wardrobe (garments, read by stylist-agent) and mcp-inventory (stored
+#   things, read by inventory-agent). Each agent talks only to ITS OWN domain-MCP through its own
+#   typed client; the check matches the URI string, which cannot tell the two targets apart. Nothing
+#   is shareable here (a domain client is not a capability client), so there is nothing to lift.
 echo "check 5: capability /internal/* passthrough clients are shared, not per-agent copies"
-ALLOWLIST_URIS="/internal/events"
+ALLOWLIST_URIS="/internal/events /internal/items"
 dupes="$(
   for d in domains/*/*-agent; do
     [ -d "$d/src/main" ] || continue

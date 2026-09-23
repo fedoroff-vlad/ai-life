@@ -85,7 +85,7 @@ ai-life/
 │   ├── travel/              travel-agent, mcp-travel, skills/ (✅ done, #190)
 │   ├── briefing/            briefing-agent, mcp-briefing, skills/ (✅ done, #186)
 │   ├── docs/                docs-agent, mcp-docs, skills/ (✅ done, #188)
-│   ├── inventory/           mcp-inventory (physical storage: zones → QR-labelled containers → photographed items; agent lands in IN-c)
+│   ├── inventory/           inventory-agent, mcp-inventory, skills/ (physical storage: zones → QR-labelled containers → photographed items)
 │   ├── knowledge/           notes-agent (second-brain front; binds memory-service, no own MCP)
 │   ├── assistant/           coordinator-agent (cross-cutting multi-domain synthesis; #290)
 │   └── coach/               coach-agent, mcp-coach, skills/ (#289 — CO-1/CO-2 done: safety gate + Reflect; PARKED, CO-3 intake deferred)
