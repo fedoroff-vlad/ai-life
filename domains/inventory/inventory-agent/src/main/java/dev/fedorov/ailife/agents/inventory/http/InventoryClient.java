@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.inventory.http;
 import dev.fedorov.ailife.contracts.inventory.ContainerDto;
 import dev.fedorov.ailife.contracts.inventory.ContainerViewDto;
 import dev.fedorov.ailife.contracts.inventory.ItemDto;
+import dev.fedorov.ailife.contracts.inventory.ItemLocationDto;
 import dev.fedorov.ailife.contracts.inventory.SaveContainerInput;
 import dev.fedorov.ailife.contracts.inventory.SaveItemInput;
 import dev.fedorov.ailife.contracts.inventory.SaveZoneInput;
@@ -14,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -70,6 +72,25 @@ public class InventoryClient {
                 .bodyValue(input)
                 .retrieve()
                 .bodyToMono(ItemDto.class)
+                .timeout(TIMEOUT);
+    }
+
+    /**
+     * "Где лежит X" (IN-e): each hit carries its container and zone, so one call answers *where*.
+     * An empty result is an empty list, not an error.
+     */
+    public Mono<List<ItemLocationDto>> searchItems(UUID householdId, String query, Integer limit) {
+        return http.get()
+                .uri(b -> {
+                    b.path("/internal/items/search")
+                            .queryParam("householdId", householdId)
+                            .queryParam("query", query);
+                    if (limit != null) b.queryParam("limit", limit);
+                    return b.build();
+                })
+                .retrieve()
+                .bodyToFlux(ItemLocationDto.class)
+                .collectList()
                 .timeout(TIMEOUT);
     }
 }

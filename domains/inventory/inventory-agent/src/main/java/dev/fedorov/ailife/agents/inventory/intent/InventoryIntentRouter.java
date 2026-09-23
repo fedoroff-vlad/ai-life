@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.intent.SkillRouter;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.chat.InventoryChat;
+import dev.fedorov.ailife.agents.inventory.find.ItemFinder;
 import dev.fedorov.ailife.agents.inventory.pack.BoxPacker;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -35,17 +36,20 @@ import java.util.function.Function;
 public class InventoryIntentRouter {
 
     private static final String BOX_PACKER = "box-packer";
+    private static final String ITEM_FINDER = "item-finder";
 
     private final SkillRouter router;
 
     public InventoryIntentRouter(LlmClient llm, SkillRegistry skills, SkillClassifier classifier,
-                                 AgentManifest manifest, BoxPacker packer, InventoryChat chat) {
+                                 AgentManifest manifest, BoxPacker packer, ItemFinder finder,
+                                 InventoryChat chat) {
         Map<String, Function<NormalizedMessage, Mono<IntentResponse>>> flows = new LinkedHashMap<>();
         flows.put(BOX_PACKER, packer::start);
+        flows.put(ITEM_FINDER, finder::find);
         this.router = new SkillRouter(llm, skills, classifier, manifest,
                 "You are routing a message for the inventory agent. Reply directly to the user, or run one skill.",
-                "Decide: does the user want to run a skill (start or finish packing a storage container) "
-                        + "or just talk?",
+                "Decide: does the user want to run a skill (start or finish packing a storage container, "
+                        + "or find where a stored thing is) or just talk?",
                 flows, chat::reply);
     }
 
