@@ -143,6 +143,25 @@ JNI-mature; whisper's isn't.
     error), THEN it returns an empty `frameMediaIds` — the visual tier's "nothing" signal, not a 500
     (asserted by `MediaProcessingFramesTest`).
 
+- **MP-f — `decode_qr(mediaId)` barcode read (ZXing).** ✅ **DONE.** The inventory domain
+  ([inventory.md](inventory.md) §IN-b) needs a photographed container label resolved back to its
+  container, so the owner can point a camera at a box instead of typing. Fetches the image bytes from
+  media-service → decodes the **first** code in the frame → `QrResult{payload, format?}`.
+  **No engine seam and no stub twin**, unlike MP-b/d2/e: ZXing is pure Java with no native lib and no
+  model, so there is nothing environment-dependent to degrade to — the rule this file applies
+  elsewhere ("stub→real behind a seam", for native/model dependencies) simply doesn't fire here.
+  Decoding hints `TRY_HARDER` + `ALSO_INVERTED` are set because the input is a *photo of a label* at
+  an angle, possibly light-on-dark; `PURE_BARCODE` is deliberately unset. New contracts
+  `media/{QrInput, QrResult}` + the `/internal/qr` passthrough (the deterministic path inventory-agent
+  calls in IN-f). Tests = `QrDecoderTest` (encode→decode round trip, incl. a small noisy code) +
+  `InternalQrControllerTest`.
+  - **Scenario (decode):** WHEN `decode_qr` runs on an image containing a container label's code,
+    THEN it returns that code's payload and `format=QR_CODE` (asserted by `QrDecoderTest`,
+    `InternalQrControllerTest`).
+  - **Scenario (no code in frame):** WHEN the photo contains no readable code (blank, blurred, or
+    not an image at all), THEN it returns an **empty payload** and no exception — the "ask for
+    another shot" signal, not a 500 (asserted by `QrDecoderTest`, `InternalQrControllerTest`).
+
 ## Out of scope (here)
 - Real LLM providers for `caption` — uses the existing `vision` channel; quality is Stage 5.
 - New domain agents that consume the capability (docs / stylist / health) — **Stage 6+**.

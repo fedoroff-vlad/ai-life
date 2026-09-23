@@ -55,6 +55,17 @@
             <artifactId>tess4j</artifactId>
         </dependency>
 
+        <!-- QR decoding (MP-f): pure Java, no native lib and no model — hence no engine
+             seam / stub twin, unlike OCR, STT and frames. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

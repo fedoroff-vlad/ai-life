@@ -9,11 +9,13 @@ import dev.fedorov.ailife.contracts.media.CaptionResult;
 import dev.fedorov.ailife.contracts.media.FramesResult;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import dev.fedorov.ailife.contracts.media.OcrResult;
+import dev.fedorov.ailife.contracts.media.QrResult;
 import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.llm.LlmClient;
 import dev.fedorov.ailife.mcp.mediaprocessing.config.McpMediaProcessingProperties;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.FrameExtractor;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.OcrEngine;
+import dev.fedorov.ailife.mcp.mediaprocessing.engine.QrDecoder;
 import dev.fedorov.ailife.mcp.mediaprocessing.engine.SttEngine;
 import dev.fedorov.ailife.mcp.mediaprocessing.http.MediaClient;
 import dev.fedorov.ailife.mcp.mediaprocessing.http.MediaStoreClient;
@@ -45,17 +47,19 @@ public class MediaProcessingMcpTools {
     private final MediaClient media;
     private final MediaStoreClient mediaStore;
     private final OcrEngine ocr;
+    private final QrDecoder qr;
     private final SttEngine stt;
     private final FrameExtractor frames;
     private final LlmClient llm;
     private final McpMediaProcessingProperties props;
 
     public MediaProcessingMcpTools(MediaClient media, MediaStoreClient mediaStore, OcrEngine ocr,
-                                   SttEngine stt, FrameExtractor frames, LlmClient llm,
+                                   QrDecoder qr, SttEngine stt, FrameExtractor frames, LlmClient llm,
                                    McpMediaProcessingProperties props) {
         this.media = media;
         this.mediaStore = mediaStore;
         this.ocr = ocr;
+        this.qr = qr;
         this.stt = stt;
         this.frames = frames;
         this.llm = llm;
@@ -76,6 +80,22 @@ public class MediaProcessingMcpTools {
             return new OcrResult("", null, null);
         }
         return ocr.extract(fetched.bytes(), fetched.mimeType());
+    }
+
+    @Tool(name = "decode_qr", description = """
+            Read a barcode out of a stored image by its media-service object id (the storageUri an
+            attachment carries). Fetches the bytes from media-service and decodes the first QR code
+            or barcode in the frame, returning its payload plus the symbology (QR_CODE, EAN_13, …).
+            Returns an EMPTY payload when no code is found — a normal answer for a blurred or
+            badly-framed photo, not an error; ask for another shot. Use this when the user
+            photographs a label; interpreting the payload is the caller's job.
+            """)
+    public QrResult decodeQr(String mediaId) {
+        MediaClient.FetchedMedia fetched = media.fetch(mediaId).block();
+        if (fetched == null) {
+            return new QrResult("", null);
+        }
+        return qr.decode(fetched.bytes());
     }
 
     @Tool(description = """

@@ -30,6 +30,7 @@
         <jsoup.version>1.23.2</jsoup.version>
         <rome.version>2.1.0</rome.version>
         <resilience4j.version>2.4.0</resilience4j.version>
+        <zxing.version>3.5.3</zxing.version>
 
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
@@ -180,6 +181,18 @@
                 <groupId>net.sourceforge.tess4j</groupId>
                 <artifactId>tess4j</artifactId>
                 <version>${tess4j.version}</version>
+            </dependency>
+            <!-- QR decoding in mcp-media-processing (MP-f): core = the reader, javase =
+                 BufferedImageLuminanceSource (and the writer the round-trip test encodes with). -->
+            <dependency>
+                <groupId>com.google.zxing</groupId>
+                <artifactId>core</artifactId>
+                <version>${zxing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.zxing</groupId>
+                <artifactId>javase</artifactId>
+                <version>${zxing.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.jsoup</groupId>
