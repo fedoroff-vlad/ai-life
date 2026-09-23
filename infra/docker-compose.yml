@@ -1249,6 +1249,33 @@ services:
       retries: 10
       start_period: 30s
 
+  mcp-inventory:
+    profiles: ["cold"]
+    image: ai-life/mcp-inventory:local
+    container_name: ai-life-mcp-inventory
+    build:
+      context: ..
+      dockerfile: domains/inventory/mcp-inventory/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+    environment:
+      <<: *internal-secret
+      JAVA_TOOL_OPTIONS: *jvm-opts
+      MCP_INVENTORY_PORT: 8127
+      MCP_INVENTORY_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_INVENTORY_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_INVENTORY_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8127/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
   mcp-coach:
     profiles: ["cold"]
     image: ai-life/mcp-coach:local

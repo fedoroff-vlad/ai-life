@@ -21,5 +21,6 @@ CREATE SCHEMA IF NOT EXISTS creator;
 CREATE SCHEMA IF NOT EXISTS briefing;
 CREATE SCHEMA IF NOT EXISTS docs;
 CREATE SCHEMA IF NOT EXISTS travel;
+CREATE SCHEMA IF NOT EXISTS inventory;
 
 -- Schemas are populated by Liquibase changelogs (infra/liquibase/features/*).
