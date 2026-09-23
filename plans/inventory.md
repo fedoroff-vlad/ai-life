@@ -91,12 +91,15 @@ story, no "which field wins" ambiguity.
 
 `qr_token` is **never** derived from `code` or the label — it must survive a rename.
 
-## Golden tests — from the start
-Per the docs/travel convention, each LLM seam gets an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated,
-not in fast CI), asserting **structure, not wording**: a GoldenItemCaption test (photo → item
-title/tags JSON) and a GoldenItemFinder test (query → search filter JSON), plus an `inventory`
-routing golden in orchestrator. (Names go in backticks once the classes exist — the spec→test trace
-of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.)
+## Golden tests — owed, not yet written
+Per the docs/travel convention each LLM seam should get an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated,
+not in fast CI) asserting **structure, not wording**. **None exist yet** — the slices so far are
+covered by MockWebServer tests, which prove the wiring but not that a real model routes and extracts
+correctly. Owed: a routing golden over the two trigger-less skills (`box-packer` vs `item-finder` — the
+choice only became real when the second one landed in IN-e), a `box-packer` extract golden, and an
+`item-finder` query-distil golden. Writing them needs a real model run (`scripts/golden.sh`), so they
+are their own slice rather than a claim made here. Names go in backticks once the classes exist — the
+spec→test trace of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.
 
 ## PR slices
 
@@ -194,21 +197,39 @@ plus a `libs/doc-render` card (code · label · zone · status · photo gallery 
 ### IN-e — `item-finder` ("где лежит X")
 **Requirement:** the agent SHALL answer where a thing is stored.
 
-Trigram `searchItems` ∪ memory-service recall (own ∪ shared households), merged + de-duplicated →
-"Коробка **B-07** «Новый год» · кладовка · полка 2" + the card link.
+The trigram half: an LLM turn distils the search phrase out of the question (the `item-finder` SKILL,
+strict JSON, temperature 0) → `searchItems` → the reply names **where**, not just what. Search is
+scoped to the envelope household; the semantic half and the personal-∪-shared read widen it later
+(IN-e2 / the sharing retrofit).
 
 - **Scenario: literal hit**
   - WHEN the owner asks "где ёлочные игрушки" and an item is titled so
-  - THEN the reply names the container code, its label and its zone
-    (not yet asserted — slice not built)
+  - THEN the reply names the container code, its label and its zone (asserted by `ItemFinderTest`)
+- **Scenario: nothing stored**
+  - WHEN no item matches
+  - THEN the agent says so plainly and never invents a location (asserted by `ItemFinderTest`)
+- **Scenario: the thing is in an unplaced box**
+  - WHEN the matched container has no zone yet
+  - THEN the reply still names the container instead of failing on the missing zone
+    (asserted by `ItemFinderTest`)
+
+### IN-e2 — semantic recall for the finder
+**Requirement:** a thing SHALL be findable by words that are not in its title.
+
+The vision caption names a thing in one vocabulary; the owner asks in another ("та штука для
+гриля"). Mirrors docs D-e/SB-5: each saved item seeds an authored note (`MemoryClient.note`,
+`frontmatter={kind:item, refId}`) so memory-service auto-seeds recall, and the finder runs the
+trigram search **and** a recall in parallel, resolving a `{kind:note, refId}` hit back to its item and
+merging by id. Each source soft-fails independently — a memory outage must not break a literal
+search. Kept out of IN-e because the seed is a write-path change, not a search change.
+
 - **Scenario: vocabulary mismatch**
   - WHEN the query uses words absent from every item title but semantically close
   - THEN the memory-service recall path still resolves the container
     (not yet asserted — slice not built)
-- **Scenario: nothing stored**
-  - WHEN no item matches
-  - THEN the agent says so plainly and offers to search a zone, never inventing a location
-    (not yet asserted — slice not built)
+- **Scenario: memory is down**
+  - WHEN the recall source fails
+  - THEN the trigram hits are still returned (not yet asserted — slice not built)
 
 ### IN-f — the scan path (deep-link + photographed label) — **closer**
 **Requirement:** pointing a camera at a label, or sending its photo, SHALL return the card.

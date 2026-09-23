@@ -5,11 +5,11 @@ Physical-storage specialist (port **8128**) — the household's answer to "гд�
 Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the shared
 `mcp-media-processing` (vision caption). Plan: [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c)
+## Status (IN-c + IN-e)
 
-Scaffold + the **packing session**. Reading things back ("где лежит X" — IN-e), the QR label and the
-container card (IN-d) and the scan path (IN-f) are later slices; a message that is not a packing move
-falls through to a chat reply.
+Scaffold + the **packing session** (IN-c) + **"где лежит X"** (IN-e). The QR label and the container
+card (IN-d), the scan path (IN-f) and semantic recall for the finder (IN-e2) are later slices; a
+message that is neither a packing move nor a lookup falls through to a chat reply.
 
 **The session is the shipped route-lock, not a new mechanism.** Opening a container returns a
 `pendingAction`, so the orchestrator routes every following message straight back to this agent's
@@ -31,12 +31,18 @@ per photo — packing is a batch activity, not a form per item.
 - **A photo with no open session** never guesses a container — it asks. A misfiled thing is found in
   the wrong box months later, so one extra question is the cheaper error. This is a deterministic
   pre-check in `IntentController`: a photo is unambiguous, so it costs no LLM turn.
+- **Find (IN-e)** — "где лежат ёлочные игрушки" → the `item-finder` SKILL distils the *thing* out of
+  the question (the stored names came from photo captions, so the interrogatives would only dilute
+  the match) → `searchItems` → the reply names the **place**: container code, its label, its zone.
+  A container with no zone yet is still named ("зона не указана") rather than failing. Nothing found
+  says so plainly and never invents a location. Scope is the envelope household; semantic recall
+  (IN-e2) and the personal ∪ shared widening come later.
 
 ## Endpoints
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow or a chat reply. |
+| POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, or a chat reply. |
 | POST | `/agents/inventory/resume` | the route-locked turn while a box is open: a photo becomes an item, "закрой коробку" ends the session. Dispatches on `pendingAction.flow` = `box-packing`. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
 
@@ -44,6 +50,8 @@ per photo — packing is a batch activity, not a form per item.
 
 - **`box-packer`** (`domains/inventory/skills/box-packer/SKILL.md`) — strict-JSON extract of the
   packing move (`open`/`close`) plus the container's label, zone, kind and move destination.
+- **`item-finder`** (`domains/inventory/skills/item-finder/SKILL.md`) — strict-JSON distil of the
+  search phrase out of a "где лежит X" question.
 
 ## Env
 
@@ -63,13 +71,16 @@ per photo — packing is a batch activity, not a form per item.
 - `config/InventoryAgentProperties` (`inventory-agent.*` base URLs) + `config/OutboundHttpConfig`
   (`mcpInventoryWebClient` + `mcpMediaProcessingWebClient` + the opt-in shared `CaptionClient` bean).
 - `http/InventoryClient` — the `mcp-inventory` `/internal` passthroughs (`saveZone` / `saveContainer`
-  / `getContainer` / `saveItem`). Mirrors docs-agent's `DocumentClient`.
+  / `getContainer` / `saveItem` / `searchItems`). Mirrors docs-agent's `DocumentClient`.
+- `find/ItemFinder` — "где лежит X" (IN-e): query distil (`item-finder` SKILL, temperature 0, falling
+  back to the raw text when the model returns nothing usable) → `searchItems` → a reply that names the
+  place. Shows the best hit plus up to four more.
 - `pack/BoxPacker` — the session: `start` (open) · `resume` (photo → caption → `saveItem`, or close) ·
   `photoWithoutSession` (ask). Owns the `box-packing` pendingAction envelope
   (`{flow, containerId, code, label, count}`) — re-issued each turn to keep the lock, null to end it.
   Attaches a payload-free `IntentResponse.trace` on each write (#485 / G2).
 - `intent/InventoryIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475);
-  the dispatch map holds only `box-packer`, and the `box-packer` SKILL.md `description` is the routing
+  the dispatch map holds `box-packer` + `item-finder`, and each SKILL.md `description` is the routing
   SSOT. Photos never reach it (locked → `/resume`, unlocked → the controller's pre-check).
 - `chat/InventoryChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` · `web/ResumeController` · `web/ManifestController`.
