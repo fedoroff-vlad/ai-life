@@ -6,11 +6,13 @@ import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
 import dev.fedorov.ailife.contracts.agent.ResumeRequest;
 import dev.fedorov.ailife.contracts.inventory.ContainerDto;
+import dev.fedorov.ailife.contracts.inventory.ContainerViewDto;
 import dev.fedorov.ailife.contracts.inventory.ItemDto;
 import dev.fedorov.ailife.contracts.inventory.StorageZoneDto;
 import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -36,7 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Exercises the packing session (IN-c) through the agent's HTTP surface. MockWebServers stand in for
- * mcp-inventory, mcp-media-processing and llm-gateway.
+ * mcp-inventory, mcp-media-processing, media-service (the deliverables a close issues, IN-d) and
+ * llm-gateway.
  *
  * <p>The session is the route-lock: {@code /intent} opens it and returns a {@code pendingAction}, then
  * every following turn arrives on {@code /resume} carrying that envelope back. These tests drive
@@ -48,15 +51,18 @@ class BoxPackerTest {
 
     static MockWebServer mcpInventory;
     static MockWebServer mcpMediaProcessing;
+    static MockWebServer mediaService;
     static MockWebServer llmGateway;
 
     @BeforeAll
     static void start() throws Exception {
         mcpInventory = new MockWebServer();
         mcpMediaProcessing = new MockWebServer();
+        mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
         mcpInventory.start();
         mcpMediaProcessing.start();
+        mediaService.start();
         llmGateway.start();
     }
 
@@ -64,6 +70,7 @@ class BoxPackerTest {
     static void stop() throws Exception {
         mcpInventory.shutdown();
         mcpMediaProcessing.shutdown();
+        mediaService.shutdown();
         llmGateway.shutdown();
     }
 
@@ -72,6 +79,8 @@ class BoxPackerTest {
         r.add("inventory-agent.mcp-inventory-url", () -> "http://localhost:" + mcpInventory.getPort());
         r.add("inventory-agent.mcp-media-processing-url",
                 () -> "http://localhost:" + mcpMediaProcessing.getPort());
+        r.add("inventory-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
+        r.add("inventory-agent.public-media-base-url", () -> "https://media.example");
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
     }
 
@@ -184,16 +193,24 @@ class BoxPackerTest {
     @Test
     void closingTheBoxMarksItPackedAndClearsTheLock() throws Exception {
         UUID containerId = UUID.randomUUID();
+        ContainerDto packed = container(containerId, UUID.randomUUID(), null, null, "B-07",
+                "Новый год", "packed");
 
         llmGateway.enqueue(llm("{\"action\":\"close\"}"));
-        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(container(
-                containerId, UUID.randomUUID(), null, null, "B-07", "Новый год", "packed"))));
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(packed)));
+        // Closing also issues the two deliverables (IN-d): the card reads the container view, and both
+        // the label PNG and the rendered board are stored in media-service.
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(
+                new ContainerViewDto(packed, null, List.of()))));
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(stored())));
+        mediaService.enqueue(jsonResponse(json.writeValueAsString(stored())));
 
         IntentResponse response = resume(session(containerId, "B-07", "Новый год", 4),
                 new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
                         "закрой коробку", List.of(), "telegram", "5", Instant.now()));
 
-        assertThat(response.text()).contains("B-07").contains("4 предмета");
+        assertThat(response.text()).contains("B-07").contains("4 предмета")
+                .contains("Этикетка для печати").contains("Что внутри");
         // Lock cleared — the next message routes normally again.
         assertThat(response.pendingAction()).isNull();
 
@@ -201,6 +218,29 @@ class BoxPackerTest {
         assertThat(closeReq.getPath()).isEqualTo("/internal/containers");
         String body = closeReq.getBody().readUtf8();
         assertThat(body).contains("packed").contains(containerId.toString());
+        take(mcpInventory);
+    }
+
+    /** A media hiccup may cost the owner a link, never the close — the box is already packed. */
+    @Test
+    void closingSurvivesADeliverableFailure() throws Exception {
+        UUID containerId = UUID.randomUUID();
+
+        llmGateway.enqueue(llm("{\"action\":\"close\"}"));
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(container(
+                containerId, UUID.randomUUID(), null, null, "B-08", "книги", "packed"))));
+        mcpInventory.enqueue(new MockResponse().setResponseCode(500));
+        mediaService.enqueue(new MockResponse().setResponseCode(503));
+
+        IntentResponse response = resume(session(containerId, "B-08", "книги", 2),
+                new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                        "закрой коробку", List.of(), "telegram", "6", Instant.now()));
+
+        assertThat(response.text()).contains("B-08").contains("2 предмета");
+        assertThat(response.text()).doesNotContain("Этикетка для печати").doesNotContain("Что внутри");
+        assertThat(response.pendingAction()).isNull();
+        take(mcpInventory);
+        take(mcpInventory);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────
@@ -240,6 +280,11 @@ class BoxPackerTest {
                                           String code, String label, String status) {
         return new ContainerDto(id, household, owner, zone, code, label, "box", "abcdef0123456789",
                 status, null, null, Instant.now(), null);
+    }
+
+    private static MediaObjectDto stored() {
+        return new MediaObjectDto(UUID.randomUUID(), UUID.randomUUID(), null, "file", "image/png",
+                1024, null, "inventory", Instant.now());
     }
 
     private MockResponse llm(String content) {

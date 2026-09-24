@@ -1846,6 +1846,8 @@ services:
         condition: service_healthy
       mcp-media-processing:
         condition: service_healthy
+      media-service:
+        condition: service_healthy
     environment:
       <<: *internal-secret
       JAVA_TOOL_OPTIONS: *jvm-opts
@@ -1853,6 +1855,12 @@ services:
       LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_INVENTORY_URL: http://mcp-inventory:8127
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
+      # IN-d: stores the container's QR label PNG + its rendered card; the link the owner opens is
+      # built from the public base (override for a deploy reachable outside the compose network).
+      MEDIA_SERVICE_URL: http://media-service:8088
+      INVENTORY_PUBLIC_MEDIA_BASE_URL: ${INVENTORY_PUBLIC_MEDIA_BASE_URL:-http://media-service:8088}
+      # The bot the printed label's deep link points at — same value gateway-telegram mints invites with.
+      GATEWAY_TELEGRAM_BOT_USERNAME: ${GATEWAY_TELEGRAM_BOT_USERNAME:-ai_life_bot}
       PROFILE_SERVICE_URL: http://profile-service:8082
       NOTIFIER_URL: http://notifier-service:8084
       MEMORY_SERVICE_URL: http://memory-service:8087

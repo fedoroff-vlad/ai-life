@@ -3,13 +3,14 @@
 Physical-storage specialist (port **8128**) — the household's answer to "где что лежит". Runs a
 **packing session**: open a container, send photos, each becomes a named item inside it, close it.
 Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the shared
-`mcp-media-processing` (vision caption). Plan: [plans/inventory.md](../../../plans/inventory.md).
+`mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
+[plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-e)
+## Status (IN-c + IN-d + IN-e)
 
-Scaffold + the **packing session** (IN-c) + **"где лежит X"** (IN-e). The QR label and the container
-card (IN-d), the scan path (IN-f) and semantic recall for the finder (IN-e2) are later slices; a
-message that is neither a packing move nor a lookup falls through to a chat reply.
+Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
+**"где лежит X"** (IN-e). The scan path (IN-f) and semantic recall for the finder (IN-e2) are later
+slices; a message that is none of the above falls through to a chat reply.
 
 **The session is the shipped route-lock, not a new mechanism.** Opening a container returns a
 `pendingAction`, so the orchestrator routes every following message straight back to this agent's
@@ -27,7 +28,21 @@ per photo — packing is a batch activity, not a form per item.
   photo, because the photo *is* the record and losing it would be the real failure. A failed save
   keeps the session open (the owner is mid-batch; losing the lock costs more than the item).
 - **Close** — "закрой коробку" → the container becomes `packed`, the reply states the item count, and
-  the `pendingAction` goes null, clearing the lock.
+  the `pendingAction` goes null, clearing the lock. Closing is also when the **two deliverables**
+  (IN-d) are issued, because that is the moment the owner has a taped-up box in front of them: the
+  **QR label** to print and stick on it, and the box's **card** — what a scan of that label will show.
+  Both soft-fail: the container is already `packed` in the store, so a media hiccup costs a link, not
+  the close.
+- **Label (IN-d)** — "распечатай этикетку на B-07" → a QR PNG of the
+  `t.me/<bot>?start=box_<qr_token>` deep link, stored in media-service and handed over as a link. It
+  encodes **only an id**, so repacking, renaming or moving a box never invalidates a sticker already
+  on it; the same token always renders byte-identical PNG. Rendering lives in the agent
+  (`BoxLabelImage`) because encoding is a pure function — the *decode* half is the capability tool
+  (`mcp-media-processing.decode_qr`), since that one reads bytes out of media-service.
+- **Card (IN-d)** — "что в коробке B-07" → a `libs/doc-render` board (code · label · zone · status ·
+  the photo gallery · the item list) published through the shared `DeliverablePublisher` seam. The
+  label and the card stay separate artifacts on purpose: the sticker's whole job is to carry an id,
+  and the card is the page a scan opens.
 - **A photo with no open session** never guesses a container — it asks. A misfiled thing is found in
   the wrong box months later, so one extra question is the cheaper error. This is a deterministic
   pre-check in `IntentController`: a photo is unambiguous, so it costs no LLM turn.
@@ -42,7 +57,7 @@ per photo — packing is a batch activity, not a form per item.
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, or a chat reply. |
+| POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, or a chat reply. |
 | POST | `/agents/inventory/resume` | the route-locked turn while a box is open: a photo becomes an item, "закрой коробку" ends the session. Dispatches on `pendingAction.flow` = `box-packing`. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
 
@@ -52,6 +67,10 @@ per photo — packing is a batch activity, not a form per item.
   packing move (`open`/`close`) plus the container's label, zone, kind and move destination.
 - **`item-finder`** (`domains/inventory/skills/item-finder/SKILL.md`) — strict-JSON distil of the
   search phrase out of a "где лежит X" question.
+- **`box-label`** (`domains/inventory/skills/box-label/SKILL.md`) — strict-JSON distil of *which*
+  container a printable label is wanted for.
+- **`box-card`** (`domains/inventory/skills/box-card/SKILL.md`) — strict-JSON distil of *which*
+  container's contents to show. A question about a **thing** rather than a box is `item-finder`.
 
 ## Env
 
@@ -60,6 +79,9 @@ per photo — packing is a batch activity, not a form per item.
 | `INVENTORY_AGENT_PORT` | `8128` | HTTP port. |
 | `MCP_INVENTORY_URL` | `http://mcp-inventory:8127` | inventory domain-MCP (its data — `/internal/{zones,containers,items}`). |
 | `MCP_MEDIA_PROCESSING_URL` | `http://mcp-media-processing:8097` | shared media capability (`/internal/caption`). |
+| `MEDIA_SERVICE_URL` | `http://media-service:8088` | stores the QR label PNG + the rendered container card (IN-d). |
+| `INVENTORY_PUBLIC_MEDIA_BASE_URL` | `MEDIA_SERVICE_URL` | externally-reachable base the label/card links are built from. |
+| `GATEWAY_TELEGRAM_BOT_USERNAME` | `ai_life_bot` | the bot the printed label's `?start=box_<token>` deep link points at. |
 | `INVENTORY_AGENT_MCP_CLIENT_ENABLED` | `true` | bind mcp-inventory + mcp-media-processing over MCP/SSE (toggle off in degraded envs). |
 | `INVENTORY_AGENT_MEMORY_RECALL_K` | `5` | memory-recall fan-in (shared agent-runtime). |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway for the packing-move extract. |
@@ -69,9 +91,17 @@ per photo — packing is a batch activity, not a form per item.
 
 - `InventoryAgentApplication` — `@SpringBootApplication` + `@Import(AgentRuntimeConfig)`.
 - `config/InventoryAgentProperties` (`inventory-agent.*` base URLs) + `config/OutboundHttpConfig`
-  (`mcpInventoryWebClient` + `mcpMediaProcessingWebClient` + the opt-in shared `CaptionClient` bean).
+  (`mcpInventoryWebClient` + `mcpMediaProcessingWebClient` + `mediaServiceWebClient` + the opt-in
+  shared `CaptionClient` / `MediaStoreClient` / `DeliverablePublisher` beans).
 - `http/InventoryClient` — the `mcp-inventory` `/internal` passthroughs (`saveZone` / `saveContainer`
-  / `getContainer` / `saveItem` / `searchItems`). Mirrors docs-agent's `DocumentClient`.
+  / `getContainer` / `listContainers` / `saveItem` / `searchItems`). Mirrors docs-agent's
+  `DocumentClient`.
+- `label/BoxLabelImage` — pure: the `t.me/<bot>?start=box_<token>` payload + its QR PNG (ZXing,
+  deterministic, 464 px = 58 mm at 203 dpi). Lifts to `libs/qr` on a second consumer.
+- `label/BoxLabeler` — the two deliverables (IN-d): `deliver` (both, on close, each soft-failing),
+  `label` / `card` (the on-demand skills). Resolves "коробка B-07" by listing the household's
+  containers and matching the code first, the label second; an unresolvable ask is answered, never
+  guessed.
 - `find/ItemFinder` — "где лежит X" (IN-e): query distil (`item-finder` SKILL, temperature 0, falling
   back to the raw text when the model returns nothing usable) → `searchItems` → a reply that names the
   place. Shows the best hit plus up to four more.
@@ -80,7 +110,7 @@ per photo — packing is a batch activity, not a form per item.
   (`{flow, containerId, code, label, count}`) — re-issued each turn to keep the lock, null to end it.
   Attaches a payload-free `IntentResponse.trace` on each write (#485 / G2).
 - `intent/InventoryIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475);
-  the dispatch map holds `box-packer` + `item-finder`, and each SKILL.md `description` is the routing
+  the dispatch map holds `box-packer` + `item-finder` + `box-label` + `box-card`, and each SKILL.md `description` is the routing
   SSOT. Photos never reach it (locked → `/resume`, unlocked → the controller's pre-check).
 - `chat/InventoryChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` · `web/ResumeController` · `web/ManifestController`.

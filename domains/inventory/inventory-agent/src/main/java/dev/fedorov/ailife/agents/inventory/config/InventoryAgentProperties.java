@@ -6,14 +6,24 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Outbound HTTP destinations the inventory agent talks to. {@code mcpInventoryUrl} is its own data
  * (the inventory domain-MCP — zones, containers, items); {@code mcpMediaProcessingUrl} is the shared
- * media capability whose {@code /internal/caption} passthrough names a photographed thing (IN-c). The
- * profile / notifier / memory URLs back the shared {@code agent-runtime} clients every agent imports.
+ * media capability whose {@code /internal/caption} passthrough names a photographed thing (IN-c);
+ * {@code mediaServiceUrl} stores the QR label PNG and the container card, and
+ * {@code publicMediaBaseUrl} is the externally-reachable base the owner's link is built from (IN-d).
+ * The profile / notifier / memory URLs back the shared {@code agent-runtime} clients every agent
+ * imports.
+ *
+ * <p>{@code telegramBotUsername} is the bot the printed label's deep link points at — the same value
+ * gateway-telegram mints invite links with (env {@code GATEWAY_TELEGRAM_BOT_USERNAME}), because a
+ * scanned box and a redeemed invite arrive on the one {@code /start} path.
  */
 @ConfigurationProperties(prefix = "inventory-agent")
 public class InventoryAgentProperties implements SharedClientProperties {
 
     private String mcpInventoryUrl = "http://mcp-inventory:8127";
     private String mcpMediaProcessingUrl = "http://mcp-media-processing:8097";
+    private String mediaServiceUrl = "http://media-service:8088";
+    private String publicMediaBaseUrl = "http://media-service:8088";
+    private String telegramBotUsername = "ai_life_bot";
     private String profileServiceUrl = "http://profile-service:8082";
     private String notifierUrl = "http://notifier-service:8084";
     private String memoryServiceUrl = "http://memory-service:8087";
@@ -24,6 +34,19 @@ public class InventoryAgentProperties implements SharedClientProperties {
     public String getMcpMediaProcessingUrl() { return mcpMediaProcessingUrl; }
     public void setMcpMediaProcessingUrl(String mcpMediaProcessingUrl) {
         this.mcpMediaProcessingUrl = mcpMediaProcessingUrl;
+    }
+
+    public String getMediaServiceUrl() { return mediaServiceUrl; }
+    public void setMediaServiceUrl(String mediaServiceUrl) { this.mediaServiceUrl = mediaServiceUrl; }
+
+    public String getPublicMediaBaseUrl() { return publicMediaBaseUrl; }
+    public void setPublicMediaBaseUrl(String publicMediaBaseUrl) {
+        this.publicMediaBaseUrl = publicMediaBaseUrl;
+    }
+
+    public String getTelegramBotUsername() { return telegramBotUsername; }
+    public void setTelegramBotUsername(String telegramBotUsername) {
+        this.telegramBotUsername = telegramBotUsername;
     }
 
     public String getProfileServiceUrl() { return profileServiceUrl; }

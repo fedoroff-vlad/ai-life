@@ -95,12 +95,15 @@ story, no "which field wins" ambiguity.
 Per the docs/travel convention each LLM seam should get an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated,
 not in fast CI) asserting **structure, not wording**. **None exist yet** — the slices so far are
 covered by MockWebServer tests, which prove the wiring but not that a real model routes and extracts
-correctly. Owed: a routing golden over the two trigger-less skills (`box-packer` vs `item-finder` — the
-choice only became real when the second one landed in IN-e), a `box-packer` extract golden, and an
-`item-finder` query-distil golden. Writing them needs a real model run (`scripts/golden.sh`), so they
-are their own slice rather than a claim made here. The routing/distil ones are cheap enough for the dev
-box; anything generation-heavy waits for the deploy model (the lane is throughput-gated there —
-[`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests). Names go in backticks once the classes exist — the
+correctly. Owed: a routing golden over the four trigger-less skills (`box-packer` vs `item-finder` vs
+`box-label` vs `box-card` — the choice grew with each slice, and the last two are the closest pair:
+"что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder`), a `box-packer` extract
+golden, an `item-finder` query-distil golden and a `box-label`/`box-card` container-distil golden
+(a bare code vs a spoken name). Writing them needs a real model run (`scripts/golden.sh`), so they
+are their own slice rather than a claim made here. These are all routing/distil shaped — cheap enough
+for the dev box; anything generation-heavy would wait for the deploy model (the lane is
+throughput-gated there — [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md)
+§Golden tests). Names go in backticks once the classes exist — the
 spec→test trace of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.
 
 ## PR slices
@@ -181,20 +184,39 @@ model; captioning soft-fails to an unnamed item (the photo *is* the record).
   - THEN `inventory` is advertised with the `box-packer` skill and both bound MCPs
     (asserted by `ManifestControllerTest`)
 
-### IN-d — QR issue + the container card (`box-label`, `box-card`)
+### IN-d — QR issue + the container card (`box-label`, `box-card`) ✅ DONE
 **Requirement:** a packed container SHALL yield a printable label image and a readable card.
 
 On close (and on demand): ZXing renders the deep-link PNG → media-service → the owner gets the image
 plus a `libs/doc-render` card (code · label · zone · status · photo gallery · item list).
 
+Both are issued **when the box closes** — that is the moment the owner has a taped-up box in front of
+them — and again on demand (`box-label` / `box-card`, each a strict-JSON distil of *which* container).
+They stay **two artifacts**: the sticker's whole job is to carry an id, the card is the page a scan
+opens. Encoding lives in the agent (`label/BoxLabelImage`) because it is a pure function, mirroring
+[`libs/doc-render`](../libs/doc-render/README.md) §"Why a lib"; the *decode* half is the capability
+tool (IN-b), since that one reads bytes out of media-service. On the closing path both halves
+soft-fail: the container is already `packed`, so a media hiccup costs a link, not the close. An
+on-demand ask that resolves to no container is answered, never guessed — a wrong guess prints a
+sticker for the wrong box.
+
 - **Scenario: label is content-independent**
   - WHEN items are added to a container after its label was issued
   - THEN the label image and `qr_token` are unchanged and the card reflects the new items
-    (not yet asserted — slice not built)
+    (asserted by `BoxLabelerTest` — the same token renders byte-identical PNG and decodes back to
+    `box_<token>`, while the card is rendered from the live container view)
 - **Scenario: card render**
   - WHEN a container card is requested
   - THEN an HTML board is stored and linked, listing every item with its photo
-    (not yet asserted — slice not built)
+    (asserted by `BoxLabelerTest`)
+- **Scenario: closing hands over both**
+  - WHEN the owner closes a box
+  - THEN the reply carries the printable label and the card, and a media outage still closes the box
+    without them (asserted by `BoxPackerTest`)
+- **Scenario: the box could not be identified**
+  - WHEN the container named in a label/card request matches nothing
+  - THEN the agent asks for the code instead of picking a box, and nothing is rendered or stored
+    (asserted by `BoxLabelerTest`)
 
 ### IN-e — `item-finder` ("где лежит X")
 **Requirement:** the agent SHALL answer where a thing is stored.

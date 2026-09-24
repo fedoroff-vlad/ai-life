@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
+import dev.fedorov.ailife.agents.inventory.label.BoxLabeler;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
@@ -60,15 +61,18 @@ public class BoxPacker {
     private final SkillRegistry skills;
     private final InventoryClient inventory;
     private final CaptionClient caption;
+    private final BoxLabeler labeler;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public BoxPacker(LlmClient llm, SkillRegistry skills, InventoryClient inventory,
-                     CaptionClient caption, AgentManifest manifest, ObjectMapper json) {
+                     CaptionClient caption, BoxLabeler labeler, AgentManifest manifest,
+                     ObjectMapper json) {
         this.llm = llm;
         this.skills = skills;
         this.inventory = inventory;
         this.caption = caption;
+        this.labeler = labeler;
         this.manifest = manifest;
         this.json = json;
     }
@@ -112,7 +116,7 @@ public class BoxPacker {
         return classify(msg).flatMap(draft -> {
             String action = text(draft, "action");
             if ("close".equals(action)) {
-                return close(pending, containerId);
+                return close(pending, containerId, msg);
             }
             if ("open".equals(action)) {
                 return Mono.just(keepPacking(pending,
@@ -196,16 +200,24 @@ public class BoxPacker {
                 });
     }
 
-    private Mono<IntentResponse> close(JsonNode pending, UUID containerId) {
+    /**
+     * Closing is also when the two deliverables are issued (IN-d): the owner has a taped-up box in
+     * front of them and needs the sticker for it plus the card a scan will show. Both soft-fail inside
+     * {@link BoxLabeler#deliver} — the container is already {@code packed} in the store, so a media
+     * hiccup may cost a link, never the close.
+     */
+    private Mono<IntentResponse> close(JsonNode pending, UUID containerId, NormalizedMessage msg) {
         int count = pending.path("count").asInt(0);
         return inventory.saveContainer(new SaveContainerInput(
                         containerId, null, null, null, null, null, null, "packed", null, null))
-                .map(container -> new IntentResponse(manifest.name(),
-                        "Коробка " + container.code() + (container.label() == null
-                                ? "" : " «" + container.label() + "»")
-                                + " закрыта. Внутри " + itemsWord(count) + ".",
-                        null, null)
-                        .withTrace("wrote: closed a storage container"))
+                .flatMap(container -> labeler.deliver(msg, container)
+                        .map(links -> new IntentResponse(manifest.name(),
+                                "Коробка " + container.code() + (container.label() == null
+                                        ? "" : " «" + container.label() + "»")
+                                        + " закрыта. Внутри " + itemsWord(count) + "."
+                                        + BoxLabeler.linksText(links),
+                                null, null)
+                                .withTrace("wrote: closed a storage container")))
                 .onErrorResume(e -> {
                     log.warn("closing the container failed: {}", e.toString());
                     return Mono.just(keepPacking(pending, "Не смог закрыть коробку. Попробуйте ещё раз."));

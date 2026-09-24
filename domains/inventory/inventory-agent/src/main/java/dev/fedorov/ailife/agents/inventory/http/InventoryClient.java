@@ -65,6 +65,24 @@ public class InventoryClient {
                 .timeout(TIMEOUT);
     }
 
+    /**
+     * The household's containers — how an on-demand "коробка B-07" is resolved to its id (IN-d). The
+     * store has no by-code lookup on purpose: a household has tens of containers, so matching the
+     * spoken code or label agent-side costs one call and keeps the MCP surface small.
+     */
+    public Mono<List<ContainerDto>> listContainers(UUID householdId, Integer limit) {
+        return http.get()
+                .uri(b -> {
+                    b.path("/internal/containers").queryParam("householdId", householdId);
+                    if (limit != null) b.queryParam("limit", limit);
+                    return b.build();
+                })
+                .retrieve()
+                .bodyToFlux(ContainerDto.class)
+                .collectList()
+                .timeout(TIMEOUT);
+    }
+
     public Mono<ItemDto> saveItem(SaveItemInput input) {
         return http.post()
                 .uri("/internal/items")
