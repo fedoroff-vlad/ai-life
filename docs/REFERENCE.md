@@ -200,7 +200,7 @@ Agents don't notice — the switch is only in `llm-gateway`.
 
 ### How to run (locally)
 
-1. `cd infra && docker compose up` — brings up Postgres (pgvector + AGE), Radicale, MinIO, SearXNG,
+1. `cd infra && docker compose up` — brings up Postgres (pgvector + AGE), Radicale, SeaweedFS, SearXNG,
    Langfuse, and all agents/MCPs.
 2. Create a Telegram bot, put the token + your `telegram_user_id` into `.env` (from `infra/.env.example`).
 3. *(to make it "smart")* set a real `LLM_PROVIDER` (Ollama or Anthropic) in `.env`, restart `llm-gateway`.

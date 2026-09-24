@@ -71,13 +71,6 @@
             <artifactId>test-support</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- media-service ensures its bucket at boot (@PostConstruct), so co-hosting it needs a live
-             MinIO — same MinIOContainer the media-service IT uses. -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-minio</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

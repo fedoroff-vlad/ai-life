@@ -4,7 +4,8 @@ import dev.fedorov.ailife.test.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.ArrayList;
@@ -28,8 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * schema is needed to start the web servers — enough to prove co-residency). Two module-specific boot
  * needs are handled without changing any module:
  * <ul>
- *   <li><b>media-service</b> ensures its bucket at boot ({@code @PostConstruct}), so a live MinIO is
- *       provided by a {@link MinIOContainer} — the same one the media-service IT uses;</li>
+ *   <li><b>media-service</b> ensures its bucket at boot ({@code @PostConstruct}), so a live S3 store is
+ *       provided by a SeaweedFS container — the same one the media-service IT uses;</li>
  *   <li>the two {@code @Scheduled} ticks are kept quiet during the short test:
  *       {@code notifier.held-redrain-enabled=false} (the notifier tests' own toggle) and a far-future
  *       {@code scheduler.tick-millis} so the scheduler tick never fires against the (absent) schema.</li>
@@ -39,16 +40,21 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class PlatformHostFootprintIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    static final MinIOContainer MINIO;
+    private static final int S3_PORT = 8333;
+
+    /** The object store media-service talks to — SeaweedFS (S3 API); see media-service/README. */
+    static final GenericContainer<?> OBJECT_STORE;
 
     static {
-        // MinIO removed the minio/minio repo from Docker Hub (all tags 404); pull the image from MinIO's
-        // canonical registry, quay.io. asCompatibleSubstituteFor keeps MinIOContainer happy with the
-        // non-Docker-Hub registry path.
-        MINIO = new MinIOContainer(
-                DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z")
-                        .asCompatibleSubstituteFor("minio/minio"));
-        MINIO.start();
+        OBJECT_STORE = new GenericContainer<>(DockerImageName.parse("chrislusf/seaweedfs:3.97"))
+                .withCommand("server", "-dir=/data", "-s3", "-s3.port=" + S3_PORT, "-ip.bind=0.0.0.0")
+                .withExposedPorts(S3_PORT)
+                .waitingFor(Wait.forLogMessage(".*Start Seaweed S3 API Server.*", 1));
+        OBJECT_STORE.start();
+    }
+
+    private static String s3Endpoint() {
+        return "http://" + OBJECT_STORE.getHost() + ":" + OBJECT_STORE.getMappedPort(S3_PORT);
     }
 
     private static final List<ConfigurableApplicationContext> CONTEXTS = new ArrayList<>();
@@ -88,9 +94,10 @@ class PlatformHostFootprintIntegrationTest extends AbstractPostgresIntegrationTe
         Map<String, Object> p = baseProps();
         switch (hosted.name()) {
             case "media-service" -> {
-                p.put("media.minio.endpoint", MINIO.getS3URL());
-                p.put("media.minio.access-key", MINIO.getUserName());
-                p.put("media.minio.secret-key", MINIO.getPassword());
+                // No -s3.config identity file → any credentials are accepted.
+                p.put("media.s3.endpoint", s3Endpoint());
+                p.put("media.s3.access-key", "test-access");
+                p.put("media.s3.secret-key", "test-secret");
             }
             // keep the @Scheduled ticks quiet for the duration of the test
             case "notifier-service" -> p.put("notifier.held-redrain-enabled", "false");

@@ -16,10 +16,10 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayInputStream;
 
 /**
- * Thin wrapper over the MinIO SDK scoped to a single bucket. Hides MinIO's broad checked-exception
+ * Thin wrapper over the S3 SDK scoped to a single bucket. Hides the SDK's broad checked-exception
  * surface behind one unchecked {@link ObjectStoreException} so callers stay readable. The bucket is
- * created on startup if it doesn't exist — idempotent, so re-deploys against a populated MinIO are
- * a no-op.
+ * created on startup if it doesn't exist — idempotent, so re-deploys against a populated store are
+ * a no-op. The store itself is SeaweedFS (S3 API); see the module README §Object store.
  */
 @Component
 public class ObjectStore {
@@ -31,7 +31,7 @@ public class ObjectStore {
 
     public ObjectStore(MinioClient client, MediaServiceProperties props) {
         this.client = client;
-        this.bucket = props.getMinio().getBucket();
+        this.bucket = props.getS3().getBucket();
     }
 
     public String bucket() {
@@ -44,7 +44,7 @@ public class ObjectStore {
             boolean exists = client.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
             if (!exists) {
                 client.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
-                log.info("created MinIO bucket '{}'", bucket);
+                log.info("created object-store bucket '{}'", bucket);
             }
         } catch (Exception e) {
             throw new ObjectStoreException("failed to ensure bucket '" + bucket + "'", e);

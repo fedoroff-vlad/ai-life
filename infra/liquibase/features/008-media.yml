@@ -5,7 +5,7 @@ databaseChangeLog:
       author: ai-life
       comment: |
         media schema. media.media_object is the catalogue of binary blobs whose
-        bytes live in MinIO (object store), not in Postgres. One row per stored
+        bytes live in the S3-API object store, not in Postgres. One row per stored
         object: who owns it (household + optional user), what it is (kind +
         mime), how big, a sha256 for integrity/future dedup, and where it lives
         (bucket + storage_key). source records the ingestion path (telegram, …).

@@ -6,7 +6,7 @@ IntentRouter → `LlmIntentClassifier` on `fast` channel; few-shot prompt built 
 Also the single entry the scheduler uses to wake any agent (so human-triggered and schedule-triggered wake-ups are identical).
 
 ## gateway-telegram (platform/)
-Long polling at start → webhook when TLS. Resolve telegram_user_id → user/household/scope. Store incoming media in MinIO, pass links. BEFORE orchestrator call mcp-media-processing: audio→STT, image→vision-caption+OCR, video→keyframes+STT, file→text. Output: unified NormalizedMessage. Bot token lives ONLY here; `/internal/send` endpoint (guarded by the central `INTERNAL_SHARED_SECRET` filter, #630) used by notifier.
+Long polling at start → webhook when TLS. Resolve telegram_user_id → user/household/scope. Store incoming media in the object store, pass links. BEFORE orchestrator call mcp-media-processing: audio→STT, image→vision-caption+OCR, video→keyframes+STT, file→text. Output: unified NormalizedMessage. Bot token lives ONLY here; `/internal/send` endpoint (guarded by the central `INTERNAL_SHARED_SECRET` filter, #630) used by notifier.
 
 ### Multimodal & reply UX ([#489](https://github.com/fedoroff-vlad/ai-life/issues/489), road-test)
 The daily surface is Telegram (voice / photo / text); its rough edges are felt on every interaction. A broad
@@ -167,7 +167,7 @@ pgvector (embeddings) + Apache AGE (graph: Person/Place/Item/Event, edges likes/
 API: `POST /remember`, `POST /recall` (top-k + scope filter + optional graph-walk), `POST /forget`, `GET /graph/person/{id}/relations`. Orchestrator calls recall before routing.
 
 ## media-service (platform/, port 8088)
-Central media catalogue. Bytes live in **MinIO** (S3-compatible object store, raised in Docker like Postgres); metadata in `media.media_object`. REST: `POST /v1/media` (multipart upload → `MediaObjectDto`), `GET /v1/media/{id}` (raw bytes), `GET /v1/media/{id}/meta`, `DELETE /v1/media/{id}`. Callers reference an object only by `id` — bucket/key layout is internal. Every media-ingesting path goes through here instead of carrying raw bytes: finance receipts first, then future nutrition / stylist / researcher agents. No auth (internal-only); fetch is household-agnostic (caller authorized upstream). Image vision-caption / audio STT (`mcp-media-processing`) is a separate later layer — this service is storage + metadata only.
+Central media catalogue. Bytes live in an **S3-API object store** (SeaweedFS, raised in Docker like Postgres — it replaced MinIO once MinIO's server image left every public registry — [ADR-0009](adr/ADR-0009-object-store.md); the module README carries the operational detail); metadata in `media.media_object`. REST: `POST /v1/media` (multipart upload → `MediaObjectDto`), `GET /v1/media/{id}` (raw bytes), `GET /v1/media/{id}/meta`, `DELETE /v1/media/{id}`. Callers reference an object only by `id` — bucket/key layout is internal. Every media-ingesting path goes through here instead of carrying raw bytes: finance receipts first, then future nutrition / stylist / researcher agents. No auth (internal-only); fetch is household-agnostic (caller authorized upstream). Image vision-caption / audio STT (`mcp-media-processing`) is a separate later layer — this service is storage + metadata only.
 
 ## scheduler-service (platform/, port 8085)
 `@EnableScheduling` + ShedLock (JDBC, `core.shedlock`). Table `core.schedules (id, owner_agent, cron/rrule, kind, payload jsonb, enabled, next_run_ts)`. Tick selects due jobs → POST orchestrator to wake target agent with payload. Recomputes next_run (recurring) or marks done (one_off). Does NOT think/format — only triggers. Tools (mcp-scheduler): schedule_once, schedule_recurring, list_jobs, pause/resume/cancel_job.
@@ -240,7 +240,7 @@ with the #489 button infra).
 - `memory` — pgvector + AGE.
 - `audit` — events + LLM trace fallback (if not Langfuse).
 - `bus` — outbox + LISTEN/NOTIFY (libs/event-bus).
-- `media` — file metadata (files themselves in MinIO).
+- `media` — file metadata (files themselves in the object store).
 - `core.shedlock`, `core.schedules`, `core.conversations`, `core.sessions`.
 
 ## Observability / secrets

@@ -32,9 +32,9 @@ shared-classpath concerns are handled by the launcher:
   the rollout, ADR-0006 item 4).
 
 ## Tests
-- `PlatformHostFootprintIntegrationTest` (`it`, Testcontainers PG + MinIO) — boots all seven platform
+- `PlatformHostFootprintIntegrationTest` (`it`, Testcontainers PG + SeaweedFS) — boots all seven platform
   contexts in one JVM (random ports, `ddl-auto=none`) and asserts co-residency: all live, seven distinct
-  ports, each context carrying only its own application bean. media-service gets a live `MinIOContainer`
+  ports, each context carrying only its own application bean. media-service gets a live SeaweedFS container
   (its `@PostConstruct` ensures a bucket); the two `@Scheduled` ticks are kept quiet
   (`notifier.held-redrain-enabled=false`, far-future `scheduler.tick-millis`); gateway boots token-less so
   the bot + inbox redriver stay off.

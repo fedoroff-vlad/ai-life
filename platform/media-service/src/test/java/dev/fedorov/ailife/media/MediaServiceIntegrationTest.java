@@ -17,7 +17,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -33,20 +34,32 @@ import static org.springframework.http.client.MultipartBodyBuilder.PartBuilder;
 @AutoConfigureWebTestClient
 class MediaServiceIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    // MinIO removed the minio/minio repo from Docker Hub (all tags 404); pull the image from MinIO's
-    // canonical registry, quay.io. asCompatibleSubstituteFor keeps Testcontainers' MinIOContainer happy
-    // with the non-Docker-Hub registry path.
+    /**
+     * The object store is <b>SeaweedFS</b>, not MinIO: MinIO stopped publishing its server image to
+     * any public registry (Docker Hub 401, quay.io 401 since 2026-09-24, ghcr 403), so a fresh host
+     * — CI or the deploy box — can no longer pull it at all. SeaweedFS is Apache-2.0, ships a public
+     * image and speaks the same S3 API, so the service code is unchanged (see media-service/README).
+     *
+     * <p>{@code server -s3} runs master+volume+filer+S3 in one process — the whole store the service
+     * needs. With no {@code -s3.config} identity file it accepts any credentials, so the keys below
+     * are arbitrary; the deploy mounts a real identity file instead.
+     */
+    private static final int S3_PORT = 8333;
+
     @Container
-    static MinIOContainer minio = new MinIOContainer(
-            DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z")
-                    .asCompatibleSubstituteFor("minio/minio"));
+    static GenericContainer<?> objectStore = new GenericContainer<>(
+            DockerImageName.parse("chrislusf/seaweedfs:3.97"))
+            .withCommand("server", "-dir=/data", "-s3", "-s3.port=" + S3_PORT, "-ip.bind=0.0.0.0")
+            .withExposedPorts(S3_PORT)
+            .waitingFor(Wait.forLogMessage(".*Start Seaweed S3 API Server.*", 1));
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry registry) {
         registerDataSource(registry);
-        registry.add("media.minio.endpoint", minio::getS3URL);
-        registry.add("media.minio.access-key", minio::getUserName);
-        registry.add("media.minio.secret-key", minio::getPassword);
+        registry.add("media.s3.endpoint", () -> "http://" + objectStore.getHost() + ":"
+                + objectStore.getMappedPort(S3_PORT));
+        registry.add("media.s3.access-key", () -> "test-access");
+        registry.add("media.s3.secret-key", () -> "test-secret");
         // Small cap so the oversized-rejection test can stay tiny.
         registry.add("media.max-bytes", () -> 1024);
     }
@@ -86,7 +99,7 @@ class MediaServiceIntegrationTest extends AbstractPostgresIntegrationTest {
                 "SELECT count(*) FROM media.media_object WHERE id = ?", Integer.class, dto.id());
         assertThat(rows).isEqualTo(1);
 
-        // Bytes round-trip through MinIO unchanged.
+        // Bytes round-trip through the object store unchanged.
         byte[] back = client().get().uri("/v1/media/{id}", dto.id())
                 .exchange()
                 .expectStatus().isOk()

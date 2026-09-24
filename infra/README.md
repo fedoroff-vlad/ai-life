@@ -6,7 +6,7 @@ Local development infrastructure + full-system compose for ai-life.
 
 | file | covers | when |
 |---|---|---|
-| `docker-compose.dev.yml` | postgres + liquibase + radicale + minio + searxng + whisper + grafana (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
+| `docker-compose.dev.yml` | postgres + liquibase + radicale + seaweedfs + searxng + whisper + grafana (backing services only, no app services) | IDE-driven development. Run JVMs from IntelliJ pointed at host ports. |
 | `docker-compose.yml` | everything in `dev.yml` **plus** the full app stack — all platform services, domain agents, and MCP servers (see the port table below for the current set) | End-to-end smoke testing, Mac Studio deployment, validating a release. |
 
 **Hot/cold profiles (LC-1).** In `docker-compose.yml` every service is tagged `profiles: ["hot"]`
@@ -98,10 +98,10 @@ Fill the four required secrets there too (`GATEWAY_TELEGRAM_BOT_TOKEN`, the two 
 tokens, CalDAV creds).
 
 ### Host port binding (#628)
-Every published host port (postgres, radicale, minio, searxng, whisper, grafana, llm-gateway,
+Every published host port (postgres, radicale, seaweedfs, searxng, whisper, grafana, llm-gateway,
 gateway-telegram) is bound to **`${BIND_ADDR:-127.0.0.1}` — loopback-only by default**, so nothing is
 reachable from the LAN/tailnet even if the box sits on an untrusted network; they exist for host-local
-ops (psql, the Radicale/MinIO/Grafana UIs) and inter-service calls ride the internal `ai-life` docker
+ops (psql, the Radicale/SeaweedFS/Grafana UIs) and inter-service calls ride the internal `ai-life` docker
 network regardless. The Telegram bot uses **long-polling** (it dials out), so it needs no inbound.
 Off-host access is deliberate and narrow: `calendar-web`'s ICS feed is published via the **Tailscale
 Funnel** sidecar (`tunnel` profile), not a wide-open port. If you ever need a port on the LAN, set
@@ -113,7 +113,7 @@ Funnel** sidecar (`tunnel` profile), not a wide-open port. If you ever need a po
 docker compose -f docker-compose.dev.yml down       # or docker-compose.yml
 ```
 
-Add `-v` to also remove the volumes (`postgres-data`, `radicale-data`, `minio-data`
+Add `-v` to also remove the volumes (`postgres-data`, `radicale-data`, `seaweedfs-data`
 in dev; `postgres-data`, `radicale-data` in full) if you want a clean slate.
 
 ## Database backups
@@ -201,7 +201,7 @@ name(s) you configured, then bring the profile up.
 | postgres             | 5432 | core DB (pgvector + pg_trgm; AGE later)                       |
 | radicale             | 5232 | CalDAV server (calendar source of truth)                      |
 | grafana              | 3000 | Zero-code finance dashboards over `finance.*` matviews (provisioned; see `grafana/`) |
-| minio                | 9000 / 9001 | S3-compatible object store / web console               |
+| seaweedfs            | 8333 | S3-compatible object store (filer UI on 8888, unpublished)     |
 | gateway-telegram     | 8080 | Telegram bot (long-polling, dials out) — host port is loopback-only (#628) |
 | llm-gateway          | 8081 | Provider-agnostic LLM channel                                 |
 | profile-service      | 8082 | Identity / households / people                                |
@@ -210,7 +210,7 @@ name(s) you configured, then bring the profile up.
 | scheduler-service    | 8085 | Cron / one-shot triggers                                      |
 | calendar-agent       | 8086 | Calendar domain agent                                         |
 | memory-service       | 8087 | pgvector recall + single-hop relations                        |
-| media-service        | 8088 | media catalogue (MinIO blobs + metadata)                      |
+| media-service        | 8088 | media catalogue (S3 blobs + metadata)                         |
 | conversation-service | 8089 | short-term conversation control state (route-lock + pending)  |
 | mcp-caldav           | 8090 | CalDAV CRUD MCP                                               |
 | mcp-ics-import       | 8091 | ICS subscription puller                                       |

@@ -3,27 +3,28 @@ package dev.fedorov.ailife.media.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Maps {@code media.*} env-driven config. MinIO connection settings live under
- * {@code media.minio.*}; {@code max-bytes} caps a single upload (receipts/voice
- * notes are small — a hard cap keeps a rogue caller from OOMing the service,
- * which reads the whole blob into memory before streaming it to MinIO).
+ * Maps {@code media.*} env-driven config. Object-store connection settings live under
+ * {@code media.s3.*} — named after the <b>protocol</b>, not the product, because the server behind it
+ * has already changed once (MinIO → SeaweedFS, see media-service/README) while the S3 API did not;
+ * {@code max-bytes} caps a single upload (receipts/voice notes are small — a hard cap keeps a rogue
+ * caller from OOMing the service, which reads the whole blob into memory before streaming it out).
  */
 @ConfigurationProperties(prefix = "media")
 public class MediaServiceProperties {
 
-    private final Minio minio = new Minio();
+    private final S3 s3 = new S3();
 
     /** Max size of a single uploaded object, in bytes. Default 10 MiB. */
     private long maxBytes = 10L * 1024 * 1024;
 
-    public Minio getMinio() { return minio; }
+    public S3 getS3() { return s3; }
 
     public long getMaxBytes() { return maxBytes; }
     public void setMaxBytes(long maxBytes) { this.maxBytes = maxBytes; }
 
-    public static class Minio {
-        /** S3 endpoint, e.g. {@code http://localhost:9000}. */
-        private String endpoint = "http://localhost:9000";
+    public static class S3 {
+        /** S3 endpoint, e.g. {@code http://localhost:8333} (SeaweedFS S3 API). */
+        private String endpoint = "http://localhost:8333";
         private String accessKey = "ailife";
         private String secretKey = "ailife-secret";
         /** Bucket all objects land in. Created on startup if absent. */

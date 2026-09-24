@@ -1,5 +1,5 @@
 # Local development infrastructure only.
-# Brings up Postgres (with pgvector + pg_trgm), Radicale (CalDAV), MinIO (S3-compatible),
+# Brings up Postgres (with pgvector + pg_trgm), Radicale (CalDAV), SeaweedFS (S3-compatible),
 # SearXNG, Whisper, and Grafana (zero-code finance dashboards over finance.* matviews).
 # Application services (gateway, orchestrator, agents, mcp-*) live in docker-compose.yml,
 # added in later PRs. Until then run apps from your IDE pointed at these ports.
@@ -96,21 +96,27 @@ services:
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${WHISPER_PORT:-9100}:9000"
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: ai-life-minio
+  # S3-API object store for media blobs — SeaweedFS (MinIO no longer publishes public server images;
+  # see docker-compose.yml for the full note). `server -s3` = master+volume+filer+S3 in one process.
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.97
+    container_name: ai-life-seaweedfs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ailife}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ailife-secret}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mkdir -p /etc/seaweedfs
+        printf '%s' '{"identities":[{"name":"ailife","credentials":[{"accessKey":"${S3_ACCESS_KEY:-ailife}","secretKey":"${S3_SECRET_KEY:-ailife-secret}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' > /etc/seaweedfs/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -ip.bind=0.0.0.0
     ports:
-      - "${BIND_ADDR:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
-      - "${BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${BIND_ADDR:-127.0.0.1}:${S3_API_PORT:-8333}:8333"
+      # Filer UI (browse stored objects) — uncomment when you need to look inside.
+      # - "${BIND_ADDR:-127.0.0.1}:${S3_FILER_PORT:-8888}:8888"
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9333/cluster/status || curl -fsS http://localhost:9333/cluster/status"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -149,5 +155,5 @@ services:
 volumes:
   postgres-data:
   radicale-data:
-  minio-data:
+  seaweedfs-data:
   grafana-data:
