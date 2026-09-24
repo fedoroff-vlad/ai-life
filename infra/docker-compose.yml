@@ -3,7 +3,7 @@
 # Use this when you want the whole system up (e.g. validating end-to-end on
 # Mac Studio, or smoke-testing a release). For IDE-driven development you
 # usually want docker-compose.dev.yml instead — that one stops at the infra
-# layer (postgres + radicale + minio + one-shot liquibase) so you can run
+# layer (postgres + radicale + seaweedfs + one-shot liquibase) so you can run
 # the JVMs from IntelliJ pointed at host ports.
 #
 #   cp .env.example .env                                          # edit if you want non-default ports/passwords
@@ -203,23 +203,36 @@ services:
       timeout: 5s
       retries: 5
 
-  minio:
+  # Object store for media blobs (S3 API). SeaweedFS, not MinIO: MinIO stopped publishing its server
+  # image to any public registry (Docker Hub 401, quay.io 401 since 2026-09-24, ghcr 403), so a fresh
+  # host could no longer pull it. SeaweedFS is Apache-2.0, speaks the same S3 API and `server -s3` runs
+  # master+volume+filer+S3 in one process — one container, as before.
+  # Access keys are enforced via an identity file; it cannot interpolate env, so the entrypoint writes
+  # it from the compose vars before exec'ing weed (the credential's visibility in `docker inspect` is
+  # the same as MinIO's env vars had).
+  seaweedfs:
     profiles: ["hot"]
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    container_name: ai-life-minio
+    image: chrislusf/seaweedfs:3.97
+    container_name: ai-life-seaweedfs
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mkdir -p /etc/seaweedfs
+        printf '%s' '{"identities":[{"name":"ailife","credentials":[{"accessKey":"${S3_ACCESS_KEY:-ailife}","secretKey":"${S3_SECRET_KEY:-ailife-secret}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' > /etc/seaweedfs/s3.json
+        exec weed server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -ip.bind=0.0.0.0
     environment:
       <<: *internal-secret
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ailife}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ailife-secret}
     ports:
-      - "${BIND_ADDR:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
-      - "${BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${BIND_ADDR:-127.0.0.1}:${S3_API_PORT:-8333}:8333"
+      # Filer UI (browse stored objects) — uncomment when you need to look inside.
+      # - "${BIND_ADDR:-127.0.0.1}:${S3_FILER_PORT:-8888}:8888"
     volumes:
-      - minio-data:/data
+      - seaweedfs-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # The image is alpine-based; either busybox wget or curl is present, so accept whichever works.
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9333/cluster/status || curl -fsS http://localhost:9333/cluster/status"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -410,7 +423,7 @@ services:
         condition: service_healthy
       liquibase:
         condition: service_completed_successfully
-      minio:
+      seaweedfs:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -419,9 +432,9 @@ services:
       MEDIA_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
       MEDIA_DB_USER: ${POSTGRES_USER:-ailife}
       MEDIA_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-ailife}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-ailife-secret}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-ailife}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-ailife-secret}
       MEDIA_BUCKET: ${MEDIA_BUCKET:-ai-life-media}
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}
     healthcheck:
@@ -2025,6 +2038,6 @@ services:
 volumes:
   postgres-data:
   radicale-data:
-  minio-data:
+  seaweedfs-data:
   grafana-data:
   tailscale-calendar-state:

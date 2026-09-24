@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Stages
-- **Stage 0 — foundation:** Maven parent + libs (contracts, mock-LLM). docker-compose (PG+pgvector+AGE, Radicale, MinIO, Langfuse). Liquibase skeleton + 001-core. profile-service + REST. `/start` via telegram-gateway. llm-gateway mock provider. orchestrator skeleton (echo agent). CI (build+test+docker image).
+- **Stage 0 — foundation:** Maven parent + libs (contracts, mock-LLM). docker-compose (PG+pgvector+AGE, Radicale, an S3 object store, Langfuse). Liquibase skeleton + 001-core. profile-service + REST. `/start` via telegram-gateway. llm-gateway mock provider. orchestrator skeleton (echo agent). CI (build+test+docker image).
 - **Stage 1 — calendar:** mcp-caldav + Radicale; create/list/update/delete/search. mcp-ics-import (hourly). calendar-agent + birthday-greeter. scheduler-service + proactive day-before-birthday trigger → notifier. gift-recommender skill. video-link-analyzer (mcp-youtube or web-search fallback). See calendar.md.
 - **Stage 2 — finance:** finance schema + Liquibase 020. mcp-finance (CRUD + aggregates). mcp-money-pro-import (CSV + dry-run). finance-agent + transaction-categorizer. receipt-parser. budgets + budget-alerts. See finance.md.
 - **Stage 3 — tasks (GTD):** tasks schema + mcp-tasks + tasks-agent. Inbox: anything not calendar/finance → tasks-inbox. "turn task into event" link with calendar.

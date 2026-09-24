@@ -28,7 +28,7 @@ scope** (it carries no JVM baseline).
 | Capability-MCP (schema-less) | 11 | mcp-chart-render · mcp-feeds · mcp-food-data · mcp-image-gen · mcp-market-data · mcp-media-processing · mcp-reddit · mcp-travel-search · mcp-weather · mcp-web · mcp-youtube |
 | Platform (Java services) | 10 | calendar-web · conversation-service · gateway-telegram · llm-gateway · media-service · memory-service · notifier-service · orchestrator · profile-service · scheduler-service |
 | **Total JVM** | **47** | |
-| Non-JVM backing (out of scope) | — | postgres (+backup) · radicale · minio · searxng · whisper · grafana · liquibase (one-shot) · rclone-offsite · tailscale sidecars |
+| Non-JVM backing (out of scope) | — | postgres (+backup) · radicale · seaweedfs · searxng · whisper · grafana · liquibase (one-shot) · rclone-offsite · tailscale sidecars |
 
 ## Grouping principles
 1. **A host is a hot/cold unit.** A cold module must not be co-hosted into an always-resident host (that
@@ -40,7 +40,7 @@ scope** (it carries no JVM baseline).
 3. **Isolated singletons never consolidate:** `llm-gateway` (holds/proxies the model, own LC-4 downshift
    lifecycle) and `memory-service` (heavy pgvector + Apache AGE reads on the hot path of every recall /
    ambient write — distinct resource profile, decided isolated up front, 2026-08-28). Non-JVM backing
-   (Postgres/Radicale/MinIO/SearXNG/whisper/Grafana) is out of scope entirely.
+   (Postgres/Radicale/SeaweedFS/SearXNG/whisper/Grafana) is out of scope entirely.
 4. **Native-image (path C, ADR-0006 Option C) targets the resident set first** — always-in-memory hosts
    have the biggest payoff.
 
@@ -89,7 +89,7 @@ CDS/AOT (LC-3a, re-scoped as the *latency* lever) or stays a plain JVM.
 | **Cold hosts** (Content · Lifestyle · Brief+Travel · Docs · Finance-aux) | **native optional — for latency, not RAM** | idle = stopped = 0 RAM, so no footprint gain; native's payoff here is instant wake (~50–100 ms vs ~8–20 s). Worth it where instant-start matters and the build is cheap; else **CDS/AOT** |
 | **Native-hostile modules** (heavy reflection / dynamic classloading not covered by Spring Boot 4 AOT hints) | **stay JVM + CDS/AOT** | hint-chasing cost exceeds the benefit |
 | **One-shot jobs** (`liquibase`) | **plain JVM** | runs at startup then exits — native pointless |
-| **Non-JVM backing** (Postgres · Radicale · MinIO · SearXNG · whisper · Grafana) | **not applicable** | not our code, not a JVM |
+| **Non-JVM backing** (Postgres · Radicale · SeaweedFS · SearXNG · whisper · Grafana) | **not applicable** | not our code, not a JVM |
 
 Two guardrails keep this from over-investing:
 - **B first makes C tractable.** Consolidation collapses 47 JVMs → ~12 hosts, so the native decision is
@@ -171,7 +171,7 @@ needs; rolled out per module as consolidation proceeds.
   per module** (reactive: gateway/orchestrator/notifier; servlet: the rest) because the skip drops each
   module's own yml declaration and `scheduler-service` carries both `spring-web` and (test-only)
   `webflux` — auto-detection would be ambiguous; (ii) the co-residency IT wires the shared Testcontainers
-  PG to every context (`ddl-auto=none`) plus a live **MinIO** for media-service's boot-time
+  PG to every context (`ddl-auto=none`) plus a live **SeaweedFS** for media-service's boot-time
   `ensureBucket`, and keeps the two `@Scheduled` ticks quiet (`notifier.held-redrain-enabled=false`,
   far-future `scheduler.tick-millis`); gateway boots token-less (bot + inbox redriver off). The isolated
   singletons `memory-service` + `llm-gateway` are **not** consolidated (§Grouping 3). **This completes the
@@ -247,7 +247,7 @@ needs; rolled out per module as consolidation proceeds.
   `application.yml` skip and the per-agent manifest-path fix) (asserted by `AgentHostFootprintIntegrationTest`).
 - Scenario: the host boots the seven resident Platform-hot contexts in one JVM → all seven are live on
   distinct ports, each context carrying only its own application bean, with mixed reactive/servlet web
-  stacks side-by-side and media-service's boot-time bucket-ensure satisfied by a live MinIO (asserted by
+  stacks side-by-side and media-service's boot-time bucket-ensure satisfied by a live SeaweedFS (asserted by
   `PlatformHostFootprintIntegrationTest`).
 - Scenario: the first cold host-unit boots an agent and its domain-MCP in one JVM → `docs-agent` +
   `mcp-docs` are both live on distinct ports, each context carrying only its own application bean, proving

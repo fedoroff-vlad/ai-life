@@ -15,7 +15,7 @@
 #   - container image  ai-life/*:local     -> JVM app  (memory-service / llm-gateway flagged as the
 #                                             isolated singletons per topology-map.md)
 #   - container image  pgvector/pgvector*  -> Postgres
-#   - any other image                      -> non-JVM backing (radicale / minio / searxng / whisper / ...)
+#   - any other image                      -> non-JVM backing (radicale / seaweedfs / searxng / whisper / ...)
 #   - the model is Ollama on the HOST (not a container, `brew services start ollama`) -> read from `ps`.
 # Cold hosts that are stopped simply don't appear; the snapshot reflects whatever is actually resident,
 # which is the number that matters for the RAM-for-the-model goal.

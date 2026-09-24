@@ -13,7 +13,7 @@
 
     <artifactId>media-service</artifactId>
     <name>ai-life :: platform :: media-service</name>
-    <description>Central media catalogue: stores binary blobs in MinIO, metadata in media.media_object.</description>
+    <description>Central media catalogue: stores binary blobs in an S3-API object store (SeaweedFS), metadata in media.media_object.</description>
 
     <dependencies>
         <dependency>
@@ -76,11 +76,6 @@
         <dependency>
             <groupId>dev.fedorov.ailife</groupId>
             <artifactId>test-support</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-minio</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

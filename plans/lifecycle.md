@@ -94,7 +94,7 @@ follows a workload profile.
 
 ## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 27 hot / 24 cold / 2 tunnel)
 - **`profiles: ["hot"]`** (always-on, 27): backing (postgres, liquibase, postgres-backup, radicale,
-  minio, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
+  seaweedfs, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
   notifier, scheduler, conversation, memory, media) + calendar (mcp-caldav + calendar-agent), finance
   (mcp-finance + finance-agent), tasks (mcp-tasks + tasks-agent), search (mcp-web + researcher-agent) +
   **mcp-media-processing** (OCR/STT for receipts & voice — passive inbound, must be ready) + **notes-agent**

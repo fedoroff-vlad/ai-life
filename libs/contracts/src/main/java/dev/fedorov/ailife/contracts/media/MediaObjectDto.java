@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Metadata for a stored media object. The bytes themselves live in MinIO (object store);
+ * Metadata for a stored media object. The bytes themselves live in the S3-API object store;
  * this row is the catalogue entry. Downstream callers reference an object purely by {@code id}
  * — they GET {@code /v1/media/{id}} for the raw bytes and never touch the bucket/key directly,
  * so the storage layout stays an internal concern of media-service.

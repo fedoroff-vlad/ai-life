@@ -21,7 +21,7 @@ gather→synthesize pattern). The LLM never "browses"; it summarizes a pre-selec
 **cheap-first:** cheap retrieval picks the material, the expensive model only writes the summary.
 
 ## Decision — search engine: **SearXNG** (LOCKED, owner 2026-06-20)
-Self-hosted meta-search container (like Radicale/MinIO in the stack): free, no API key, no quota,
+Self-hosted meta-search container (like Radicale/SeaweedFS in the stack): free, no API key, no quota,
 private (queries leave from our own host). Behind a `SearchEngine` interface (`engine/SearchEngine`,
 mirrors `OcrEngine`) selected by `mcp-web.search-engine` (`searxng` default) — so Tavily/Brave can
 replace it later via env with no caller change. SearXNG returns snippets+links; depth comes from

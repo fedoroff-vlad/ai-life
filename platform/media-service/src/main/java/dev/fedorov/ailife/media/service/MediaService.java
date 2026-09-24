@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Catalogue + object-store orchestration. Store: cap → hash → put-to-MinIO → insert-row. Fetch:
+ * Catalogue + object-store orchestration. Store: cap → hash → put-to-object-store → insert-row. Fetch:
  * row lookup → stream bytes back. Delete: remove object then row. The object key is
  * {@code <householdId>/<objectId>} so a household's blobs cluster under one prefix (handy for
  * lifecycle rules / bulk eviction later) and key collisions are impossible (object id is a UUID).
