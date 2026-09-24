@@ -38,31 +38,6 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
 - **browser capability ([TR-f3](https://github.com/fedoroff-vlad/ai-life/issues/190)) — ADR-0008 flagged, awaiting owner pick (2026-09-20).** Owner picked the TR-f3 (`mcp-browser`) track; it's a genuinely new layer (headless Chromium in the stack → footprint tension with #584, widened injection surface), so per "flag before code" it's an ADR first, not code. **[ADR-0008](adr/ADR-0008-browser-capability.md) (Proposed)** fixes the shape (cold, read-only, shared capability-MCP — per ADR-0003 + ADR-0006) and forks the engine: **Option A** deterministic Playwright-Java fetch (`resolve_url`+`fetch_rendered`, no LLM — closes RT-d short-links + the `mcp-web` JS gap; **recommended**) vs **Option B** agentic browser-use (Python + LLM, interactive tours; heaviest). **Next:** owner picks A or B → ADR to Accepted → slice the engine (WHEN/THEN-first, cold+read-only acceptance criteria + injection golden) → wire the first consumer (RT-d short-link path or `mcp-web` JS fallback). Detail → [travel.md](travel.md) §TR-f3 + §Deferred.
 
 ## Done (awaiting move to HISTORY at next closer)
-- **object store: MinIO → SeaweedFS — ✅ DONE (2026-09-24), forced by an upstream change.** MinIO stopped
-  publishing its server image to any public registry (Docker Hub 401 already, then **quay.io 401 on
-  2026-09-24**, ghcr 403, Bitnami's mirror gone), so CI could no longer pull it — `MediaServiceIntegrationTest`
-  timed out on `ContainerFetch` and every full build went red — and a **fresh deploy host could not have
-  started the stack at all**. Replaced by **SeaweedFS** (Apache-2.0, public image, `server -s3` =
-  master+volume+filer+S3 in one container): same S3 API, so the service code is unchanged and the
-  `io.minio` SDK stays (it is a plain S3 client that never left Maven Central). Config renamed after the
-  **protocol, not the product** — `media.minio.*` → `media.s3.*`, `MINIO_*` → `S3_*` — since the server
-  behind it has now changed once. Keys stay enforced: `weed -s3` only checks credentials with an identity
-  file, so the compose service writes one from `S3_ACCESS_KEY`/`S3_SECRET_KEY` at startup. Tests and deploy
-  now run the **same** store. No data migration — nothing is deployed yet (see §Deployment reality).
-  Decision + rejected alternatives → [ADR-0009](adr/ADR-0009-object-store.md); operational detail →
-  [`platform/media-service/README.md`](../platform/media-service/README.md) §Object store +
-  [platform.md](platform.md) §media-service.
-- **hardening §#633 durable inbound inbox — ✅ COMPLETE (2026-09-07).** The synchronous inbound path no
-  longer drops a user message on a downstream outage. New [`libs/inbox`](inbox is the outbox's inbound mirror)
-  (`InboxWriter` persist-before-process + `PostgresInboxRedriver` poll-based deferred redrive, dedup on
-  Telegram `update_id`, bounded → `DEAD` + dead-letter) + `bus.inbox` (`016-inbox.yml`). Gateway wired: gains a
-  **direct Postgres connection** (its only stateful dep), persists each normalized message before
-  `orchestrator.handle`, replies *"поставил в очередь"* instead of a silent drop on a downstream failure, and
-  `GatewayInboxHandler` redrives to deliver the answer when it clears. Best-effort (degrades to plain dispatch
-  if the inbox DB is down). Distinct from #631 (in-request breaker) + the outbox (async outbound). **Closes the
-  security/reliability backlog #627–#633** (all seven shipped). Detail → [platform.md](platform.md) §Durable
-  inbound inbox + [architecture.md](architecture.md) §Inter-service comms + [`libs/inbox/README.md`](../libs/inbox/README.md).
-  _(Testcontainers `InboxIntegrationTest` runs in CI — no Docker on the dev VDI.)_
 - **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**
   Any video source (YouTube/Instagram/Threads/TikTok **link** or uploaded **file**) → one "о чём это видео".
   Shipped V-0…V-d: new acquisition capability **`mcp-media-fetch`** (yt-dlp `transcribe_video` relocated out
