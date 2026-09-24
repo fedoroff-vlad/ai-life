@@ -25,7 +25,7 @@
         <okhttp.version>5.5.0</okhttp.version>
         <ical4j.version>4.3.0</ical4j.version>
         <shedlock.version>7.10.0</shedlock.version>
-        <minio.version>8.5.14</minio.version>
+        <minio.version>9.0.3</minio.version>
         <tess4j.version>5.20.0</tess4j.version>
         <jsoup.version>1.23.2</jsoup.version>
         <rome.version>2.1.0</rome.version>
