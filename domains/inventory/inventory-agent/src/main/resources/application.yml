@@ -30,6 +30,11 @@ agent:
 inventory-agent:
   mcp-inventory-url: ${MCP_INVENTORY_URL:http://mcp-inventory:8127}
   mcp-media-processing-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+  media-service-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
+  # Externally-reachable base for the label/card links the owner opens; defaults to the internal URL.
+  public-media-base-url: ${INVENTORY_PUBLIC_MEDIA_BASE_URL:${MEDIA_SERVICE_URL:http://media-service:8088}}
+  # The bot the printed label's deep link points at — the same value gateway-telegram mints invites with.
+  telegram-bot-username: ${GATEWAY_TELEGRAM_BOT_USERNAME:ai_life_bot}
   profile-service-url: ${PROFILE_SERVICE_URL:http://profile-service:8082}
   notifier-url: ${NOTIFIER_URL:http://notifier-service:8084}
   memory-service-url: ${MEMORY_SERVICE_URL:http://memory-service:8087}

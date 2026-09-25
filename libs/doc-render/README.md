@@ -42,7 +42,8 @@ and hand the user a link.
 ## Consumers
 stylist (analysis / capsule / audit / gap boards), nutritionist (nutrition-analysis + basket-breakdown
 boards), chef (recipe card), briefing (morning digest board — text section + news provenance links, BR-e),
-finance (monthly report — spending `charts` + narrative + breakdown, #291).
+finance (monthly report — spending `charts` + narrative + breakdown, #291), inventory (container card —
+code/label/zone/status header + the item photo `gallery` + the contents list, IN-d).
 The verdict tones double for nutrition "good/watch/cut".
 
 ## Field generalisation

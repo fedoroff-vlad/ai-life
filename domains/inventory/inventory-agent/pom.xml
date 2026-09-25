@@ -33,6 +33,25 @@
             <artifactId>agent-runtime</artifactId>
         </dependency>
 
+        <!-- The container card (IN-d) — the shared board renderer, same seam every deliverable
+             agent uses. -->
+        <dependency>
+            <groupId>dev.fedorov.ailife</groupId>
+            <artifactId>doc-render</artifactId>
+        </dependency>
+
+        <!-- QR *encode* for the printed label (IN-d): a pure function, so it lives in the agent
+             rather than an MCP (see BoxLabelImage) — lifted to libs/qr on a second consumer.
+             javase = MatrixToImageWriter (PNG out); core = the writer/reader. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
