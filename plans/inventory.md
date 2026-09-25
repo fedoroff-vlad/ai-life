@@ -278,7 +278,8 @@ search. Kept out of IN-e because the seed is a write-path change, not a search c
   gateway, because a prefix that drifted on one side would orphan every sticker already glued to a box.
 
 Split in two (the file-count rule): **IN-f1** the camera scan, **IN-f2** the photographed label + the
-domain's E2E closer.
+domain's E2E closer. Both shipped — the scan path is complete and the domain's E2E closer exists
+(`E2EInventoryScanFlowTest`); what remains owed for the domain is IN-e2, IN-g and the goldens.
 
 #### IN-f1 — deep-link scan (`/start box_<token>` → the card) ✅ DONE
 Gateway `/start` gains a **prefix dispatch**: `box_<token>` → inventory (invite tokens keep today's
@@ -301,19 +302,24 @@ behaviour byte-for-byte; a bare `box_` degrades to the invite path's graceful an
     `ActionControllerScanTest` — inventory unreachable/cold degrades to a plain notice, asserted by
     `MessageProcessorScanTest`)
 
-#### IN-f2 — photographed label + the domain E2E closer
-A photo whose `decode_qr` yields a `box_` payload takes the IN-f1 path: the gateway decodes every
-inbound photo at the front door (soft-fail, flag-gated — a decode hiccup must never cost a receipt
-photo its normal route) and dispatches on a match. E2E closer (an E2EInventoryScanFlow test): photo →
-decode → container → card, asserting the `libs/contracts` DTOs survive each hop.
+#### IN-f2 — photographed label + the domain E2E closer ✅ DONE
+A photo whose `decode_qr` yields a `box_` payload takes the IN-f1 path. The gateway reads the QR at the
+front door (`QrDecodeClient` → `/internal/qr`), flag-gated (`GATEWAY_QR_SCAN_ENABLED`) and **soft-failed
+with a 3 s timeout** — unlike a voice note, where the transcript *is* the payload, a photo already has a
+good route, so a missing code or a dead capability must cost it nothing. Only a **captionless** photo is
+read: a caption means the owner is *saying* something about the picture, and a scan must not hijack
+"добавь сюда ещё одну вещь" (which is IN-g's job). This closes the domain's scan path.
 
 - **Scenario: photographed label**
   - WHEN the owner sends a photo of the label
-  - THEN the same card comes back (not yet asserted — slice not built)
+  - THEN the same card comes back, the chain proven across real HTTP hops — upload → `QrInput`/`QrResult`
+    decode → `AgentActionRequest` with the parsed token (asserted by `E2EInventoryScanFlowTest`)
 - **Scenario: an ordinary photo is unaffected**
-  - WHEN a photo carries no QR code (a receipt, a wardrobe shot)
-  - THEN it routes exactly as before, and a decode failure changes nothing
-    (not yet asserted — slice not built)
+  - WHEN a photo carries no QR code (a receipt, a wardrobe shot), or the decode itself fails
+  - THEN it routes exactly as before (asserted by `MessageProcessorScanTest`)
+- **Scenario: a caption wins over a scan**
+  - WHEN a photo carries the owner's own caption
+  - THEN it is never decoded and keeps its normal route (asserted by `MessageProcessorScanTest`)
 
 ### IN-g — edit / append / delete / move (on the shared runner)
 **Requirement:** every container and item SHALL be correctable in chat, confirm-gated.

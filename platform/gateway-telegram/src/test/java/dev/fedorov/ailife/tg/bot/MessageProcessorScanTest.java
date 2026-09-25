@@ -3,6 +3,8 @@ package dev.fedorov.ailife.tg.bot;
 import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
+import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import dev.fedorov.ailife.contracts.media.QrResult;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -37,19 +39,28 @@ class MessageProcessorScanTest {
 
     static MockWebServer profile;
     static MockWebServer orchestrator;
+    static MockWebServer media;
+    static MockWebServer mediaProcessing;
 
     @DynamicPropertySource
     static void wire(DynamicPropertyRegistry r) {
         profile = new MockWebServer();
         orchestrator = new MockWebServer();
+        media = new MockWebServer();
+        mediaProcessing = new MockWebServer();
         try {
             profile.start();
             orchestrator.start();
+            media.start();
+            mediaProcessing.start();
         } catch (Exception e) {
             throw new IllegalStateException("Failed to start mock server", e);
         }
         r.add("gateway.services.profile-base-url", () -> "http://localhost:" + profile.getPort());
         r.add("gateway.services.orchestrator-base-url", () -> "http://localhost:" + orchestrator.getPort());
+        r.add("gateway.services.media-base-url", () -> "http://localhost:" + media.getPort());
+        r.add("gateway.services.media-processing-base-url",
+                () -> "http://localhost:" + mediaProcessing.getPort());
     }
 
     @Autowired MessageProcessor processor;
@@ -114,9 +125,89 @@ class MessageProcessorScanTest {
         orchestrator.takeRequest();
     }
 
+    /**
+     * A caption means the owner is <em>saying</em> something about the picture, so the photo keeps its
+     * normal route and is never decoded — otherwise a scan would hijack "добавь сюда ещё одну вещь".
+     */
+    @Test
+    void aCaptionedPhotoIsNeverTreatedAsAScan() throws Exception {
+        UUID mediaId = UUID.randomUUID();
+        int decodesBefore = mediaProcessing.getRequestCount();
+        profile.enqueue(jsonBody(json.writeValueAsString(new UserDto(
+                UUID.randomUUID(), UUID.randomUUID(), "Vlad", "ru", 5L, "admin", Instant.now()))));
+        media.enqueue(jsonBody(json.writeValueAsString(new MediaObjectDto(
+                mediaId, UUID.randomUUID(), null, "image", "image/jpeg", 23L, null,
+                "telegram", Instant.now()))));
+        orchestrator.enqueue(jsonBody(json.writeValueAsString(
+                new IntentResponse("docs", "сохранил", "mock-large"))));
+
+        IntentResponse response = processor.process(photo("что это за коробка")).block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.text()).isEqualTo("сохранил");
+        assertThat(mediaProcessing.getRequestCount()).isEqualTo(decodesBefore);
+        profile.takeRequest();
+        media.takeRequest();
+        assertThat(orchestrator.takeRequest().getPath()).isEqualTo("/v1/intent");
+    }
+
+    /** A photo with no code (a receipt, a wardrobe shot) routes exactly as it did before this path. */
+    @Test
+    void aPhotoWithNoCodeRoutesNormally() throws Exception {
+        UUID mediaId = UUID.randomUUID();
+        profile.enqueue(jsonBody(json.writeValueAsString(new UserDto(
+                UUID.randomUUID(), UUID.randomUUID(), "Vlad", "ru", 5L, "admin", Instant.now()))));
+        media.enqueue(jsonBody(json.writeValueAsString(new MediaObjectDto(
+                mediaId, UUID.randomUUID(), null, "image", "image/jpeg", 23L, null,
+                "telegram", Instant.now()))));
+        mediaProcessing.enqueue(jsonBody(json.writeValueAsString(new QrResult(null, null))));
+        orchestrator.enqueue(jsonBody(json.writeValueAsString(
+                new IntentResponse("finance", "черновик готов", "mock-large"))));
+
+        IntentResponse response = processor.process(photo(null)).block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.text()).isEqualTo("черновик готов");
+        profile.takeRequest();
+        media.takeRequest();
+        mediaProcessing.takeRequest();
+        assertThat(orchestrator.takeRequest().getPath()).isEqualTo("/v1/intent");
+    }
+
+    /** The decode capability being down must cost a photo nothing — it is not the payload. */
+    @Test
+    void aFailedDecodeStillRoutesThePhoto() throws Exception {
+        UUID mediaId = UUID.randomUUID();
+        profile.enqueue(jsonBody(json.writeValueAsString(new UserDto(
+                UUID.randomUUID(), UUID.randomUUID(), "Vlad", "ru", 5L, "admin", Instant.now()))));
+        media.enqueue(jsonBody(json.writeValueAsString(new MediaObjectDto(
+                mediaId, UUID.randomUUID(), null, "image", "image/jpeg", 23L, null,
+                "telegram", Instant.now()))));
+        mediaProcessing.enqueue(new MockResponse().setResponseCode(503));
+        orchestrator.enqueue(jsonBody(json.writeValueAsString(
+                new IntentResponse("finance", "черновик готов", "mock-large"))));
+
+        IntentResponse response = processor.process(photo(null)).block();
+
+        assertThat(response).isNotNull();
+        assertThat(response.text()).isEqualTo("черновик готов");
+        profile.takeRequest();
+        media.takeRequest();
+        mediaProcessing.takeRequest();
+        assertThat(orchestrator.takeRequest().getPath()).isEqualTo("/v1/intent");
+    }
+
     private static MessageProcessor.IncomingMessage incoming() {
         return new MessageProcessor.IncomingMessage(
                 5L, "Vlad", "ru", null, MessageScope.PRIVATE, "7");
+    }
+
+    private static MessageProcessor.IncomingMessage photo(String caption) {
+        return new MessageProcessor.IncomingMessage(
+                5L, "Vlad", "ru", caption, MessageScope.PRIVATE, "7",
+                new MessageProcessor.IncomingMedia(
+                        "fake-jpeg".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        "image/jpeg", "photo.jpg", "image"));
     }
 
     private static MockResponse jsonBody(String body) {

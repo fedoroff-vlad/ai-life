@@ -35,6 +35,17 @@ button/callback primitive the proactive snooze/dismiss buttons (#487 PX-4) will 
   the invitee with a join confirmation, and DMs the **holder** (inviter) that they joined. An unknown /
   already-used token is graceful — the opener just keeps their own isolated personal space.
 
+**Front-door QR read (photographed label, inventory [IN-f2](../../plans/inventory.md)).** A scan also
+arrives as a *picture* of the sticker, and a captionless photo has no text for the orchestrator to
+classify — so, exactly like the voice STT above, the conversion happens at the front door: the uploaded
+photo goes to `mcp-media-processing`'s `POST /internal/qr` (ZXing, deterministic, no model) and a decoded
+`…?start=box_<token>` payload takes the same dispatch as the deep-link below. Two deliberate limits:
+only a **captionless** photo is read (a caption means the owner is *saying* something about the picture,
+and a scan must not hijack "добавь сюда ещё одну вещь"), and the decode is **soft-failed** — unlike a
+voice note, where the transcript *is* the payload, a photo already has a perfectly good route, so a
+missing code, a slow capability or a dead one all cost nothing (3 s timeout, then route as before).
+Toggle with `GATEWAY_QR_SCAN_ENABLED`.
+
 **Container-label scan (`/start box_<token>`, inventory [IN-f1](../../plans/inventory.md)).** Two
 unrelated deep-links share the one `/start` path, told apart by **prefix**: a payload starting with
 `BoxDeepLink.PREFIX` (`box_`) is a scanned storage-container label, anything else stays a family invite,
@@ -108,6 +119,7 @@ starts **only when the bot token is set** (there must be a bot to deliver the re
 | `GATEWAY_TELEGRAM_BOT_TOKEN`     | *(empty — bot won't start)*          | yes for prod |
 | `GATEWAY_DEFAULT_HOUSEHOLD_NAME` | `default household`                  |          |
 | `GATEWAY_ALLOWED_TELEGRAM_IDS`   | *(empty — allow all)*                | prod (see below) |
+| `GATEWAY_QR_SCAN_ENABLED`        | `true`                               | (front-door QR read of a captionless photo, IN-f2) |
 | `GATEWAY_DB_URL`                 | `jdbc:postgresql://localhost:5432/ailife` | (durable inbox #633) |
 | `GATEWAY_DB_USER`                | `ailife`                             |          |
 | `GATEWAY_DB_PASSWORD`            | `ailife`                             |          |
@@ -158,10 +170,11 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `bot/ConfirmKeyboard` — the RU-2 shared inline-button primitive (#489; PX-4 will extend it): builds the two-button Да / Нет keyboard (localised labels, stable `cf:y`/`cf:n` callback ids) and decodes a tap's `callback_data` back into the "да"/"нет" text a route-locked `/resume` expects.
 - `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
-- `bot/MessageProcessor` — also carries `showContainer(incoming, qrToken)`, the scanned-label dispatch (IN-f1): resolve identity → hub `invoke` (`show_container`) → the agent's own text, with `SCAN_UNAVAILABLE` when inventory is cold/unregistered. Otherwise normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`). `dispatch` is the durable-inbox seam (#633): persist-before-process to `bus.inbox`, mark `PROCESSED` on success, reply "queued" (not drop) + leave `PENDING` for the redriver on a downstream outage. `IncomingMessage` now carries `chatId` + `updateId` for that (a null `updateId` disables durability — invite/callback/test paths).
+- `bot/MessageProcessor` — also carries `showContainer(incoming, qrToken)`, the scanned-label dispatch (IN-f1/f2): resolve identity → hub `invoke` (`show_container`) → the agent's own text, with `SCAN_UNAVAILABLE` when inventory is cold/unregistered; `scannedLabel` is the front-door QR check on a captionless photo that feeds it (IN-f2, soft-fail). Otherwise normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`). `dispatch` is the durable-inbox seam (#633): persist-before-process to `bus.inbox`, mark `PROCESSED` on success, reply "queued" (not drop) + leave `PENDING` for the redriver on a downstream outage. `IncomingMessage` now carries `chatId` + `updateId` for that (a null `updateId` disables durability — invite/callback/test paths).
 - `inbox/GatewayInboxHandler` — the redrive + dead-letter handler on `libs/inbox`'s `InboxRedriverContainer`: re-dispatches a persisted message to the orchestrator and delivers the answer to the original chat; on terminal `DEAD`, DMs the user a "couldn't process" notice. `inbox/InboundEnvelope` is the serialised `bus.inbox` payload (chatId + languageCode + `NormalizedMessage`); `inbox/InboundReplies` holds the localised queued / dead-letter texts.
 - `config/InboxWiringConfig` — `@Import`s `libs/inbox`'s `InboxConfig` (always-on `InboxWriter`) and registers the redrive container **only when the bot token is set** (nothing to deliver otherwise). Datasource + `inbox.*` tuning live in `application.yml`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
+- `media/QrDecodeClient` — `POST /internal/qr {mediaId}` against `mcp-media-processing` → the decoded payload (IN-f2). The barcode twin of `TranscribeClient`, but **soft-failed** (empty on no-code / error / 3 s timeout): a photo already has a route, so the read must cost it nothing. `BoxDeepLink.tokenOfUrl` turns a matching payload into the container token.
 - `media/TranscribeClient` — `POST /internal/transcribe {mediaId}` against `mcp-media-processing` → the full `TranscriptResult` (text + `confidence` for the RU-3 gate). Front-door STT for voice notes; not soft-failed: the transcript is the voice message's payload.
 - `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join (resolve → redeem → resolve inviter → `InviteOutcome`) — and `mintInvite(...)` — the owner-side mint (resolve → `POST /v1/invites` → format the `t.me/<bot>?start=<token>` deep-link reply).
 - `identity/InviteOutcome` — the reply to show the invitee + the (optional) holder-ping target/text; keeps the redeem logic free of any Telegram API dependency (the bot layer does the sends).

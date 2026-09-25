@@ -6,6 +6,7 @@ import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.NormalizedMessage;
+import dev.fedorov.ailife.contracts.inventory.BoxDeepLink;
 import dev.fedorov.ailife.contracts.media.TranscriptResult;
 import dev.fedorov.ailife.contracts.profile.UserDto;
 import dev.fedorov.ailife.inbox.InboxWriter;
@@ -15,6 +16,7 @@ import dev.fedorov.ailife.tg.identity.InviteOutcome;
 import dev.fedorov.ailife.tg.inbox.InboundEnvelope;
 import dev.fedorov.ailife.tg.inbox.InboundReplies;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
+import dev.fedorov.ailife.tg.media.QrDecodeClient;
 import dev.fedorov.ailife.tg.media.TranscribeClient;
 import dev.fedorov.ailife.tg.orchestrator.OrchestratorClient;
 import org.slf4j.Logger;
@@ -54,14 +56,17 @@ public class MessageProcessor {
     private final OrchestratorClient orchestrator;
     private final MediaServiceClient media;
     private final TranscribeClient transcribe;
+    private final QrDecodeClient qr;
     private final InboxWriter inbox;
     private final ObjectMapper json;
     private final double minConfidence;
+    private final boolean scanEnabled;
 
     public MessageProcessor(IdentityResolver identity,
                             OrchestratorClient orchestrator,
                             MediaServiceClient media,
                             TranscribeClient transcribe,
+                            QrDecodeClient qr,
                             InboxWriter inbox,
                             ObjectMapper json,
                             GatewayProperties properties) {
@@ -69,9 +74,11 @@ public class MessageProcessor {
         this.orchestrator = orchestrator;
         this.media = media;
         this.transcribe = transcribe;
+        this.qr = qr;
         this.inbox = inbox;
         this.json = json;
         this.minConfidence = properties.getStt().getMinConfidence();
+        this.scanEnabled = properties.getScan().isEnabled();
     }
 
     /**
@@ -108,11 +115,16 @@ public class MessageProcessor {
      */
     public Mono<IntentResponse> showContainer(IncomingMessage incoming, String qrToken) {
         return identity.resolve(incoming.telegramUserId(), incoming.displayName(), incoming.languageCode())
-                .flatMap(user -> orchestrator.invoke(scanRequest(user, qrToken))
-                        .map(MessageProcessor::scanReply)
-                        .defaultIfEmpty(new IntentResponse(INVENTORY_AGENT, SCAN_UNAVAILABLE, null)))
+                .flatMap(user -> showContainer(user, qrToken))
                 .switchIfEmpty(Mono.fromSupplier(() -> new IntentResponse(
                         "gateway", IdentityResolver.notAllowedReply(incoming.languageCode()), null)));
+    }
+
+    /** The dispatch half, for a caller that has already resolved identity (the photographed-label path). */
+    private Mono<IntentResponse> showContainer(UserDto user, String qrToken) {
+        return orchestrator.invoke(scanRequest(user, qrToken))
+                .map(MessageProcessor::scanReply)
+                .defaultIfEmpty(new IntentResponse(INVENTORY_AGENT, SCAN_UNAVAILABLE, null));
     }
 
     private AgentActionRequest scanRequest(UserDto user, String qrToken) {
@@ -145,18 +157,48 @@ public class MessageProcessor {
     }
 
     /**
-     * Route a message: a captionless voice note is transcribed at the front door first (so a spoken
-     * request reaches any agent as ordinary text), then either routed on the transcript or — when the
-     * transcript can't be understood — bounced back with an ask-to-repeat reply (#489 RU-3). Anything
-     * that already carries text (a typed message, a captioned photo/voice) routes straight through.
+     * Route a message. Two front-door conversions run before the orchestrator ever sees it, both for
+     * the same reason — a media message with no text has nothing to classify:
+     * <ol>
+     *   <li>a captionless <b>voice note</b> is transcribed (so a spoken request reaches any agent as
+     *       ordinary text), or bounced with an ask-to-repeat when it can't be understood (#489 RU-3);</li>
+     *   <li>a captionless <b>photo</b> is checked for a container label's QR (IN-f2) and, on a match,
+     *       dispatched to inventory instead of routed — soft-fail, so every other photo is unaffected.</li>
+     * </ol>
+     * Anything that already carries text (a typed message, a captioned photo/voice) routes straight through.
      */
     private Mono<IntentResponse> route(UserDto user, IncomingMessage incoming, List<Attachment> attachments) {
-        return voiceToTranscribe(incoming, attachments)
-                .map(voice -> transcribe.transcribe(voice.storageUri())
-                        .flatMap(result -> unintelligible(result)
-                                ? Mono.just(askToRepeat())
-                                : dispatch(user, incoming, attachments, result.text())))
-                .orElseGet(() -> dispatch(user, incoming, attachments, incoming.text()));
+        Optional<Attachment> voice = voiceToTranscribe(incoming, attachments);
+        if (voice.isPresent()) {
+            return transcribe.transcribe(voice.get().storageUri())
+                    .flatMap(result -> unintelligible(result)
+                            ? Mono.just(askToRepeat())
+                            : dispatch(user, incoming, attachments, result.text()));
+        }
+        return scannedLabel(incoming, attachments)
+                .flatMap(qrToken -> showContainer(user, qrToken))
+                .switchIfEmpty(Mono.defer(
+                        () -> dispatch(user, incoming, attachments, incoming.text())));
+    }
+
+    /**
+     * The container token on a photographed label (IN-f2), or empty for any other photo.
+     *
+     * <p>Only a <b>captionless</b> photo is checked, mirroring the voice rule: a caption means the owner
+     * is <em>saying</em> something about the picture, and a scan must not hijack "добавь сюда ещё одну
+     * вещь". The decode is deterministic (ZXing, no model) and soft-fails to empty, so a receipt, a
+     * wardrobe shot or a dead capability all route exactly as they did before this path existed.
+     */
+    private Mono<String> scannedLabel(IncomingMessage incoming, List<Attachment> attachments) {
+        if (!scanEnabled || (incoming.text() != null && !incoming.text().isBlank())) {
+            return Mono.empty();
+        }
+        return attachments.stream()
+                .filter(a -> "image".equals(a.kind()) && a.storageUri() != null)
+                .findFirst()
+                .map(photo -> qr.decode(photo.storageUri())
+                        .mapNotNull(BoxDeepLink::tokenOfUrl))
+                .orElseGet(Mono::empty);
     }
 
     /**

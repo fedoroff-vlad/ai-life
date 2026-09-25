@@ -15,8 +15,10 @@ import reactor.core.scheduler.Schedulers;
  * {@link InternalOcrController}. Same rationale: a capability-MCP is bound over MCP/SSE, which can't
  * be MockWebServer'd, so a caller that already knows it wants a barcode read (it has the media id)
  * hits this HTTP path. Delegates straight to {@link MediaProcessingMcpTools#decodeQr} so the same
- * fetch → decode invariants apply. Used by inventory-agent (IN-f) when the owner photographs a
- * container's label instead of scanning it with a phone camera.
+ * fetch → decode invariants apply. Used by <b>gateway-telegram</b> (IN-f2) when the owner photographs a
+ * container's label instead of scanning it with a phone camera: a captionless photo carries no text for
+ * the orchestrator to classify, so the read happens at the front door — the barcode sibling of the
+ * voice-note STT call.
  *
  * <p>The tool call blocks (the media fetch is {@code .block()}ed per the MCP {@code @Tool}
  * convention), so it runs on {@link Schedulers#boundedElastic()} to keep the WebFlux event loop free.
