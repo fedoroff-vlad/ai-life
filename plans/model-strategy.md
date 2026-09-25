@@ -101,7 +101,14 @@ This is the `llm-model-tag` coupling — a config change, not code:
    [lifecycle.md](lifecycle.md) · this file. Retiring a tag → add it to `RETIRED_TAGS` in
    `scripts/check-consistency.sh`.
 3. **Re-run goldens** (`scripts/golden.sh`) against the new `default` — the models "think" differently, so
-   strict-JSON + tool-routing must survive (`LLM_SUPPRESS_THINKING` on).
+   strict-JSON + tool-routing must survive (`LLM_SUPPRESS_THINKING` on). **This is the first place the
+   full lane can actually run.** On the dev VDI (no GPU) `qwen3:8b` Q4 measures **~7.4 tok/s** generation
+   (2026-09-24), so only the cheap subset — `Golden*RoutingTest` / `Golden*InjectionResistanceTest` — is
+   runnable there; the generation-heavy ones fail on *timeouts*, not on content (a full-reactor attempt
+   died after 13 classes: `GoldenAdvisorSynthesisTest` soft-failed on the advisor's own timeout and
+   finance's `GoldenRoutingTest` blew its 120 s `block`). Detail + the per-class recipe →
+   [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests. Budget the lane as
+   deploy work, and treat any local heavy-golden red as unproven rather than as a regression.
 4. **Measure two-tenant residency** on the Mac → decide whether to keep or retire the downshift.
 
 ## Runtime note

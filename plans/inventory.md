@@ -98,7 +98,9 @@ covered by MockWebServer tests, which prove the wiring but not that a real model
 correctly. Owed: a routing golden over the two trigger-less skills (`box-packer` vs `item-finder` — the
 choice only became real when the second one landed in IN-e), a `box-packer` extract golden, and an
 `item-finder` query-distil golden. Writing them needs a real model run (`scripts/golden.sh`), so they
-are their own slice rather than a claim made here. Names go in backticks once the classes exist — the
+are their own slice rather than a claim made here. The routing/distil ones are cheap enough for the dev
+box; anything generation-heavy waits for the deploy model (the lane is throughput-gated there —
+[`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests). Names go in backticks once the classes exist — the
 spec→test trace of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.
 
 ## PR slices

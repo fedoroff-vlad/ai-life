@@ -246,6 +246,27 @@ scripts/golden.sh -pl platform/orchestrator -Dtest=GoldenRoutingTest    # reuses
 scripts/golden.sh down         # stop the gateway (and Ollama, if the script started it)
 ```
 
+### What the lane actually costs on a CPU box (measured 2026-09-24)
+
+**Run the lane class-by-class, not whole.** On the dev VDI (Citrix, **no GPU**) `qwen3:8b` Q4 generates
+**~7.4 tok/s** (prompt eval ~24 tok/s). That is fine for a routing golden (one short JSON token stream,
+~30–60 s per class) and hopeless for the generation-heavy ones: a full-reactor `-Dtest='Golden*'` run
+died after 13 classes with two **environment** failures, both pure throughput —
+`finance`'s `GoldenAdvisorSynthesisTest` (`FinancialAdvisor` hit its own `TimeoutException`, soft-failed
+to a short "нет данных" reply, and the golden's "implausibly short" assertion fired honestly) and
+`finance`'s `GoldenRoutingTest` (the test's 120 s `block` expired while the box was still busy from the
+previous synthesis). Neither is a logic regression, and nothing about them is fixed by retrying on the
+same hardware.
+
+So, locally: **the cheap subset** — `Golden*RoutingTest` and `Golden*InjectionResistanceTest`, one module
+at a time off the warm stack. The **full lane is hardware-gated** and belongs on the deploy box with the
+stronger MoE default ([model-strategy.md](../../plans/model-strategy.md), [lifecycle.md](../../plans/lifecycle.md)).
+If you must run a heavy one here, raise the *flow's* timeout too — `LLM_REQUEST_TIMEOUT_SECONDS` only
+covers the gateway hop, not the caller's `block`.
+
+Also note `mvn` stops at the first failing module by default, so a lane run wants `-fae` (and `-rf
+:<module>` to resume) — otherwise one slow module hides the other 30 classes' results.
+
 The models (`qwen3:8b` + `nomic-embed-text`) must be pulled already — the script checks and, if one is
 missing, prints the `ollama pull` to run rather than downloading multi-GB blobs behind your back. It
 starts the gateway with `LLM_SUPPRESS_THINKING=true` (qwen3 is a thinking model — see the flag note
