@@ -142,6 +142,16 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   cancel/move; the H.2 edits above then rode it too). Detail → [HISTORY.md](HISTORY.md) +
   [ADR-0004](adr/ADR-0004-confirm-act-flow.md).
 ## Parked — blocked on hardware (Mac not yet purchased)
+- **The full golden lane — throughput-gated, not broken (measured 2026-09-24).** The dev VDI has no GPU:
+  `qwen3:8b` Q4 generates **~7.4 tok/s**, so only the cheap subset (`Golden*RoutingTest` /
+  `Golden*InjectionResistanceTest`, ~30–60 s a class off the warm stack) is runnable locally. A
+  full-reactor attempt stopped after 13 classes (26 tests green) with **two environment failures, both
+  timeouts** — finance's `GoldenAdvisorSynthesisTest` (the advisor's own `TimeoutException` → soft-failed
+  short reply → the "implausibly short" assertion fired correctly) and finance's `GoldenRoutingTest`
+  (120 s `block` expired while the box was still busy). **Neither is a logic regression**, and retrying on
+  the same hardware cannot clear them. The lane runs for real on the deploy box against the stronger MoE
+  default — step 3 of [model-strategy.md](model-strategy.md) §Rollout; per-class recipe + the `-fae` note →
+  [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests.
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
   Mac Studio M4 Max 64/512 running ai-life 24/7 (hot set always-on + auto cold start/stop via a new
   `platform/supervisor`, + dynamic model downshift when the coder tenant runs). **Shipped so far** →
