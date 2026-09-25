@@ -98,22 +98,32 @@ story, no "which field wins" ambiguity.
 Per the docs/travel convention each LLM seam has an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated, not in
 fast CI) asserting **structure, not wording**. Until this slice every inventory test was a MockWebServer
 one — proving the wiring while feeding the parser a JSON answer *written by hand*, so no test could tell
-whether a real model routes or extracts correctly. Four classes now cover the four LLM seams, each named
+whether a real model routes or extracts correctly. Five classes now cover the five LLM seams, each named
 for the defect it catches:
 
 | Class | Seam | The defect it catches |
 |---|---|---|
-| `GoldenInventoryRoutingTest` | the router over **four** trigger-less skills | the closest pair blurring: "что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder` — a box the user can name vs a thing they cannot place |
+| `GoldenInventoryRoutingTest` | the router over **five** trigger-less skills | the closest pair blurring: "что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder` — a box the user can name vs a thing they cannot place; and a *correction* to a box ("теперь на даче" → `box-editor`) being mistaken for a question about it |
 | `GoldenBoxPackerTest` | `box-packer` extract (`open` / `close`) | the zone leaking into the label (every box named after its shelf), and a missed `close` leaving the conversation route-locked to a taped-up box |
 | `GoldenItemFinderTest` | `item-finder` query distil | searching the *question* — item names come from photo captions, so "где"/"лежат" dilute a trigram match against names containing neither |
 | `GoldenBoxLabelerTest` | `box-label`/`box-card` container distil | printing a sticker for the **wrong box** — asserted by the resolved container's identity, with two candidates in the store so a mismatch can't pass by luck |
+| `GoldenContainerEditorTest` | `box-editor` pick + changed fields (IN-g1) | a correction landing on the **wrong box**, a Russian state the store would drop ("распакована" → nothing changes), or a rename written into `label` instead of `newLabel` |
 
-**Cost + result:** 7 tests, all green on `qwen3:8b` on the CPU-only dev box, run twice for stability —
-~1.5 min for the routing class (its prompt carries four SKILL descriptions, so the first prefill needs a
-warm-up call) and ~20–30 s each for the three distil classes. These are routing/distil shaped, which is
+**Cost + result:** 10 tests, all green on `qwen3:8b` on the CPU-only dev box, each run twice for stability —
+~1.5–2 min for the routing class (its prompt carries five SKILL descriptions, so the first prefill needs a
+warm-up call) and ~20–45 s each for the four extract/distil classes. These are routing/distil shaped, which is
 why they fit the dev box at all; anything generation-heavy waits for the deploy model (that lane is
 throughput-gated — [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests).
 Run with `scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
+
+**What the lane already caught (why it was worth writing).** `GoldenContainerEditorTest` failed on its
+first run, twice in a row — the model picked the *wrong container* for "распаковал коробку с посудой". The
+cause was in the SKILL, not the model: its examples showed `{"pick": 2, …}` for that very sentence, so the
+model copied the **index from the example** instead of matching the list it was handed. Few-shot index
+leakage is invisible to a MockWebServer test (which supplies the JSON the parser reads) and would have
+shipped as "the bot unpacks the wrong box". Fixed by giving every example its own candidate list plus an
+explicit "the number comes from the list in this message" rule, and by moving the test's fixture off the
+examples' own literals — a fixture that reuses them can be passed by copying them.
 
 ## PR slices
 
@@ -330,16 +340,57 @@ read: a caption means the owner is *saying* something about the picture, and a s
 ### IN-g — edit / append / delete / move (on the shared runner)
 **Requirement:** every container and item SHALL be correctable in chat, confirm-gated.
 
-"добавь в B-07 гирлянду" (+photo) · "убери оттуда X" · "переименуй коробку" · "коробка B-07 теперь
-на даче" (zone move) · "распаковал B-07" (`unpacked`) — each an ADR-0004 adapter.
+Split by target: **IN-g1** the container itself (shipped), **IN-g2** its items, **IN-g3** appending to a
+named box. A store of boxes goes stale the moment the boxes do, which is why the container half comes
+first: without it the owner either lives with a wrong answer to "где лежит X" or stops trusting the
+domain, and the second is what actually happens.
+
+#### IN-g1 — correcting the container (`box-editor`) ✅ DONE
+"коробка B-07 теперь на даче" (zone move) · "распаковал B-07" (`unpacked`) · "переименуй B-12 в «зимние
+вещи»" — one skill, one ADR-0004 adapter (`edit/ContainerEditor` on `PickConfirmActRunner`), because all
+three are the same act: patch a field of a container the owner can name. The changed fields ride the
+`pendingAction` the runner already threads from the LLM selection; a new zone is upserted **by name**
+through the same call the packing session uses, filed under the **container's** household (a resume
+carries no envelope, and a family box's new place must not land in someone's personal household).
+
+Two deliberate guards: the rename field is `newLabel`, **not** `label` — the runner stores the
+candidate's display label under `label`, so sharing the name would make every edit look like a rename to
+its own name — and a `status` the model invented is dropped rather than written (the store's state
+machine is not the model's to extend).
+
+- **Scenario: nothing moves before the owner says да**
+  - WHEN a move is requested
+  - THEN the reply asks to confirm (with the да/нет button hint) and the store is only read, never
+    written (asserted by `ContainerEditorTest`)
+- **Scenario: zone move**
+  - WHEN a container is moved to another zone
+  - THEN its `zone_id` changes while `code`, `qr_token` and every field the owner did not mention stay
+    put — the sticker already on the box keeps resolving (asserted by `ContainerEditorTest`)
+- **Scenario: unpacked**
+  - WHEN the owner says they unpacked a box
+  - THEN only its status becomes `unpacked`, with no zone touched (asserted by `ContainerEditorTest`)
+- **Scenario: rename**
+  - WHEN a box is renamed
+  - THEN only its label changes, and the printed identity is untouched (asserted by `ContainerEditorTest`)
+- **Scenario: an invented state is refused**
+  - WHEN the model answers with a status the store does not define
+  - THEN nothing is written and the agent says there is nothing to change
+    (asserted by `ContainerEditorTest`)
+- **Scenario: a decline leaves the box alone**
+  - WHEN the owner answers anything but an affirmative
+  - THEN the box is unchanged and the reply says so (asserted by `ContainerEditorTest`)
+- **Scenario: routed as a correction, not a question**
+  - WHEN the owner says "коробка B-07 теперь стоит на даче"
+  - THEN a real model routes it to `box-editor`, not to the card of that box
+    (asserted by `GoldenInventoryRoutingTest`)
+
+#### IN-g2 / IN-g3 — items
+"убери оттуда X" (item delete on the same runner) · "добавь в B-07 гирлянду" (+photo — appending to a
+named box without reopening a packing session).
 
 - **Scenario: delete asks first**
   - WHEN the owner asks to remove an item
   - THEN the agent names the candidate and waits for confirmation before deleting
-    (not yet asserted — slice not built)
-- **Scenario: zone move**
-  - WHEN a container is moved to another zone
-  - THEN its `zone_id` changes while `code` and `qr_token` stay put
     (not yet asserted — slice not built)
 
 ## Prior art (analogue apps — what is worth copying)

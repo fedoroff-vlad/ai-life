@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.chat.InventoryChat;
+import dev.fedorov.ailife.agents.inventory.edit.ContainerEditor;
 import dev.fedorov.ailife.agents.inventory.find.ItemFinder;
 import dev.fedorov.ailife.agents.inventory.label.BoxLabeler;
 import dev.fedorov.ailife.agents.inventory.pack.BoxPacker;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.when;
  * MockWebServer, picks the right flow in this domain. Sibling of {@code GoldenDocsRoutingTest} /
  * {@code GoldenNotesRoutingTest}; asserts <b>structure, not text</b>.
  *
- * <p>This domain has the widest trigger-less skill set in the repo (<b>four</b>), and two of them are
+ * <p>This domain has the widest trigger-less skill set in the repo (<b>five</b>), and two of them are
  * deliberately close: "что в коробке B-07" is {@code box-card} while "где лежит дрель" is
  * {@code item-finder} — a box the user can name versus a thing they cannot place. That pair is the
  * defect this test exists to catch: if the two SKILL descriptions blur, the owner asks where something
@@ -57,13 +58,14 @@ class GoldenInventoryRoutingTest {
     /** The actions the inventory classifier prompt allows (no MCP tools bound here → skill / chat). */
     private static final Set<String> ACTIONS = Set.of("skill", "chat");
     private static final Set<String> SKILLS =
-            Set.of("box-packer", "item-finder", "box-label", "box-card");
+            Set.of("box-packer", "item-finder", "box-label", "box-card", "box-editor");
 
     private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
     private final BoxPacker packer = mock(BoxPacker.class);
     private final ItemFinder finder = mock(ItemFinder.class);
     private final BoxLabeler labeler = mock(BoxLabeler.class);
+    private final ContainerEditor editor = mock(ContainerEditor.class);
     private final InventoryChat chat = mock(InventoryChat.class);
     private final AgentManifest manifest = new AgentManifest(
             "inventory", "inventory agent", "0.1.0", 8128, List.of(), List.of(),
@@ -73,14 +75,15 @@ class GoldenInventoryRoutingTest {
             skill("skills/inventory/box-packer/SKILL.md"),
             skill("skills/inventory/item-finder/SKILL.md"),
             skill("skills/inventory/box-label/SKILL.md"),
-            skill("skills/inventory/box-card/SKILL.md")));
+            skill("skills/inventory/box-card/SKILL.md"),
+            skill("skills/inventory/box-editor/SKILL.md")));
     private final InventoryIntentRouter router = new InventoryIntentRouter(
-            llm, skills, new SkillClassifier(json), manifest, packer, finder, labeler, chat);
+            llm, skills, new SkillClassifier(json), manifest, packer, finder, labeler, editor, chat);
 
     /**
      * STRUCTURE — the real model, given the real router prompt, must return well-formed routing JSON: an
-     * object with an {@code action} in the contract set and, when {@code action=skill}, one of the four
-     * real skill names (never a hallucinated fifth).
+     * object with an {@code action} in the contract set and, when {@code action=skill}, one of the five
+     * real skill names (never a hallucinated sixth).
      */
     @Test
     void classifierEmitsWellFormedRoutingJson() {
@@ -90,6 +93,7 @@ class GoldenInventoryRoutingTest {
                 "где лежат ёлочные игрушки",
                 "распечатай этикетку на B-07",
                 "что в коробке B-07",
+                "коробка B-07 теперь на даче",
                 "спасибо!")) {
             String raw = chat(prompt, msg);
             JsonNode node = extractJson(raw);
@@ -115,7 +119,7 @@ class GoldenInventoryRoutingTest {
     @Test
     void routesUnambiguousRequestsToTheRightFlow() {
         stubAll();
-        // Warm-up (not asserted): the classifier system prompt carries four SKILL descriptions, so its
+        // Warm-up (not asserted): the classifier system prompt carries five SKILL descriptions, so its
         // FIRST prefill on a CPU-only box can exceed the per-call block below. Ollama caches the prefix.
         router.route(GoldenLlm.message(UUID.randomUUID(), UUID.randomUUID(), "привет"))
                 .block(Duration.ofSeconds(240));
@@ -125,6 +129,8 @@ class GoldenInventoryRoutingTest {
         assertRoutesTo("распечатай этикетку на коробку B-07", "label");
         // The close pair: a box the user can name → its card, not a search for a thing.
         assertRoutesTo("что лежит в коробке B-07", "card");
+        // A correction to the box itself, not a question about its contents.
+        assertRoutesTo("коробка B-07 теперь стоит на даче", "editor");
         assertRoutesTo("спасибо, очень помог", "chat");
     }
 
@@ -174,6 +180,7 @@ class GoldenInventoryRoutingTest {
         when(finder.find(any())).thenReturn(Mono.just(sentinel("finder")));
         when(labeler.label(any())).thenReturn(Mono.just(sentinel("label")));
         when(labeler.card(any())).thenReturn(Mono.just(sentinel("card")));
+        when(editor.edit(any())).thenReturn(Mono.just(sentinel("editor")));
         when(chat.reply(any())).thenReturn(Mono.just(sentinel("chat")));
     }
 
