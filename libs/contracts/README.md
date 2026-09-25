@@ -15,6 +15,7 @@ boundaries, the DTO goes here.
 | `calendar` | `CalendarEventDto`, `CreateEventInput`, `UpdateEventInput`, `ListEventsInput`, `SearchEventsInput` (mcp-caldav); `IcsSubscriptionDto`, `AddSubscriptionInput`, `PullCalendarResult` (mcp-ics-import). |
 | `finance` | mcp-finance surface: `FinTransactionDto`/`FinAccountDto`/`FinBudgetDto`/`FinCategoryDto`/`FinRecurringDto` + their inputs; `BalanceResult`, `BudgetStatusResult`, `SpendingByCategoryInput`/`Row`, gift-budget (`GiftBudgetResult`/`GiftBudgetRuleDto`/`SetGiftBudgetRuleInput`), CSV import/export, matview refresh. |
 | `tasks` | GTD: `TaskProjectDto`/`TaskItemDto` + inputs (`Add/Clarify/Update/ListTasksInput`, `UpsertProjectInput`), `LinkTaskToEventInput`/`TaskToEventRequest`, `WeeklyReviewResult`. |
+| `inventory` | mcp-inventory: `StorageZoneDto`/`SaveZoneInput`, `ContainerDto`/`SaveContainerInput`/`ContainerViewDto`, `ItemDto`/`SaveItemInput`, `ItemLocationDto` (a search hit + *where* it is); `BoxDeepLink` — the `?start=box_<token>` label literal + its parser, shared between the QR renderer (inventory-agent) and the gateway's `/start` dispatch so a printed sticker can't be orphaned by a drifting prefix. |
 | `wardrobe` | stylist: `WardrobeItemDto`/`AddItemInput`/`UpdateItemInput`, `StyleProfileDto`/`SetStyleProfileInput`. |
 | `nutrition` | `MealLogDto`/`LogMealInput`, `DietProfileDto`/`SetDietProfileInput`, `BasketDto`/`BasketItem`/`SaveBasketInput`. |
 | `basket` | `BasketCapturedEvent` — the grocery-receipt fan-out bus event (finance → nutrition). |

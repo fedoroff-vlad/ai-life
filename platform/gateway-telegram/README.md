@@ -35,6 +35,19 @@ button/callback primitive the proactive snooze/dismiss buttons (#487 PX-4) will 
   the invitee with a join confirmation, and DMs the **holder** (inviter) that they joined. An unknown /
   already-used token is graceful — the opener just keeps their own isolated personal space.
 
+**Container-label scan (`/start box_<token>`, inventory [IN-f1](../../plans/inventory.md)).** Two
+unrelated deep-links share the one `/start` path, told apart by **prefix**: a payload starting with
+`BoxDeepLink.PREFIX` (`box_`) is a scanned storage-container label, anything else stays a family invite,
+unchanged. A scan carries **no sentence to classify** — the token names the box — so it is *not* routed
+as a message: the gateway dispatches it through the hub's existing inter-agent `invoke`
+(`POST /v1/agents/invoke` → inventory's `show_container`) and shows the agent's own reply, ok or not.
+That keeps a guess out of the one question a sticker must answer exactly, and adds no wire contract.
+Identity resolves as for any message, so the owner-allowlist below still governs first contact — a
+sticker authorizes seeing *that container*, never creating an account. A scan is a read (re-opening the
+link repeats it), so it is not written to the durable inbox. The `box_` literal + its parser live in
+`libs/contracts`' `BoxDeepLink`, shared with the QR renderer: a prefix that drifted on one side would
+orphan every label already glued to a box.
+
 Photo, document and voice messages are supported: the bytes are downloaded and uploaded to
 `media-service`, and the returned object id rides on the `NormalizedMessage` as an attachment
 (`storageUri` = the media object id; the caption becomes `text`). Photos get `kind=image` (receipt
@@ -141,11 +154,11 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 
 ## Key classes
 - `GatewayApplication`.
-- `bot/AiLifeBot` — Telegram bot impl. Intercepts a **callback query** (a confirm-button tap, #489 RU-2) before message dispatch — decodes it to "да"/"нет", answers the callback + strips the keyboard, routes it like a typed reply; then intercepts the family-invite commands before the normal media/text dispatch: `/start <token>` (redemption → invitee reply + holder ping) and `/invite <name> as <relationship>` (owner mint → deep-link reply, or usage on a bare `/invite`). Attaches the confirm keyboard to a binary-confirm reply (`isBinaryConfirm` → `pendingAction` hinted `PendingActionHints.CONFIRM`).
+- `bot/AiLifeBot` — Telegram bot impl. Intercepts a **callback query** (a confirm-button tap, #489 RU-2) before message dispatch — decodes it to "да"/"нет", answers the callback + strips the keyboard, routes it like a typed reply; then intercepts the deep-link commands before the normal media/text dispatch: `/start <payload>` splits by prefix into a **container scan** (`box_<token>` → `handleScan`, IN-f1) and a family-invite redemption (→ invitee reply + holder ping), and `/invite <name> as <relationship>` mints (owner → deep-link reply, or usage on a bare `/invite`). Attaches the confirm keyboard to a binary-confirm reply (`isBinaryConfirm` → `pendingAction` hinted `PendingActionHints.CONFIRM`).
 - `bot/ConfirmKeyboard` — the RU-2 shared inline-button primitive (#489; PX-4 will extend it): builds the two-button Да / Нет keyboard (localised labels, stable `cf:y`/`cf:n` callback ids) and decodes a tap's `callback_data` back into the "да"/"нет" text a route-locked `/resume` expects.
 - `bot/TypingIndicator` — the RU-1 quick-ack (#489): `start(chatId)` fires a `sendChatAction=typing` now and refreshes it every ~4s on a daemon scheduler, returning a `Handle` (`AutoCloseable`) the bot closes when the reply is sent. Best-effort — every send is swallowed on failure so the typing hint never delays or breaks the reply. `AiLifeBot.consume` wraps the whole dispatch in `try (var t = typing.start(chatId))`.
 - `bot/BotRegistration` — long-poll registration; no-ops when token is empty.
-- `bot/MessageProcessor` — normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`). `dispatch` is the durable-inbox seam (#633): persist-before-process to `bus.inbox`, mark `PROCESSED` on success, reply "queued" (not drop) + leave `PENDING` for the redriver on a downstream outage. `IncomingMessage` now carries `chatId` + `updateId` for that (a null `updateId` disables durability — invite/callback/test paths).
+- `bot/MessageProcessor` — also carries `showContainer(incoming, qrToken)`, the scanned-label dispatch (IN-f1): resolve identity → hub `invoke` (`show_container`) → the agent's own text, with `SCAN_UNAVAILABLE` when inventory is cold/unregistered. Otherwise normalises Telegram updates into `NormalizedMessage`; uploads any photo/document/voice to media-service first and attaches the returned object id. For a captionless voice note it transcribes the uploaded audio and either routes the transcript as `text` or — when it's empty/low-confidence — returns the RU-3 ask-to-repeat reply without routing (`route` / `unintelligible`, threshold `gateway.stt.min-confidence`). `dispatch` is the durable-inbox seam (#633): persist-before-process to `bus.inbox`, mark `PROCESSED` on success, reply "queued" (not drop) + leave `PENDING` for the redriver on a downstream outage. `IncomingMessage` now carries `chatId` + `updateId` for that (a null `updateId` disables durability — invite/callback/test paths).
 - `inbox/GatewayInboxHandler` — the redrive + dead-letter handler on `libs/inbox`'s `InboxRedriverContainer`: re-dispatches a persisted message to the orchestrator and delivers the answer to the original chat; on terminal `DEAD`, DMs the user a "couldn't process" notice. `inbox/InboundEnvelope` is the serialised `bus.inbox` payload (chatId + languageCode + `NormalizedMessage`); `inbox/InboundReplies` holds the localised queued / dead-letter texts.
 - `config/InboxWiringConfig` — `@Import`s `libs/inbox`'s `InboxConfig` (always-on `InboxWriter`) and registers the redrive container **only when the bot token is set** (nothing to deliver otherwise). Datasource + `inbox.*` tuning live in `application.yml`.
 - `media/MediaServiceClient` — multipart `POST /v1/media` upload of media bytes → `MediaObjectDto`. Not soft-failed: for a media message the upload is the payload.
@@ -153,6 +166,6 @@ Body: [InternalSendRequest](../../libs/contracts/src/main/java/dev/fedorov/ailif
 - `identity/IdentityResolver` — `tg_user_id → User` (creates the user + their personal household on first contact, ADR-0001). Also `redeemInvite(...)` — a `/start <token>` join (resolve → redeem → resolve inviter → `InviteOutcome`) — and `mintInvite(...)` — the owner-side mint (resolve → `POST /v1/invites` → format the `t.me/<bot>?start=<token>` deep-link reply).
 - `identity/InviteOutcome` — the reply to show the invitee + the (optional) holder-ping target/text; keeps the redeem logic free of any Telegram API dependency (the bot layer does the sends).
 - `identity/ProfileClient` — WebClient → profile-service (`by-telegram`/create identity + `mintInvite`/`redeem` + `findById` for the inviter's Telegram id).
-- `orchestrator/OrchestratorClient` — POST `/v1/intent`.
+- `orchestrator/OrchestratorClient` — POST `/v1/intent`; plus `invoke` → POST `/v1/agents/invoke`, the hub's inter-agent action path, used for a front-door event with no sentence to classify (a scanned container label, IN-f1). Empty on 404 (target agent unregistered) so the caller degrades to a notice.
 - `internal/InternalSendController` — `POST /internal/send`, Bearer-gated.
 - `config/GatewayProperties`, `config/HttpClientsConfig`, `config/TelegramClientConfig` — `TelegramClient` exposed as a conditional bean so both `BotRegistration` and `InternalSendController` share it via `ObjectProvider`.

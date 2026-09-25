@@ -3,6 +3,7 @@ package dev.fedorov.ailife.tg.bot;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
 import dev.fedorov.ailife.contracts.agent.PendingActionHints;
+import dev.fedorov.ailife.contracts.inventory.BoxDeepLink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
@@ -73,11 +74,17 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
         if (from == null || from.getIsBot()) {
             return;
         }
-        // A `/start <token>` deep-link (ADR-0001 slice 4b) is a family-invite redemption, not a
-        // routable message — handle it before the normal media/text dispatch.
-        String startToken = startTokenOf(msg);
-        if (startToken != null) {
-            handleInvite(msg, from, startToken);
+        // A `/start <payload>` deep-link is never a routable message. Two kinds share the path, told
+        // apart by prefix (IN-f): `box_<token>` is a scanned container label → inventory's card, and
+        // anything else stays a family-invite redemption (ADR-0001 slice 4b), unchanged.
+        String startPayload = startTokenOf(msg);
+        if (startPayload != null) {
+            String boxToken = BoxDeepLink.tokenOf(startPayload);
+            if (boxToken != null) {
+                handleScan(msg, from, boxToken);
+            } else {
+                handleInvite(msg, from, startPayload);
+            }
             return;
         }
         // The owner-side `/invite <name> as <relationship>` command (ADR-0001 slice 4b-ii) mints a
@@ -305,6 +312,29 @@ public class AiLifeBot implements LongPollingSingleThreadUpdateConsumer {
             }
         } catch (Exception e) {
             log.error("Failed to redeem invite from update {}", msg.getMessageId(), e);
+            send(msg.getChatId(), "Sorry, something broke. Please try again.");
+        }
+    }
+
+    /**
+     * Opens a scanned container label (IN-f): the deep-link's {@code box_<token>} resolves to that box's
+     * card via inventory. Shows "печатает…" like any slow round-trip (the card is rendered and stored),
+     * and a failure degrades to the generic notice — a scan must never leave the owner staring at a box
+     * with no answer.
+     */
+    private void handleScan(Message msg, User from, String qrToken) {
+        try (TypingIndicator.Handle ignored = typing.start(msg.getChatId())) {
+            var incoming = new MessageProcessor.IncomingMessage(
+                    from.getId(),
+                    displayNameOf(from),
+                    from.getLanguageCode(),
+                    null,
+                    scopeFor(msg),
+                    String.valueOf(msg.getMessageId()));
+            IntentResponse response = processor.showContainer(incoming, qrToken).block();
+            reply(msg.getChatId(), response, from.getLanguageCode());
+        } catch (Exception e) {
+            log.error("Failed to open a scanned container from update {}", msg.getMessageId(), e);
             send(msg.getChatId(), "Sorry, something broke. Please try again.");
         }
     }

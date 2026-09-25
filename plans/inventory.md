@@ -1,8 +1,10 @@
 # inventory — physical storage & belongings agent
 
 Authority file for the **inventory-agent** + **mcp-inventory** domain (owner idea, 2026-09-22).
-**Spec — nothing built yet.** Flagged per [CLAUDE.md](../CLAUDE.md) §Work style ("new layer → flag
-BEFORE coding"): this proposes a **new domain** (14th) + **one new capability tool**.
+Spec **and** the shipped record of each slice — per-slice state lives in the `## PR slices` headings
+below (in-flight status: [STATUS.md](STATUS.md)). The domain was flagged before any code per
+[CLAUDE.md](../CLAUDE.md) §Work style ("new layer → flag BEFORE coding"): it is a **new domain** (14th)
++ **one new capability tool**.
 
 ## What it is
 "Где что лежит" for physical things. The owner photographs items as they go into a box / onto a
@@ -48,7 +50,8 @@ joins a cold host-unit (its own `storage-host`, or a slot beside Docs) rather th
   [`libs/doc-render`](../libs/doc-render/README.md) §"Why a lib (not a capability-MCP)": no external
   resource, no schema → no container, no HTTP hop. Lift to `libs/qr` only on a **second consumer**.
 - **The label encodes an id, never the contents** — payload is the existing Telegram deep-link
-  shape `https://t.me/<bot>?start=box_<qr_token>`. Consequence (the rule every analogue app
+  shape `https://t.me/<bot>?start=box_<qr_token>` (the literal lives in `libs/contracts`
+  `BoxDeepLink`, shared by the renderer and the front door). Consequence (the rule every analogue app
   converged on): **editing a container never invalidates a printed label.** The gateway already
   parses `/start <token>` for family invites (ADR-0001 slice 4b-i), so scanning needs a **prefix
   dispatch** on that existing path, not new plumbing.
@@ -258,20 +261,59 @@ search. Kept out of IN-e because the seed is a write-path change, not a search c
 ### IN-f — the scan path (deep-link + photographed label) — **closer**
 **Requirement:** pointing a camera at a label, or sending its photo, SHALL return the card.
 
-Gateway `/start` gains a **prefix dispatch**: `box_<token>` → route to inventory (invite tokens keep
-today's behaviour, unknown prefixes stay graceful). A photo whose `decode_qr` yields a `box_` payload
-takes the same path. E2E closer (E2EInventoryScanFlow test): photo → decode → container → card,
-asserting the `libs/contracts` DTOs survive each hop.
+**A scan carries no sentence, so it is never classified.** That is the decision this slice rests on
+(owner pick 2026-09-25): a sticker's payload is an id, and putting the LLM router between a camera and
+"что в этой коробке" would add a guess to the one question that must be exact. Consequences:
+- **Detection is at the front door.** The gateway is the only place that sees a photo *before* routing —
+  a captionless photo has no text to classify — so the `decode_qr` call lives there, mirroring the
+  shipped **front-door STT** for voice notes (same module, same capability, same soft-fail posture).
+- **Dispatch reuses the hub's C1 `invoke` primitive**, not a new wire contract: the decoded token goes
+  to `POST /v1/agents/invoke` → inventory's `POST /agents/inventory/actions/show_container`. No route
+  hint on `NormalizedMessage`, no classifier turn, and the orchestrator stays the single hub.
+- **The token is the authorization.** Lookup is `getContainerByToken` alone — no household match —
+  because the person unpacking may be another member, and prior art converged on "scanning must work
+  for a non-user". Identity resolution (and therefore the #627 owner-allowlist) is unchanged: a sticker
+  authorizes seeing *that container*, never creating an account.
+- The literal `box_` lives in **`libs/contracts` `BoxDeepLink`**, shared by the renderer and the
+  gateway, because a prefix that drifted on one side would orphan every sticker already glued to a box.
+
+Split in two (the file-count rule): **IN-f1** the camera scan, **IN-f2** the photographed label + the
+domain's E2E closer.
+
+#### IN-f1 — deep-link scan (`/start box_<token>` → the card) ✅ DONE
+Gateway `/start` gains a **prefix dispatch**: `box_<token>` → inventory (invite tokens keep today's
+behaviour byte-for-byte; a bare `box_` degrades to the invite path's graceful answer).
 
 - **Scenario: camera scan**
   - WHEN the owner opens `t.me/<bot>?start=box_<token>`
-  - THEN the bot replies with that container's card (not yet asserted — slice not built)
+  - THEN the bot replies with that container's card, dispatched to inventory without a classifier turn
+    (asserted by `AiLifeBotScanTest`, `MessageProcessorScanTest`, `ActionControllerScanTest`)
+- **Scenario: invite token still redeems**
+  - WHEN a family-invite `/start <token>` arrives
+  - THEN it redeems exactly as before the prefix dispatch (asserted by `AiLifeBotScanTest`)
+- **Scenario: the sticker outlived its box**
+  - WHEN a scanned token matches no container
+  - THEN the reply says so and asks for the code — no neighbouring box is opened and nothing is
+    rendered (asserted by `ActionControllerScanTest`, `MessageProcessorScanTest`)
+- **Scenario: the card could not be rendered**
+  - WHEN media/render fails on a scan
+  - THEN the reply still names the container, its zone and its contents count (asserted by
+    `ActionControllerScanTest` — inventory unreachable/cold degrades to a plain notice, asserted by
+    `MessageProcessorScanTest`)
+
+#### IN-f2 — photographed label + the domain E2E closer
+A photo whose `decode_qr` yields a `box_` payload takes the IN-f1 path: the gateway decodes every
+inbound photo at the front door (soft-fail, flag-gated — a decode hiccup must never cost a receipt
+photo its normal route) and dispatches on a match. E2E closer (an E2EInventoryScanFlow test): photo →
+decode → container → card, asserting the `libs/contracts` DTOs survive each hop.
+
 - **Scenario: photographed label**
   - WHEN the owner sends a photo of the label
   - THEN the same card comes back (not yet asserted — slice not built)
-- **Scenario: invite token still redeems**
-  - WHEN a family-invite `/start <token>` arrives
-  - THEN it redeems exactly as before the prefix dispatch (not yet asserted — slice not built)
+- **Scenario: an ordinary photo is unaffected**
+  - WHEN a photo carries no QR code (a receipt, a wardrobe shot)
+  - THEN it routes exactly as before, and a decode failure changes nothing
+    (not yet asserted — slice not built)
 
 ### IN-g — edit / append / delete / move (on the shared runner)
 **Requirement:** every container and item SHALL be correctable in chat, confirm-gated.

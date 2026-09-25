@@ -1,5 +1,7 @@
 package dev.fedorov.ailife.tg.bot;
 
+import dev.fedorov.ailife.contracts.agent.AgentActionRequest;
+import dev.fedorov.ailife.contracts.agent.AgentActionResult;
 import dev.fedorov.ailife.contracts.agent.Attachment;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
 import dev.fedorov.ailife.contracts.agent.MessageScope;
@@ -20,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +41,14 @@ public class MessageProcessor {
     /** RU-3: reply shown when a voice note can't be understood, asking the owner to re-record. */
     static final String ASK_TO_REPEAT =
             "🎤 Не расслышал — повтори, пожалуйста, голосом ещё раз.";
+
+    /** IN-f: the agent a scanned container label is dispatched to, and the action it exposes. */
+    private static final String INVENTORY_AGENT = "inventory";
+    private static final String SHOW_CONTAINER = "show_container";
+
+    /** IN-f: inventory is cold/unregistered, or answered nothing usable — never a silent empty reply. */
+    static final String SCAN_UNAVAILABLE =
+            "Не получилось открыть карточку коробки. Попробуйте ещё раз или назовите её код.";
 
     private final IdentityResolver identity;
     private final OrchestratorClient orchestrator;
@@ -82,6 +93,45 @@ public class MessageProcessor {
     public Mono<String> mintInvite(IncomingMessage incoming, String personLabel, String relationship) {
         return identity.mintInvite(incoming.telegramUserId(), incoming.displayName(),
                 incoming.languageCode(), personLabel, relationship);
+    }
+
+    /**
+     * Handle a scanned container label (IN-f): a {@code /start box_<token>} deep-link open. The owner
+     * pointed a camera at a sticker, so there is <b>no sentence to classify</b> — the token itself names
+     * the box. It is therefore dispatched deterministically to inventory through the hub's existing
+     * inter-agent {@code invoke} (Stage 4 / C1) instead of being routed as a message: no classifier
+     * guess, no LLM turn on the critical "what is in this box" answer.
+     *
+     * <p>Identity is resolved exactly as for any message, so the owner-allowlist (#627) still governs
+     * first contact — a sticker authorizes seeing <i>that container</i>, never creating an account.
+     * A scan is a read and re-opening the link repeats it, so it is not written to the durable inbox.
+     */
+    public Mono<IntentResponse> showContainer(IncomingMessage incoming, String qrToken) {
+        return identity.resolve(incoming.telegramUserId(), incoming.displayName(), incoming.languageCode())
+                .flatMap(user -> orchestrator.invoke(scanRequest(user, qrToken))
+                        .map(MessageProcessor::scanReply)
+                        .defaultIfEmpty(new IntentResponse(INVENTORY_AGENT, SCAN_UNAVAILABLE, null)))
+                .switchIfEmpty(Mono.fromSupplier(() -> new IntentResponse(
+                        "gateway", IdentityResolver.notAllowedReply(incoming.languageCode()), null)));
+    }
+
+    private AgentActionRequest scanRequest(UserDto user, String qrToken) {
+        ObjectNode args = json.createObjectNode();
+        args.put("qrToken", qrToken);
+        return new AgentActionRequest(
+                INVENTORY_AGENT, SHOW_CONTAINER, user.householdId(), user.id(), "gateway", args);
+    }
+
+    /**
+     * The agent owns the wording — both halves. An {@code ok=false} carries its own user-facing text
+     * (an unknown token: a sticker outliving its box), which is surfaced verbatim rather than dressed up
+     * as a gateway error.
+     */
+    private static IntentResponse scanReply(AgentActionResult result) {
+        String text = result.ok() && result.result() != null
+                ? result.result().path("message").asString(SCAN_UNAVAILABLE)
+                : (result.error() == null || result.error().isBlank() ? SCAN_UNAVAILABLE : result.error());
+        return new IntentResponse(INVENTORY_AGENT, text, null);
     }
 
     public Mono<IntentResponse> process(IncomingMessage incoming) {
