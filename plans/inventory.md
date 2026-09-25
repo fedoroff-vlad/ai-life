@@ -94,20 +94,26 @@ story, no "which field wins" ambiguity.
 
 `qr_token` is **never** derived from `code` or the label — it must survive a rename.
 
-## Golden tests — owed, not yet written
-Per the docs/travel convention each LLM seam should get an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated,
-not in fast CI) asserting **structure, not wording**. **None exist yet** — the slices so far are
-covered by MockWebServer tests, which prove the wiring but not that a real model routes and extracts
-correctly. Owed: a routing golden over the four trigger-less skills (`box-packer` vs `item-finder` vs
-`box-label` vs `box-card` — the choice grew with each slice, and the last two are the closest pair:
-"что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder`), a `box-packer` extract
-golden, an `item-finder` query-distil golden and a `box-label`/`box-card` container-distil golden
-(a bare code vs a spoken name). Writing them needs a real model run (`scripts/golden.sh`), so they
-are their own slice rather than a claim made here. These are all routing/distil shaped — cheap enough
-for the dev box; anything generation-heavy would wait for the deploy model (the lane is
-throughput-gated there — [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md)
-§Golden tests). Names go in backticks once the classes exist — the
-spec→test trace of [PATTERNS.md](PATTERNS.md) §Recipe: spec a slice.
+## Golden tests — written and green on a real model (IN-goldens)
+Per the docs/travel convention each LLM seam has an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated, not in
+fast CI) asserting **structure, not wording**. Until this slice every inventory test was a MockWebServer
+one — proving the wiring while feeding the parser a JSON answer *written by hand*, so no test could tell
+whether a real model routes or extracts correctly. Four classes now cover the four LLM seams, each named
+for the defect it catches:
+
+| Class | Seam | The defect it catches |
+|---|---|---|
+| `GoldenInventoryRoutingTest` | the router over **four** trigger-less skills | the closest pair blurring: "что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder` — a box the user can name vs a thing they cannot place |
+| `GoldenBoxPackerTest` | `box-packer` extract (`open` / `close`) | the zone leaking into the label (every box named after its shelf), and a missed `close` leaving the conversation route-locked to a taped-up box |
+| `GoldenItemFinderTest` | `item-finder` query distil | searching the *question* — item names come from photo captions, so "где"/"лежат" dilute a trigram match against names containing neither |
+| `GoldenBoxLabelerTest` | `box-label`/`box-card` container distil | printing a sticker for the **wrong box** — asserted by the resolved container's identity, with two candidates in the store so a mismatch can't pass by luck |
+
+**Cost + result:** 7 tests, all green on `qwen3:8b` on the CPU-only dev box, run twice for stability —
+~1.5 min for the routing class (its prompt carries four SKILL descriptions, so the first prefill needs a
+warm-up call) and ~20–30 s each for the three distil classes. These are routing/distil shaped, which is
+why they fit the dev box at all; anything generation-heavy waits for the deploy model (that lane is
+throughput-gated — [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests).
+Run with `scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
 
 ## PR slices
 
