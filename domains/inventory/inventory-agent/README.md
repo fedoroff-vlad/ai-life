@@ -6,17 +6,18 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e + IN-f + goldens)
+## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + goldens)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
 **"где лежит X"** (IN-e) + the **scan path** (IN-f: deep-link + photographed label, the latter read at
-the gateway's front door). Semantic recall for the finder (IN-e2) and chat edits (IN-g) are later
-slices; a message that is none of the above falls through to a chat reply.
+the gateway's front door) + **correcting a container** (IN-g1: zone move / status / rename). Semantic
+recall for the finder (IN-e2) and the item-level edits (IN-g2/g3) are later slices; a message that is
+none of the above falls through to a chat reply.
 
-All four LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
-(the four trigger-less skills, including the close `box-card`/`item-finder` pair) +
+All five LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
+(the five trigger-less skills, including the close `box-card`/`item-finder` pair) +
 `GoldenBoxPackerTest` (open/close extract) + `GoldenItemFinderTest` (query distil) +
-`GoldenBoxLabelerTest` (container distil). See [plans/inventory.md](../../../plans/inventory.md)
+`GoldenBoxLabelerTest` (container distil) + `GoldenContainerEditorTest` (the edit's pick + fields). See [plans/inventory.md](../../../plans/inventory.md)
 §Golden tests for what each one catches; run with
 `scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
 
@@ -64,6 +65,12 @@ per photo — packing is a batch activity, not a form per item.
   allowlist-gated (#627): a sticker authorizes seeing *that container*, never creating an account. An
   unknown token is answered, never resolved to a nearby box, and a render hiccup still names the
   container and its contents count.
+- **Correct a box (IN-g1)** — "коробка B-07 теперь на даче" · "распаковал B-07" · "переименуй B-12 в
+  «зимние вещи»" → the `box-editor` SKILL picks the box + what changed, the agent asks to confirm
+  (да/нет buttons), and only an affirmative patches it. Zone moves upsert the zone **by name** under the
+  *container's* household. Only the named fields are sent, so **`code` and `qrToken` never change** — a
+  sticker already on the box keeps resolving after a rename, a move or an unpack. A `status` the model
+  invented is dropped, not written. Rides the shared ADR-0004 `PickConfirmActRunner`.
 - **Find (IN-e)** — "где лежат ёлочные игрушки" → the `item-finder` SKILL distils the *thing* out of
   the question (the stored names came from photo captions, so the interrogatives would only dilute
   the match) → `searchItems` → the reply names the **place**: container code, its label, its zone.
@@ -76,7 +83,7 @@ per photo — packing is a batch activity, not a form per item.
 | method | path | purpose |
 |--------|------|---------|
 | POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, or a chat reply. |
-| POST | `/agents/inventory/resume` | the route-locked turn while a box is open: a photo becomes an item, "закрой коробку" ends the session. Dispatches on `pendingAction.flow` = `box-packing`. |
+| POST | `/agents/inventory/resume` | the route-locked turn. Dispatches on `pendingAction.flow`: `box-packing` (a photo becomes an item, "закрой коробку" ends the session) and `box-edit-confirm` (да applies a container correction, IN-g1). |
 | POST | `/agents/inventory/actions/{action}` | inter-agent action envelope (Stage 4 / C1). `show_container` (args `{qrToken}`) is the **scan** path (IN-f1): a printed label's token → its card. An unknown token → `ok=false` carrying the user-facing text, relayed verbatim. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
 
@@ -90,6 +97,9 @@ per photo — packing is a batch activity, not a form per item.
   container a printable label is wanted for.
 - **`box-card`** (`domains/inventory/skills/box-card/SKILL.md`) — strict-JSON distil of *which*
   container's contents to show. A question about a **thing** rather than a box is `item-finder`.
+- **`box-editor`** (`domains/inventory/skills/box-editor/SKILL.md`) — strict-JSON pick of a container
+  plus what changed about it (`zone` / `status` / `newLabel`). A *correction to the box*, not a question
+  about its contents (`box-card`) and not a new box (`box-packer`).
 
 ## Env
 
@@ -125,6 +135,10 @@ per photo — packing is a batch activity, not a form per item.
 - `scan/BoxScanner` — the scan path (IN-f1): a label's token → the container view → the same card the
   chat flow renders (reusing `BoxLabeler.cardUrl`, which takes ids because a scan has no message behind
   it). Empty = no such container (the caller answers it); a render failure still answers in text.
+- `edit/ContainerEditor` — container corrections (IN-g1): a `TargetedActionFlow` + `CandidateView` +
+  `Phrasing` adapter on the shared `PickConfirmActRunner` (ADR-0004). `missing`/`readyToAct` refuse an
+  edit with nothing to change; `act` patches only the named fields and resolves a new zone by name from
+  the container's own household. Flow discriminator `box-edit-confirm`.
 - `find/ItemFinder` — "где лежит X" (IN-e): query distil (`item-finder` SKILL, temperature 0, falling
   back to the raw text when the model returns nothing usable) → `searchItems` → a reply that names the
   place. Shows the best hit plus up to four more.

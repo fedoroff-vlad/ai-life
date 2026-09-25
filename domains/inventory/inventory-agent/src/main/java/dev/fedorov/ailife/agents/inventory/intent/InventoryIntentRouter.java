@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.intent.SkillRouter;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.chat.InventoryChat;
+import dev.fedorov.ailife.agents.inventory.edit.ContainerEditor;
 import dev.fedorov.ailife.agents.inventory.find.ItemFinder;
 import dev.fedorov.ailife.agents.inventory.label.BoxLabeler;
 import dev.fedorov.ailife.agents.inventory.pack.BoxPacker;
@@ -21,7 +22,8 @@ import java.util.function.Function;
 /**
  * Routes a <b>text</b> message the orchestrator sent to {@code inventory} into the packing session
  * ({@link BoxPacker}), the finder ({@link ItemFinder}), a container's deliverables
- * ({@link BoxLabeler}) or a plain chat reply ({@link InventoryChat}).
+ * ({@link BoxLabeler}), a correction to a container itself ({@link ContainerEditor}) or a plain chat
+ * reply ({@link InventoryChat}).
  *
  * <p>A thin binding over the shared {@link SkillRouter} ({@code libs/agent-runtime}, skills-vs-flows
  * Bucket 1 / #475): it supplies the inventory-specific parts — the {@code {skillName → flow}} dispatch
@@ -41,22 +43,25 @@ public class InventoryIntentRouter {
     private static final String ITEM_FINDER = "item-finder";
     private static final String BOX_LABEL = "box-label";
     private static final String BOX_CARD = "box-card";
+    private static final String BOX_EDITOR = ContainerEditor.SKILL_NAME;
 
     private final SkillRouter router;
 
     public InventoryIntentRouter(LlmClient llm, SkillRegistry skills, SkillClassifier classifier,
                                  AgentManifest manifest, BoxPacker packer, ItemFinder finder,
-                                 BoxLabeler labeler, InventoryChat chat) {
+                                 BoxLabeler labeler, ContainerEditor editor, InventoryChat chat) {
         Map<String, Function<NormalizedMessage, Mono<IntentResponse>>> flows = new LinkedHashMap<>();
         flows.put(BOX_PACKER, packer::start);
         flows.put(ITEM_FINDER, finder::find);
         flows.put(BOX_LABEL, labeler::label);
         flows.put(BOX_CARD, labeler::card);
+        flows.put(BOX_EDITOR, editor::edit);
         this.router = new SkillRouter(llm, skills, classifier, manifest,
                 "You are routing a message for the inventory agent. Reply directly to the user, or run one skill.",
                 "Decide: does the user want to run a skill (start or finish packing a storage container, "
-                        + "find where a stored thing is, print a container's QR label, or see what is "
-                        + "inside one named container) or just talk?",
+                        + "find where a stored thing is, print a container's QR label, see what is "
+                        + "inside one named container, or correct a container that already exists — "
+                        + "its zone, its state or its name) or just talk?",
                 flows, chat::reply);
     }
 
