@@ -613,8 +613,10 @@ services:
       PROFILE_SERVICE_URL: http://profile-service:8082
       ORCHESTRATOR_URL: http://orchestrator:8083
       MEDIA_SERVICE_URL: http://media-service:8088
-      # Front-door STT: transcribe inbound voice notes to text before routing.
+      # Front-door STT: transcribe inbound voice notes to text before routing. Also the front-door
+      # QR read below (a captionless photo → a container label's card, inventory IN-f2).
       MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
+      GATEWAY_QR_SCAN_ENABLED: ${GATEWAY_QR_SCAN_ENABLED:-true}
     ports:
       # The bot uses long-polling (it dials OUT to Telegram), so it needs no inbound from the
       # internet — this host port is loopback-only (BIND_ADDR, #628), exposed just for host-local

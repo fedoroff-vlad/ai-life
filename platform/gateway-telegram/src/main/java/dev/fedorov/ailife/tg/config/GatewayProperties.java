@@ -11,6 +11,7 @@ public class GatewayProperties {
     private Telegram telegram = new Telegram();
     private Services services = new Services();
     private Stt stt = new Stt();
+    private Scan scan = new Scan();
     /**
      * Owner-allowlist of Telegram user ids permitted to <b>create an account on first contact</b>
      * (issue #627 — close the LLM/infra cost-abuse vector). The bot auto-provisions a personal
@@ -29,6 +30,7 @@ public class GatewayProperties {
     public Telegram getTelegram() { return telegram; }
     public Services getServices() { return services; }
     public Stt getStt() { return stt; }
+    public Scan getScan() { return scan; }
 
     public Set<Long> getAllowedTelegramIds() { return allowedTelegramIds; }
     public void setAllowedTelegramIds(Set<Long> allowedTelegramIds) {
@@ -42,6 +44,24 @@ public class GatewayProperties {
      */
     public boolean isOnboardingAllowed(long telegramUserId) {
         return allowedTelegramIds.isEmpty() || allowedTelegramIds.contains(telegramUserId);
+    }
+
+    /** Front-door barcode scan of an inbound photo (inventory IN-f2). */
+    public static class Scan {
+        /**
+         * Whether a <b>captionless</b> photo is checked for a QR code at the front door before routing
+         * (a container label → that box's card, inventory IN-f2). Only captionless photos are checked:
+         * a caption means the owner is <em>saying</em> something about the picture, and a scan must not
+         * hijack "добавь сюда ещё одну вещь". The check is deterministic (ZXing, no model) and
+         * soft-fails — a decode failure or a photo with no code routes exactly as before.
+         *
+         * <p>Off disables the photographed-label path entirely (the {@code /start box_} deep-link scan
+         * is unaffected). Env: {@code GATEWAY_QR_SCAN_ENABLED}.
+         */
+        private boolean enabled = true;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
     }
 
     /** Front-door speech-to-text reliability gate (#489 RU-3). */

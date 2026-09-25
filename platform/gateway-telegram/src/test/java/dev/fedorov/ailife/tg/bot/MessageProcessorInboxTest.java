@@ -8,6 +8,7 @@ import dev.fedorov.ailife.tg.config.GatewayProperties;
 import dev.fedorov.ailife.tg.identity.IdentityResolver;
 import dev.fedorov.ailife.tg.inbox.InboundReplies;
 import dev.fedorov.ailife.tg.media.MediaServiceClient;
+import dev.fedorov.ailife.tg.media.QrDecodeClient;
 import dev.fedorov.ailife.tg.media.TranscribeClient;
 import dev.fedorov.ailife.tg.orchestrator.OrchestratorClient;
 import org.junit.jupiter.api.Test;
@@ -38,9 +39,10 @@ class MessageProcessorInboxTest {
     private final OrchestratorClient orchestrator = mock(OrchestratorClient.class);
     private final MediaServiceClient media = mock(MediaServiceClient.class);
     private final TranscribeClient transcribe = mock(TranscribeClient.class);
+    private final QrDecodeClient qr = mock(QrDecodeClient.class);
     private final InboxWriter inbox = mock(InboxWriter.class);
     private final MessageProcessor processor = new MessageProcessor(
-            identity, orchestrator, media, transcribe, inbox, new ObjectMapper(), new GatewayProperties());
+            identity, orchestrator, media, transcribe, qr, inbox, new ObjectMapper(), new GatewayProperties());
 
     private void resolvesToUser() {
         when(identity.resolve(anyLong(), anyString(), anyString())).thenReturn(Mono.just(new UserDto(

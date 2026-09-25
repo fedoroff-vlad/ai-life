@@ -8,7 +8,7 @@ never stores blobs (it reads them from media-service by object id). Plan: [media
 **Status (MP-f):** `decode_qr` reads a barcode out of a stored image via **ZXing** — pure Java, so
 unlike OCR/STT/frames it has **no engine seam and no stub twin** (nothing environment-dependent to
 degrade to). A frame with no readable code returns an **empty payload**, not an error — the caller
-asks for another shot. Its consumer is inventory-agent (IN-f), which resolves a photographed
+asks for another shot. Its consumer is gateway-telegram (IN-f2), which resolves a photographed
 container label. `ocr` runs **real OCR** via Tess4J + native tesseract (deployed
 default; native-free `StubOcrEngine` via `mediaprocessing.ocr-engine=stub`). `caption`
 asks llm-gateway's **vision** channel about an image with a caller-supplied instruction —
@@ -43,7 +43,7 @@ call, reused not re-embedded.
 |--------|------|------|---------|---------|
 | POST | `/internal/caption` | `CaptionInput{mediaId, instruction}` | `CaptionResult{text, model?}` | non-MCP passthrough to the `caption` tool. A capability-MCP is bound over MCP/SSE, but that transport can't be MockWebServer'd, so a caller that already knows it wants a caption (deterministic — it has the media id + instruction) hits this HTTP path instead. Delegates straight to the `caption` tool. Used by finance-agent's `receipt-parser` (MP-c). |
 | POST | `/internal/ocr` | `OcrInput{mediaId}` | `OcrResult{text, lang?, confidence?}` | non-MCP passthrough to the `ocr` tool (the OCR twin of `/internal/caption`). Same rationale — a caller that deterministically wants OCR text hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by docs-agent's `doc-archiver` (D-c) to turn a document photo into the full text it archives + indexes. |
-| POST | `/internal/qr` | `QrInput{mediaId}` | `QrResult{payload, format?}` | non-MCP passthrough to the `decode_qr` tool (the barcode twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a label read hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by inventory-agent (IN-f) when the owner photographs a container's label instead of scanning it with a phone camera. |
+| POST | `/internal/qr` | `QrInput{mediaId}` | `QrResult{payload, format?}` | non-MCP passthrough to the `decode_qr` tool (the barcode twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a label read hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram (IN-f2) when the owner photographs a container's label instead of scanning it with a phone camera — a captionless photo carries no text to route on, so the read is a front-door step (the barcode sibling of the voice STT call above). |
 | POST | `/internal/transcribe` | `TranscribeInput{mediaId}` | `TranscriptResult{text, lang?, durationSeconds?, confidence?}` | non-MCP passthrough to the `transcribe` tool (the STT twin of `/internal/ocr`). Same rationale — a caller that deterministically wants a transcript hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by gateway-telegram to turn an inbound **voice note** into text before the orchestrator routes it (and to gate an unintelligible one via `confidence`, #489 RU-3). |
 | POST | `/internal/frames` | `FramesInput{mediaId, n, householdId, ownerId?}` | `FramesResult{frameMediaIds}` | non-MCP passthrough to the `frames` tool (the visual twin of `/internal/transcribe`). Same rationale — a caller that deterministically wants keyframes hits this HTTP path rather than the un-mockable MCP/SSE binding. Used by researcher-agent's video-understanding flow (V-c) for the visual tier on speechless video. |
 
@@ -113,7 +113,7 @@ No DB / no Liquibase feature (capability-MCP). Binding side: an agent adds a
 - `web/InternalOcrController` — `POST /internal/ocr` passthrough (D-b), the OCR twin of the caption
   one; delegates to the `ocr` tool on `Schedulers.boundedElastic()`. Called by docs-agent (D-c).
 - `web/InternalQrController` — `POST /internal/qr` passthrough (MP-f), the barcode twin of the OCR
-  one. Called by inventory-agent (IN-f).
+  one. Called by gateway-telegram (IN-f2).
 - `web/InternalTranscribeController` — `POST /internal/transcribe` passthrough, the STT twin of the OCR
   one; delegates to the `transcribe` tool on `Schedulers.boundedElastic()`. Called by gateway-telegram's
   voice-input path.

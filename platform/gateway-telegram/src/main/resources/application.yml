@@ -40,6 +40,9 @@ gateway:
     orchestrator-base-url: ${ORCHESTRATOR_URL:http://orchestrator:8083}
     media-base-url: ${MEDIA_SERVICE_URL:http://media-service:8088}
     media-processing-base-url: ${MCP_MEDIA_PROCESSING_URL:http://mcp-media-processing:8097}
+  scan:
+    # Check a captionless inbound photo for a container label's QR before routing (inventory IN-f2).
+    enabled: ${GATEWAY_QR_SCAN_ENABLED:true}
   internal-api-token: ${GATEWAY_INTERNAL_API_TOKEN:}
 
 management:

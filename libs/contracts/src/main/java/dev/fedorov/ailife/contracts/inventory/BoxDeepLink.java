@@ -45,4 +45,23 @@ public final class BoxDeepLink {
         return token.isEmpty() ? null : token;
     }
 
+    /**
+     * The container token inside a <b>decoded QR payload</b> — the whole {@code t.me/<bot>?start=box_…}
+     * URL a reader lifts off a label — or {@code null} when the image held some other code (a retail
+     * barcode, someone else's QR). Used when the owner photographs the sticker instead of opening it
+     * with a camera app. The bot username is deliberately not matched: a label printed before the bot
+     * was renamed must still resolve to its box.
+     */
+    public static String tokenOfUrl(String decodedPayload) {
+        if (decodedPayload == null) {
+            return null;
+        }
+        int marker = decodedPayload.indexOf("?start=");
+        if (marker < 0) {
+            return null;
+        }
+        String payload = decodedPayload.substring(marker + "?start=".length()).trim();
+        int amp = payload.indexOf('&');
+        return tokenOf(amp < 0 ? payload : payload.substring(0, amp));
+    }
 }

@@ -152,8 +152,9 @@ JNI-mature; whisper's isn't.
   elsewhere ("stub→real behind a seam", for native/model dependencies) simply doesn't fire here.
   Decoding hints `TRY_HARDER` + `ALSO_INVERTED` are set because the input is a *photo of a label* at
   an angle, possibly light-on-dark; `PURE_BARCODE` is deliberately unset. New contracts
-  `media/{QrInput, QrResult}` + the `/internal/qr` passthrough (the deterministic path inventory-agent
-  calls in IN-f). Tests = `QrDecoderTest` (encode→decode round trip, incl. a small noisy code) +
+  `media/{QrInput, QrResult}` + the `/internal/qr` passthrough (the deterministic path **gateway-telegram**
+  calls at the front door in IN-f2 — a captionless photo has no text to classify, so the read happens
+  before routing, like the voice STT). Tests = `QrDecoderTest` (encode→decode round trip, incl. a small noisy code) +
   `InternalQrControllerTest`.
   - **Scenario (decode):** WHEN `decode_qr` runs on an image containing a container label's code,
     THEN it returns that code's payload and `format=QR_CODE` (asserted by `QrDecoderTest`,
