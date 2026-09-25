@@ -9,6 +9,7 @@ import dev.fedorov.ailife.contracts.inventory.SaveItemInput;
 import dev.fedorov.ailife.contracts.inventory.SaveZoneInput;
 import dev.fedorov.ailife.contracts.inventory.StorageZoneDto;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -61,6 +62,22 @@ public class InventoryClient {
         return http.get()
                 .uri("/internal/containers/{id}", id)
                 .retrieve()
+                .bodyToMono(ContainerViewDto.class)
+                .timeout(TIMEOUT);
+    }
+
+    /**
+     * The container a printed label resolves to (IN-f). The {@code qrToken} <b>is</b> the lookup key —
+     * it is the only thing the sticker carries — so a scan needs neither a household nor a code, which
+     * is what lets the person unpacking open a link and get an answer. An unknown token (a sticker from
+     * a box that was deleted, a foreign QR) is {@link Mono#empty()}, not an error: that is a normal
+     * answer the caller turns into "не нашёл коробку по этой этикетке".
+     */
+    public Mono<ContainerViewDto> getContainerByToken(String qrToken) {
+        return http.get()
+                .uri("/internal/containers/by-token/{qrToken}", qrToken)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
                 .bodyToMono(ContainerViewDto.class)
                 .timeout(TIMEOUT);
     }

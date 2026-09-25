@@ -17,7 +17,7 @@ build/validation (no Docker on the dev VDI): they are `designed`/`partially-buil
 the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
 
 ## Now
-- **inventory domain ([inventory.md](inventory.md)) — IN FLIGHT; store + packing + find + label/card landed, the scan path (IN-f) next (owner pick 2026-09-22).**
+- **inventory domain ([inventory.md](inventory.md)) — IN FLIGHT; store + packing + find + label/card + the deep-link scan landed, the photographed label (IN-f2) next (owner pick 2026-09-22).**
   New 14th domain: "где что лежит" — photograph things into a container, the container carries a QR label,
   scanning (or photographing) it returns a card of what is inside + where it stands. Driver is an imminent move;
   scope is permanent storage organisation. Spec merged first per "flag before code"
@@ -32,8 +32,17 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   and on demand via the new trigger-less `box-label` / `box-card` skills, both soft-failing on the
   closing path so a media hiccup costs a link and not the close). Detail → [inventory.md](inventory.md)
   + [HISTORY.md](HISTORY.md).
-  **Next: IN-f** — the scan path (`box_` prefix dispatch on the gateway's `/start` + a photographed
-  label → the card), which is also the domain's E2E closer. Also owed: **IN-e2** (semantic recall — an
+  **IN-f1 (the deep-link scan) DONE:** `/start` now splits by prefix — `box_<token>` is a scanned
+  container label, anything else stays a family invite byte-for-byte. A scan carries **no sentence to
+  classify**, so it is not routed as a message: the gateway dispatches it deterministically through the
+  hub's existing C1 `invoke` (`/v1/agents/invoke` → inventory's new `show_container` action) and shows
+  the agent's own reply. Lookup is by token alone (no household match — whoever holds the box gets an
+  answer; possession of an unguessable printed id *is* the authorization, while first contact stays
+  #627-allowlist-gated), an unknown token is answered rather than resolved to a neighbouring box, and
+  the `box_` literal now lives in `libs/contracts` `BoxDeepLink` so the renderer and the front door
+  cannot drift apart.
+  **Next: IN-f2** — the photographed label (front-door `decode_qr` on inbound photos, soft-fail +
+  flag-gated) + an E2EInventoryScanFlow test, the domain's E2E closer. Also owed: **IN-e2** (semantic recall — an
   item note seed, mirroring docs SB-5) and the domain's **goldens**, none of which exist yet (see
   [inventory.md](inventory.md) §Golden tests — they need a real model run, so they are their own slice;
   the routing golden now has four trigger-less skills to separate). Label printing stays deferred until

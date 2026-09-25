@@ -6,11 +6,12 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e)
+## Status (IN-c + IN-d + IN-e + IN-f1)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
-**"где лежит X"** (IN-e). The scan path (IN-f) and semantic recall for the finder (IN-e2) are later
-slices; a message that is none of the above falls through to a chat reply.
+**"где лежит X"** (IN-e) + the **deep-link scan** (IN-f1). The photographed-label half of the scan
+(IN-f2) and semantic recall for the finder (IN-e2) are later slices; a message that is none of the
+above falls through to a chat reply.
 
 **The session is the shipped route-lock, not a new mechanism.** Opening a container returns a
 `pendingAction`, so the orchestrator routes every following message straight back to this agent's
@@ -46,6 +47,16 @@ per photo — packing is a batch activity, not a form per item.
 - **A photo with no open session** never guesses a container — it asks. A misfiled thing is found in
   the wrong box months later, so one extra question is the cheaper error. This is a deterministic
   pre-check in `IntentController`: a photo is unambiguous, so it costs no LLM turn.
+- **Scan (IN-f1)** — a QR label opened with a phone camera lands on the gateway as
+  `/start box_<token>`, which dispatches it **deterministically through the hub** (`/v1/agents/invoke`
+  → `show_container`) instead of routing it as a message: a sticker carries no sentence, and a
+  classifier guess between the camera and "что в этой коробке" is exactly the error this domain
+  exists to prevent. The lookup is **by token alone** — no household match — so whoever is holding the
+  box gets an answer (prior art: scanning must work for a non-user); the token is unguessable and
+  printed on a physical box, and that possession *is* the authorization. First contact is still
+  allowlist-gated (#627): a sticker authorizes seeing *that container*, never creating an account. An
+  unknown token is answered, never resolved to a nearby box, and a render hiccup still names the
+  container and its contents count.
 - **Find (IN-e)** — "где лежат ёлочные игрушки" → the `item-finder` SKILL distils the *thing* out of
   the question (the stored names came from photo captions, so the interrogatives would only dilute
   the match) → `searchItems` → the reply names the **place**: container code, its label, its zone.
@@ -59,6 +70,7 @@ per photo — packing is a batch activity, not a form per item.
 |--------|------|---------|
 | POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, or a chat reply. |
 | POST | `/agents/inventory/resume` | the route-locked turn while a box is open: a photo becomes an item, "закрой коробку" ends the session. Dispatches on `pendingAction.flow` = `box-packing`. |
+| POST | `/agents/inventory/actions/{action}` | inter-agent action envelope (Stage 4 / C1). `show_container` (args `{qrToken}`) is the **scan** path (IN-f1): a printed label's token → its card. An unknown token → `ok=false` carrying the user-facing text, relayed verbatim. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
 
 ## Skills
@@ -94,14 +106,18 @@ per photo — packing is a batch activity, not a form per item.
   (`mcpInventoryWebClient` + `mcpMediaProcessingWebClient` + `mediaServiceWebClient` + the opt-in
   shared `CaptionClient` / `MediaStoreClient` / `DeliverablePublisher` beans).
 - `http/InventoryClient` — the `mcp-inventory` `/internal` passthroughs (`saveZone` / `saveContainer`
-  / `getContainer` / `listContainers` / `saveItem` / `searchItems`). Mirrors docs-agent's
-  `DocumentClient`.
+  / `getContainer` / `getContainerByToken` / `listContainers` / `saveItem` / `searchItems`). Mirrors
+  docs-agent's `DocumentClient`. `getContainerByToken` is empty (not an error) on an unknown token —
+  a sticker outlives the row it points at.
 - `label/BoxLabelImage` — pure: the `t.me/<bot>?start=box_<token>` payload + its QR PNG (ZXing,
   deterministic, 464 px = 58 mm at 203 dpi). Lifts to `libs/qr` on a second consumer.
 - `label/BoxLabeler` — the two deliverables (IN-d): `deliver` (both, on close, each soft-failing),
   `label` / `card` (the on-demand skills). Resolves "коробка B-07" by listing the household's
   containers and matching the code first, the label second; an unresolvable ask is answered, never
   guessed.
+- `scan/BoxScanner` — the scan path (IN-f1): a label's token → the container view → the same card the
+  chat flow renders (reusing `BoxLabeler.cardUrl`, which takes ids because a scan has no message behind
+  it). Empty = no such container (the caller answers it); a render failure still answers in text.
 - `find/ItemFinder` — "где лежит X" (IN-e): query distil (`item-finder` SKILL, temperature 0, falling
   back to the raw text when the model returns nothing usable) → `searchItems` → a reply that names the
   place. Shows the best hit plus up to four more.
@@ -113,4 +129,5 @@ per photo — packing is a batch activity, not a form per item.
   the dispatch map holds `box-packer` + `item-finder` + `box-label` + `box-card`, and each SKILL.md `description` is the routing
   SSOT. Photos never reach it (locked → `/resume`, unlocked → the controller's pre-check).
 - `chat/InventoryChat` — the open-question fallback (AGENT.md system prompt).
-- `web/IntentController` · `web/ResumeController` · `web/ManifestController`.
+- `web/IntentController` · `web/ResumeController` · `web/ManifestController` · `web/ActionController`
+  (the C1 envelope on the shared `AgentActionController` base; registers `show_container`).

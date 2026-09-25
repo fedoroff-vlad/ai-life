@@ -6,6 +6,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+import dev.fedorov.ailife.contracts.inventory.BoxDeepLink;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Map;
@@ -30,9 +31,6 @@ import java.util.Map;
  */
 public final class BoxLabelImage {
 
-    /** Distinguishes a box scan from a family-invite token on the shared {@code /start} path. */
-    public static final String DEEP_LINK_PREFIX = "box_";
-
     /**
      * 58 mm at 203 dpi — the short side of the label stock the owner's printer class takes, so the
      * PNG is already the right size to print from a phone (the native TSPL template is deferred).
@@ -45,9 +43,13 @@ public final class BoxLabelImage {
     private BoxLabelImage() {
     }
 
-    /** The deep link a scanner opens: {@code https://t.me/<bot>?start=box_<qrToken>}. */
+    /**
+     * The deep link a scanner opens: {@code https://t.me/<bot>?start=box_<qrToken>}. The shape lives in
+     * {@link BoxDeepLink} (contracts) because the gateway's {@code /start} dispatch has to recognise it —
+     * a prefix that drifted here would orphan every sticker already on a box.
+     */
     public static String deepLink(String botUsername, String qrToken) {
-        return "https://t.me/" + botUsername + "?start=" + DEEP_LINK_PREFIX + qrToken;
+        return BoxDeepLink.of(botUsername, qrToken);
     }
 
     /** The QR PNG for a payload, at the default print size. */

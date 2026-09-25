@@ -95,7 +95,7 @@ public class BoxLabeler {
             return Mono.empty();
         });
         Mono<String> card = view(container.id())
-                .flatMap(view -> cardUrl(msg, view))
+                .flatMap(view -> cardUrl(msg.householdId(), msg.userId(), view))
                 .onErrorResume(e -> {
                     log.warn("card render failed for {}: {}", container.code(), e.toString());
                     return Mono.empty();
@@ -136,7 +136,7 @@ public class BoxLabeler {
     public Mono<IntentResponse> card(NormalizedMessage msg) {
         return resolve(msg, CARD_SKILL)
                 .flatMap(container -> view(container.id())
-                        .flatMap(view -> cardUrl(msg, view)
+                        .flatMap(view -> cardUrl(msg.householdId(), msg.userId(), view)
                                 .map(url -> reply(cardText(view) + ": " + url)
                                         .withTrace("read: rendered a container card"))))
                 .onErrorResume(NotFound.class, e -> Mono.just(reply(notFoundText(e.needle))))
@@ -159,8 +159,13 @@ public class BoxLabeler {
                 .map(stored -> publisher.mediaUrl(stored.id()));
     }
 
-    private Mono<String> cardUrl(NormalizedMessage msg, ContainerViewDto view) {
-        return publisher.publish(msg.householdId(), msg.userId(), board(view));
+    /**
+     * Render + publish a container's card. Takes the ids rather than a {@link NormalizedMessage} because
+     * a <b>scan</b> (IN-f) has no message behind it — it arrives as an inter-agent action — and the card
+     * must be the same artifact whether it was asked for in chat or opened from a sticker.
+     */
+    public Mono<String> cardUrl(UUID householdId, UUID userId, ContainerViewDto view) {
+        return publisher.publish(householdId, userId, board(view));
     }
 
     /**
@@ -281,7 +286,8 @@ public class BoxLabeler {
         return sb.toString();
     }
 
-    private static String cardText(ContainerViewDto view) {
+    /** The one-line "which box, where, what state" header both the chat card and a scan reply use. */
+    public static String cardText(ContainerViewDto view) {
         int items = view.items() == null ? 0 : view.items().size();
         return "Коробка " + name(view.container()) + ", " + zoneName(view.zone()) + ", "
                 + status(view.container().status()) + ", " + itemsWord(items);
