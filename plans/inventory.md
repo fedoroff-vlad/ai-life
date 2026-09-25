@@ -384,13 +384,44 @@ machine is not the model's to extend).
   - THEN a real model routes it to `box-editor`, not to the card of that box
     (asserted by `GoldenInventoryRoutingTest`)
 
-#### IN-g2 / IN-g3 — items
-"убери оттуда X" (item delete on the same runner) · "добавь в B-07 гирлянду" (+photo — appending to a
-named box without reopening a packing session).
+#### IN-g2 — taking a thing out of its box (`item-remover`) ✅ DONE
+"убери оттуда гирлянду" · "выкинул старый чайник — удали его". A plain **delete** flow on the shared
+runner, so the wording comes free from `NounPhrasing`; the adapter (`edit/ItemRemover`) supplies the pool,
+the view and the act. Two decisions worth naming:
+- **The pool is the search, not the store.** A household after a move holds hundreds of things, which fits
+  neither the runner's candidate cap nor a model's attention, so candidates come from `searchItems` over
+  the **distilled** phrase.
+- **The distil lifted into `find/ItemQuery`.** Both readers of the item store need "the thing out of the
+  sentence" (names came from photo captions), so on its second consumer it stopped living inside
+  `ItemFinder` — the repo's own second-consumer rule.
 
 - **Scenario: delete asks first**
   - WHEN the owner asks to remove an item
-  - THEN the agent names the candidate and waits for confirmation before deleting
+  - THEN the agent names the candidate *and its box* and waits for confirmation, having deleted nothing
+    (asserted by `ItemRemoverTest`)
+- **Scenario: the candidate pool is the search**
+  - WHEN a removal is requested in a household with many things
+  - THEN candidates come from the trigram search over the distilled phrase, not from the whole store
+    (asserted by `ItemRemoverTest`)
+- **Scenario: a decline keeps the thing**
+  - WHEN the owner answers anything but an affirmative
+  - THEN nothing is deleted (asserted by `ItemRemoverTest`)
+- **Scenario: already gone is not a failure**
+  - WHEN the confirmed item no longer exists
+  - THEN the reply is not an error — the owner asked for it not to be there, and it is not
+    (asserted by `ItemRemoverTest`)
+- **Scenario: routed as a removal, not a search**
+  - WHEN the owner says "убери из коробки старый чайник"
+  - THEN a real model routes it to `item-remover`, not to `item-finder` or `box-editor`
+    (asserted by `GoldenInventoryRoutingTest`)
+
+#### IN-g3 — appending to a named box
+"добавь в B-07 гирлянду" (+photo) — putting a thing into an already-closed box without reopening a
+packing session.
+
+- **Scenario: append to a named box**
+  - WHEN the owner sends a photo naming the box it belongs to
+  - THEN the thing is saved to that container without opening a session
     (not yet asserted — slice not built)
 
 ## Prior art (analogue apps — what is worth copying)

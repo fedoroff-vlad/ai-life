@@ -6,16 +6,16 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + goldens)
+## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + IN-g2 + goldens)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
 **"где лежит X"** (IN-e) + the **scan path** (IN-f: deep-link + photographed label, the latter read at
-the gateway's front door) + **correcting a container** (IN-g1: zone move / status / rename). Semantic
-recall for the finder (IN-e2) and the item-level edits (IN-g2/g3) are later slices; a message that is
-none of the above falls through to a chat reply.
+the gateway's front door) + **correcting a container** (IN-g1: zone move / status / rename) + **taking a
+thing out of its box** (IN-g2). Semantic recall for the finder (IN-e2) and appending to a closed box
+(IN-g3) are later slices; a message that is none of the above falls through to a chat reply.
 
-All five LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
-(the five trigger-less skills, including the close `box-card`/`item-finder` pair) +
+All LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
+(the six trigger-less skills, including the close `box-card`/`item-finder` pair and removal vs search) +
 `GoldenBoxPackerTest` (open/close extract) + `GoldenItemFinderTest` (query distil) +
 `GoldenBoxLabelerTest` (container distil) + `GoldenContainerEditorTest` (the edit's pick + fields). See [plans/inventory.md](../../../plans/inventory.md)
 §Golden tests for what each one catches; run with
@@ -71,6 +71,11 @@ per photo — packing is a batch activity, not a form per item.
   *container's* household. Only the named fields are sent, so **`code` and `qrToken` never change** — a
   sticker already on the box keeps resolving after a rename, a move or an unpack. A `status` the model
   invented is dropped, not written. Rides the shared ADR-0004 `PickConfirmActRunner`.
+- **Remove a thing (IN-g2)** — "убери из коробки старый чайник" → the `item-finder` phrase distil finds
+  the candidates (the **search**, not the whole store — a household after a move holds hundreds of
+  things), the `item-remover` SKILL picks which one, and the confirm names the thing *and its box* before
+  anything is deleted. A declined removal keeps it; an item already gone is not reported as a failure.
+  Deletion is the domain's one irreversible act — the row carries the only reference to the photo.
 - **Find (IN-e)** — "где лежат ёлочные игрушки" → the `item-finder` SKILL distils the *thing* out of
   the question (the stored names came from photo captions, so the interrogatives would only dilute
   the match) → `searchItems` → the reply names the **place**: container code, its label, its zone.
@@ -83,7 +88,7 @@ per photo — packing is a batch activity, not a form per item.
 | method | path | purpose |
 |--------|------|---------|
 | POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, or a chat reply. |
-| POST | `/agents/inventory/resume` | the route-locked turn. Dispatches on `pendingAction.flow`: `box-packing` (a photo becomes an item, "закрой коробку" ends the session) and `box-edit-confirm` (да applies a container correction, IN-g1). |
+| POST | `/agents/inventory/resume` | the route-locked turn. Dispatches on `pendingAction.flow`: `box-packing` (a photo becomes an item, "закрой коробку" ends the session), `box-edit-confirm` (да applies a container correction, IN-g1) and `item-remove-confirm` (да deletes a thing, IN-g2). |
 | POST | `/agents/inventory/actions/{action}` | inter-agent action envelope (Stage 4 / C1). `show_container` (args `{qrToken}`) is the **scan** path (IN-f1): a printed label's token → its card. An unknown token → `ok=false` carrying the user-facing text, relayed verbatim. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
 
@@ -100,6 +105,8 @@ per photo — packing is a batch activity, not a form per item.
 - **`box-editor`** (`domains/inventory/skills/box-editor/SKILL.md`) — strict-JSON pick of a container
   plus what changed about it (`zone` / `status` / `newLabel`). A *correction to the box*, not a question
   about its contents (`box-card`) and not a new box (`box-packer`).
+- **`item-remover`** (`domains/inventory/skills/item-remover/SKILL.md`) — strict-JSON pick of *which
+  packed thing* to take out, from the candidates the search returned.
 
 ## Env
 
@@ -139,9 +146,15 @@ per photo — packing is a batch activity, not a form per item.
   `Phrasing` adapter on the shared `PickConfirmActRunner` (ADR-0004). `missing`/`readyToAct` refuse an
   edit with nothing to change; `act` patches only the named fields and resolves a new zone by name from
   the container's own household. Flow discriminator `box-edit-confirm`.
-- `find/ItemFinder` — "где лежит X" (IN-e): query distil (`item-finder` SKILL, temperature 0, falling
-  back to the raw text when the model returns nothing usable) → `searchItems` → a reply that names the
-  place. Shows the best hit plus up to four more.
+- `find/ItemQuery` — "the thing out of the sentence": the `item-finder` distil, shared by the finder and
+  the remover (lifted here on its second consumer). Never fails — a useless model reply degrades to the
+  raw text, because a diluted search still beats no search.
+- `find/ItemFinder` — "где лежит X" (IN-e): `ItemQuery` → `searchItems` → a reply that names the place.
+  Shows the best hit plus up to four more.
+- `edit/ItemRemover` — removing a packed thing (IN-g2): a delete flow on the shared
+  `PickConfirmActRunner` (so the wording comes from `NounPhrasing` via `nouns()`); candidates are the
+  search over the distilled phrase, the label carries the thing *and* its box code, `act` deletes by id.
+  Flow discriminator `item-remove-confirm`.
 - `pack/BoxPacker` — the session: `start` (open) · `resume` (photo → caption → `saveItem`, or close) ·
   `photoWithoutSession` (ask). Owns the `box-packing` pendingAction envelope
   (`{flow, containerId, code, label, count}`) — re-issued each turn to keep the lock, null to end it.

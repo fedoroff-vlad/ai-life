@@ -1,6 +1,7 @@
 package dev.fedorov.ailife.agents.inventory.web;
 
 import dev.fedorov.ailife.agents.inventory.edit.ContainerEditor;
+import dev.fedorov.ailife.agents.inventory.edit.ItemRemover;
 import dev.fedorov.ailife.agents.inventory.pack.BoxPacker;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -18,7 +19,7 @@ import reactor.core.publisher.Mono;
  * "which box?" per photo.
  *
  * <p>Dispatches on the {@code pendingAction.flow} discriminator: {@code box-packing} (the session) and
- * {@code box-edit-confirm} (a container correction awaiting да/нет, ADR-0004). The reply's
+ * {@code box-edit-confirm} / {@code item-remove-confirm} (a correction awaiting да/нет, ADR-0004). The reply's
  * {@code pendingAction} being null clears the lock — the box closed, or the edit was answered.
  */
 @RestController
@@ -27,11 +28,14 @@ public class ResumeController {
 
     private final BoxPacker packer;
     private final ContainerEditor editor;
+    private final ItemRemover remover;
     private final AgentManifest manifest;
 
-    public ResumeController(BoxPacker packer, ContainerEditor editor, AgentManifest manifest) {
+    public ResumeController(BoxPacker packer, ContainerEditor editor, ItemRemover remover,
+                            AgentManifest manifest) {
         this.packer = packer;
         this.editor = editor;
+        this.remover = remover;
         this.manifest = manifest;
     }
 
@@ -41,6 +45,9 @@ public class ResumeController {
                 : request.pendingAction().path("flow").asString(null);
         if (ContainerEditor.FLOW.equals(flow)) {
             return editor.resume(request);
+        }
+        if (ItemRemover.FLOW.equals(flow)) {
+            return remover.resume(request);
         }
         if (!BoxPacker.FLOW.equals(flow)) {
             return Mono.just(new IntentResponse(manifest.name(),

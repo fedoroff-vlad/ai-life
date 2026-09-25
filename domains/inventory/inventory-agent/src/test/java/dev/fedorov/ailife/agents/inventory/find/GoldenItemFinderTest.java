@@ -61,7 +61,7 @@ class GoldenItemFinderTest {
             GoldenLlm.skill(GoldenItemFinderTest.class.getClassLoader(),
                     "skills/inventory/item-finder/SKILL.md")));
     private final ItemFinder finder = new ItemFinder(
-            GoldenLlm.client(), skills, inventory, manifest, json);
+            new ItemQuery(GoldenLlm.client(), skills, json), inventory, manifest);
 
     @Test
     void distilsTheThingOutOfTheQuestion() {
