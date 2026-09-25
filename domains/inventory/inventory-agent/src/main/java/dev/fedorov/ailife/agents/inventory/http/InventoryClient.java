@@ -111,6 +111,21 @@ public class InventoryClient {
     }
 
     /**
+     * Take a thing out of its box (IN-g2). Idempotent from the caller's side: the store answers 404 for an
+     * item that is already gone, which is not an error worth surfacing — the owner asked for it to not be
+     * there, and it is not there.
+     */
+    public Mono<Void> deleteItem(UUID id) {
+        return http.delete()
+                .uri("/internal/items/{id}", id)
+                .retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, resp -> Mono.empty())
+                .toBodilessEntity()
+                .timeout(TIMEOUT)
+                .then();
+    }
+
+    /**
      * "Где лежит X" (IN-e): each hit carries its container and zone, so one call answers *where*.
      * An empty result is an empty list, not an error.
      */
