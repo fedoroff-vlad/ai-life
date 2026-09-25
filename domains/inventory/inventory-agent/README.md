@@ -6,12 +6,19 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e + IN-f1)
+## Status (IN-c + IN-d + IN-e + IN-f + goldens)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
-**"где лежит X"** (IN-e) + the **deep-link scan** (IN-f1). The photographed-label half of the scan
-(IN-f2) and semantic recall for the finder (IN-e2) are later slices; a message that is none of the
-above falls through to a chat reply.
+**"где лежит X"** (IN-e) + the **scan path** (IN-f: deep-link + photographed label, the latter read at
+the gateway's front door). Semantic recall for the finder (IN-e2) and chat edits (IN-g) are later
+slices; a message that is none of the above falls through to a chat reply.
+
+All four LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
+(the four trigger-less skills, including the close `box-card`/`item-finder` pair) +
+`GoldenBoxPackerTest` (open/close extract) + `GoldenItemFinderTest` (query distil) +
+`GoldenBoxLabelerTest` (container distil). See [plans/inventory.md](../../../plans/inventory.md)
+§Golden tests for what each one catches; run with
+`scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
 
 **The session is the shipped route-lock, not a new mechanism.** Opening a container returns a
 `pendingAction`, so the orchestrator routes every following message straight back to this agent's
