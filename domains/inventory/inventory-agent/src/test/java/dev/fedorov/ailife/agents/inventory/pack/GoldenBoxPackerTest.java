@@ -2,6 +2,7 @@ package dev.fedorov.ailife.agents.inventory.pack;
 
 import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.inventory.find.ItemNotes;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.agents.inventory.label.BoxLabeler;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -64,8 +65,14 @@ class GoldenBoxPackerTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenBoxPackerTest.class.getClassLoader(),
                     "skills/inventory/box-packer/SKILL.md")));
+    /** The IN-e2 note seed is stubbed silent: what is under test here is the packing-move extract. */
+    private final ItemNotes notes = mock(ItemNotes.class);
     private final BoxPacker packer = new BoxPacker(
-            GoldenLlm.client(), skills, inventory, caption, labeler, manifest, json);
+            GoldenLlm.client(), skills, inventory, caption, labeler, notes, manifest, json);
+
+    {
+        when(notes.seed(any(), any(), any(), any())).thenReturn(Mono.empty());
+    }
 
     /**
      * OPEN — a spoken "открой коробку «X» в Y" must yield {@code action=open} plus a label that is the

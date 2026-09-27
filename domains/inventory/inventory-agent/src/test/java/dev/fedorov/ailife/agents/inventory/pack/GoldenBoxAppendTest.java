@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.inventory.pack;
 import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.container.ContainerResolver;
+import dev.fedorov.ailife.agents.inventory.find.ItemNotes;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -69,9 +70,15 @@ class GoldenBoxAppendTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenBoxAppendTest.class.getClassLoader(),
                     "skills/inventory/box-append/SKILL.md")));
+    /** The IN-e2 note seed is stubbed silent: what is under test here is the caption split. */
+    private final ItemNotes notes = mock(ItemNotes.class);
     private final BoxAppender appender = new BoxAppender(
-            GoldenLlm.client(), skills, inventory, new ContainerResolver(inventory), caption, manifest,
-            json);
+            GoldenLlm.client(), skills, inventory, new ContainerResolver(inventory), caption, notes,
+            manifest, json);
+
+    {
+        when(notes.seed(any(), any(), any(), any())).thenReturn(Mono.empty());
+    }
 
     /** The caption's two halves land in the right places: the named box, and the thing without the command. */
     @Test

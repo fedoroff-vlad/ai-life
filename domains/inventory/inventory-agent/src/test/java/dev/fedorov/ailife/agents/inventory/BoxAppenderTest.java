@@ -54,15 +54,31 @@ class BoxAppenderTest {
     static MockWebServer mcpInventory;
     static MockWebServer mediaProcessing;
     static MockWebServer llmGateway;
+    static MockWebServer memoryService;
 
     /** Every call the agent made, as "METHOD path" — what a test asserts instead of a positional take. */
     static final List<String> CALLS = new CopyOnWriteArrayList<>();
     static final List<String> SAVED = new CopyOnWriteArrayList<>();
+    /** Note bodies the IN-e2 seed posted to memory-service. */
+    static final List<String> SEEDED = new CopyOnWriteArrayList<>();
 
     @BeforeAll
     static void start() throws Exception {
         llmGateway = new MockWebServer();
         llmGateway.start();
+        memoryService = new MockWebServer();
+        memoryService.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                String path = request.getPath() == null ? "" : request.getPath();
+                if (path.startsWith("/v1/notes")) {
+                    SEEDED.add(request.getBody().readUtf8());
+                    return json("{\"id\":\"" + UUID.randomUUID() + "\"}");
+                }
+                return json("[]");
+            }
+        });
+        memoryService.start();
         mediaProcessing = new MockWebServer();
         mediaProcessing.setDispatcher(new Dispatcher() {
             @Override
@@ -107,12 +123,14 @@ class BoxAppenderTest {
         mcpInventory.shutdown();
         mediaProcessing.shutdown();
         llmGateway.shutdown();
+        memoryService.shutdown();
     }
 
     @BeforeEach
     void reset() {
         CALLS.clear();
         SAVED.clear();
+        SEEDED.clear();
     }
 
     @DynamicPropertySource
@@ -121,6 +139,7 @@ class BoxAppenderTest {
         r.add("inventory-agent.mcp-media-processing-url",
                 () -> "http://localhost:" + mediaProcessing.getPort());
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        r.add("inventory-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -143,6 +162,13 @@ class BoxAppenderTest {
         assertThat(saved.path("mediaId").asString()).isEqualTo(MEDIA);
         // The owner named the thing, so the vision model is not called at all.
         assertThat(CALLS).noneMatch(c -> c.startsWith("CAPTION"));
+        // IN-e2: an appended thing is indexed by meaning too, under the container's own household.
+        assertThat(SEEDED).hasSize(1);
+        JsonNode note = json.readTree(SEEDED.get(0));
+        assertThat(note.path("title").asString()).isEqualTo("ёлочная гирлянда");
+        assertThat(note.path("householdId").asString()).isEqualTo(HOUSEHOLD.toString());
+        assertThat(note.path("frontmatter").path("kind").asString()).isEqualTo("item");
+        assertThat(note.path("frontmatter").path("containerId").asString()).isEqualTo(B07.toString());
     }
 
     /** The caption only points at a box — then vision names the thing (the photo IS the record). */

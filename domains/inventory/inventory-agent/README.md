@@ -6,14 +6,14 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + IN-g2 + IN-g3 + goldens)
+## Status (IN-c + IN-d + IN-e + IN-e2 + IN-f + IN-g1 + IN-g2 + IN-g3 + goldens)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
 **"где лежит X"** (IN-e) + the **scan path** (IN-f: deep-link + photographed label, the latter read at
 the gateway's front door) + **correcting a container** (IN-g1: zone move / status / rename) + **taking a
 thing out of its box** (IN-g2) + **appending to a closed box** (IN-g3: a captioned photo filed without a
-session). Semantic recall for the finder (IN-e2) is a later slice; a message that is none of the above
-falls through to a chat reply.
+session) + **semantic recall** (IN-e2: each packed thing also seeds a second-brain note, and the finder
+searches literally *and* by meaning). A message that is none of the above falls through to a chat reply.
 
 All LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
 (the six trigger-less skills, including the close `box-card`/`item-finder` pair and removal vs search) +
@@ -89,8 +89,17 @@ per photo — packing is a batch activity, not a form per item.
   the question (the stored names came from photo captions, so the interrogatives would only dilute
   the match) → `searchItems` → the reply names the **place**: container code, its label, its zone.
   A container with no zone yet is still named ("зона не указана") rather than failing. Nothing found
-  says so plainly and never invents a location. Scope is the envelope household; semantic recall
-  (IN-e2) and the personal ∪ shared widening come later.
+  says so plainly and never invents a location. Scope is the envelope household; the personal ∪ shared
+  widening comes later.
+- **Find by meaning (IN-e2)** — "где та штука для гриля" → the same distil feeds **two** sources in
+  parallel: the trigram search and a **memory-service recall** over the second brain. The stored title is
+  the vision model's vocabulary and the question is the owner's, so the literal match alone leaves things
+  unfindable. Every saved item seeds an authored note (SB-5 shape, `type=reference`, `source=inventory-agent`)
+  whose `frontmatter` back-points at it — `{kind:item, refId, containerId}` — and a recall hit resolves
+  through that `containerId` to the existing container read, so **no new store endpoint was needed**.
+  Literal hits rank first, the recall adds what it alone found, de-duplicated by item id. Each source
+  soft-fails alone (memory down → literal answer as before; an unnamed item is never seeded, and a note
+  whose item has since left the box is skipped rather than answered).
 
 ## Endpoints
 
@@ -133,7 +142,8 @@ per photo — packing is a batch activity, not a form per item.
 | `INVENTORY_AGENT_MCP_CLIENT_ENABLED` | `true` | bind mcp-inventory + mcp-media-processing over MCP/SSE (toggle off in degraded envs). |
 | `INVENTORY_AGENT_MEMORY_RECALL_K` | `5` | memory-recall fan-in (shared agent-runtime). |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway for the packing-move extract. |
-| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | internal | shared agent-runtime clients. |
+| `MEMORY_SERVICE_URL` | `http://memory-service:8087` | the second brain: the item note seed + the semantic recall behind "где та штука для гриля" (IN-e2). Soft-failed — an outage costs reach, not the answer. |
+| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` | internal | shared agent-runtime clients. |
 
 ## Key classes
 
@@ -164,19 +174,27 @@ per photo — packing is a batch activity, not a form per item.
 - `find/ItemQuery` — "the thing out of the sentence": the `item-finder` distil, shared by the finder and
   the remover (lifted here on its second consumer). Never fails — a useless model reply degrades to the
   raw text, because a diluted search still beats no search.
-- `find/ItemFinder` — "где лежит X" (IN-e): `ItemQuery` → `searchItems` → a reply that names the place.
-  Shows the best hit plus up to four more.
+- `find/ItemFinder` — "где лежит X" (IN-e): `ItemQuery` → `searchItems` **∪** `ItemNotes.recall` (IN-e2),
+  merged by item id with the literal hits first → a reply that names the place. Shows the best hit plus up
+  to four more. Each source soft-fails to an empty list, so one being down still answers.
+- `find/ItemNotes` — the item ↔ second-brain seam (IN-e2), **both directions in one class** because the
+  `{kind:item, refId, containerId}` frontmatter is written in one flow and read in another: `seed` (called
+  by both write paths) and `recall` (note hit → `getContainer` → the item → an `ItemLocationDto`, the same
+  shape the search returns). Everything soft-fails — the store is the record, the note is only an index.
 - `edit/ItemRemover` — removing a packed thing (IN-g2): a delete flow on the shared
   `PickConfirmActRunner` (so the wording comes from `NounPhrasing` via `nouns()`); candidates are the
   search over the distilled phrase, the label carries the thing *and* its box code, `act` deletes by id.
   Flow discriminator `item-remove-confirm`.
-- `pack/BoxPacker` — the session: `start` (open) · `resume` (photo → caption → `saveItem`, or close) ·
+- `pack/BoxPacker` — the session: `start` (open) · `resume` (photo → caption → `saveItem` → the IN-e2 note
+  seed, or close) ·
   `photoWithoutSession` (ask). Owns the `box-packing` pendingAction envelope
   (`{flow, containerId, code, label, count}`) — re-issued each turn to keep the lock, null to end it.
   Attaches a payload-free `IntentResponse.trace` on each write (#485 / G2).
 - `pack/BoxAppender` — appending to a closed box (IN-g3): the `box-append` split → `ContainerResolver` →
-  `saveItem`, stateless (no `pendingAction`, so a single append never route-locks the conversation). A
-  caption that names no box, or one that matches nothing, is answered — never filed somewhere plausible.
+  `saveItem` → the IN-e2 note seed, stateless (no `pendingAction`, so a single append never route-locks the
+  conversation). Seeds under the **container's** household — a family box's contents belong to it, not to
+  whoever photographed them. A caption that names no box, or one that matches nothing, is answered — never
+  filed somewhere plausible.
 - `intent/InventoryIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475);
   the dispatch map holds `box-packer` + `item-finder` + `box-label` + `box-card` + `box-editor` +
   `item-remover`, and each SKILL.md `description` is the routing SSOT. `box-append` is deliberately absent

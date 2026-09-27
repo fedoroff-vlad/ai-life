@@ -136,6 +136,10 @@ Mnemonic: **tools = MCP, reasoning = agent, instructions = skill, editable rules
   `mcp-weather` `climate` → itinerary + HTML board), live flight/hotel options via shared `mcp-travel-search`
   (owner-key-gated), trip wallet, route import (GPX/GeoJSON/KML/KMZ + map links), and a deterministic packing
   list. The agent **never books** ([ADR-0003](../plans/adr/ADR-0003-travel-data-source.md)). See [travel.md](../plans/travel.md).
+- **inventory** — done. `mcp-inventory` + `inventory-agent`: "где что лежит" — storage zones → QR-labelled
+  containers → photographed things. A packing session (route-lock) fills a box, closing it hands over the
+  printed label + the card a scan of that label opens, and "где лежит X" answers with the place — literally
+  (trigram) and by meaning (a second-brain note seed). See [inventory.md](../plans/inventory.md).
 - **second brain / notes** — done ([#257](https://github.com/fedoroff-vlad/ai-life/issues/257)). Authored
   `memory.note` tier on memory-service + `[[wiki-links]]` relations + `notes-agent` ("запомни…" / "что я думал
   про…"), auto-filled by **ambient capture**. The substrate every agent reads/writes. See
