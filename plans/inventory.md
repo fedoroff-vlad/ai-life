@@ -243,8 +243,8 @@ sticker for the wrong box.
 
 The trigram half: an LLM turn distils the search phrase out of the question (the `item-finder` SKILL,
 strict JSON, temperature 0) → `searchItems` → the reply names **where**, not just what. Search is
-scoped to the envelope household; the semantic half and the personal-∪-shared read widen it later
-(IN-e2 / the sharing retrofit).
+scoped to the envelope household; the semantic half lands in IN-e2 below and the personal-∪-shared read
+widens it later (the sharing retrofit).
 
 - **Scenario: literal hit**
   - WHEN the owner asks "где ёлочные игрушки" and an item is titled so
@@ -257,7 +257,7 @@ scoped to the envelope household; the semantic half and the personal-∪-shared 
   - THEN the reply still names the container instead of failing on the missing zone
     (asserted by `ItemFinderTest`)
 
-### IN-e2 — semantic recall for the finder
+### IN-e2 — semantic recall for the finder ✅ DONE
 **Requirement:** a thing SHALL be findable by words that are not in its title.
 
 The vision caption names a thing in one vocabulary; the owner asks in another ("та штука для
@@ -267,13 +267,45 @@ trigram search **and** a recall in parallel, resolving a `{kind:note, refId}` hi
 merging by id. Each source soft-fails independently — a memory outage must not break a literal
 search. Kept out of IN-e because the seed is a write-path change, not a search change.
 
+Four decisions worth naming:
+- **One class owns the back-pointer, both directions.** `find/ItemNotes` holds `seed` *and* `recall`,
+  because the `{kind:item, refId, containerId}` frontmatter is a shape written in one place and read in
+  another — split across two files it is exactly the kind of coupling that drifts. (docs could split
+  them: there the writer and the reader each had one call site; here the seed has **two** writers.)
+- **The back-pointer carries `containerId`, so no new store read is needed.** A recall hit resolves via
+  the existing `getContainer` → `ContainerViewDto` (container + zone + items), from which the item is
+  picked by `refId` and an `ItemLocationDto` composed — the same shape the trigram search returns. No
+  `getItem` tool, no new wire contract: the domain-MCP is untouched by this slice.
+- **An unnamed item seeds nothing.** A note needs a non-blank title, and "вещь без названия" embeds to a
+  vector that matches everything weakly — worse than absent. The photo is still the record and the item
+  is still in its box; only the semantic index skips it.
+- **No new golden.** Recall is an embedding lookup, not a prompt: the slice adds no LLM seam. The one
+  seam on this path (`item-finder`'s distil) is already covered by `GoldenItemFinderTest`.
+
 - **Scenario: vocabulary mismatch**
   - WHEN the query uses words absent from every item title but semantically close
-  - THEN the memory-service recall path still resolves the container
-    (not yet asserted — slice not built)
+  - THEN the memory-service recall path still resolves the container, and the reply names its place
+    exactly as a literal hit would (asserted by `ItemFinderTest`)
 - **Scenario: memory is down**
   - WHEN the recall source fails
-  - THEN the trigram hits are still returned (not yet asserted — slice not built)
+  - THEN the trigram hits are still returned (asserted by `ItemFinderTest`)
+- **Scenario: both sources found the same thing**
+  - WHEN a thing matches the trigram search and the recall
+  - THEN it is listed once, and the trigram order wins (asserted by `ItemFinderTest`)
+- **Scenario: the note outlived its item**
+  - WHEN a recall hit points at an item that has since been taken out of its box
+  - THEN it is skipped rather than reported as a location (asserted by `ItemFinderTest`)
+- **Scenario: a packed thing is seeded**
+  - WHEN a photo becomes an item — in a packing session or appended to a closed box
+  - THEN a note is written carrying its name and a `{kind:item, refId, containerId}` back-pointer
+    (asserted by `BoxPackerTest`, `BoxAppenderTest`)
+- **Scenario: memory is down while packing**
+  - WHEN the note seed fails
+  - THEN the item is still saved and the reply is unchanged — the store is the record, the note is the
+    index (asserted by `BoxPackerTest`)
+- **Scenario: an unnamed thing is not seeded**
+  - WHEN neither the owner nor vision could name the thing
+  - THEN no note is written (asserted by `BoxPackerTest`)
 
 ### IN-f — the scan path (deep-link + photographed label) — **closer**
 **Requirement:** pointing a camera at a label, or sending its photo, SHALL return the card.
@@ -296,7 +328,8 @@ search. Kept out of IN-e because the seed is a write-path change, not a search c
 
 Split in two (the file-count rule): **IN-f1** the camera scan, **IN-f2** the photographed label + the
 domain's E2E closer. Both shipped — the scan path is complete and the domain's E2E closer exists
-(`E2EInventoryScanFlowTest`); what remains owed for the domain is IN-e2.
+(`E2EInventoryScanFlowTest`). With IN-e2 and IN-g3 the domain owes nothing further — only the
+hardware-gated printer template and the sharing retrofit stay deferred (§Deferred).
 
 #### IN-f1 — deep-link scan (`/start box_<token>` → the card) ✅ DONE
 Gateway `/start` gains a **prefix dispatch**: `box_<token>` → inventory (invite tokens keep today's

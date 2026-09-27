@@ -13,11 +13,13 @@ import dev.fedorov.ailife.contracts.llm.LlmChatResponse;
 import dev.fedorov.ailife.contracts.llm.LlmUsage;
 import dev.fedorov.ailife.contracts.media.CaptionResult;
 import dev.fedorov.ailife.contracts.media.MediaObjectDto;
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +34,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,6 +56,11 @@ class BoxPackerTest {
     static MockWebServer mcpMediaProcessing;
     static MockWebServer mediaService;
     static MockWebServer llmGateway;
+    static MockWebServer memoryService;
+
+    /** Every note body the IN-e2 seed posted, and whether memory-service is answering at all. */
+    static final List<String> SEEDED = new CopyOnWriteArrayList<>();
+    static volatile boolean memoryDown = false;
 
     @BeforeAll
     static void start() throws Exception {
@@ -60,10 +68,28 @@ class BoxPackerTest {
         mcpMediaProcessing = new MockWebServer();
         mediaService = new MockWebServer();
         llmGateway = new MockWebServer();
+        memoryService = new MockWebServer();
+        // A dispatcher, not the queue: the seed is a side call on the write path, so it must not depend
+        // on enqueue order (and the tests that ignore it must not have to enqueue for it).
+        memoryService.setDispatcher(new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) {
+                if (memoryDown) {
+                    return new MockResponse().setResponseCode(503);
+                }
+                String path = request.getPath() == null ? "" : request.getPath();
+                if (path.startsWith("/v1/notes")) {
+                    SEEDED.add(request.getBody().readUtf8());
+                    return jsonResponse("{\"id\":\"" + UUID.randomUUID() + "\"}");
+                }
+                return jsonResponse("[]");
+            }
+        });
         mcpInventory.start();
         mcpMediaProcessing.start();
         mediaService.start();
         llmGateway.start();
+        memoryService.start();
     }
 
     @AfterAll
@@ -72,6 +98,13 @@ class BoxPackerTest {
         mcpMediaProcessing.shutdown();
         mediaService.shutdown();
         llmGateway.shutdown();
+        memoryService.shutdown();
+    }
+
+    @BeforeEach
+    void resetMemory() {
+        SEEDED.clear();
+        memoryDown = false;
     }
 
     @DynamicPropertySource
@@ -82,6 +115,7 @@ class BoxPackerTest {
         r.add("inventory-agent.media-service-url", () -> "http://localhost:" + mediaService.getPort());
         r.add("inventory-agent.public-media-base-url", () -> "https://media.example");
         r.add("ailife.llm-client.base-url", () -> "http://localhost:" + llmGateway.getPort());
+        r.add("inventory-agent.memory-service-url", () -> "http://localhost:" + memoryService.getPort());
     }
 
     @Autowired WebTestClient http;
@@ -240,6 +274,80 @@ class BoxPackerTest {
         assertThat(response.text()).doesNotContain("Этикетка для печати").doesNotContain("Что внутри");
         assertThat(response.pendingAction()).isNull();
         take(mcpInventory);
+        take(mcpInventory);
+    }
+
+    // ── IN-e2: the note seed on the write path ───────────────────────────────────────────────────
+
+    /**
+     * A packed thing is also seeded into the second brain, carrying the back-pointer the finder reads
+     * back ({@code {kind:item, refId, containerId}}). Without it "та штука для гриля" can never resolve
+     * to a title the vision model chose.
+     */
+    @Test
+    void aPackedThingSeedsItsNote() throws Exception {
+        UUID containerId = UUID.randomUUID();
+        UUID itemId = UUID.randomUUID();
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(new ItemDto(
+                itemId, containerId, "media-20", "гриль-решётка чугунная", null, null, 1, Instant.now()))));
+
+        IntentResponse response = resume(session(containerId, "B-09", "дача", 0),
+                new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                        "гриль-решётка чугунная",
+                        List.of(new Attachment("image", "image/jpeg", "media-20", null)),
+                        "telegram", "7", Instant.now()));
+
+        assertThat(response.text()).contains("гриль-решётка чугунная");
+        assertThat(SEEDED).as("the thing was stored but never indexed by meaning").hasSize(1);
+        JsonNode note = json.readTree(SEEDED.get(0));
+        assertThat(note.path("title").asString()).isEqualTo("гриль-решётка чугунная");
+        assertThat(note.path("frontmatter").path("kind").asString()).isEqualTo("item");
+        assertThat(note.path("frontmatter").path("refId").asString()).isEqualTo(itemId.toString());
+        assertThat(note.path("frontmatter").path("containerId").asString())
+                .isEqualTo(containerId.toString());
+        take(mcpInventory);
+    }
+
+    /** The store is the record and the note is only an index — losing the index must cost nothing else. */
+    @Test
+    void theItemIsStillSavedWhenTheSeedFails() throws Exception {
+        memoryDown = true;
+        UUID containerId = UUID.randomUUID();
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(new ItemDto(
+                UUID.randomUUID(), containerId, "media-21", "садовый шланг", null, null, 1,
+                Instant.now()))));
+
+        IntentResponse response = resume(session(containerId, "B-09", "дача", 1),
+                new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE,
+                        "садовый шланг",
+                        List.of(new Attachment("image", "image/jpeg", "media-21", null)),
+                        "telegram", "8", Instant.now()));
+
+        assertThat(response.text()).contains("садовый шланг").contains("2 предмета");
+        assertThat(response.pendingAction()).as("a memory outage must not break the session").isNotNull();
+        take(mcpInventory);
+    }
+
+    /**
+     * Neither the owner nor vision could name it: a note needs a title, and "вещь без названия" would
+     * embed to a vector that matches every query weakly — worse than being absent. The photo is still
+     * the record.
+     */
+    @Test
+    void anUnnamedThingIsNotSeeded() throws Exception {
+        UUID containerId = UUID.randomUUID();
+        mcpMediaProcessing.enqueue(jsonResponse(json.writeValueAsString(new CaptionResult("", null))));
+        mcpInventory.enqueue(jsonResponse(json.writeValueAsString(new ItemDto(
+                UUID.randomUUID(), containerId, "media-22", null, null, null, 1, Instant.now()))));
+
+        IntentResponse response = resume(session(containerId, "B-09", "дача", 0),
+                new NormalizedMessage(UUID.randomUUID(), UUID.randomUUID(), MessageScope.PRIVATE, null,
+                        List.of(new Attachment("image", "image/jpeg", "media-22", null)),
+                        "telegram", "9", Instant.now()));
+
+        assertThat(response.text()).isNotBlank();
+        assertThat(SEEDED).as("indexed a nameless vector").isEmpty();
+        take(mcpMediaProcessing);
         take(mcpInventory);
     }
 

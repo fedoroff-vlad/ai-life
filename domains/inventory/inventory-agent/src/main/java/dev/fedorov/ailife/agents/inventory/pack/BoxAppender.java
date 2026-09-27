@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.container.ContainerResolver;
+import dev.fedorov.ailife.agents.inventory.find.ItemNotes;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -60,17 +61,19 @@ public class BoxAppender {
     private final InventoryClient inventory;
     private final ContainerResolver containers;
     private final CaptionClient caption;
+    private final ItemNotes notes;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public BoxAppender(LlmClient llm, SkillRegistry skills, InventoryClient inventory,
-                       ContainerResolver containers, CaptionClient caption, AgentManifest manifest,
-                       ObjectMapper json) {
+                       ContainerResolver containers, CaptionClient caption, ItemNotes notes,
+                       AgentManifest manifest, ObjectMapper json) {
         this.llm = llm;
         this.skills = skills;
         this.inventory = inventory;
         this.containers = containers;
         this.caption = caption;
+        this.notes = notes;
         this.manifest = manifest;
         this.json = json;
     }
@@ -95,6 +98,11 @@ public class BoxAppender {
         return titleFor(mediaId, title)
                 .flatMap(name -> inventory.saveItem(new SaveItemInput(
                                 container.id(), mediaId, blankToNull(name), null, null, null))
+                        // IN-e2: seed the thing into the second brain so it is findable by meaning too.
+                        // Filed under the *container's* household — a family box's contents belong to it,
+                        // not to whoever happened to photograph them. Soft-fails inside.
+                        .flatMap(item -> notes.seed(container.householdId(), container.ownerId(), item,
+                                container.id()).thenReturn(item))
                         .map(item -> reply(addedText(item, container))
                                 .withTrace("wrote: added an item to an existing container")))
                 .onErrorResume(e -> {

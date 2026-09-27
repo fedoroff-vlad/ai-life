@@ -3,6 +3,7 @@ package dev.fedorov.ailife.agents.inventory.pack;
 import dev.fedorov.ailife.agentruntime.http.CaptionClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
+import dev.fedorov.ailife.agents.inventory.find.ItemNotes;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.agents.inventory.label.BoxLabeler;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
@@ -62,16 +63,18 @@ public class BoxPacker {
     private final InventoryClient inventory;
     private final CaptionClient caption;
     private final BoxLabeler labeler;
+    private final ItemNotes notes;
     private final AgentManifest manifest;
     private final ObjectMapper json;
 
     public BoxPacker(LlmClient llm, SkillRegistry skills, InventoryClient inventory,
-                     CaptionClient caption, BoxLabeler labeler, AgentManifest manifest,
-                     ObjectMapper json) {
+                     CaptionClient caption, BoxLabeler labeler, ItemNotes notes,
+                     AgentManifest manifest, ObjectMapper json) {
         this.llm = llm;
         this.skills = skills;
         this.inventory = inventory;
         this.caption = caption;
+        this.notes = notes;
         this.labeler = labeler;
         this.manifest = manifest;
         this.json = json;
@@ -187,6 +190,10 @@ public class BoxPacker {
 
         return title.flatMap(name -> inventory.saveItem(new SaveItemInput(
                         containerId, mediaId, blankToNull(name), null, null, null))
+                // IN-e2: seed the thing into the second brain so it is findable by meaning, not only by
+                // the caption's own words. Soft-fails inside — the item is already stored.
+                .flatMap(item -> notes.seed(msg.householdId(), msg.userId(), item, containerId)
+                        .thenReturn(item))
                 .map(item -> {
                     int count = pending.path("count").asInt(0) + 1;
                     return new IntentResponse(manifest.name(), addedText(item, count), null,

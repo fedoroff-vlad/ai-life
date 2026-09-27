@@ -60,8 +60,14 @@ class GoldenItemFinderTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             GoldenLlm.skill(GoldenItemFinderTest.class.getClassLoader(),
                     "skills/inventory/item-finder/SKILL.md")));
+    /** The semantic half (IN-e2) is stubbed silent: what is under test here is the distil, not recall. */
+    private final ItemNotes notes = mock(ItemNotes.class);
     private final ItemFinder finder = new ItemFinder(
-            new ItemQuery(GoldenLlm.client(), skills, json), inventory, manifest);
+            new ItemQuery(GoldenLlm.client(), skills, json), notes, inventory, manifest);
+
+    {
+        when(notes.recall(any(), any())).thenReturn(Mono.just(List.of()));
+    }
 
     @Test
     void distilsTheThingOutOfTheQuestion() {

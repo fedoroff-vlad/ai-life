@@ -44,6 +44,7 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 - **skills-vs-flows** in-agent refactor (shared `SkillClassifier`) → [`skills-vs-flows.md`](plans/skills-vs-flows.md)
 - **Architecture hardening** epic ([#479](https://github.com/fedoroff-vlad/ai-life/issues/479)): in-agent routing · personalization-profile · multi-domain coordination · confirm-act dedup · `shared/skills/` reconcile → [`plans/HISTORY.md`](plans/HISTORY.md)
 - **Assistant hardening (road-test)** epic ([#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): transparency · routing · CRUD/undo · proactive-UX · memory-quality · multimodal/reply-UX · family-onboarding → [`plans/HISTORY.md`](plans/HISTORY.md)
+- **Inventory** (the 14th domain) — "где что лежит": storage zones → QR-labelled containers → photographed things; packing session · printed label + card · scan-to-contents · "где лежит X" literally and by meaning · corrections in chat → [`inventory.md`](plans/inventory.md)
 
 **Paused / not done:** coach-agent (CO-1/CO-2 shipped, then PARKED mid-epic — [#289](https://github.com/fedoroff-vlad/ai-life/issues/289), [`coach.md`](plans/coach.md)) · Mac deployment + hot/cold lifecycle (PARKED, hardware-blocked — [`lifecycle.md`](plans/lifecycle.md)) · future agents health/email/smart-home. Next pick → [`plans/STATUS.md`](plans/STATUS.md).
 
