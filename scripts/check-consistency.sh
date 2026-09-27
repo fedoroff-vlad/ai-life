@@ -197,10 +197,11 @@ done
 # deterministic, not the router's job). Each such skill's name must appear (quoted) in a
 # Golden*RoutingTest under its domain. ALLOWLIST = trigger-less skills that are still NOT intent-router
 # choices — attachment/photo-driven pre-checks invoked deterministically on a media upload (a photo →
-# receipt-parser / style-analyst / wardrobe-cataloguer / doc-archiver), so they never reach the text
-# classifier. A domain with no routing golden at all (researcher single-skill, coach parked) is skipped.
+# receipt-parser / style-analyst / wardrobe-cataloguer / doc-archiver / box-append), so they never reach
+# the text classifier. A domain with no routing golden at all (researcher single-skill, coach parked) is
+# skipped.
 echo "check 8: intent skills (trigger-less) appear in their agent's Golden*RoutingTest (#543)"
-ROUTING_GOLDEN_ALLOWLIST="doc-archiver receipt-parser style-analyst wardrobe-cataloguer"
+ROUTING_GOLDEN_ALLOWLIST="doc-archiver receipt-parser style-analyst wardrobe-cataloguer box-append"
 for sk in $(git ls-files 'domains/*/skills/*/SKILL.md'); do
   # Skip trigger skills (a non-empty `triggers:` list — inline [x] or a `- ` item under it).
   is_trig="$(awk '

@@ -17,7 +17,7 @@ build/validation (no Docker on the dev VDI): they are `designed`/`partially-buil
 the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
 
 ## Now
-- **inventory domain ([inventory.md](inventory.md)) — IN FLIGHT, but the loop is complete and correctable: IN-a…IN-g2 shipped + the goldens. Only two improvements are left.**
+- **inventory domain ([inventory.md](inventory.md)) — IN FLIGHT, but the loop is complete and correctable: IN-a…IN-g3 shipped + the goldens. One improvement is left.**
   The 14th domain: "где что лежит" — photograph things into a container, the container carries a QR label,
   scanning (or photographing) it returns a card of what is inside + where it stands. Driver is an imminent
   move; scope is permanent storage organisation. Shipped: the `mcp-inventory` store · `decode_qr`
@@ -25,11 +25,13 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   (QR label + doc-render card) · `item-finder` ("где лежит X") · the scan path (deep-link + a front-door QR
   read of a captionless photo, both dispatched through the hub's C1 `invoke` so a sticker is never
   classified; closed by `E2EInventoryScanFlowTest`) · corrections in chat on the ADR-0004 runner
-  (`box-editor` for the box, `item-remover` for a thing) · **goldens on every LLM seam**, which already
+  (`box-editor` for the box, `item-remover` for a thing) · **appending to a closed box** (IN-g3:
+  "добавь в B-07 гирлянду" +photo → the `box-append` caption split → the box the owner named, stateless so
+  one thing never route-locks the conversation; the code-first/label-second match lifted to a shared
+  `ContainerResolver` on its second consumer) · **goldens on every LLM seam**, which already
   caught a real spec defect (few-shot index leakage in `box-editor`). Detail → [inventory.md](inventory.md)
   + [HISTORY.md](HISTORY.md).
-  **Left, both improvements rather than holes:** **IN-g3** (appending to a closed box — "добавь в B-07
-  гирлянду" +photo, without reopening a session) · **IN-e2** (semantic recall — an item note seed on the
+  **Left, an improvement rather than a hole:** **IN-e2** (semantic recall — an item note seed on the
   write path, mirroring docs SB-5, so "та штука для гриля" survives a vocabulary mismatch). Label printing
   stays deferred until the printer exists (≤4k class, direct thermal, TSPL — see §Deferred); sharing
   (ADR-0002) for the domain is likewise not wired yet, so reads are envelope-household scoped.
