@@ -5,6 +5,7 @@ import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.config.InventoryAgentProperties;
+import dev.fedorov.ailife.agents.inventory.container.ContainerResolver;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -27,7 +28,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,14 +52,12 @@ public class BoxLabeler {
 
     private static final String LABEL_SKILL = "box-label";
     private static final String CARD_SKILL = "box-card";
-    /** A household has tens of containers, not thousands — one page is the whole set to match over. */
-    private static final int CONTAINER_SCAN_LIMIT = 500;
-
     private static final Logger log = LoggerFactory.getLogger(BoxLabeler.class);
 
     private final LlmClient llm;
     private final SkillRegistry skills;
     private final InventoryClient inventory;
+    private final ContainerResolver containers;
     private final MediaStoreClient media;
     private final DeliverablePublisher publisher;
     private final AgentManifest manifest;
@@ -67,11 +65,13 @@ public class BoxLabeler {
     private final String botUsername;
 
     public BoxLabeler(LlmClient llm, SkillRegistry skills, InventoryClient inventory,
-                      MediaStoreClient media, DeliverablePublisher publisher, AgentManifest manifest,
+                      ContainerResolver containers, MediaStoreClient media,
+                      DeliverablePublisher publisher, AgentManifest manifest,
                       ObjectMapper json, InventoryAgentProperties props) {
         this.llm = llm;
         this.skills = skills;
         this.inventory = inventory;
+        this.containers = containers;
         this.media = media;
         this.publisher = publisher;
         this.manifest = manifest;
@@ -200,27 +200,14 @@ public class BoxLabeler {
 
     /**
      * Which container the owner meant: one strict-JSON turn distils the code or name out of the
-     * question, then the household's containers are matched on the code first (it is the printed id)
-     * and on the label second. An unresolvable ask is answered, not guessed — acting on the wrong box
-     * would print a wrong sticker.
+     * question, then the shared {@link ContainerResolver} matches it (code first, label second). An
+     * unresolvable ask is answered, not guessed — acting on the wrong box would print a wrong sticker.
      */
     private Mono<ContainerDto> resolve(NormalizedMessage msg, String skill) {
-        return distil(msg, skill).flatMap(needle -> inventory
-                .listContainers(msg.householdId(), CONTAINER_SCAN_LIMIT)
-                .flatMap(all -> match(all, needle)
+        return distil(msg, skill).flatMap(needle -> containers.byPhrase(msg.householdId(), needle)
+                .flatMap(found -> found
                         .map(Mono::just)
                         .orElseGet(() -> Mono.error(new NotFound(needle)))));
-    }
-
-    private static Optional<ContainerDto> match(List<ContainerDto> all, String needle) {
-        String want = needle.toLowerCase(Locale.ROOT).strip();
-        return all.stream()
-                .filter(c -> c.code() != null && c.code().equalsIgnoreCase(want))
-                .findFirst()
-                .or(() -> all.stream()
-                        .filter(c -> c.label() != null
-                                && c.label().toLowerCase(Locale.ROOT).contains(want))
-                        .findFirst());
     }
 
     /** The code or name the user said — falls back to the raw message when the model gives nothing. */

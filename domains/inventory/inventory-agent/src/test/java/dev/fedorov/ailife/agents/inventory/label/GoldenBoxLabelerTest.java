@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.deliver.DeliverablePublisher;
 import dev.fedorov.ailife.agentruntime.http.MediaStoreClient;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.inventory.config.InventoryAgentProperties;
+import dev.fedorov.ailife.agents.inventory.container.ContainerResolver;
 import dev.fedorov.ailife.agents.inventory.http.InventoryClient;
 import dev.fedorov.ailife.contracts.agent.AgentManifest;
 import dev.fedorov.ailife.contracts.agent.IntentResponse;
@@ -69,8 +70,8 @@ class GoldenBoxLabelerTest {
             GoldenLlm.skill(GoldenBoxLabelerTest.class.getClassLoader(),
                     "skills/inventory/box-card/SKILL.md")));
     private final BoxLabeler labeler = new BoxLabeler(
-            GoldenLlm.client(), skills, inventory, media, publisher, manifest, json,
-            new InventoryAgentProperties());
+            GoldenLlm.client(), skills, inventory, new ContainerResolver(inventory), media, publisher,
+            manifest, json, new InventoryAgentProperties());
 
     /** A bare printed code is what a person reads off the box — it must resolve to that exact box. */
     @Test

@@ -98,20 +98,21 @@ story, no "which field wins" ambiguity.
 Per the docs/travel convention each LLM seam has an opt-in `@GoldenLlmTest` (`GOLDEN_LLM`-gated, not in
 fast CI) asserting **structure, not wording**. Until this slice every inventory test was a MockWebServer
 one — proving the wiring while feeding the parser a JSON answer *written by hand*, so no test could tell
-whether a real model routes or extracts correctly. Five classes now cover the five LLM seams, each named
+whether a real model routes or extracts correctly. Six classes now cover the six LLM seams, each named
 for the defect it catches:
 
 | Class | Seam | The defect it catches |
 |---|---|---|
-| `GoldenInventoryRoutingTest` | the router over **five** trigger-less skills | the closest pair blurring: "что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder` — a box the user can name vs a thing they cannot place; and a *correction* to a box ("теперь на даче" → `box-editor`) being mistaken for a question about it |
+| `GoldenInventoryRoutingTest` | the router over **six** trigger-less skills | the closest pair blurring: "что в коробке B-07" is `box-card` while "где лежит дрель" is `item-finder` — a box the user can name vs a thing they cannot place; and a *correction* to a box ("теперь на даче" → `box-editor`) being mistaken for a question about it |
 | `GoldenBoxPackerTest` | `box-packer` extract (`open` / `close`) | the zone leaking into the label (every box named after its shelf), and a missed `close` leaving the conversation route-locked to a taped-up box |
 | `GoldenItemFinderTest` | `item-finder` query distil | searching the *question* — item names come from photo captions, so "где"/"лежат" dilute a trigram match against names containing neither |
 | `GoldenBoxLabelerTest` | `box-label`/`box-card` container distil | printing a sticker for the **wrong box** — asserted by the resolved container's identity, with two candidates in the store so a mismatch can't pass by luck |
 | `GoldenContainerEditorTest` | `box-editor` pick + changed fields (IN-g1) | a correction landing on the **wrong box**, a Russian state the store would drop ("распакована" → nothing changes), or a rename written into `label` instead of `newLabel` |
+| `GoldenBoxAppendTest` | `box-append` caption split (IN-g3) | the **command leaking into the stored title** ("добавь в B-07 гирлянду" as a thing's name, which then never matches a search), and an **invented container** filing a thing into a box nobody named |
 
-**Cost + result:** 10 tests, all green on `qwen3:8b` on the CPU-only dev box, each run twice for stability —
-~1.5–2 min for the routing class (its prompt carries five SKILL descriptions, so the first prefill needs a
-warm-up call) and ~20–45 s each for the four extract/distil classes. These are routing/distil shaped, which is
+**Cost + result:** 12 tests, all green on `qwen3:8b` on the CPU-only dev box, each run twice for stability —
+~1.5–2 min for the routing class (its prompt carries six SKILL descriptions, so the first prefill needs a
+warm-up call) and ~20–45 s each for the five extract/distil classes. These are routing/distil shaped, which is
 why they fit the dev box at all; anything generation-heavy waits for the deploy model (that lane is
 throughput-gated — [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests).
 Run with `scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
@@ -295,7 +296,7 @@ search. Kept out of IN-e because the seed is a write-path change, not a search c
 
 Split in two (the file-count rule): **IN-f1** the camera scan, **IN-f2** the photographed label + the
 domain's E2E closer. Both shipped — the scan path is complete and the domain's E2E closer exists
-(`E2EInventoryScanFlowTest`); what remains owed for the domain is IN-e2, IN-g and the goldens.
+(`E2EInventoryScanFlowTest`); what remains owed for the domain is IN-e2.
 
 #### IN-f1 — deep-link scan (`/start box_<token>` → the card) ✅ DONE
 Gateway `/start` gains a **prefix dispatch**: `box_<token>` → inventory (invite tokens keep today's
@@ -340,8 +341,8 @@ read: a caption means the owner is *saying* something about the picture, and a s
 ### IN-g — edit / append / delete / move (on the shared runner)
 **Requirement:** every container and item SHALL be correctable in chat, confirm-gated.
 
-Split by target: **IN-g1** the container itself (shipped), **IN-g2** its items, **IN-g3** appending to a
-named box. A store of boxes goes stale the moment the boxes do, which is why the container half comes
+Split by target: **IN-g1** the container itself, **IN-g2** its items, **IN-g3** appending to a named box
+(all three shipped). A store of boxes goes stale the moment the boxes do, which is why the container half comes
 first: without it the owner either lives with a wrong answer to "где лежит X" or stops trusting the
 domain, and the second is what actually happens.
 
@@ -415,14 +416,52 @@ the view and the act. Two decisions worth naming:
   - THEN a real model routes it to `item-remover`, not to `item-finder` or `box-editor`
     (asserted by `GoldenInventoryRoutingTest`)
 
-#### IN-g3 — appending to a named box
+#### IN-g3 — appending to a named box (`box-append`) ✅ DONE
 "добавь в B-07 гирлянду" (+photo) — putting a thing into an already-closed box without reopening a
-packing session.
+packing session. After a move most boxes are taped shut and things arrive **one at a time** (a charger
+found behind the sofa, a lid that turned up later), so the path is deliberately **stateless**: one photo,
+one item, **no `pendingAction`**. Opening a session for a single thing would route-lock the conversation
+to this agent until the owner remembered to close it — the opposite of hands-free.
+
+Three decisions worth naming:
+- **The caption is the signal, and the split is at the front door.** `IntentController` already had a
+  deterministic photo pre-check; it now forks on whether the photo carries the owner's own text. A
+  **caption** means they are saying where it goes (append); **bare** means there is nothing to go on
+  (ask). So the fork costs no LLM turn, and a bare photo costs none at all.
+- **Which box is `ContainerResolver`, not a second matcher.** The code-first/label-second match was
+  living inside `BoxLabeler`; the append is its **second consumer**, so it moved to
+  `container/ContainerResolver` per the repo's second-consumer rule. The LLM distil stays with each
+  caller (each reads it out of its own SKILL's JSON).
+- **An unresolved box is answered, never guessed.** A caption naming no box, or one matching nothing, is
+  asked back. This is the failure the whole domain exists to prevent: a thing filed into a plausible box
+  is found months later by accident.
+
+Naming follows the session's rule — the owner's words win, vision fills the gap ("это в B-07"), and
+captioning soft-fails to an unnamed item, because the photo *is* the record.
 
 - **Scenario: append to a named box**
-  - WHEN the owner sends a photo naming the box it belongs to
-  - THEN the thing is saved to that container without opening a session
-    (not yet asserted — slice not built)
+  - WHEN the owner sends a photo captioned "добавь в B-07 ёлочную гирлянду"
+  - THEN the thing is saved to that container with that title and no session is opened (no
+    `pendingAction` on the reply) (asserted by `BoxAppenderTest`)
+- **Scenario: the caption only points at a box**
+  - WHEN the caption names the box but not the thing ("это в коробку B-07")
+  - THEN vision names the thing and it is still filed into that box (asserted by `BoxAppenderTest`)
+- **Scenario: no box named**
+  - WHEN the caption names no container
+  - THEN the agent asks which box and nothing is written (asserted by `BoxAppenderTest`)
+- **Scenario: a box the household does not have**
+  - WHEN the named code matches no container
+  - THEN it is named back and no near-miss box is written to (asserted by `BoxAppenderTest`)
+- **Scenario: a bare photo is unchanged**
+  - WHEN a photo arrives with no caption and no open session
+  - THEN the pre-IN-g3 ask comes back, costing no LLM turn (asserted by `BoxAppenderTest`)
+- **Scenario: the command never becomes the thing's name**
+  - WHEN a real model splits "добавь в B-12 ёлочную гирлянду"
+  - THEN the stored title is the thing alone — not the command, not the box code — and the item lands in
+    B-12 rather than the other box in the store (asserted by `GoldenBoxAppendTest`)
+- **Scenario: a container is never invented**
+  - WHEN a real model is given a caption that names no box ("зарядка от ноутбука")
+  - THEN it answers with no container, so nothing is filed (asserted by `GoldenBoxAppendTest`)
 
 ## Prior art (analogue apps — what is worth copying)
 The category is mature; the conventions below are taken from it deliberately rather than re-derived.

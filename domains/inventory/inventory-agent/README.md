@@ -6,18 +6,20 @@ Registered in the orchestrator as `inventory`; owns `mcp-inventory`; binds the s
 `mcp-media-processing` (vision caption) and stores its deliverables in `media-service`. Plan:
 [plans/inventory.md](../../../plans/inventory.md).
 
-## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + IN-g2 + goldens)
+## Status (IN-c + IN-d + IN-e + IN-f + IN-g1 + IN-g2 + IN-g3 + goldens)
 
 Scaffold + the **packing session** (IN-c) + the **QR label and container card** (IN-d) +
 **"где лежит X"** (IN-e) + the **scan path** (IN-f: deep-link + photographed label, the latter read at
 the gateway's front door) + **correcting a container** (IN-g1: zone move / status / rename) + **taking a
-thing out of its box** (IN-g2). Semantic recall for the finder (IN-e2) and appending to a closed box
-(IN-g3) are later slices; a message that is none of the above falls through to a chat reply.
+thing out of its box** (IN-g2) + **appending to a closed box** (IN-g3: a captioned photo filed without a
+session). Semantic recall for the finder (IN-e2) is a later slice; a message that is none of the above
+falls through to a chat reply.
 
 All LLM seams are covered by opt-in goldens against a real model — `GoldenInventoryRoutingTest`
 (the six trigger-less skills, including the close `box-card`/`item-finder` pair and removal vs search) +
 `GoldenBoxPackerTest` (open/close extract) + `GoldenItemFinderTest` (query distil) +
-`GoldenBoxLabelerTest` (container distil) + `GoldenContainerEditorTest` (the edit's pick + fields). See [plans/inventory.md](../../../plans/inventory.md)
+`GoldenBoxLabelerTest` (container distil) + `GoldenContainerEditorTest` (the edit's pick + fields) +
+`GoldenBoxAppendTest` (the caption split: the box vs the thing). See [plans/inventory.md](../../../plans/inventory.md)
 §Golden tests for what each one catches; run with
 `scripts/golden.sh -pl domains/inventory/inventory-agent -Dtest=<class>`.
 
@@ -52,9 +54,16 @@ per photo — packing is a batch activity, not a form per item.
   the photo gallery · the item list) published through the shared `DeliverablePublisher` seam. The
   label and the card stay separate artifacts on purpose: the sticker's whole job is to carry an id,
   and the card is the page a scan opens.
-- **A photo with no open session** never guesses a container — it asks. A misfiled thing is found in
-  the wrong box months later, so one extra question is the cheaper error. This is a deterministic
-  pre-check in `IntentController`: a photo is unambiguous, so it costs no LLM turn.
+- **Append to a closed box (IN-g3)** — "добавь в B-07 ёлочную гирлянду" + a photo → the `box-append`
+  SKILL splits the caption into **which** container and **what** the thing is, the shared
+  `ContainerResolver` matches the box (code first, label second), and the item is saved. Deliberately
+  **stateless**: no session is opened for one thing, so the conversation is never route-locked by a
+  charger found behind the sofa. The owner's words name the thing; a caption that only points at a box
+  ("это в B-07") lets vision name it, soft-failing to an unnamed item — the photo *is* the record.
+- **A photo with no open session** never guesses a container. With a caption it takes the append path
+  above; **bare**, or when the named box matches nothing, it asks. A misfiled thing is found in the wrong
+  box months later, so one extra question is the cheaper error. The split is a deterministic pre-check in
+  `IntentController`: a bare photo costs no LLM turn at all.
 - **Scan (IN-f1)** — a QR label opened with a phone camera lands on the gateway as
   `/start box_<token>`, which dispatches it **deterministically through the hub** (`/v1/agents/invoke`
   → `show_container`) instead of routing it as a message: a sticker carries no sentence, and a
@@ -87,7 +96,7 @@ per photo — packing is a batch activity, not a form per item.
 
 | method | path | purpose |
 |--------|------|---------|
-| POST | `/agents/inventory/intent` | orchestrator entry. Photo → "which container?" (deterministic pre-check); otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, or a chat reply. |
+| POST | `/agents/inventory/intent` | orchestrator entry. Captioned photo → filed into the box the caption names (IN-g3); bare photo → "which container?" — both a deterministic pre-check. Otherwise `InventoryIntentRouter` classifies the text → the packing flow, the finder, a container's label/card, a container correction, a removal, or a chat reply. |
 | POST | `/agents/inventory/resume` | the route-locked turn. Dispatches on `pendingAction.flow`: `box-packing` (a photo becomes an item, "закрой коробку" ends the session), `box-edit-confirm` (да applies a container correction, IN-g1) and `item-remove-confirm` (да deletes a thing, IN-g2). |
 | POST | `/agents/inventory/actions/{action}` | inter-agent action envelope (Stage 4 / C1). `show_container` (args `{qrToken}`) is the **scan** path (IN-f1): a printed label's token → its card. An unknown token → `ok=false` carrying the user-facing text, relayed verbatim. |
 | GET | `/agents/inventory/manifest` | the manifest the orchestrator scrapes on startup. |
@@ -107,6 +116,9 @@ per photo — packing is a batch activity, not a form per item.
   about its contents (`box-card`) and not a new box (`box-packer`).
 - **`item-remover`** (`domains/inventory/skills/item-remover/SKILL.md`) — strict-JSON pick of *which
   packed thing* to take out, from the candidates the search returned.
+- **`box-append`** (`domains/inventory/skills/box-append/SKILL.md`) — strict-JSON split of a photo's
+  caption into the **container** it names and the **thing** itself. Never routed from text (it needs the
+  photo): the controller's pre-check invokes it directly, so it is absent from the router's dispatch map.
 
 ## Env
 
@@ -135,10 +147,13 @@ per photo — packing is a batch activity, not a form per item.
   a sticker outlives the row it points at.
 - `label/BoxLabelImage` — pure: the `t.me/<bot>?start=box_<token>` payload + its QR PNG (ZXing,
   deterministic, 464 px = 58 mm at 203 dpi). Lifts to `libs/qr` on a second consumer.
+- `container/ContainerResolver` — "which box did the owner mean": the household's containers matched
+  against a phrase, **code first, label second** (the code is the printed identity a person reads off the
+  box; a nickname must not outrank it). Lifted here on its second consumer (the deliverables + the
+  append). No fuzzy fallback — an unresolved box is answered, never guessed.
 - `label/BoxLabeler` — the two deliverables (IN-d): `deliver` (both, on close, each soft-failing),
-  `label` / `card` (the on-demand skills). Resolves "коробка B-07" by listing the household's
-  containers and matching the code first, the label second; an unresolvable ask is answered, never
-  guessed.
+  `label` / `card` (the on-demand skills). Resolves "коробка B-07" through `ContainerResolver`; an
+  unresolvable ask is answered, never guessed.
 - `scan/BoxScanner` — the scan path (IN-f1): a label's token → the container view → the same card the
   chat flow renders (reusing `BoxLabeler.cardUrl`, which takes ids because a scan has no message behind
   it). Empty = no such container (the caller answers it); a render failure still answers in text.
@@ -159,9 +174,14 @@ per photo — packing is a batch activity, not a form per item.
   `photoWithoutSession` (ask). Owns the `box-packing` pendingAction envelope
   (`{flow, containerId, code, label, count}`) — re-issued each turn to keep the lock, null to end it.
   Attaches a payload-free `IntentResponse.trace` on each write (#485 / G2).
+- `pack/BoxAppender` — appending to a closed box (IN-g3): the `box-append` split → `ContainerResolver` →
+  `saveItem`, stateless (no `pendingAction`, so a single append never route-locks the conversation). A
+  caption that names no box, or one that matches nothing, is answered — never filed somewhere plausible.
 - `intent/InventoryIntentRouter` — a thin binding over the shared `agent-runtime` `SkillRouter` (#475);
-  the dispatch map holds `box-packer` + `item-finder` + `box-label` + `box-card`, and each SKILL.md `description` is the routing
-  SSOT. Photos never reach it (locked → `/resume`, unlocked → the controller's pre-check).
+  the dispatch map holds `box-packer` + `item-finder` + `box-label` + `box-card` + `box-editor` +
+  `item-remover`, and each SKILL.md `description` is the routing SSOT. `box-append` is deliberately absent
+  (it needs a photo, so the map's key set excludes it from the route set). Photos never reach the router
+  (locked → `/resume`, unlocked → the controller's pre-check).
 - `chat/InventoryChat` — the open-question fallback (AGENT.md system prompt).
 - `web/IntentController` · `web/ResumeController` · `web/ManifestController` · `web/ActionController`
   (the C1 envelope on the shared `AgentActionController` base; registers `show_container`).

@@ -139,7 +139,8 @@ couplings:
       Mechanized: scripts/check-consistency.sh check 8 fails CI when a trigger-less SKILL.md is not
       referenced (quoted) in a Golden*RoutingTest under its domain. NOT every trigger-less skill is an
       intent-router choice — attachment/photo-driven pre-checks (receipt-parser / style-analyst /
-      wardrobe-cataloguer / doc-archiver, invoked on a media upload) are in ROUTING_GOLDEN_ALLOWLIST; a
+      wardrobe-cataloguer / doc-archiver / box-append, invoked on a media upload) are in
+      ROUTING_GOLDEN_ALLOWLIST; a
       domain with no routing golden (researcher single-skill, coach parked) is skipped. A new
       attachment-driven skill trips the lint → add it to the golden if routed, else to the allowlist.
 
