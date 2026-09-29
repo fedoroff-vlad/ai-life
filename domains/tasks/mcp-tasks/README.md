@@ -2,7 +2,7 @@
 
 MCP server: source-of-truth GTD CRUD over the `tasks.*` schema (projects + items),
 including the GTD transitions (clarify / update / complete / delete / link-to-event).
-See [plans/tasks.md](../../plans/tasks.md).
+See [plans/tasks.md](../../../plans/tasks.md).
 
 ## Tools (MCP)
 
@@ -129,7 +129,7 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 
 ## Schema
 
-- [030-tasks.yml](../../infra/liquibase/features/030-tasks.yml) — `tasks.task_project`
+- [030-tasks.yml](../../../infra/liquibase/features/030-tasks.yml) — `tasks.task_project`
   + `tasks.task_item` (status, context tag, due/defer, `calendar_event_uid` link,
   `schedule_id`) with indices on `(household_id, status)`, `project_id`, `due_at`,
   `(household_id, context)`. `calendar_event_uid` carries no cross-schema FK

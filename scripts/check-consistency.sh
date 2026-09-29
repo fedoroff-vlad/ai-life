@@ -322,6 +322,34 @@ else
   fi
 fi
 
+# ── Check 11: every relative markdown link resolves to a real path ───────────────────
+# Docs point at each other and at code/config constantly ("schema → 020-finance.yml",
+# "plan → tasks.md"), and a link that no longer resolves is drift a reader hits instead of
+# the file. The 2026-09-29 sweep found 22 of them and every single one was the SAME bug:
+# a module README at domains/<d>/<m>/ using ../../ (repo root is ../../../), plus three in
+# HISTORY.md still pointing at skills/finance/ from before the domains/ regroup. Nothing
+# in the build or the other checks reads these paths, so they rot silently — which is why
+# this one is mechanical. Scans tracked *.md except the agent-skills submodule (not ours).
+echo "check 11: relative markdown links resolve (doc-link-target)"
+# NB: the target list is collected into a variable first, NOT piped into `while` — a piped
+# loop runs in a subshell, so its err() would set fail=1 in that subshell and the script
+# would report a finding yet still exit 0 (this check was written that way and silently
+# passed on an injected broken link until the bug was caught).
+while IFS= read -r md; do
+  dir="$(dirname "$md")"
+  # Pull out (target) from ](target), drop external schemes + pure anchors, strip #fragment.
+  targets="$(grep -o '](\([^)[:space:]]*\))' "$md" 2>/dev/null \
+              | sed 's/^](//; s/)$//' \
+              | grep -v -E '^(https?:|mailto:|#)' \
+              | sed 's/#.*$//' \
+              | grep -v -E '^$' || true)"
+  [ -z "$targets" ] && continue
+  while IFS= read -r target; do
+    [ -z "$target" ] && continue
+    [ -e "$dir/$target" ] || err "$md → broken link '$target' (no such path from $dir/)"
+  done <<< "$targets"
+done < <(git ls-files '*.md' | grep -v '^tools/agent-skills/')
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

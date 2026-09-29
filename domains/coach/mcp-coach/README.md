@@ -3,7 +3,7 @@
 MCP server: source-of-truth coaching record over the `coach.*` schema. Subject-scoped
 CRUD for the coach-agent's durable memory — the one place coaching is **not** stateless.
 The store only; reflection/reasoning (safety gate, Reflect/Develop, methods) lives in
-`coach-agent`. See [plans/coach.md](../../plans/coach.md) / [#289](https://github.com/fedoroff-vlad/ai-life/issues/289).
+`coach-agent`. See [plans/coach.md](../../../plans/coach.md) / [#289](https://github.com/fedoroff-vlad/ai-life/issues/289).
 
 **Consumers:** [coach-agent](../coach-agent/README.md) (CO-2) — reads `profile` + `sessions` and writes
 `sessions`/`observations`/`hypotheses` through the `/internal/coach/*` passthroughs (no MCP transport).
@@ -91,7 +91,7 @@ endpoint delegates to the matching tool (same invariants). Validation failures �
 
 ## Schema
 
-- [100-coach.yml](../../infra/liquibase/features/100-coach.yml) — the `coach.*` schema: seven
+- [100-coach.yml](../../../infra/liquibase/features/100-coach.yml) — the `coach.*` schema: seven
   tables (`coach_profile`, `coach_value`, `coach_session`, `coach_observation`,
   `coach_hypothesis`, `coach_action`, `coach_intake`), all `(household_id, subject)` scoped.
   `subject` carries no FK (soft person reference, like `memory.note.person_id`);

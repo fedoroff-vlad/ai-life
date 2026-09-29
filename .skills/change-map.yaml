@@ -185,3 +185,22 @@ couplings:
       `<name>.java`. Phase 2 (strict, gated on backfilling the ~99 test-less Scenarios): also require
       each `Scenario:` in a changed plan to carry an `(asserted by `XTest`)` link. Authoring guidance
       lives in PATTERNS.md §Recipe: spec a slice + the new-golden skill.
+
+  - id: doc-link-target
+    trigger: >
+      Moved / renamed a file that docs link to, or wrote a new relative markdown link
+      (a module README pointing at a migration, a plan, a sibling module's contract).
+    must_update:
+      - "**/*.md"                    # every doc whose relative link pointed at the old path
+    must_not_update:
+      - tools/agent-skills/          # submodule — its links are that repo's business
+    notes: >
+      Docs cross-link constantly and nothing in the build reads those paths, so a link rots in
+      silence: a reader clicks it, gets nothing, and re-derives what the doc already said. The
+      2026-09-29 sweep found 22 broken ones and every single one was the same bug — a module
+      README at domains/<d>/<m>/ using ../../ when the repo root is ../../../, plus three in
+      HISTORY.md still pointing at skills/finance/ from before the domains/ regroup. Fully
+      mechanized: check-consistency.sh check 11 resolves every relative link in every tracked
+      *.md. Note the shell trap it was written into first — err() inside a *piped* while-loop
+      sets fail=1 in a subshell, so the check printed findings and still exited 0; collect the
+      targets into a variable and loop over a here-string instead.

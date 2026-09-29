@@ -97,6 +97,6 @@ counter is meaningful.
 ## Schema
 
 No new migration — reuses `finance.fin_transaction` / `finance.fin_account` from
-[020-finance.yml](../../infra/liquibase/features/020-finance.yml). The
+[020-finance.yml](../../../infra/liquibase/features/020-finance.yml). The
 `source='moneypro_import'` slot for `external_ref` was already provisioned by
 PR21 with this importer in mind.

@@ -2,7 +2,7 @@
 
 GTD tasks agent (port **8096**). Owns the inbox → clarify → engage flow for a household's
 tasks; tools come from `mcp-tasks` (source of truth: Postgres `tasks.*`). See
-[plans/tasks.md](../../plans/tasks.md).
+[plans/tasks.md](../../../plans/tasks.md).
 
 Manifest, intent and the first trigger (`weekly.review`) are real. `intent` routes via
 `IntentRouter` (PR58): when mcp-tasks tools are wired the LLM either invokes a tool
