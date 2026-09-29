@@ -32,6 +32,7 @@ name; non-ASCII names fall back to `feed-<uuid8>`.
 |---|---|---|
 | `MCP_ICS_IMPORT_PORT` | `8091` | HTTP port |
 | `MCP_ICS_IMPORT_DB_URL` | `jdbc:postgresql://localhost:5432/ailife` | Postgres |
+| `MCP_ICS_IMPORT_DB_USER` / `MCP_ICS_IMPORT_DB_PASSWORD` | `ailife` / `ailife` | Postgres credentials |
 | `CALDAV_URL` | `http://localhost:5232` | Radicale base URL |
 | `CALDAV_USER` / `CALDAV_PASSWORD` | empty | Optional basic-auth |
 | `ICS_IMPORT_COLLECTION_PREFIX` | `external` | Per-subscription Radicale collection prefix |

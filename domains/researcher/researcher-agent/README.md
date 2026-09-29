@@ -48,6 +48,7 @@ and its link chain is closed by `E2EVideoUnderstandingFlowTest`.
 | `RESEARCHER_AGENT_FETCH_TOP_N` | `3` | Top hits fetched in full before synthesis (cheap-first depth). |
 | `RESEARCHER_AGENT_VIDEO_FRAMES` | `4` | Keyframes the video flow's visual tier extracts + captions. |
 | `RESEARCHER_AGENT_MCP_CLIENT_ENABLED` | `true` | Toggle the Spring AI MCP client. Tests default to `false`. |
+| `RESEARCHER_AGENT_MEMORY_RECALL_K` | `5` | Top-k memory recall the shared `agent-runtime` prompt enrichment requests. |
 | `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | service defaults | Back the shared `agent-runtime` clients (unused by the MVP flow, but the runtime beans need them). |
 
 Orchestrator side: `RESEARCHER_AGENT_URL` (default `http://researcher-agent:8099`) is registered
