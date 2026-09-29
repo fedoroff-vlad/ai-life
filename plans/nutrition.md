@@ -87,8 +87,14 @@ The user can also send a basket/list **directly** to the nutritionist (it captio
 — that path lands first; the automatic fan-out is the inter-agent slice on top.
 
 ## doc-render lift (the second-consumer rule)
+> **Shipped as DR-a (PR#151).** The section below is the design as proposed — kept because the *reasoning*
+> (lib vs capability-MCP, what generalises) is the doctrine every later deliverable followed. What it calls
+> the stylist seam now lives in [`libs/doc-render`](../libs/doc-render/README.md) under the shared names:
+> `StylistRenderer`→`DocRenderer`, `HtmlStylistRenderer`→`HtmlDocRenderer`, `StylistDoc`→`Doc`
+> (`RenderedDoc` kept its name). The "flagged for the owner" question below was answered: **the lib**.
+
 The stylist render seam (`StylistRenderer` / `HtmlStylistRenderer` / `StylistDoc` / `RenderedDoc`)
-lives in `stylist-agent`. The nutrition/chef HTML deliverables are the **second consumer** → lift it.
+lived in `stylist-agent`. The nutrition/chef HTML deliverables were the **second consumer** → lift it.
 - **Form (recommended): a shared compile-time library `libs/doc-render`**, NOT a capability-MCP.
   Rendering HTML from a model is a **pure function** (no external resource, no schema) → a lib adds
   **no new container, no HTTP hop** (leanest — tooling-simplicity). It upgrades to a capability-MCP
@@ -107,8 +113,9 @@ lives in `stylist-agent`. The nutrition/chef HTML deliverables are the **second 
 ## PR-sized slices
 Foundation:
 - **NU-0 — docs opener. DONE (PR149); revised 2026-06-22 (this).**
-- **DR-a — lift render → `libs/doc-render`** (generalise `StylistDoc`→`Doc`, move renderer + theme,
-  migrate stylist; tests green, no visual change). Prereq for every HTML deliverable below.
+- **DR-a — lift render → `libs/doc-render`. DONE (PR#151)** (generalised `StylistDoc`→`Doc`, moved
+  renderer + theme, migrated stylist; tests green, no visual change). Prereq for every HTML deliverable
+  below.
 
 Nutrition core:
 - **NU-a — `mcp-nutrition` + `050-nutrition.yml`** (`meal_log` + `diet_profile` + `basket`) + CRUD

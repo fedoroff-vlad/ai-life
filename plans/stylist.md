@@ -84,6 +84,13 @@ capability (reused, not rebuilt — a photo can belong to any domain).
   analysed self-photo), updated_at.
 
 ## PR-sized slices (MVP)
+
+> **Renderer names in this file are pre-DR-a.** The slices below were written while the render seam still
+> lived in `stylist-agent`; the nutrition lift (DR-a, PR#151) moved it to
+> [`libs/doc-render`](../libs/doc-render/README.md) and generalised the names —
+> `StylistRenderer`→`DocRenderer`, `HtmlStylistRenderer`→`HtmlDocRenderer`, `StylistDoc`→`Doc`. The
+> narratives keep the then-names (that is what the slices actually did); grep the new ones in the code.
+
 - **ST-0 — docs opener (this).** `stylist.md` + INDEX row + roadmap (mark in-progress, MVP boundary, HTML
   locked) + STATUS. No code.
 - **ST-a — `mcp-wardrobe` domain-MCP + schema. DONE (PR132).** `040-wardrobe.yml` (the two tables) + CRUD tools
@@ -129,6 +136,7 @@ model shots, palette-on-face) stay on the deferred GPU image-gen line** (owner 2
 first, renders later). Menswear knowledge frames the skills' prompts (Kibbe; Найденская/Трубецкова
 "Библия стиля"; Alan Flusser "Dressing the Man") — apply the methodology, never reproduce the
 copyrighted text. Boards build in this order:
+
 - **ST-f — editorial render foundation.** Extend the `StylistDoc` model (palette swatches, verdict
   tiles, hero row, keyed sections) + rewrite `HtmlStylistRenderer` to the locked luxury-editorial
   template (ivory/serif/grid/gold-hero, responsive, dark-mode aware). Pure-unit-tested. The existing

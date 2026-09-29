@@ -157,8 +157,14 @@ ai-life/
 Rule of thumb: **tools = MCP, reasoning = agent, instructions = skill, editable rules = data.** Group by domain (`domains/<domain>/`); shared runtime capabilities go in `shared/`; the brain + infra stay in `platform/` (they are not specialists). `libs/` = shared compile-time Java code (a dependency), `shared/` = shared *deployable* runtime capabilities — two different "shared".
 
 ## DB & migrations
-One Postgres, schemas split by **bounded context, not by service**:
-`core, memory (pgvector+AGE), audit, bus, media, calendar, finance, tasks, wardrobe, nutrition, creator, inventory`.
+One Postgres, schemas split by **bounded context, not by service** — the 15 that exist today, in
+migration order:
+`core, memory (pgvector+AGE), bus, media, calendar, finance, tasks, wardrobe, nutrition, creator,
+briefing, docs, coach, travel, inventory`.
+`audit` is **not built** — its `features/006-audit.yml` include sits in the commented-out "Future
+inclusions" block of [`db.changelog-master.xml`](../infra/liquibase/db.changelog-master.xml). The
+authoritative list is that master changelog; this line restates it, so re-derive from there if they
+ever disagree.
 
 One shared Liquibase changelog, features split by domain. Numbering convention
 is owned by [PATTERNS.md](PATTERNS.md) §"Recipe: add a Liquibase migration" —
