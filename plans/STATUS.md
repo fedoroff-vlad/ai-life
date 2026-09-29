@@ -157,20 +157,16 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
-1. **travel follow-ups on the now-built `travel.trip` store — both near-term items DONE.**
-   - **[#436](https://github.com/fedoroff-vlad/ai-life/issues/436) route/itinerary import** — **DONE (RT-a…RT-d2)** for files (GPX/GeoJSON/KML/KMZ) + map links (see [HISTORY.md](HISTORY.md)); only browser-resolved short links / JS polylines remain → **TR-f3** (`mcp-browser`). #436 can be closed (TR-f3 tracks the remainder).
-   - **[#438](https://github.com/fedoroff-vlad/ai-life/issues/438) packing-list** — **DONE (PK-a, PR457)**: a deterministic list seeded by the active trip's season + rest types + companions on the TR-e board seam. #438 closed.
-   - Spec/ideas: [travel.md](travel.md) §Deferred + §Ideas from TREK.
-2. **Pick the next future agent** — travel #190 is fully closed (MVP + live search + trip wallet). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
-3. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
-4. **travel TR-f3 → `mcp-browser`** — tours + no-API/JS sources + RT-d short-links, also closes the general scraping gap. **Now flagged in [ADR-0008](adr/ADR-0008-browser-capability.md) (Proposed) — see `## Now`;** awaiting owner pick between the deterministic (Option A) and agentic (Option B) engine before any code.
+1. **Pick the next future agent** — travel [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) is fully closed (MVP + live search + trip wallet + route import + packing list; its issues #436/#438 closed with the work). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.
+2. **Bucket 2 production cutover ([#369](https://github.com/fedoroff-vlad/ai-life/issues/369), model-gated)** — the pilot / validate-only half is DONE and #360 is closed; #369 tracks the remaining half: rip the Java `FinancialAdvisor` flow out and run the recipe from `SKILL.md` in production. Gated on the Mac / a stronger local MoE default.
+3. **travel TR-f3 → `mcp-browser`** — tours + no-API/JS sources + the remaining RT-d short-links / JS polylines, also closes the general scraping gap. **Flagged in [ADR-0008](adr/ADR-0008-browser-capability.md) (Proposed) — see `## Now`;** awaiting owner pick between the deterministic (Option A) and agentic (Option B) engine before any code. Spec/ideas: [travel.md](travel.md) §Deferred + §Ideas from TREK.
 
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 
 ## Backlog (all mirrored as Issues — not near-term)
-Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, travel #190, email #191, smart-home #192.
-Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293 (GPU-gated, parked). (**#294 video
-understanding is now IN FLIGHT — see `## Now`.**)
+Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, email #191, smart-home #192. (travel #190 shipped — see `## Next`.)
+Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293 (GPU-gated, parked). (#294 video
+understanding shipped — see `## Done`.)
 **Lists capability** (owner idea, 2026-08-14) — **COMPLETE** (LI-a + LI-b + LI-c), see [lists.md](lists.md):
 grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
 **notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list
