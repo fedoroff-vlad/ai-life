@@ -89,11 +89,11 @@ is registered alongside calendar-agent in
 ## Key classes
 
 - `FinanceAgentApplication`.
-- `manifest/ManifestLoader` — SnakeYAML frontmatter + body, exposed as `AgentManifest`.
-  Parser shape duplicates calendar-agent's; lift to a shared lib if a third agent ships.
-- `skill/Skill` — `(name, triggers[], body)` record.
-- `skill/SkillLoader` — scans `classpath*:skills/finance/*/SKILL.md`. Empty registry is valid.
-- `skill/SkillRegistry` — trigger kind → `Skill` index.
+- **Manifest + skill loading is not here** — it lifted to `libs/agent-runtime` in PR25b (the "lift to a
+  shared lib if a third agent ships" note this list used to carry): `manifest/ManifestParser` (SnakeYAML
+  frontmatter + body → `AgentManifest`) and `skill/{Skill, SkillParser, SkillRegistry}` (scans
+  `classpath*:skills/finance/*/SKILL.md` per `agent.skills-classpath`; a registry missing a skill the
+  AGENT.md declares aborts startup). See [`libs/agent-runtime/README.md`](../../../libs/agent-runtime/README.md).
 - `web/ManifestController` — `GET /agents/finance/manifest`.
 - `config/FinanceAgentProperties` — `finance-agent.{profile-service-url, notifier-url}`. Loaded via `@EnableConfigurationProperties` in `FinanceAgentApplication`.
 - `config/OutboundHttpConfig` — one `WebClient` per outbound dependency, each `.clone()`d from the shared builder to avoid base-URL leakage. Same pattern as calendar-agent + orchestrator. Also declares the shared `MediaStoreClient` (`source="finance"`) + `DeliverablePublisher` beans (default editorial theme) that back `MonthlyReporter`'s render→store→link — same wiring as the deliverable agents (chef/nutritionist/stylist/creator). Declares the `libs/sharing` `ProfileSharingClient` bean (ADR-0002 slice 4a) over the shared `profileServiceWebClient`, used by `FinancialAdvisor`'s shared-scope read, **and the `SharingResolver` write-path bean (slice 4b)** wired with `FinanceSharingPolicy`, used by `AccountManager` to route a new account to a personal vs shared household — mirrors calendar-agent's wiring. **Memory-driven default (item 8, DS-4):** `FinanceSharingPolicy` is wrapped in `libs/sharing`'s `LearnedSharingPolicy` and the resolver uses its learning-enabled constructor (+ a `SharingLearningClient` bean over the shared `memoryServiceWebClient`), so an account with no explicit joint/personal signal defaults to the owner's learned choice for the same signal profile once the tally is deep + decisive, else the static joint-account rule; explicit choices are recorded. Both best-effort — routing mechanism unchanged. **DS-N (item 8):** also declares the shared `SharingConfirm` bean (`SharingResolver` + `ObjectMapper`) — the reusable confirm-on-ambiguity loop `AccountManager`/`ResumeController` use.
