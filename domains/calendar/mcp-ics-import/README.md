@@ -57,10 +57,10 @@ name; non-ASCII names fall back to `feed-<uuid8>`.
 - `tools/ToolsConfig` — `MethodToolCallbackProvider`.
 
 ## Schema
-[011-ics-subscriptions.yml](../../infra/liquibase/features/011-ics-subscriptions.yml) —
+[011-ics-subscriptions.yml](../../../infra/liquibase/features/011-ics-subscriptions.yml) —
 `calendar.ics_subscriptions` (unique `(household_id, slug)`, FK to `core.households`).
-[012-ics-subscriptions-schedule-id.yml](../../infra/liquibase/features/012-ics-subscriptions-schedule-id.yml)
+[012-ics-subscriptions-schedule-id.yml](../../../infra/liquibase/features/012-ics-subscriptions-schedule-id.yml)
 adds the nullable `schedule_id uuid` link to the auto-registered cron (no FK — soft
 coupling so a manually-deleted scheduler row doesn't break cleanup). Reuses
-`calendar.events_cache` from [010-calendar.yml](../../infra/liquibase/features/010-calendar.yml)
+`calendar.events_cache` from [010-calendar.yml](../../../infra/liquibase/features/010-calendar.yml)
 for the mirror — `source_calendar = external-<slug>` is the discriminator.

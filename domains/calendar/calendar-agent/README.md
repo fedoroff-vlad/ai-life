@@ -183,5 +183,5 @@ inputs: [<json-path>, ...]
 ```
 
 Optional `SKILL.ru.md` for Russian; the loader picks the right one per
-[language convention](../../CLAUDE.md) (user-facing text follows the end user's
+[language convention](../../../CLAUDE.md) (user-facing text follows the end user's
 language).

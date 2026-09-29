@@ -84,7 +84,7 @@ clients pick up by qualifier).
 
 Orchestrator side: `FINANCE_AGENT_URL` (default `http://finance-agent:8093`)
 is registered alongside calendar-agent in
-[orchestrator/application.yml](../../platform/orchestrator/src/main/resources/application.yml).
+[orchestrator/application.yml](../../../platform/orchestrator/src/main/resources/application.yml).
 
 ## Key classes
 
@@ -152,7 +152,7 @@ is registered alongside calendar-agent in
 
 Create `domains/finance/skills/<name>/SKILL.md` (beside the agent, not inside the agent
 module — `pom.xml` copies them onto the classpath). Frontmatter shape matches calendar-agent's; see
-[plans/PATTERNS.md](../../plans/PATTERNS.md) §"Recipe: add a new agent".
+[plans/PATTERNS.md](../../../plans/PATTERNS.md) §"Recipe: add a new agent".
 
 **YAML gotcha:** the SnakeYAML parser used by `agent-runtime`'s `SkillParser`
 treats any unquoted `word: value` inside a description as a nested key/value

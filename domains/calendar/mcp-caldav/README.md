@@ -97,7 +97,7 @@ and runs an end-to-end CRUD flow asserting both the Radicale upstream and the ca
 - `web/InternalFeedController` — `/internal/feeds` mint / resolve / list / revoke (non-MCP).
 
 ## Schema
-[010-calendar.yml](../../infra/liquibase/features/010-calendar.yml) — `calendar.events_cache`
+[010-calendar.yml](../../../infra/liquibase/features/010-calendar.yml) — `calendar.events_cache`
 (unique `(household_id, source_calendar, calendar_uid)`, indexes on `(household_id, dtstart)`,
 `person_id`, GIN on `categories`).
 

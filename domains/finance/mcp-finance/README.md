@@ -244,28 +244,28 @@ Non-MCP, no LLM tax — for system callers driven by scheduler-service.
 
 ## Schema
 
-- [020-finance.yml](../../infra/liquibase/features/020-finance.yml) —
+- [020-finance.yml](../../../infra/liquibase/features/020-finance.yml) —
   `finance.fin_account`, `finance.fin_category`, `finance.fin_transaction`
   with the indices `list_transactions` / `get_balance` need.
-- [021-fin-budget.yml](../../infra/liquibase/features/021-fin-budget.yml) —
+- [021-fin-budget.yml](../../../infra/liquibase/features/021-fin-budget.yml) —
   `finance.fin_budget` with a partial unique index
   `uq_fin_budget_active(household_id, category_id, period) WHERE valid_to IS
   NULL` so at most one active row per slot.
-- [022-fin-budget-schedule-id.yml](../../infra/liquibase/features/022-fin-budget-schedule-id.yml) —
+- [022-fin-budget-schedule-id.yml](../../../infra/liquibase/features/022-fin-budget-schedule-id.yml) —
   nullable `fin_budget.schedule_id uuid` for the auto-registered scheduler
   row. No FK to `core.schedules` so a deleted schedule row never
   cascade-corrupts a budget row.
-- [023-finance-recurring.yml](../../infra/liquibase/features/023-finance-recurring.yml) —
+- [023-finance-recurring.yml](../../../infra/liquibase/features/023-finance-recurring.yml) —
   `finance.fin_recurring` (id, household, owner?, account, category?, name,
   amount, currency, cron, next_due, note, auto_remind, schedule_id, metadata,
   created_at) with indices on `household_id` and `next_due`.
-- [024-finance-matviews.yml](../../infra/liquibase/features/024-finance-matviews.yml) —
+- [024-finance-matviews.yml](../../../infra/liquibase/features/024-finance-matviews.yml) —
   two reporting matviews: `fin_mv_monthly_by_category` (net + `spent` per
   household/month/category/currency; uncategorised rows kept via LEFT JOIN) and
   `fin_mv_account_balance` (opening + sign-aware Σ amount per account). The BI
   read surface — dashboards query these directly; `refresh_matviews` keeps them
   current. Plain (non-unique) `household_id` indices for dashboard filtering.
-- [025-fin-gift-budget-rule.yml](../../infra/liquibase/features/025-fin-gift-budget-rule.yml) —
+- [025-fin-gift-budget-rule.yml](../../../infra/liquibase/features/025-fin-gift-budget-rule.yml) —
   `finance.fin_gift_budget_rule` (id, household, relationship, amount, currency,
   metadata, created_at, updated_at) — relationship-tiered gift-budget rules
   (Stage 4 / Track D3). Functional unique index `uq_fin_gift_budget_rule` on
