@@ -350,6 +350,45 @@ while IFS= read -r md; do
   done <<< "$targets"
 done < <(git ls-files '*.md' | grep -v '^tools/agent-skills/')
 
+# ── Check 12: every env var a module reads is documented in its README ───────────────
+# CLAUDE.md §Change-propagation: "New env var / port / endpoint / MCP tool → the module README
+# (contract)". A module's application.yml IS the list of knobs it reads, so the two can be
+# compared. The 2026-09-29 sweep found four real gaps (tasks-agent did not document
+# MCP_TASKS_URL — the address of its own domain-MCP) and, more usefully, two env vars that were
+# in the yml and documented NOWHERE because they are dead: gateway/notifier `internal-api-token`
+# bound to no field after #630 folded the guard into INTERNAL_SHARED_SECRET, so setting them
+# looked like it protected /internal/* and did nothing.
+# Zero-false-positive rules, each learned from a real README in this repo:
+#   - a grouped row ("`A` / `B` | … |") counts — the name just has to appear somewhere;
+#   - a family row ("`STYLIST_THEME_*`") covers every var with that prefix (stylist does this);
+#   - a var documented as a PATTERN rather than by name goes in DOC_PATTERN_VARS below with a why
+#     (orchestrator explains "<NAME>_AGENT_URL" once and lists the 14 agents in a yaml block).
+echo "check 12: env vars a module reads are documented in its README (module-env-contract)"
+# Documented as a pattern, not per-name — extend only with a reason.
+DOC_PATTERN_VARS="_AGENT_URL"
+while IFS= read -r yml; do
+  mod="$(printf '%s' "$yml" | sed -E 's#/src/main/resources/application\.yml$##')"
+  readme="$mod/README.md"
+  [ -f "$readme" ] || continue
+  vars="$(grep -oE '\$\{[A-Z][A-Z0-9_]{3,}' "$yml" 2>/dev/null | sed 's/^\${//' | sort -u || true)"
+  [ -z "$vars" ] && continue
+  # Family rows: STYLIST_THEME_* → the prefix "STYLIST_THEME_"
+  families="$(grep -oE '`[A-Z][A-Z0-9_]*_\*`' "$readme" 2>/dev/null | tr -d '`*' || true)"
+  while IFS= read -r v; do
+    [ -z "$v" ] && continue
+    grep -qF "$v" "$readme" && continue
+    covered=no
+    for p in $DOC_PATTERN_VARS; do
+      case "$v" in *"$p") covered=yes ;; esac
+    done
+    for f in $families; do
+      case "$v" in "$f"*) covered=yes ;; esac
+    done
+    [ "$covered" = yes ] && continue
+    err "$readme does not document '$v', which $yml reads"
+  done <<< "$vars"
+done < <(git ls-files '*/src/main/resources/application.yml')
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

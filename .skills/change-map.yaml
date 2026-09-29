@@ -204,3 +204,20 @@ couplings:
       *.md. Note the shell trap it was written into first — err() inside a *piped* while-loop
       sets fail=1 in a subshell, so the check printed findings and still exited 0; collect the
       targets into a variable and loop over a here-string instead.
+
+  - id: module-env-contract
+    trigger: Added / renamed / removed an env var a module reads (its application.yml)
+    must_update:
+      - "<module>/README.md"        # the Env table — the module's public config contract
+      - infra/.env.example          # if an operator has to set it
+    notes: >
+      A module's application.yml IS the list of knobs it reads, so README vs yml is comparable and
+      check-consistency.sh check 12 compares them. Grouped rows ("`A` / `B` | …") and family rows
+      ("`STYLIST_THEME_*`") both count; a var documented as a *pattern* instead of by name goes in
+      the check's DOC_PATTERN_VARS with a reason (orchestrator explains "<NAME>_AGENT_URL" once
+      rather than listing 14 agents twice). The 2026-09-29 sweep found four plain gaps — tasks-agent
+      did not document MCP_TASKS_URL, the address of its own domain-MCP — and, more usefully, two
+      vars in the yml documented NOWHERE because they were dead: gateway/notifier
+      `internal-api-token` bound to no field after #630 folded the guard into
+      INTERNAL_SHARED_SECRET, so setting them read as protecting /internal/* and did nothing. That
+      is the real value here: an undocumented knob is often a knob that no longer works.
