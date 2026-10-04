@@ -43,7 +43,10 @@ gateway:
   scan:
     # Check a captionless inbound photo for a container label's QR before routing (inventory IN-f2).
     enabled: ${GATEWAY_QR_SCAN_ENABLED:true}
-  internal-api-token: ${GATEWAY_INTERNAL_API_TOKEN:}
+# NB: no `internal-api-token` here. /internal/* is guarded fleet-wide by the platform-common
+# shared-secret filter (INTERNAL_SHARED_SECRET, #630/ADR-0007), which folded in the old
+# GATEWAY_INTERNAL_API_TOKEN. A per-service token key here would bind to nothing and read as if
+# setting it protected /internal/send.
 
 management:
   endpoints:

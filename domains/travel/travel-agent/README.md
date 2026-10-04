@@ -120,6 +120,7 @@ Non-plan, non-config messages fall through to the conversational chat fallback. 
 | Var | Default | Purpose |
 |---|---|---|
 | `TRAVEL_AGENT_PORT` | `8124` | HTTP port. |
+| `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway via `libs/llm-client` (the profiler + the itinerary synthesis). |
 | `MCP_TRAVEL_URL` | `http://mcp-travel:8123` | travel domain-MCP (`/internal/travel-profile`). |
 | `MCP_WEATHER_URL` | `http://mcp-weather:8113` | shared weather capability (`/internal/geocode`; TR-d `/internal/climate`). |
 | `MCP_WEB_URL` | `http://mcp-web:8098` | shared web capability (`/internal/search` for the TR-d research gather). |

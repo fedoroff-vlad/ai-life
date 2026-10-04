@@ -38,6 +38,8 @@ in dev/degraded environments.
 | Var | Default | Purpose |
 |---|---|---|
 | `TASKS_AGENT_PORT` | `8096` | HTTP port |
+| `MCP_TASKS_URL` | `http://mcp-tasks:8095` | its domain-MCP: SSE binding + the `/internal/*` passthroughs |
+| `PROFILE_SERVICE_URL` / `NOTIFIER_URL` / `MEMORY_SERVICE_URL` | service defaults | back the shared `agent-runtime` clients |
 | `LLM_GATEWAY_URL` | `http://llm-gateway:8081` | llm-gateway base URL |
 | `TASKS_AGENT_MEMORY_RECALL_K` | `5` | top-k memory recall (used once skills wire memory) |
 | `ORCHESTRATOR_URL` | `http://orchestrator:8083` | orchestrator sync hub for inter-agent calls (task-to-event) |
