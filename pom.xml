@@ -108,6 +108,7 @@
         <module>deploy/lifestyle-host</module>
         <module>deploy/brief-travel-host</module>
         <module>deploy/finance-aux-host</module>
+        <module>deploy/inventory-host</module>
     </modules>
 
     <dependencyManagement>

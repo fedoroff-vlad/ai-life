@@ -29,7 +29,7 @@ binding agent (researcher/travel/creator). What it did **not** decide is the run
 material because a headless browser collides with two standing constraints:
 
 ### Forces / constraints
-- **Footprint (ADR-0006, #584).** The active epic is *reducing* RAM (47 JVMs → ~12 hosts) to free memory
+- **Footprint (ADR-0006, #584).** The active epic is *reducing* RAM (50 JVMs → ~13 hosts) to free memory
   for the local model. Any headless browser drags in **Chromium (~300–500 MB resident when open)**. A
   browser capability that is *always resident* would directly undo part of that win. Whatever we build
   **must be cold** (started on demand, torn down after) and never join the resident hot set.
