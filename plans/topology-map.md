@@ -17,17 +17,18 @@ are separable — see [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) §T
 deploy-time grouping; the module tree stays the SSOT for code.
 
 ## Inventory — the real JVM count
-Enumerated from `infra/docker-compose.yml` (the runtime SSOT). **47 Spring Boot JVMs** (more than
+Enumerated from `infra/docker-compose.yml` (the runtime SSOT). **50 Spring Boot JVMs** (more than
 ADR-0006's "~30+" estimate — reinforces the footprint concern), plus non-JVM backing that is **out of
-scope** (it carries no JVM baseline).
+scope** (it carries no JVM baseline). This table is the **count's SSOT**; the ADRs / `INDEX.md` / `STATUS.md`
+restate it and must move with it (it grew 47 → 50 when the inventory domain + `mcp-media-fetch` landed).
 
 | Tier | Count | Members |
 |---|---|---|
-| Agents (LLM + MCP reasoners) | 14 | briefing · calendar · chef · coach · coordinator · creator · docs · finance · notes · nutritionist · researcher · stylist · tasks · travel |
-| Domain-MCP (own a schema) | 12 | mcp-briefing · mcp-caldav · mcp-coach · mcp-creator · mcp-docs · mcp-finance · mcp-ics-import · mcp-money-pro-import · mcp-nutrition · mcp-tasks · mcp-travel · mcp-wardrobe |
-| Capability-MCP (schema-less) | 11 | mcp-chart-render · mcp-feeds · mcp-food-data · mcp-image-gen · mcp-market-data · mcp-media-processing · mcp-reddit · mcp-travel-search · mcp-weather · mcp-web · mcp-youtube |
+| Agents (LLM + MCP reasoners) | 15 | briefing · calendar · chef · coach · coordinator · creator · docs · finance · inventory · notes · nutritionist · researcher · stylist · tasks · travel |
+| Domain-MCP (own a schema) | 13 | mcp-briefing · mcp-caldav · mcp-coach · mcp-creator · mcp-docs · mcp-finance · mcp-ics-import · mcp-inventory · mcp-money-pro-import · mcp-nutrition · mcp-tasks · mcp-travel · mcp-wardrobe |
+| Capability-MCP (schema-less) | 12 | mcp-chart-render · mcp-feeds · mcp-food-data · mcp-image-gen · mcp-market-data · mcp-media-fetch · mcp-media-processing · mcp-reddit · mcp-travel-search · mcp-weather · mcp-web · mcp-youtube |
 | Platform (Java services) | 10 | calendar-web · conversation-service · gateway-telegram · llm-gateway · media-service · memory-service · notifier-service · orchestrator · profile-service · scheduler-service |
-| **Total JVM** | **47** | |
+| **Total JVM** | **50** | |
 | Non-JVM backing (out of scope) | — | postgres (+backup) · radicale · seaweedfs · searxng · whisper · grafana · liquibase (one-shot) · rclone-offsite · tailscale sidecars |
 
 ## Grouping principles
@@ -44,14 +45,14 @@ scope** (it carries no JVM baseline).
 4. **Native-image (path C, ADR-0006 Option C) targets the resident set first** — always-in-memory hosts
    have the biggest payoff.
 
-## Proposed target topology (47 JVMs → ~12 processes)
+## Proposed target topology (50 JVMs → ~13 processes)
 
 ### Resident (always in memory) — 5 processes
 | Host | JVMs | Members |
 |---|---|---|
 | **Platform-hot** | 7 → 1 | gateway-telegram · orchestrator · profile-service · notifier-service · scheduler-service · conversation-service · media-service |
 | **Agent-hot** | 6 → 1 | calendar-agent · finance-agent · tasks-agent · notes-agent · coordinator-agent · researcher-agent |
-| **Domain-MCP-hot** | 5 → 1 | mcp-caldav · mcp-finance · mcp-tasks · mcp-web · mcp-media-processing |
+| **Domain-MCP-hot** | 6 → 1 | mcp-caldav · mcp-finance · mcp-tasks · mcp-web · mcp-media-processing · mcp-media-fetch (placement decided, wiring = slice 3l) |
 | **memory-service** | isolated | pgvector + AGE reads; own resource profile |
 | **llm-gateway** | isolated | model host; own downshift lifecycle |
 
@@ -63,9 +64,22 @@ scope** (it carries no JVM baseline).
 | **Brief+Travel** | briefing-agent · mcp-briefing · mcp-weather · travel-agent · mcp-travel · mcp-travel-search |
 | **Docs** | docs-agent · mcp-docs (reads the hot `mcp-media-processing`) |
 | **Finance-aux** | mcp-market-data · mcp-chart-render · mcp-money-pro-import · mcp-ics-import |
+| **Inventory** | inventory-agent · mcp-inventory (reads the hot `mcp-media-processing`) |
 | **Coach** (parked) | coach-agent · mcp-coach — a cold host when the epic thaws (#289) |
 
 `calendar-web` (+ tailscale sidecar) stays on its own opt-in `tunnel` profile — not consolidated.
+
+**Modules that landed after this map was drawn (reconciled 2026-10-04, slice 3k).** The map was written
+2026-08-28; three JVMs joined compose afterwards and had no host at all — the drift this reconcile closes:
+- **`inventory-agent` + `mcp-inventory`** (the inventory domain closed 2026-09-27) → their own **Inventory**
+  cold unit, the Docs shape (one agent + its own domain-MCP). "Где что лежит" is an occasional ask, so cold
+  is the right tier; built in slice **3k**.
+- **`mcp-media-fetch`** (#294 video understanding, 2026-09-02) → the resident **Domain-MCP-hot** host, not a
+  cold one. Its only consumer is `researcher-agent`, which is **resident**, and a pasted video link is a
+  chat-latency ask — a cold wake (~8–20 s on the JVM) would sit in front of every one. It also pairs on
+  every video flow with `mcp-media-processing`, already in that host, so co-usage affinity agrees. Note for
+  the rollout: that host's image must then carry **`yt-dlp` + `ffmpeg`** (it carries ffmpeg already for
+  `mcp-media-processing`). Wiring = slice **3l**; this map records only the placement.
 
 ## RAM projection (to be replaced by slice-1 real numbers)
 Per-JVM baseline ~300 MB (ADR-0006); native ~30–60 MB (×5–10).
@@ -86,20 +100,20 @@ CDS/AOT (LC-3a, re-scoped as the *latency* lever) or stays a plain JVM.
 | Layer | Treatment | Why |
 |---|---|---|
 | **Resident hosts** (Platform-hot · Agent-hot · Domain-MCP-hot · `memory-service` · `llm-gateway`) | **native — primary target** | always in memory → the ~5–10× RSS cut is a permanent saving; this is the footprint win |
-| **Cold hosts** (Content · Lifestyle · Brief+Travel · Docs · Finance-aux) | **native optional — for latency, not RAM** | idle = stopped = 0 RAM, so no footprint gain; native's payoff here is instant wake (~50–100 ms vs ~8–20 s). Worth it where instant-start matters and the build is cheap; else **CDS/AOT** |
+| **Cold hosts** (Content · Lifestyle · Brief+Travel · Docs · Finance-aux · Inventory) | **native optional — for latency, not RAM** | idle = stopped = 0 RAM, so no footprint gain; native's payoff here is instant wake (~50–100 ms vs ~8–20 s). Worth it where instant-start matters and the build is cheap; else **CDS/AOT** |
 | **Native-hostile modules** (heavy reflection / dynamic classloading not covered by Spring Boot 4 AOT hints) | **stay JVM + CDS/AOT** | hint-chasing cost exceeds the benefit |
 | **One-shot jobs** (`liquibase`) | **plain JVM** | runs at startup then exits — native pointless |
 | **Non-JVM backing** (Postgres · Radicale · SeaweedFS · SearXNG · whisper · Grafana) | **not applicable** | not our code, not a JVM |
 
 Two guardrails keep this from over-investing:
-- **B first makes C tractable.** Consolidation collapses 47 JVMs → ~12 hosts, so the native decision is
-  made over ~12 targets, not 47 — and only ~5 resident ones are native-compiled for footprint.
+- **B first makes C tractable.** Consolidation collapses 50 JVMs → ~13 hosts, so the native decision is
+  made over ~13 targets, not 50 — and only ~5 resident ones are native-compiled for footprint.
 - **Measurement-first (slice 1).** If the real numbers show 64 GB is already ample after B alone, **C may
   be optional entirely** — or reserved for the few worst offenders. ADR-0006 does not commit to
   "everything native" up front.
 
 ## Open questions → deferred to measurement (slices 1/3, Mac)
-- **Cold granularity** — 5 cold hosts vs finer. Native start (~50–100 ms) makes coarse grouping cheap, so
+- **Cold granularity** — 6 cold hosts vs finer. Native start (~50–100 ms) makes coarse grouping cheap, so
   favour fewer hosts unless a measured hotspot argues otherwise.
 - **Platform-hot internal split** — if the measurement shows one platform module dominates RSS, split it
   out (same treatment memory-service got up front).
@@ -237,6 +251,19 @@ needs; rolled out per module as consolidation proceeds.
   Testcontainers PG with `ddl-auto=none` (no schema needed to boot the web + MCP servers).
   `FinanceAuxHostFootprintIntegrationTest` boots all four, each on its own port, each carrying only its own
   application bean. **Remaining cold unit:** Coach (parked #289) — same mechanism, per-unit list.
+- **3k (done — sixth cold host-unit, the Inventory unit; the late-arrival reconcile):** the inventory domain
+  closed 2026-09-27, *after* this map was drawn, so it was the one domain with **no host at all**. New
+  `deploy/inventory-host` boots `inventory-agent` + `mcp-inventory` side-by-side (2 JVMs → 1) — the **Docs
+  shape** (3f): one agent plus its own domain-MCP, which binds the *hot* `mcp-media-processing` (vision
+  caption) without co-hosting it. Both modules were built after the 3a enabler, so they **already carried
+  the `exec` classifier** — this slice is the launcher only, no packaging change. Launcher needs the
+  `application.yml` config-name skip + web-type re-supply (`inventory-agent` reactive; `mcp-inventory`
+  carries `spring-web`+`webflux` → pinned servlet) + the agent's `agent.skills-classpath`; single agent → no
+  manifest-path collision (3d not needed). `mcp-inventory` is DB-bound → the IT wires the shared
+  Testcontainers PG at `ddl-auto=none`. The same reconcile placed the third late arrival,
+  **`mcp-media-fetch`**, into the resident Domain-MCP-hot host (§Proposed target topology — rationale there;
+  wiring = **3l**), and corrected the process inventory 47 → **50 JVMs**. **Remaining cold unit:** Coach
+  (parked #289).
 
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
@@ -269,6 +296,10 @@ needs; rolled out per module as consolidation proceeds.
   `mcp-chart-render` + `mcp-money-pro-import` + `mcp-ics-import` are all live on distinct ports, each
   context carrying only its own application bean, with mixed reactive/servlet web stacks side-by-side and
   the two DB-bound import MCPs booted schema-less (asserted by `FinanceAuxHostFootprintIntegrationTest`).
+- Scenario: the sixth cold host-unit boots an agent and its domain-MCP in one JVM → `inventory-agent` +
+  `mcp-inventory` are both live on distinct ports, each context carrying only its own application bean, so
+  the domain that shipped after the map was drawn is consolidated like every other (asserted by
+  `InventoryHostFootprintIntegrationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

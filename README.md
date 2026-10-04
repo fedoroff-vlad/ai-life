@@ -91,13 +91,14 @@ ai-life/
 │   ├── assistant/           coordinator-agent (cross-cutting multi-domain synthesis; #290)
 │   └── coach/               coach-agent, mcp-coach, skills/ (#289 — CO-1/CO-2 done: safety gate + Reflect; PARKED, CO-3 intake deferred)
 ├── shared/                  shared RUNTIME capabilities any agent binds:
-│   └── mcp/                 mcp-media-processing, mcp-web, mcp-market-data, mcp-weather, mcp-image-gen,
-│                            mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit, mcp-feeds,
-│                            mcp-travel-search (capability-MCPs, no schema)
+│   └── mcp/                 mcp-media-processing, mcp-media-fetch, mcp-web, mcp-market-data, mcp-weather,
+│                            mcp-image-gen, mcp-chart-render, mcp-food-data, mcp-youtube, mcp-reddit,
+│                            mcp-feeds, mcp-travel-search (capability-MCPs, no schema)
 ├── deploy/                  runtime-topology composition (ADR-0006 #584): resident-tier hosts
 │                            (domain-mcp-host · agent-host · platform-host) + cold host-units (docs-host,
-│                            …) each co-host several module contexts in one JVM (mechanism proven; not a
-│                            live process yet)
+│                            content-host, lifestyle-host, brief-travel-host, finance-aux-host,
+│                            inventory-host) each co-host several module contexts in one JVM (mechanism
+│                            proven; not a live process yet)
 ├── infra/                   docker-compose, liquibase, postgres init, .env.example
 ├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh
 ├── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
