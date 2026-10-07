@@ -389,6 +389,49 @@ while IFS= read -r yml; do
   done <<< "$vars"
 done < <(git ls-files '*/src/main/resources/application.yml')
 
+# ── Check 13: the hot compose profile is dependency-closed (hot-profile-closure) ──────
+# lifecycle.md's load-bearing invariant: `docker compose --profile hot up` must start the whole
+# always-on system by itself, so a hot service may only depend_on another HOT (or profile-less)
+# service. Compose does NOT auto-start a cold-profiled dependency — it rejects the project outright:
+#   service "researcher-agent" depends on undefined service "mcp-media-fetch": invalid compose project
+# …which means ONE bad edge breaks the entire hot bring-up (and `scripts/start-{mac,win}.*` with it),
+# not just one feature. It happened twice: the finance aux MCPs (owner-signed fix 2026-07-15) and
+# then #294, which gave the hot researcher-agent a cold dependency and left `--profile hot` invalid
+# for a month — nothing in the build looks at compose, so nothing noticed. Fix an offender the way
+# the owner's precedent does: make the dependency hot (passive-inbound capability that must be
+# ready), or keep it cold and REMOVE it from the hot service's depends_on, reaching it over its
+# HTTP /internal passthrough with a soft-fail. Only `hot` is asserted: `--profile cold` alone is
+# deliberately not a supported bring-up (cold services depend on hot backing).
+echo "check 13: the hot compose profile is dependency-closed (hot-profile-closure)"
+COMPOSE="infra/docker-compose.yml"
+if [ ! -f "$COMPOSE" ]; then
+  err "$COMPOSE is missing — the hot/cold profile SSOT moved; update $0"
+else
+  # One pass over the services block → "F <svc> <profiles-line>" and "D <svc> <dependency>".
+  c13="$(awk '
+    /^[a-zA-Z_"]/                      { in_s = ($0 ~ /^services:/); next }
+    !in_s                              { next }
+    /^  [a-zA-Z0-9._-]+:[[:space:]]*$/ { svc=$1; sub(/:$/,"",svc); dep=0; next }
+    /^    profiles:/                   { print "F\t" svc "\t" $0; dep=0; next }
+    /^    depends_on:[[:space:]]*$/    { dep=1; next }
+    /^    [a-zA-Z]/                    { dep=0; next }
+    dep && /^      [a-zA-Z0-9._-]+:/   { d=$1; sub(/:$/,"",d); print "D\t" svc "\t" d; next }
+  ' "$COMPOSE")"
+  hot="$(printf '%s\n' "$c13" | awk -F'\t' '$1=="F" && $3 ~ /hot/ {print $2}')"
+  profiled="$(printf '%s\n' "$c13" | awk -F'\t' '$1=="F" {print $2}')"
+  if [ -z "$hot" ]; then
+    err "$COMPOSE: parsed no hot-profiled service — the file's shape changed; update check 13 in $0"
+  fi
+  while IFS=$'\t' read -r _ svc dep; do
+    [ -z "${dep:-}" ] && continue
+    printf '%s\n' "$hot" | grep -qxF "$svc" || continue          # only hot parents matter
+    printf '%s\n' "$hot" | grep -qxF "$dep" && continue          # hot dependency → closed
+    printf '%s\n' "$profiled" | grep -qxF "$dep" || continue     # profile-less → always started
+    err "$COMPOSE: hot service '$svc' depends_on '$dep', which is not in the hot profile — '--profile hot up' is an invalid project"
+    err "→ either move '$dep' to profiles: [\"hot\"] (if it must always be ready), or drop it from '$svc' depends_on and reach it over /internal with a soft-fail (lifecycle.md §Hot/cold)"
+  done <<< "$(printf '%s\n' "$c13" | grep '^D' || true)"
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

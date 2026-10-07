@@ -221,3 +221,25 @@ couplings:
       `internal-api-token` bound to no field after #630 folded the guard into
       INTERNAL_SHARED_SECRET, so setting them read as protecting /internal/* and did nothing. That
       is the real value here: an undocumented knob is often a knob that no longer works.
+
+  - id: hot-cold-profile
+    trigger: >
+      Added a service to infra/docker-compose.yml, or changed its profiles / depends_on — i.e. moved
+      anything across the hot/cold line
+    must_update:
+      - infra/docker-compose.yml    # profiles: ["hot"|"cold"] + a dependency-closed depends_on
+      - plans/lifecycle.md          # §Hot/cold set — the as-built member list + counts
+      - infra/README.md             # the hot-set size in the profile command table
+    notes: >
+      The hot set must be DEPENDENCY-CLOSED: `docker compose --profile hot up` has to start the
+      always-on system by itself. Compose does not auto-start a cold-profiled dependency of a hot
+      service — it rejects the whole project ("depends on undefined service"), so ONE bad edge breaks
+      the entire bring-up, not one feature. It happened twice: the finance aux MCPs (owner-signed fix
+      2026-07-15) and #294, which gave the hot researcher-agent a cold mcp-media-fetch and left
+      `--profile hot` invalid for a month — nothing in the build reads compose, so nothing noticed.
+      Mechanized: check-consistency.sh check 13 (hot-profile-closure) parses the compose services
+      block and fails CI on any hot -> non-hot depends_on edge. Fix an offender the owner's way:
+      make the dependency hot (a passive-inbound capability that must be ready, like
+      mcp-media-processing and now mcp-media-fetch), or keep it cold and REMOVE the depends_on,
+      reaching it over its /internal passthrough with a soft-fail. Only `hot` is asserted —
+      `--profile cold` alone is deliberately not a supported bring-up (cold depends on hot backing).

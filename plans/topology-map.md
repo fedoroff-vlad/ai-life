@@ -79,7 +79,10 @@ restate it and must move with it (it grew 47 → 50 when the inventory domain + 
   chat-latency ask — a cold wake (~8–20 s on the JVM) would sit in front of every one. It also pairs on
   every video flow with `mcp-media-processing`, already in that host, so co-usage affinity agrees. Note for
   the rollout: that host's image must then carry **`yt-dlp` + `ffmpeg`** (it carries ffmpeg already for
-  `mcp-media-processing`). Wiring = slice **3l**; this map records only the placement.
+  `mcp-media-processing`). Wiring = slice **3l**; this map records only the placement. **Confirmed
+  owner-signed 2026-10-07:** its compose profile is now `hot` too — it had been `cold` while the *hot*
+  `researcher-agent` hard-`depends_on`'d it, which made `--profile hot` an invalid project
+  ([lifecycle.md](lifecycle.md) §Hot/cold, now guarded by `check-consistency.sh` check 13).
 
 ## RAM projection (to be replaced by slice-1 real numbers)
 Per-JVM baseline ~300 MB (ADR-0006); native ~30–60 MB (×5–10).
