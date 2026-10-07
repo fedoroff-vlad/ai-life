@@ -15,7 +15,7 @@ hot/cold split. A bare `up` (no `--profile`) starts **nothing**; you must pass a
 
 | command | what it starts |
 |---|---|
-| `docker compose -f docker-compose.yml --profile hot up -d` | the always-on hot set (~27 services) |
+| `docker compose -f docker-compose.yml --profile hot up -d` | the always-on hot set (28 services) |
 | `docker compose -f docker-compose.yml --profile hot --profile cold up -d` | everything (full smoke) |
 | `docker compose -f docker-compose.yml up -d <cold-service>` | one cold service on demand |
 

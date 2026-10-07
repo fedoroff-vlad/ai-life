@@ -795,7 +795,10 @@ services:
       start_period: 30s
 
   mcp-media-fetch:
-    profiles: ["cold"]
+    # hot (owner-signed 2026-10-07): a pasted video link is passive inbound — the same reason
+    # mcp-media-processing is hot — and the hot researcher-agent depends_on it, so cold broke the hot
+    # set's dependency closure (`--profile hot config` was an invalid project). See lifecycle.md §Hot/cold.
+    profiles: ["hot"]
     image: ai-life/mcp-media-fetch:local
     container_name: ai-life-mcp-media-fetch
     build:

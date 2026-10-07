@@ -152,7 +152,10 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
   parked:** the next slice **LC-2 (`platform/supervisor` + socket-proxy)** wraps `docker compose up -d` and
   can't be meaningfully built/tested without a Docker daemon — there is none on the dev box, and the Mac
   isn't purchased yet. `deploy-mvp`'s own remaining step (first real `--profile hot up` + cross-domain
-  smoke) is likewise hardware-blocked. Ordering when hardware lands: LC-2 → LC-2.5 cold-tolerant discovery
+  smoke) is likewise hardware-blocked. **Note (2026-10-07):** that first `--profile hot up` would have
+  failed on arrival — #294 left the hot set's dependency closure broken (`invalid compose project`) for a
+  month. Fixed + now machine-checked by `check-consistency.sh` check 13; see
+  [lifecycle.md](lifecycle.md) §Hot/cold. Ordering when hardware lands: LC-2 → LC-2.5 cold-tolerant discovery
   → LC-3 (+3a AOT) → LC-5. Model stack decided → [model-strategy.md](model-strategy.md) (MoE-first; two MoE
   tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
 

@@ -92,17 +92,19 @@ follows a workload profile.
 ~2–3 s via **CDS/AOT** (Spring Boot 4), so no "поднимаю…" placeholder is needed. CDS/AOT therefore lands
 **before/with** the orchestrator lazy-activation slice, not as a later optimisation.
 
-## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 27 hot / 24 cold / 2 tunnel)
-- **`profiles: ["hot"]`** (always-on, 27): backing (postgres, liquibase, postgres-backup, radicale,
+## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 28 hot / 29 cold / 2 tunnel)
+- **`profiles: ["hot"]`** (always-on, 28): backing (postgres, liquibase, postgres-backup, radicale,
   seaweedfs, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
   notifier, scheduler, conversation, memory, media) + calendar (mcp-caldav + calendar-agent), finance
   (mcp-finance + finance-agent), tasks (mcp-tasks + tasks-agent), search (mcp-web + researcher-agent) +
-  **mcp-media-processing** (OCR/STT for receipts & voice — passive inbound, must be ready) + **notes-agent**
-  (second brain — always needed) + **coordinator-agent** (cross-domain assistant front).
-- **`profiles: ["cold"]`** (on demand, 24): chef, stylist, nutritionist, docs, briefing, coach,
-  **creator (Decision 4)** agents + their domain MCPs (wardrobe, nutrition, creator, briefing, docs,
-  coach) + capability MCPs market-data, image-gen, weather, youtube/reddit/feeds, chart-render,
-  ics-import, money-pro-import, food-data + grafana.
+  **mcp-media-processing** (OCR/STT for receipts & voice — passive inbound, must be ready) +
+  **mcp-media-fetch** (video acquisition — same passive-inbound argument, see the 2026-10-07 refinement
+  below) + **notes-agent** (second brain — always needed) + **coordinator-agent** (cross-domain assistant
+  front).
+- **`profiles: ["cold"]`** (on demand, 29): chef, stylist, nutritionist, docs, briefing, coach, travel,
+  inventory, **creator (Decision 4)** agents + their domain MCPs (wardrobe, nutrition, creator, briefing,
+  docs, coach, travel, inventory) + capability MCPs market-data, image-gen, weather,
+  youtube/reddit/feeds, chart-render, ics-import, money-pro-import, food-data, travel-search + grafana.
 - **`profiles: ["tunnel"]`** (opt-in, 2): calendar-web + tailscale-calendar (shared-calendar web UI).
 - **`profiles: ["offsite"]`** (opt-in, 1): rclone-offsite (off-site DB-dump replication to Yandex
   Disk and/or a Tailscale host, `BACKUP_OFFSITE_REMOTES` flag — see infra/README.md §Database backups).
@@ -119,6 +121,20 @@ follows a workload profile.
   binding is silenced with `FINANCE_AGENT_MCP_CLIENT_ENABLED=false` so boot pays no dial timeout. Until
   LC-3, those three features (Money Pro import, investment quotes, report charts) need the MCP started by
   name (or degrade gracefully); LC-3 gives them true on-demand start.
+- **Owner-signed refinement for `mcp-media-fetch` (2026-10-07) — and a lint so this class cannot recur.**
+  The same closure break came back: [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) (video
+  understanding, 2026-09-02) gave the **hot** `researcher-agent` a hard `depends_on` on the **cold**
+  `mcp-media-fetch`, which left `docker compose --profile hot config` an *invalid project* —
+  `service "researcher-agent" depends on undefined service "mcp-media-fetch"`. One bad edge rejects the
+  whole project, so **the entire hot bring-up** (and `scripts/start-{mac,win}.*` with it) was broken, not
+  just the video feature; it sat unnoticed for a month because nothing in the build reads compose.
+  Resolution (owner-chosen): `mcp-media-fetch` → **hot**. A pasted video link is **passive inbound** —
+  exactly the argument that made `mcp-media-processing` hot — so there is nothing to "start on command",
+  and leaving it cold would degrade a shipped feature until LC-3. Cost: +1 JVM (~300 MB) in the hot set
+  today, and ~0 once ADR-0006 consolidation lands (it joins the Domain-MCP-hot JVM — see
+  [topology-map.md](topology-map.md) §Proposed target topology). **Guard:**
+  `scripts/check-consistency.sh` **check 13** (`hot-profile-closure`) now fails CI on any hot→non-hot
+  `depends_on` edge, so the invariant in this section is machine-checked instead of remembered.
 
 ## Decisions (owner-signed 2026-07-10)
 1. **Docker access via socket-proxy**, not a raw socket mount.
