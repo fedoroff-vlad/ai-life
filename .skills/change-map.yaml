@@ -243,3 +243,28 @@ couplings:
       mcp-media-processing and now mcp-media-fetch), or keep it cold and REMOVE the depends_on,
       reaching it over its /internal passthrough with a soft-fail. Only `hot` is asserted —
       `--profile cold` alone is deliberately not a supported bring-up (cold depends on hot backing).
+
+  - id: unwatched-dependency-pin
+    trigger: >
+      A dependency pin that no automation watches — a version inside a workflow `run:` step, or a
+      third-party container image tag. Also: reviewing what a dependency pass must do by hand.
+    must_update:
+      - .github/workflows/ci.yml       # the gitleaks binary version (a `run:`-step pin)
+      - infra/docker-compose.yml       # third-party image tags (seaweedfs/grafana/liquibase/rclone/…)
+      - .github/dependabot.yml         # if the surface CAN be automated, add the ecosystem instead
+    notes: >
+      Dependabot covers less than its config used to claim. Its github-actions ecosystem rewrites
+      `uses:` refs ONLY, so the gitleaks version in ci.yml's `run:` step was invisible to it and sat
+      on 8.21.2 (released 2024-10-28) until the 2026-10-12 pass — the scanner gating every PR was
+      ~17 months of detection rules behind, which is a security pin going stale in silence, not
+      cosmetic drift. Container images had no ecosystem entry at all (grafana two majors behind,
+      liquibase one, rclone several minors); a `docker` entry with `directories: /**` was added then,
+      with a deliberate ignore on major bumps of the eclipse-temurin / maven base images (those
+      follow the project's Java LTS, not the newest tag). What stays manual: the four `:latest`
+      images (whisper, searxng, tailscale, radicale — a floating tag has no version to bump, and
+      pinning them changes deploy behaviour → owner decision), and any compose image Dependabot
+      turns out not to parse. Check what the first weekly docker run proposes before trusting the
+      entry. Version SSOT for Java deps stays the root pom's properties / dependencyManagement;
+      `mvn -N versions:display-property-updates` is the manual sweep, and it reports pre-releases
+      (spring-boot 4.2.0-M2, spring-ai 2.1.0-M1, maven-compiler-plugin 4.0.0-beta-5) that must NOT
+      be taken.
