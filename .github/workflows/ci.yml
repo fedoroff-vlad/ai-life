@@ -27,7 +27,13 @@ jobs:
           fetch-depth: 0
       - name: run gitleaks
         env:
-          GITLEAKS_VERSION: 8.21.2
+          # MANUAL PIN — nothing watches this. Dependabot's github-actions ecosystem rewrites
+          # `uses:` refs only, so a version inside a `run:` step is invisible to it (and the
+          # marketplace action that would be watched is the one we deliberately avoid, see above).
+          # Bump it by hand during a dependency pass: `gh api repos/gitleaks/gitleaks/releases/latest`.
+          # Last checked 2026-10-12: it had sat on 8.21.2 (released 2024-10-28) — the scanner that
+          # gates every PR was ~17 months of detection rules behind. 8.30.1 = 2026-03-21.
+          GITLEAKS_VERSION: 8.30.1
         run: |
           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp gitleaks
           /tmp/gitleaks detect --source . --redact --no-banner --exit-code 1

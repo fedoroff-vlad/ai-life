@@ -27,8 +27,41 @@ updates:
           - minor
           - patch
 
-  # GitHub Actions — the workflow pins actions (checkout@v4, setup-java@v4) + the gitleaks release
-  # tag lives in ci.yml; keep those current too.
+  # Container images. Added 2026-10-12, after a dependency pass found this surface watched by
+  # NOTHING: grafana sat two majors behind, liquibase one, rclone several minors. `directories: /**`
+  # is needed because the images live in per-module Dockerfiles and in infra/docker-compose*.yml,
+  # not at the repo root.
+  #
+  # Two things this cannot fix, so they stay manual (recorded in .skills/change-map.yaml):
+  #  - the four `:latest` images (whisper, searxng, tailscale, radicale) — a floating tag has no
+  #    version to bump, and pinning them changes deploy behaviour, so that is an owner decision;
+  #  - if Dependabot does not pick up the compose manifests, the third-party images there remain a
+  #    hand-maintained pin — check what the first weekly run proposes before trusting this entry.
+  - package-ecosystem: docker
+    directories:
+      - "/**"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Moscow
+    open-pull-requests-limit: 3
+    labels:
+      - tech-debt
+    commit-message:
+      prefix: "chore(docker)"
+    ignore:
+      # LOAD-BEARING PIN, not staleness: the stack is Java 25 LTS (CLAUDE.md §Stack), so the JDK
+      # base images move when the project moves to the next LTS — never because a newer tag exists.
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
+      - dependency-name: maven
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions — this watches `uses:` refs (checkout@v7, setup-java@v6) and nothing else.
+  # NOTE: it does **not** cover the gitleaks release tag, despite what this comment claimed until
+  # 2026-10-12 — that version lives in a `run:` step, which Dependabot never rewrites. It is a
+  # manual pin, labelled as such in ci.yml.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
