@@ -22,7 +22,9 @@ backing services only) use `docker-compose.dev.yml` — see [`infra/README.md`](
 
 > **Status:** foundations (Stages 0–5) + all Stage-6 domain agents shipped; the cross-cutting capability
 > epics (identity, sharing, personalization-profile) + the assistant-hardening road-test (#491) + the
-> architecture-hardening review (#479) all complete; **no feature slice in flight.** The list below is a set of **pointers, not
+> architecture-hardening review (#479) all complete; the 14th domain (inventory) closed 2026-09-27.
+> **In flight: no feature slice — the runtime-consolidation epic ([#584](https://github.com/fedoroff-vlad/ai-life/issues/584),
+> ADR-0006), which regroups processes without touching domain code.** The list below is a set of **pointers, not
 > a restatement** — the authoritative "what's done" lives in [`roadmap.md`](plans/roadmap.md) (stages/epics),
 > the ADR headers, and [`HISTORY.md`](plans/HISTORY.md) (timeline); in-flight + next + parked live in
 > [`plans/STATUS.md`](plans/STATUS.md).
