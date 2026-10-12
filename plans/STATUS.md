@@ -17,122 +17,36 @@ build/validation (no Docker on the dev VDI): they are `designed`/`partially-buil
 the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
 
 ## Now
-- **Runtime consolidation ([#584](https://github.com/fedoroff-vlad/ai-life/issues/584), [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md)) — Path B / B1 STARTED (before the Mac, owner direction 2026-09-08).** Goal: collapse ~30 JVMs (~10–15 GB) into a few co-hosting JVM hosts (~2–3 GB), zero contract change. A spike found the prerequisite: MCP modules ship an executable Boot **fat jar** as their main artifact, so a host can't depend on them → decouple packaging first (`exec` classifier → plain classes jar main + `-exec.jar` for Docker). **3a (packaging enabler, pilot `mcp-briefing`+`mcp-travel`) DONE (PR#656)** + **3b (`deploy/domain-mcp-host` boots two contexts in one JVM — `DomainMcpHostFootprintIntegrationTest`) DONE (PR#657)** + **3c (resident Domain-MCP-hot host) DONE:** 3a `exec`-classifier rolled out to the resident hot set (`mcp-caldav`·`mcp-finance`·`mcp-tasks`·`mcp-web`·`mcp-media-processing`) and `domain-mcp-host` repointed to `RESIDENT_HOT` (those five), footprint IT now boots all five side-by-side. Mechanism proven on the real hot set. **3d (resident Agent-hot host) DONE:** 3a `exec`-classifier rolled out to the six agents (`calendar`·`finance`·`tasks`·`notes`·`coordinator`·`researcher`) + new `deploy/agent-host`. The agent tier needed a *second* collision fixed beyond the `application.yml` skip — every agent's `AGENT.md` sat at `classpath:/AGENT.md`, so co-hosted contexts cross-loaded one persona; owner-chosen fix = each `AGENT.md` now lands at a per-agent `manifest/<name>/AGENT.md` via the module `pom.xml` `<targetPath>` (file stays at module root) + `manifest-classpath` repointed. `AgentHostFootprintIntegrationTest` boots all six, asserting each loaded its own persona. **3e (resident Platform-hot host) DONE:** 3a `exec`-classifier rolled out to the seven platform services (`gateway-telegram`·`orchestrator`·`profile-service`·`notifier-service`·`scheduler-service`·`conversation-service`·`media-service`) + new `deploy/platform-host`. The platform tier is DB-bound and mixes web stacks, so beyond the `application.yml` config-name skip the launcher **re-supplies `web-application-type` per module** (reactive: gateway/orchestrator/notifier; servlet: the rest) — load-bearing because `scheduler-service` carries both `spring-web` and test-only `webflux` (auto-detect would be ambiguous). `PlatformHostFootprintIntegrationTest` boots all seven side-by-side (Testcontainers PG wired to every context + a live SeaweedFS for media-service's boot-time `ensureBucket`; the two `@Scheduled` ticks kept quiet; gateway token-less). Isolated singletons `memory-service`+`llm-gateway` are not consolidated. **This completes the resident tier** (Domain-MCP-hot 3c + Agent-hot 3d + Platform-hot 3e). **3f (first cold host-unit — the Docs unit) DONE:** 3a `exec`-classifier on `docs-agent`+`mcp-docs` + new `deploy/docs-host` — **the first host that mixes the agent tier and its domain-MCP in one JVM** (cold grouping = co-usage affinity, unlike the resident agent/MCP split). Launcher re-supplies per-module `web-application-type` (docs-agent reactive, mcp-docs servlet) **and** the agent's `agent.skills-classpath` (config-name skip drops it, and the runtime fails startup if AGENT.md declares skills the empty registry never loaded); single agent → no manifest-path collision. `DocsHostFootprintIntegrationTest` boots both side-by-side (MCP client off = co-residency proof, not the agent→MCP SSE binding). **3g (second cold host-unit — the Content unit) DONE:** 3a `exec`-classifier rolled out to `creator-agent` + its domain-MCP `mcp-creator` + the three trend capability-MCPs it binds (`mcp-youtube`·`mcp-reddit`·`mcp-feeds`) + new `deploy/content-host` boots all five side-by-side — same single-agent+MCPs shape as Docs (3f), now a **5 JVMs → 1** cluster. Launcher re-supplies per-module `web-application-type` (agent + the three capability-MCPs webflux-only → reactive; `mcp-creator` carries both `spring-web`+`webflux` like `mcp-docs` → pinned servlet) + the agent's `agent.skills-classpath`; single agent → no manifest-path collision. `ContentHostFootprintIntegrationTest` boots all five (creator-agent MCP client off = co-residency proof). **3h (third cold host-unit — the Lifestyle unit; first cold unit with >1 agent) DONE:** 3a `exec`-classifier on three agents (`stylist`·`nutritionist`·`chef`) + their domain-MCPs (`mcp-wardrobe`·`mcp-nutrition`) + two capability-MCPs (`mcp-image-gen`·`mcp-food-data`) + new `deploy/lifestyle-host` boots all seven (**7 JVMs → 1**). Three agents share the classloader → carries the **per-agent manifest-path fix (3d)**: each `AGENT.md` → `manifest/<name>/AGENT.md` (pom `<targetPath>` + yml `manifest-classpath`), launcher points each context at its own persona (skills classpath shared — nutritionist+chef both scan `skills/nutrition/*`). Web-type re-supply: agents + capability-MCPs reactive; `mcp-wardrobe`+`mcp-nutrition` carry web+webflux → pinned servlet. `LifestyleHostFootprintIntegrationTest` asserts each agent loaded its own persona. **3i (fourth cold host-unit — the Brief+Travel unit; multi-agent) DONE:** two agents (`briefing`·`travel`) + their domain-MCPs (`mcp-briefing`·`mcp-travel`, already exec-classified in the 3a pilot) + two capability-MCPs (`mcp-weather`·`mcp-travel-search`) + new `deploy/brief-travel-host` boots all six (**6 JVMs → 1**). exec-classifier added to the four not-yet-done modules (both agents + the two capability-MCPs). Multi-agent → per-agent manifest-path fix (3d) as in 3h (each `AGENT.md` → `manifest/<name>/AGENT.md`, pom `<targetPath>` + main & test yml). Web-type: agents + capability-MCPs reactive; `mcp-briefing`+`mcp-travel` carry web+webflux → pinned servlet. `BriefTravelHostFootprintIntegrationTest` asserts each agent loaded its own persona. **3j (fifth cold host-unit — the Finance-aux unit; first MCP-only cold unit) DONE:** 3a `exec`-classifier rolled out to the four aux MCPs — two schema-less capability-MCPs (`mcp-market-data`·`mcp-chart-render`) + two import domain-MCPs (`mcp-money-pro-import`·`mcp-ics-import`) + new `deploy/finance-aux-host` boots all four side-by-side (**4 JVMs → 1**). First cold unit with **no agent** → MCP-only cluster grouped by co-usage affinity; like the resident Domain-MCP-hot host (3c) it needs neither the per-agent manifest-path fix (3d) nor the `agent.skills-classpath` re-supply, only the `application.yml` config-name skip + web-type pin (market-data+chart-render reactive; money-pro-import+ics-import carry web+webflux → pinned servlet). The two import MCPs are DB-bound → IT wires the shared Testcontainers PG at `ddl-auto=none` (no schema needed to boot). `FinanceAuxHostFootprintIntegrationTest` boots all four on distinct ports, each carrying only its own application bean. **3k (sixth cold host-unit — the Inventory unit; the late-arrival reconcile) DONE:** the map was drawn 2026-08-28 and three JVMs joined compose after it, with no host at all — the inventory domain (closed 2026-09-27) + `mcp-media-fetch` (#294). New `deploy/inventory-host` boots `inventory-agent`+`mcp-inventory` side-by-side (**2 JVMs → 1**, the Docs 3f shape: one agent + its own domain-MCP, binding the *hot* `mcp-media-processing` without co-hosting it); both modules were built after the 3a enabler so they already carried the `exec` classifier → launcher only, no packaging change. `InventoryHostFootprintIntegrationTest` proves co-residency. The same reconcile **placed `mcp-media-fetch` in the resident Domain-MCP-hot host** (its only consumer `researcher-agent` is resident and a pasted video link is a chat-latency ask — a cold wake would front every one; wiring = 3l) and corrected the process inventory **47 → 50 JVMs** across the map + ADR-0006/0008 + INDEX. **Next:** (i) the RAM-delta measurement across the resident hosts (env-wired host `main` + `measure-footprint.sh` on the running stack — the "~2–3 GB vs ~10–15 GB" number, Mac-gated), (ii) **3l** — wire `mcp-media-fetch` into `domain-mcp-host` (host image then needs `yt-dlp`+`ffmpeg`), (iii) the one remaining cold host-unit — Coach (parked #289; same mechanism when the epic thaws; ADR-0006 item 4). Spec → [topology-map.md](topology-map.md) §Slice 3. Native/GraalVM (path C) stays the later, mac-gated lever.
+- **Runtime consolidation ([#584](https://github.com/fedoroff-vlad/ai-life/issues/584), [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md)) — Path B / B1 in flight (owner direction 2026-09-08).** Goal: collapse ~50 JVMs (~10–15 GB) into ~13 co-hosting JVM hosts (~2–3 GB), zero contract change. **Slice 1** (measurement harness [`scripts/measure-footprint.sh`](../scripts/measure-footprint.sh)) and **slice 2** (the topology map) are authored; **slice 3 has shipped 3a…3k** — the packaging enabler a spike found to be the prerequisite (`exec` classifier → plain classes jar as the main artifact, `-exec.jar` for Docker) + the **entire resident tier** (Domain-MCP-hot 3c · Agent-hot 3d · Platform-hot 3e) + **six cold host-units** (Docs 3f · Content 3g · Lifestyle 3h · Brief+Travel 3i · Finance-aux 3j · Inventory 3k), each proven by its own `*HostFootprintIntegrationTest`. Per-slice detail and the three reusable launcher fixes (the `application.yml` config-name skip · the per-module `web-application-type` re-supply · the per-agent `manifest/<name>/AGENT.md` path) live in **[topology-map.md](topology-map.md) §Slice 3 — the SSOT; this bullet links, it does not restate.** **Next:** (i) the RAM-delta measurement (env-wired host `main` + `measure-footprint.sh` on the running stack — the "~2–3 GB vs ~10–15 GB" number, Mac-gated), (ii) **3l** — wire `mcp-media-fetch` into `domain-mcp-host` (that host's image then needs `yt-dlp`+`ffmpeg`), (iii) the last cold unit — Coach (parked [#289](https://github.com/fedoroff-vlad/ai-life/issues/289)). Native/GraalVM (path C) stays the later, mac-gated lever.
 
 - **browser capability ([TR-f3](https://github.com/fedoroff-vlad/ai-life/issues/190)) — ADR-0008 flagged, awaiting owner pick (2026-09-20).** Owner picked the TR-f3 (`mcp-browser`) track; it's a genuinely new layer (headless Chromium in the stack → footprint tension with #584, widened injection surface), so per "flag before code" it's an ADR first, not code. **[ADR-0008](adr/ADR-0008-browser-capability.md) (Proposed)** fixes the shape (cold, read-only, shared capability-MCP — per ADR-0003 + ADR-0006) and forks the engine: **Option A** deterministic Playwright-Java fetch (`resolve_url`+`fetch_rendered`, no LLM — closes RT-d short-links + the `mcp-web` JS gap; **recommended**) vs **Option B** agentic browser-use (Python + LLM, interactive tours; heaviest). **Next:** owner picks A or B → ADR to Accepted → slice the engine (WHEN/THEN-first, cold+read-only acceptance criteria + injection golden) → wire the first consumer (RT-d short-link path or `mcp-web` JS fallback). Detail → [travel.md](travel.md) §TR-f3 + §Deferred.
 
-## Done (awaiting move to HISTORY at next closer)
-- **inventory domain ([inventory.md](inventory.md)) — ✅ COMPLETE (2026-09-27).** The 14th domain: "где что
-  лежит" — photograph things into a container, the container carries a QR label, scanning (or photographing)
-  it returns a card of what is inside + where it stands. IN-a…IN-g3 + the goldens all shipped; the loop is
-  complete and correctable in chat. Detail → [inventory.md](inventory.md) + [HISTORY.md](HISTORY.md) (rows
-  2026-09-22…27). **Still deferred, both by choice:** the native TSPL printer template (hardware not bought —
-  MVP hands over a QR image to print from the phone) and the ADR-0002 sharing retrofit, so reads stay
-  envelope-household scoped. The `brief`-based link to the stylist (seasonal storage) is an idea, not owed
-  work — see [inventory.md](inventory.md) §Deferred.
-- **video understanding [#294](https://github.com/fedoroff-vlad/ai-life/issues/294) — ✅ COMPLETE (2026-09-02).**
-  Any video source (YouTube/Instagram/Threads/TikTok **link** or uploaded **file**) → one "о чём это видео".
-  Shipped V-0…V-d: new acquisition capability **`mcp-media-fetch`** (yt-dlp `transcribe_video` relocated out
-  of `mcp-web` + `fetch_audio`→mediaId) + **`frames`** ffmpeg keyframe tool in `mcp-media-processing` (MP-e)
-  + a **`video` skill on researcher** (`flow/VideoUnderstanding`: three-tier cheap-first captions→STT→visual,
-  each soft-failing → one guarded synthesis). Injection-guarded (GUARD + `fence`, model-proven by
-  `GoldenVideoInjectionResistanceTest`); `E2EVideoUnderstandingFlowTest` proves the link chain's contract
-  handoffs. **Link visual tier deferred** (needs a `fetch_video` acquisition tool; the file path reaches the
-  visual tier normally). Detail → [HISTORY.md](HISTORY.md) + [research.md](research.md) §Video understanding +
-  [media.md](media.md) §MP-e.
-- **hardening §#599 injection guard — ✅ COMPLETE (2026-08-31), #599 closed.** All untrusted-ingestion
-  flows (researcher web + 5 web synthesis + docs OCR) frame retrieved text as data via
-  `agent-runtime` `UntrustedContent.GUARD`(+`fence`); enforced by `check-consistency.sh` check 7; two
-  model-proven injection goldens. Detail → [HISTORY.md](HISTORY.md) + [architecture.md](architecture.md)
-  §Security. **Sibling findings from the same 2026-08-31 architecture-checkup — both ✅ closed
-  (2026-08-31):** [#600](https://github.com/fedoroff-vlad/ai-life/issues/600) model-strategy↔`.env.mac.example`
-  drift (reconciled with cross-references — interim tags vs MoE deploy targets, hardware-gated) +
-  [#601](https://github.com/fedoroff-vlad/ai-life/issues/601) root `AGENTS.md` (thin pointer to `CLAUDE.md`).
-  **The architecture-checkup is fully resolved.** Detail → [HISTORY.md](HISTORY.md).
-- **arch §#477 real agent-led multi-domain coordination — ✅ COMPLETE (2026-08-28), #477 closed (Track I,
-  [stage4.md](stage4.md) §Track I).** The coordinator substrate (#290) was built but the cross-domain path was
-  thin (only finance + calendar exposed `brief`). Both slices shipped: **I1** tasks-agent as the 3rd `brief`
-  exposer + roster entry (FAST planner now picks among ≥3 real specialists) and **I2** the multi-domain
-  stage-closer `E2ECoordinateMultiDomainTest` — a "спланируй выходные" ask fans out to finance+calendar+tasks
-  **through the hub** and returns one synthesis grounded in every brief, proving per-source soft-fail (one
-  specialist 500s → survivors still synthesize, never a 500) + the no-direct-agent-to-agent invariant. The
-  genuine cross-domain path is now proven, not just the coordinator demo. **I3 (live-read brief enrichment —
-  the `answer(request, extraGather)` overload, applies to every exposer) deferred/optional; not needed to prove
-  #477.** Detail → [HISTORY.md](HISTORY.md) + [stage4.md](stage4.md) §Track I. **Epic
-  [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) closed (2026-08-28)** — all 5 review findings
-  shipped; only the standalone mac-gated Bucket 2 cutover #369 carries on (see `## Next`).
-- **arch §#476 personalization-profile capability — ✅ COMPLETE (2026-08-28), #476 closed.** All 7 slices
-  shipped (per [ADR-0005](adr/ADR-0005-personalization-profile-capability.md)): foundation
-  (`libs/profile` leaf `ProfileScope`/`ProfileScopeResolver`/`PersonalizationProfileClient` +
-  `agent-runtime` `PersonalizationProfiler`/`ProfileSpec` template) + briefing reference + creator +
-  nutrition + travel + stylist. The repeated `(household, owner)` per-member profile pattern is now one
-  shared mechanism (store stays per-domain); **#490 FO-3 family-default inheritance reaches
-  briefing/creator/nutrition/travel** (stylist opts out by design — per-person style profile). Detail →
-  [HISTORY.md](HISTORY.md) + [ADR-0005](adr/ADR-0005-personalization-profile-capability.md). Epic #479 closed
-  (2026-08-28); the standalone mac-gated Bucket 2 cutover #369 is the only surviving thread (see `## Next`).
-- **road-test §#490 family-onboarding — ✅ COMPLETE (2026-08-28).** UX/onboarding layer on the shipped
-  identity ([ADR-0001](adr/ADR-0001-identity-membership-scope.md)) + sharing
-  ([ADR-0002](adr/ADR-0002-sharing-shared-capability.md)) plumbing so a 2nd member (wife) is productive in
-  minutes: **FO-1** join orientation (gateway redeem reply orients the new member), **FO-3** sensible
-  defaults on join (a member who set nothing inherits the family/shared briefing default via
-  `ProfileClient.householdRouting`), **FO-2** keyword-free per-member prefs (the `briefing-profiler` SKILL
-  now captures a cue-less stated preference as a `self` config; golden-proved on qwen3:8b). Detail →
-  [HISTORY.md](HISTORY.md) + [core.md](core.md) §Onboarding UX. **This closes the assistant-hardening
-  road-test epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)** (#483…#490) — **Jarvis-style
-  autonomy (smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192), coordination
-  [#477](https://github.com/fedoroff-vlad/ai-life/issues/477)) is now unblocked.** Next work = pick from
-  `## Next` / the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) backlog.
-- **road-test §#489 multimodal/reply-UX — ✅ COMPLETE (2026-08-28).** All four slices shipped: **RU-1** typing
-  indicator, **RU-2** inline Да/Нет confirm buttons, **RU-3** STT reliability gate (empty/low-confidence voice →
-  ask to repeat), **RU-4** photo/receipt robustness (unreadable captionless document photo → ask for a clearer
-  shot; OCR-confidence twin of RU-3, on the docs path — the receipt/finance path already asked). Detail →
-  [HISTORY.md](HISTORY.md) + [platform.md](platform.md) §Multimodal & reply UX. (Superseded by the §#490
-  COMPLETE bullet above — #490 was the last road-test item and is now done.)
-- **road-test §#488 memory-quality — ✅ CORE COMPLETE (2026-08-26); only the Mac-gated ambient enable-flip remains.**
-  Made what the assistant remembers **visible + correctable** ([#488](https://github.com/fedoroff-vlad/ai-life/issues/488)):
-  **MQ-1** review digest ("что ты про меня запомнил"), **MQ-2** forget/correct a fact on the shared
-  [ADR-0004](adr/ADR-0004-confirm-act-flow.md) runner, **MQ-3** ambient-precision eval (labelled corpus + pure
-  `AmbientCaptureScore` + gated `GoldenAmbientPrecisionTest` asserting act-precision/recall thresholds). Detail →
-  [HISTORY.md](HISTORY.md) + [second-brain.md](second-brain.md) §MQ + [ambient-capture.md](ambient-capture.md) §MQ-3.
-  **Deferred (Mac-gated):** flipping `MEMORY_AMBIENT_CAPTURE_ENABLED` on once `GoldenAmbientPrecisionTest` is green on
-  the deploy model (stronger local MoE; dev box CPU-only). **Next road-test item** (epic
-  [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)): multimodal/reply-UX
-  [#489](https://github.com/fedoroff-vlad/ai-life/issues/489) + family-onboarding
-  [#490](https://github.com/fedoroff-vlad/ai-life/issues/490).
-- **road-test §#487 proactive UX — ✅ CORE COMPLETE (2026-08-25); PX-4 deferred.** notifier is the single
-  seam every proactive push flows through, so a send-time gate (`NotificationGate`) makes proactivity
-  controllable — deterministic, never an LLM call, inert when reactive/unconfigured/no-DB: **PX-1**
-  quiet-hours *hold + redeliver* (a proactive push in the user's quiet window is parked in
-  `core.notification_held` and redelivered by a `@Scheduled` tick when it opens, dropped if stale) · **PX-2**
-  daily-cap *suppress* (over the per-user ceiling → dropped, counted in `core.notification_sent`) · **PX-3**
-  per-stream *opt-out* (a muted stream in `core.notification_stream_optout` is suppressed first; every
-  producer now attributes its coarse stream). Detail → [HISTORY.md](HISTORY.md) + [platform.md](platform.md)
-  §Proactive UX. **PX-4 (snooze/dismiss buttons + mute-via-button) deferred** — its Telegram inline-button/
-  callback infra overlaps [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), to be built once as a
-  shared primitive. (§#488 memory-quality is now the active bullet above.)
-- **road-test §#486 CRUD/undo — ✅ COMPLETE (2026-08-25).** The cross-cutting **"отмени последнее" undo
-  primitive** (H1 storage → H2 orchestrator → H3 tasks → H-rollout to finance/notes) + the **per-domain chat
-  CRUD holes**: calendar create/undo/cancel/move (HC-1…HC-4), delete-by-description ×3 (tasks/finance/notes),
-  and the edit surface (notes/tasks/finance edit + finance re-categorise + tasks GTD state-move) — all
-  confirm-gated, on each domain's own SkillRouter path, the confirm-act flows riding the shared
-  [ADR-0004](adr/ADR-0004-confirm-act-flow.md) `PickConfirmActRunner`. **Create/edit/delete + undo now complete
-  across tasks/finance/notes/calendar.** Detail → [HISTORY.md](HISTORY.md) +
-  [tasks.md](tasks.md)/[finance.md](finance.md)/[second-brain.md](second-brain.md)/[calendar.md](calendar.md)
-  §H.2 + [stage4.md](stage4.md) §Track H. (Next road-test item is carried by the §#487 bullet above.)
-- **arch epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) → #475 in-agent routing — ✅ DONE
-  (2026-08-17).** All 8 cue-routed agents (notes / creator / docs / nutritionist / briefing / stylist / chef
-  / travel) migrated off their `*_CUES` keyword heuristics onto the shared `agent-runtime`
-  `intent/SkillRouter`; every keyword router deleted. **Bucket 1 is now fully complete** (finance + tasks
-  were the original two). Detail → [skills-vs-flows.md](skills-vs-flows.md) §Bucket 1 + per-agent HISTORY rows
-  (2026-08-17). **Epic #479 closed (2026-08-28)** — #475 ✅, #476 ✅ (ADR-0005), #477 ✅, #478 ✅, #547 ✅;
-  the only surviving thread is the standalone mac-gated Bucket 2 cutover
-  [#369](https://github.com/fedoroff-vlad/ai-life/issues/369) (see `## Next`).
-  **confirm-act flow dedup [#547](https://github.com/fedoroff-vlad/ai-life/issues/547) — ✅ DONE, #547 closed
-  (2026-08-23).** ADR-0004 lifted the copy-pasted `read candidates → LLM picks → pendingAction confirm →
-  resume → act` loop into a generic `PickConfirmActRunner` (`libs/agent-runtime/intent/`, act as a delete|update
-  seam + a `missing`-field re-ask gate) and retrofitted all five confirm-act flows onto it (delete×3 + calendar
-  cancel/move; the H.2 edits above then rode it too). Detail → [HISTORY.md](HISTORY.md) +
-  [ADR-0004](adr/ADR-0004-confirm-act-flow.md).
+## Deferred — open threads left behind by shipped work
+Each bullet is the **whole** live claim; the authoritative detail is at the linked source. The shipped work
+itself lives in [HISTORY.md](HISTORY.md) (rows 2026-08-17…2026-09-27 cover everything this section used to
+restate — epics [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) and
+[#491](https://github.com/fedoroff-vlad/ai-life/issues/491), the inventory domain, video understanding
+[#294](https://github.com/fedoroff-vlad/ai-life/issues/294) and the [#599](https://github.com/fedoroff-vlad/ai-life/issues/599)
+injection guard, all closed).
+- **inventory** — the native TSPL printer template (hardware not bought; the MVP hands a QR image over to
+  print from the phone) + the [ADR-0002](adr/ADR-0002-sharing-shared-capability.md) sharing retrofit, so
+  reads stay envelope-household scoped. Both deferred by choice. → [inventory.md](inventory.md) §Deferred
+- **video understanding** — the *link* visual tier needs a `fetch_video` acquisition tool; the
+  uploaded-**file** path already reaches the visual tier normally.
+  → [research.md](research.md) §Video understanding
+- **coordination** — I3 live-read brief enrichment (the `answer(request, extraGather)` overload, applies to
+  every `brief` exposer). Optional; [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) closed
+  without it. → [stage4.md](stage4.md) §Track I
+- **memory quality — Mac-gated** — flip `MEMORY_AMBIENT_CAPTURE_ENABLED` on once
+  `GoldenAmbientPrecisionTest` is green on the deploy model (the dev box is CPU-only).
+  → [ambient-capture.md](ambient-capture.md) §MQ-3
+- **proactive UX — PX-4 (snooze/dismiss + mute-via-button), now unblocked.** It was deferred because its
+  Telegram inline-button/callback infra overlapped
+  [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), to be built once as a shared primitive —
+  **that primitive shipped with RU-2** (`ConfirmKeyboard` + the gateway's callback-query dispatch, whose
+  javadoc already names PX-4 as its next tenant), so the stated blocker is gone and this is buildable now.
+  → [platform.md](platform.md) §Proactive UX
+
 ## Parked — blocked on hardware (Mac not yet purchased)
 - **The full golden lane — throughput-gated, not broken (measured 2026-09-24).** The dev VDI has no GPU:
   `qwen3:8b` Q4 generates **~7.4 tok/s**, so only the cheap subset (`Golden*RoutingTest` /
@@ -167,23 +81,28 @@ the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+gr
 _(fast/slow test split — DONE 2026-08-07, see [HISTORY.md](HISTORY.md) + [migration-25-boot4.md](migration-25-boot4.md) §Build/CI performance lever 2.)_
 
 ## Backlog (all mirrored as Issues — not near-term)
-Future agents: **coach-agent #289 — PARKED mid-epic 2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from [coach.md](coach.md) §Phased slices), health #187, email #191, smart-home #192. (travel #190 shipped — see `## Next`.)
-Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293 (GPU-gated, parked). (#294 video
-understanding shipped — see `## Done`.)
-**Lists capability** (owner idea, 2026-08-14) — **COMPLETE** (LI-a + LI-b + LI-c), see [lists.md](lists.md):
-grocery/things lists as **structured item lists** (add/check-off/clear) on the `memory.note` tier, owned by
-**notes-agent**; LI-a explicit ops (#466) + LI-b ambient keyword-free capture + LI-c travel packing-list
-mirrored as a `type=list` note. Detail → [HISTORY.md](HISTORY.md). (**off-site DB backup replication** DONE 2026-08-09 → HISTORY: `offsite` compose profile, `rclone-offsite` with a `BACKUP_OFFSITE_REMOTES` flag choosing Yandex Disk and/or a Tailscale host.)
-**Assistant hardening / road-test** (owner direction 2026-08-16: daily-drive it as a reliable personal
-assistant *before* any autonomy/actuation) — **epic [#491](https://github.com/fedoroff-vlad/ai-life/issues/491)
-✅ COMPLETE (2026-08-28)**: transparency #485 + routing #484 → CRUD/undo #486 → proactive-UX #487 +
-memory-quality #488 → multimodal/reply-UX #489 + family-onboarding #490 all shipped (only the 24/7 instance
-[#483](https://github.com/fedoroff-vlad/ai-life/issues/483) remains, hardware-blocked). Detail →
-[HISTORY.md](HISTORY.md). **Jarvis-style autonomy (smart-home #192, coordination #477) is now unblocked.**
-**Architecture hardening** (2026-08-16 review) — **epic [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) ✅ CLOSED (2026-08-28)**: all 5 review findings shipped — in-agent routing [#475](https://github.com/fedoroff-vlad/ai-life/issues/475) ✅; personalization-profile capability [#476](https://github.com/fedoroff-vlad/ai-life/issues/476) ✅ (ADR-0005); agent-led multi-domain coordination [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) ✅; `shared/skills/` doctrine reconcile [#478](https://github.com/fedoroff-vlad/ai-life/issues/478) ✅ (trimmed to "mechanism available, zero tenants"); confirm-act dedup [#547](https://github.com/fedoroff-vlad/ai-life/issues/547) ✅ (ADR-0004). The one deferred checklist item, Bucket 2 cutover [#369](https://github.com/fedoroff-vlad/ai-life/issues/369), was mac-gated / not near-term and carries on standalone (see `## Next`) — no value holding the epic open on it.
-**Runtime topology / footprint** (owner concern 2026-08-28) — **epic [#584](https://github.com/fedoroff-vlad/ai-life/issues/584)**, [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) (Proposed, mac-gated): decouple runtime process count from code-module structure to free RAM for the local model — measurement-first → process consolidation (few JVM hosts, code untouched) → native-image for the resident hot set; CDS/AOT (LC-3a) stays as the cold-start-latency lever. Correctness (types/goldens/E2E/privacy) preserved; domain logic never rewritten. **Slice 2 (topology map) drafted — [topology-map.md](topology-map.md)** (the non-blocked design half: 50 JVMs → ~13 hosts, `memory-service` isolated). **Slice 1 (measurement harness) authored — [`scripts/measure-footprint.sh`](../scripts/measure-footprint.sh)** (per-process RSS + JVM/model/Postgres split, `--json` for slice-3 diffing; spec: [topology-map.md](topology-map.md) §Slice 1); it *runs* at deploy — real RSS needs the Mac (no Docker on the dev VDI). Slices 3/5 (consolidation spike, native lane) stay mac-gated.
-Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done) → [HISTORY.md](HISTORY.md).
-(The **skills-vs-flows** refactor track #358→#359→#360 is done and closed; the only open thread is the Mac-gated production cutover #369 in `## Next` above — [skills-vs-flows.md](skills-vs-flows.md).)
+Future agents: **coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) — PARKED mid-epic
+2026-07-10** (CO-1 store + CO-2 reflect shipped; CO-3 intake…CO-7 proactive deferred — resume from
+[coach.md](coach.md) §Phased slices), health #187, email #191, smart-home #192. (travel #190 shipped — see
+`## Next`.)
+Capabilities/follow-ups: mcp-image-gen real engine + stylist try-on #293 (GPU-gated, parked).
+Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JDK 21→25 Dockerfiles, done)
+→ [HISTORY.md](HISTORY.md).
+
+**Closed epics — pointers only** (detail → [HISTORY.md](HISTORY.md); kept here because each left something
+live):
+- **Assistant hardening / road-test [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) ✅
+  (2026-08-28)** — #485/#484 → #486 → #487/#488 → #489/#490 all shipped. What is still live: the 24/7
+  instance [#483](https://github.com/fedoroff-vlad/ai-life/issues/483) (hardware-blocked, `## Parked`) and
+  PX-4 (`## Deferred`). **It unblocked Jarvis-style autonomy** — smart-home #192 (open, above) and
+  coordination #477 (shipped).
+- **Architecture hardening [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) ✅ (2026-08-28)** —
+  all 5 findings shipped (#475 routing · #476 ADR-0005 profile capability · #477 coordination · #478
+  `shared/skills/` doctrine · #547 ADR-0004 confirm-act dedup). What is still live: the mac-gated Bucket 2
+  cutover [#369](https://github.com/fedoroff-vlad/ai-life/issues/369) (`## Next`), which also carries the
+  closed **skills-vs-flows** track #358→#360 — [skills-vs-flows.md](skills-vs-flows.md).
+- **Lists capability ✅** (LI-a…LI-c, [lists.md](lists.md)) and **off-site DB backup replication ✅**
+  (2026-08-09, `offsite` compose profile + `BACKUP_OFFSITE_REMOTES`) — nothing live.
 
 ## Workflow reminder
 Run only the relevant test class while iterating; full suite once before PR (CI is the authority). Don't paste full logs — extract failing assertion + ~3 lines. Auto-merge squash on green, delete branch. Start a fresh Claude Code session after each merged PR. **Update this file at the end of each PR; move the finished bullet to [HISTORY.md](HISTORY.md) (add a terse timeline row + the detail), don't let `## Now` accumulate ✅ DONE items.**
