@@ -56,7 +56,10 @@ public class ObjectStore {
             client.putObject(PutObjectArgs.builder()
                     .bucket(bucket)
                     .object(key)
-                    .stream(in, bytes.length, -1)
+                    // minio 9 boxed both sizes: stream(InputStream, Long, Long) — an int literal no
+                    // longer converts (widening + boxing is not applied together), so both are long
+                    // literals here. Values unchanged from 8.x: exact object size, part size -1 = auto.
+                    .stream(in, (long) bytes.length, -1L)
                     .contentType(contentType)
                     .build());
         } catch (Exception e) {
