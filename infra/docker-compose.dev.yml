@@ -124,7 +124,11 @@ services:
   # Grafana — zero-code finance dashboards over the finance.* matviews (issue #196).
   # Provisioned from infra/grafana; open http://localhost:${GRAFANA_PORT:-3000}.
   grafana:
-    image: grafana/grafana:11.2.0
+    # Bumped 11.2.0 → 13.2.4 (2026-10-23). Two majors: nothing here validates it — grafana is a
+    # dashboards-only sidecar on an opt-in profile, so the first real bring-up must confirm that
+    # provisioning/datasources/postgres.yml still loads (check the container log, then the
+    # ai-life folder in the UI). Provisioning stays apiVersion 1 in both files.
+    image: grafana/grafana:13.2.4
     container_name: ai-life-grafana
     restart: unless-stopped
     depends_on:
