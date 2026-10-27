@@ -27,19 +27,22 @@ updates:
           - minor
           - patch
 
-  # Container images. Added 2026-10-12, after a dependency pass found this surface watched by
-  # NOTHING: grafana sat two majors behind, liquibase one, rclone several minors. `directories: /**`
-  # is needed because the images live in per-module Dockerfiles and in infra/docker-compose*.yml,
-  # not at the repo root.
+  # Container images, second attempt. The first (2026-10-12) used `package-ecosystem: docker` with
+  # `directories: ["/**"]` and **errored on every run** — "Error during file fetching; aborting:
+  # /** not found": `directories` globs with `*`, and `**` is not a pattern it resolves. Two further
+  # things were wrong with that entry, so this is not just a glob fix:
+  #  - `docker` reads Dockerfiles, NOT compose manifests. Ours hold only `eclipse-temurin:25-jre` and
+  #    `maven:3.9-eclipse-temurin-25`, both pinned to the project's Java LTS (CLAUDE.md §Stack), where
+  #    the only update that exists is a major we would ignore by design. A `docker` entry over 50
+  #    module directories could therefore never produce a useful PR — it is deliberately NOT re-added.
+  #  - the pins worth watching (seaweedfs · grafana · liquibase · rclone · pgvector · postgres-backup)
+  #    all live in infra/docker-compose*.yml, which is the separate `docker-compose` ecosystem.
   #
-  # Two things this cannot fix, so they stay manual (recorded in .skills/change-map.yaml):
-  #  - the four `:latest` images (whisper, searxng, tailscale, radicale) — a floating tag has no
-  #    version to bump, and pinning them changes deploy behaviour, so that is an owner decision;
-  #  - if Dependabot does not pick up the compose manifests, the third-party images there remain a
-  #    hand-maintained pin — check what the first weekly run proposes before trusting this entry.
-  - package-ecosystem: docker
-    directories:
-      - "/**"
+  # Still manual, recorded in .skills/change-map.yaml: the four `:latest` images (whisper, searxng,
+  # tailscale, radicale) — a floating tag has no version to bump, and pinning them changes deploy
+  # behaviour, so that is an owner decision.
+  - package-ecosystem: docker-compose
+    directory: "/infra"
     schedule:
       interval: weekly
       day: monday
@@ -51,11 +54,10 @@ updates:
     commit-message:
       prefix: "chore(docker)"
     ignore:
-      # LOAD-BEARING PIN, not staleness: the stack is Java 25 LTS (CLAUDE.md §Stack), so the JDK
-      # base images move when the project moves to the next LTS — never because a newer tag exists.
-      - dependency-name: eclipse-temurin
-        update-types: ["version-update:semver-major"]
-      - dependency-name: maven
+      # LOAD-BEARING PIN, not staleness: liquibase applies the whole schema at stack start, so a
+      # major is a "stack does not come up" risk that must be validated by a real bring-up, not
+      # merged on a green unit build. Bump it by hand when the deploy host exists (plans/lifecycle.md).
+      - dependency-name: liquibase/liquibase
         update-types: ["version-update:semver-major"]
 
   # GitHub Actions — this watches `uses:` refs (checkout@v7, setup-java@v6) and nothing else.
