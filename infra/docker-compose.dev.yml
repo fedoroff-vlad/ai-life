@@ -124,7 +124,7 @@ services:
   # Grafana — zero-code finance dashboards over the finance.* matviews (issue #196).
   # Provisioned from infra/grafana; open http://localhost:${GRAFANA_PORT:-3000}.
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:13.2.4
     container_name: ai-life-grafana
     restart: unless-stopped
     depends_on:

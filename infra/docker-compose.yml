@@ -280,7 +280,7 @@ services:
   # Datasource + dashboards are provisioned from infra/grafana (no click-ops).
   grafana:
     profiles: ["cold"]
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:13.2.4
     container_name: ai-life-grafana
     restart: unless-stopped
     depends_on:
