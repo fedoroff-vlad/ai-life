@@ -258,13 +258,19 @@ couplings:
       on 8.21.2 (released 2024-10-28) until the 2026-10-12 pass — the scanner gating every PR was
       ~17 months of detection rules behind, which is a security pin going stale in silence, not
       cosmetic drift. Container images had no ecosystem entry at all (grafana two majors behind,
-      liquibase one, rclone several minors); a `docker` entry with `directories: /**` was added then,
-      with a deliberate ignore on major bumps of the eclipse-temurin / maven base images (those
-      follow the project's Java LTS, not the newest tag). What stays manual: the four `:latest`
-      images (whisper, searxng, tailscale, radicale — a floating tag has no version to bump, and
-      pinning them changes deploy behaviour → owner decision), and any compose image Dependabot
-      turns out not to parse. Check what the first weekly docker run proposes before trusting the
-      entry. Version SSOT for Java deps stays the root pom's properties / dependencyManagement;
+      liquibase one, rclone several minors). The `docker` entry added on 2026-10-12 to fix that was
+      itself wrong twice over, and silently: `directories: ['/**']` is not a pattern Dependabot
+      resolves, so every scheduled run died with "Error during file fetching; aborting: /** not
+      found"; and the `docker` ecosystem reads Dockerfiles, not compose — ours hold only the
+      Java-LTS-pinned base images (eclipse-temurin, maven) whose every available update is a major
+      we ignore by design, so it could never have produced a useful PR. Replaced 2026-10-27 by
+      `docker-compose` over /infra, where the pins worth watching actually live, with a deliberate
+      ignore on liquibase majors (it applies the schema at stack start — validate by a real
+      bring-up, never merge on a green unit build). **Lesson: a scheduled automation that fails is
+      indistinguishable, from the PR list alone, from one that finds nothing — open the job.**
+      Still manual: the four `:latest` images (whisper, searxng, tailscale, radicale — a floating
+      tag has no version to bump, and pinning them changes deploy behaviour → owner decision).
+      Version SSOT for Java deps stays the root pom's properties / dependencyManagement;
       `mvn -N versions:display-property-updates` is the manual sweep, and it reports pre-releases
       (spring-boot 4.2.0-M2, spring-ai 2.1.0-M1, maven-compiler-plugin 4.0.0-beta-5) that must NOT
       be taken.
