@@ -19,6 +19,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,7 +49,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * that is what makes editing a container safe once a sticker is already on it.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureWebTestClient
+// The default blocking timeout is 5s per exchange, and this class is the one that does real work
+// inside an exchange: the label flow renders a QR PNG and uploads it before the response comes back.
+// Locally the whole class takes ~4-5.5s, i.e. it sat ON the limit — on a CI runner the very first
+// exchange crossed it (5.020s, run 40018435181) and the class failed 3 of 4 tests. Raised because the
+// limit was measuring runner speed, not the agent: nothing here is latency-asserted.
+@AutoConfigureWebTestClient(timeout = "30s")
 class BoxLabelerTest {
 
     // A deliberately low-entropy stand-in: a real qr_token is opaque, but a random-looking hex
@@ -75,6 +81,23 @@ class BoxLabelerTest {
         mcpInventory.shutdown();
         llmGateway.shutdown();
         mediaService.shutdown();
+    }
+
+    /**
+     * The three servers are static (their ports are wired once via {@link DynamicPropertySource}), so
+     * they are <b>shared across the tests in this class</b> — which is what turned one timeout into
+     * three failures: the stalled test left its own enqueued media response unread, the next test's
+     * card flow consumed it and asserted against a stranger's UUID, and the one after that counted an
+     * extra upload. Draining what the previous test left behind keeps a single failure single, so the
+     * report names the test that actually broke.
+     */
+    @BeforeEach
+    void drainLeftovers() throws Exception {
+        for (MockWebServer server : List.of(mcpInventory, llmGateway, mediaService)) {
+            while (server.takeRequest(1, TimeUnit.MILLISECONDS) != null) {
+                // discard a request the previous test never took
+            }
+        }
     }
 
     @DynamicPropertySource
