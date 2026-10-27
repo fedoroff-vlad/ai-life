@@ -152,7 +152,7 @@ services:
   #   docker run --rm -it -v "$PWD/secrets:/config" -e RCLONE_CONFIG=/config/rclone.conf \
   #     rclone/rclone config     # n) new remote -> name=yadisk storage=yandex ; and/or name=tailscale storage=sftp
   rclone-offsite:
-    image: rclone/rclone:1.68
+    image: rclone/rclone:1.75
     container_name: ai-life-rclone-offsite
     restart: unless-stopped
     profiles: ["offsite"]
