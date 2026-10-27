@@ -99,7 +99,7 @@ services:
   # S3-API object store for media blobs — SeaweedFS (MinIO no longer publishes public server images;
   # see docker-compose.yml for the full note). `server -s3` = master+volume+filer+S3 in one process.
   seaweedfs:
-    image: chrislusf/seaweedfs:3.97
+    image: chrislusf/seaweedfs:4.48
     container_name: ai-life-seaweedfs
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]
