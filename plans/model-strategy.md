@@ -185,7 +185,12 @@ This is the `llm-model-tag` coupling — a config change, not code:
    finance's `GoldenRoutingTest` blew its 120 s `block`). Detail + the per-class recipe →
    [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests. Budget the lane as
    deploy work, and treat any local heavy-golden red as unproven rather than as a regression.
-4. **Measure two-tenant residency** on the Mac → decide whether to keep or retire the downshift.
+4. **Judge the single default on real code** (replaces the old "measure two-tenant residency" step, which
+   the one-model decision settled): run an actual task from the Java monorepo through the coding agent on
+   this `default`. Acceptable → done, LC-4 stays dormant. Not acceptable → bench `Laguna XS 2.1` (watch
+   list) before reinstating a second model, because a second model costs the whole LC-4 apparatus back.
+5. **Re-measure the ADR-0010 frozen set** on this hardware (`scripts/decision-spike/`) — the spike's
+   numbers are float32-on-CPU from the dev box and bound nothing about MPS.
 
 ## Runtime note
 Stay on **Ollama on its MLX engine** (Apple Silicon, preview since 2026-03): keeps the openai-compatible
