@@ -1,0 +1,688 @@
+{
+ "label": "laya EN control",
+ "url": "http://127.0.0.1:8000",
+ "models": {
+  "models": [
+   {
+    "name": "decis/laya-multilingual@0.3.22",
+    "description": "Laya (multilingual) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-multilingual",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 256,
+     "max_state_tokens": 0,
+     "languages": "100+ languages",
+     "device": "cpu",
+     "dtype": "float32"
+    }
+   },
+   {
+    "name": "decis/laya@0.3.22",
+    "description": "Laya (English) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/kev-0.8b@vendored-90990a5",
+    "description": "kev: Qwen3.5 + LoRA + pointer readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-21",
+    "decis": {
+     "engine": "kev-0.8b",
+     "version": "vendored-90990a5",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 1024,
+     "max_state_tokens": 384,
+     "languages": "English (checkpoints are trained on English decision datasets)",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/laya-typed-decisions@0.3.22",
+    "description": "Laya (typed-decisions) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-typed-decisions",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-qwen3.5-0.8b@vendored-f0397f3",
+    "description": "Jeff: a Qwen3.5-0.8B fine-tune with a 255-row single-token readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-qwen3.5-0.8b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff",
+      "jeff-qwen",
+      "jeff-qwen3.5"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 254,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-gemma4-e2b@vendored-f0397f3",
+    "description": "Jeff: a Gemma 4 E2B fine-tune with a 255-row single-token readout, one prefill pass, no text generation. Trained on up to 26 options.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-gemma4-e2b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff-gemma",
+      "jeff-gemma4"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 26,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   }
+  ]
+ },
+ "models_error": null,
+ "families": {
+  "orchestrator-agent-en": {
+   "surface": "ENGLISH CONTROL — same options as orchestrator-agent, but the case texts are the agents' own manifest example phrases (the easiest possible English input: they are literally the few-shot examples the production classifier is primed with). If this family scores well and the Russian one does not, the blocker is language, not the model.",
+   "n_options": 10,
+   "n_cases": 12,
+   "errors": 0,
+   "accuracy_asserted": 0.5833,
+   "n_asserted": 12,
+   "accuracy_all_labelled": 0.5833,
+   "n_labelled": 12,
+   "mean_confidence_correct": 0.6486,
+   "mean_confidence_wrong": 0.6929,
+   "mean_server_ms": 268.3817,
+   "mean_wall_ms": 279.9833,
+   "max_input_tokens": 237,
+   "calibration": [],
+   "misses": [
+    {
+     "id": "en-2",
+     "text": "I spent 12 euros on coffee yesterday",
+     "expect": "finance",
+     "got": "echo",
+     "confidence": 0.7706,
+     "top3": [
+      [
+       "echo",
+       0.7935
+      ],
+      [
+       "chef",
+       0.1288
+      ],
+      [
+       "finance",
+       0.0268
+      ]
+     ]
+    },
+    {
+     "id": "en-3",
+     "text": "Remind me to call the dentist",
+     "expect": "tasks",
+     "got": "echo",
+     "confidence": 0.8663,
+     "top3": [
+      [
+       "echo",
+       0.8797
+      ],
+      [
+       "chef",
+       0.063
+      ],
+      [
+       "tasks",
+       0.0187
+      ]
+     ]
+    },
+    {
+     "id": "en-4",
+     "text": "Find how to calibrate a 3D printer bed and send me a couple of videos",
+     "expect": "researcher",
+     "got": "creator",
+     "confidence": 0.6507,
+     "top3": [
+      [
+       "creator",
+       0.6856
+      ],
+      [
+       "researcher",
+       0.0969
+      ],
+      [
+       "chef",
+       0.0613
+      ]
+     ]
+    },
+    {
+     "id": "en-6",
+     "text": "Log my lunch — chicken with rice",
+     "expect": "nutritionist",
+     "got": "calendar",
+     "confidence": 0.7833,
+     "top3": [
+      [
+       "calendar",
+       0.805
+      ],
+      [
+       "chef",
+       0.1537
+      ],
+      [
+       "echo",
+       0.0208
+      ]
+     ]
+    },
+    {
+     "id": "en-10",
+     "text": "What's the balance on my main card?",
+     "expect": "finance",
+     "got": "echo",
+     "confidence": 0.3934,
+     "top3": [
+      [
+       "echo",
+       0.4541
+      ],
+      [
+       "finance",
+       0.1639
+      ],
+      [
+       "tasks",
+       0.1008
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "en-1",
+     "text": "Add a meeting tomorrow at 15:00 about quarterly planning",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 319.0,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.3364,
+     "top3": [
+      [
+       "calendar",
+       0.4028
+      ],
+      [
+       "echo",
+       0.4019
+      ],
+      [
+       "chef",
+       0.0539
+      ]
+     ],
+     "server_ms": 309.73,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 234,
+     "correct": true
+    },
+    {
+     "id": "en-2",
+     "text": "I spent 12 euros on coffee yesterday",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 278.7,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.7706,
+     "top3": [
+      [
+       "echo",
+       0.7935
+      ],
+      [
+       "chef",
+       0.1288
+      ],
+      [
+       "finance",
+       0.0268
+      ]
+     ],
+     "server_ms": 268.84,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 229,
+     "correct": false
+    },
+    {
+     "id": "en-3",
+     "text": "Remind me to call the dentist",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 258.5,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.8663,
+     "top3": [
+      [
+       "echo",
+       0.8797
+      ],
+      [
+       "chef",
+       0.063
+      ],
+      [
+       "tasks",
+       0.0187
+      ]
+     ],
+     "server_ms": 248.88,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 226,
+     "correct": false
+    },
+    {
+     "id": "en-4",
+     "text": "Find how to calibrate a 3D printer bed and send me a couple of videos",
+     "expect": "researcher",
+     "source": "asserted",
+     "wall_ms": 280.9,
+     "error": null,
+     "got": "creator",
+     "confidence": 0.6507,
+     "top3": [
+      [
+       "creator",
+       0.6856
+      ],
+      [
+       "researcher",
+       0.0969
+      ],
+      [
+       "chef",
+       0.0613
+      ]
+     ],
+     "server_ms": 272.44,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 237,
+     "correct": false
+    },
+    {
+     "id": "en-5",
+     "text": "Put together a smart-casual capsule for autumn",
+     "expect": "stylist",
+     "source": "asserted",
+     "wall_ms": 257.3,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.585,
+     "top3": [
+      [
+       "stylist",
+       0.6265
+      ],
+      [
+       "chef",
+       0.1135
+      ],
+      [
+       "tasks",
+       0.089
+      ]
+     ],
+     "server_ms": 248.89,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 229,
+     "correct": true
+    },
+    {
+     "id": "en-6",
+     "text": "Log my lunch — chicken with rice",
+     "expect": "nutritionist",
+     "source": "asserted",
+     "wall_ms": 297.8,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.7833,
+     "top3": [
+      [
+       "calendar",
+       0.805
+      ],
+      [
+       "chef",
+       0.1537
+      ],
+      [
+       "echo",
+       0.0208
+      ]
+     ],
+     "server_ms": 277.56,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 227,
+     "correct": false
+    },
+    {
+     "id": "en-7",
+     "text": "Give me a recipe for chicken with rice",
+     "expect": "chef",
+     "source": "asserted",
+     "wall_ms": 272.4,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.9716,
+     "top3": [
+      [
+       "chef",
+       0.9744
+      ],
+      [
+       "tasks",
+       0.0096
+      ],
+      [
+       "finance",
+       0.0066
+      ]
+     ],
+     "server_ms": 263.22,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 228,
+     "correct": true
+    },
+    {
+     "id": "en-8",
+     "text": "Draft me a YouTube short about git rebase for juniors",
+     "expect": "creator",
+     "source": "asserted",
+     "wall_ms": 276.8,
+     "error": null,
+     "got": "creator",
+     "confidence": 0.6667,
+     "top3": [
+      [
+       "creator",
+       0.7
+      ],
+      [
+       "echo",
+       0.1124
+      ],
+      [
+       "chef",
+       0.0643
+      ]
+     ],
+     "server_ms": 267.43,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 231,
+     "correct": true
+    },
+    {
+     "id": "en-9",
+     "text": "Where's warm in October for a quiet family holiday?",
+     "expect": "travel",
+     "source": "asserted",
+     "wall_ms": 276.0,
+     "error": null,
+     "got": "travel",
+     "confidence": 0.3001,
+     "top3": [
+      [
+       "travel",
+       0.3701
+      ],
+      [
+       "chef",
+       0.2151
+      ],
+      [
+       "echo",
+       0.1037
+      ]
+     ],
+     "server_ms": 266.56,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 232,
+     "correct": true
+    },
+    {
+     "id": "en-10",
+     "text": "What's the balance on my main card?",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 287.0,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.3934,
+     "top3": [
+      [
+       "echo",
+       0.4541
+      ],
+      [
+       "finance",
+       0.1639
+      ],
+      [
+       "tasks",
+       0.1008
+      ]
+     ],
+     "server_ms": 261.32,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 230,
+     "correct": false
+    },
+    {
+     "id": "en-11",
+     "text": "Mark the milk task as done",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 276.2,
+     "error": null,
+     "got": "tasks",
+     "confidence": 0.6856,
+     "top3": [
+      [
+       "tasks",
+       0.717
+      ],
+      [
+       "chef",
+       0.2313
+      ],
+      [
+       "echo",
+       0.0295
+      ]
+     ],
+     "server_ms": 266.73,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 226,
+     "correct": true
+    },
+    {
+     "id": "en-12",
+     "text": "When is Maria's birthday?",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 279.2,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.9946,
+     "top3": [
+      [
+       "calendar",
+       0.9951
+      ],
+      [
+       "chef",
+       0.0019
+      ],
+      [
+       "echo",
+       0.0011
+      ]
+     ],
+     "server_ms": 268.98,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 227,
+     "correct": true
+    }
+   ]
+  }
+ },
+ "criteria_mode": "full",
+ "criteria_lang": "en",
+ "batching_probe": {
+  "one_question": {
+   "wall_ms": 288.8,
+   "error": null,
+   "server_ms": 279.67,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.8981,
+     "probabilities": {
+      "calendar": 0.002,
+      "finance": 0.9083,
+      "tasks": 0.0104,
+      "researcher": 0.0038,
+      "stylist": 0.0053,
+      "nutritionist": 0.0094,
+      "chef": 0.0303,
+      "creator": 0.0139,
+      "travel": 0.0016,
+      "echo": 0.015
+     }
+    }
+   }
+  },
+  "three_questions": {
+   "wall_ms": 832.3,
+   "error": null,
+   "server_ms": 822.99,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.8981,
+     "probabilities": {
+      "calendar": 0.002,
+      "finance": 0.9083,
+      "tasks": 0.0104,
+      "researcher": 0.0038,
+      "stylist": 0.0053,
+      "nutritionist": 0.0094,
+      "chef": 0.0303,
+      "creator": 0.0139,
+      "travel": 0.0016,
+      "echo": 0.015
+     }
+    },
+    "has_args": {
+     "type": "noul",
+     "noul": 0.421
+    },
+    "shared": {
+     "type": "choice",
+     "choice": "personal",
+     "confidence": 0.1248,
+     "probabilities": {
+      "personal": 0.5624,
+      "shared": 0.4376
+     }
+    }
+   }
+  }
+ }
+}

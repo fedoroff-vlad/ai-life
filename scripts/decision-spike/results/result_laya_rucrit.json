@@ -1,0 +1,354 @@
+{
+ "label": "laya RU criteria",
+ "url": "http://127.0.0.1:8000",
+ "models": {
+  "models": [
+   {
+    "name": "decis/laya-multilingual@0.3.22",
+    "description": "Laya (multilingual) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-multilingual",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 256,
+     "max_state_tokens": 0,
+     "languages": "100+ languages",
+     "device": "cpu",
+     "dtype": "float32"
+    }
+   },
+   {
+    "name": "decis/laya@0.3.22",
+    "description": "Laya (English) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/kev-0.8b@vendored-90990a5",
+    "description": "kev: Qwen3.5 + LoRA + pointer readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-21",
+    "decis": {
+     "engine": "kev-0.8b",
+     "version": "vendored-90990a5",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 1024,
+     "max_state_tokens": 384,
+     "languages": "English (checkpoints are trained on English decision datasets)",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/laya-typed-decisions@0.3.22",
+    "description": "Laya (typed-decisions) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-typed-decisions",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-qwen3.5-0.8b@vendored-f0397f3",
+    "description": "Jeff: a Qwen3.5-0.8B fine-tune with a 255-row single-token readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-qwen3.5-0.8b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff",
+      "jeff-qwen",
+      "jeff-qwen3.5"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 254,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-gemma4-e2b@vendored-f0397f3",
+    "description": "Jeff: a Gemma 4 E2B fine-tune with a 255-row single-token readout, one prefill pass, no text generation. Trained on up to 26 options.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-gemma4-e2b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff-gemma",
+      "jeff-gemma4"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 26,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   }
+  ]
+ },
+ "models_error": null,
+ "families": {
+  "orchestrator-agent": {
+   "surface": "LlmIntentClassifier @ orchestrator",
+   "n_options": 10,
+   "n_cases": 15,
+   "errors": 15,
+   "accuracy_asserted": null,
+   "n_asserted": 0,
+   "accuracy_all_labelled": null,
+   "n_labelled": 0,
+   "mean_confidence_correct": null,
+   "mean_confidence_wrong": null,
+   "mean_server_ms": null,
+   "mean_wall_ms": 17.42,
+   "max_input_tokens": 0,
+   "calibration": [],
+   "misses": [],
+   "rows": [
+    {
+     "id": "orc-1",
+     "text": "Добавь встречу завтра в 15:00 про планирование",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 9.7,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-2",
+     "text": "Я потратил 12 евро на кофе сегодня",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 22.5,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-3",
+     "text": "Напомни мне позвонить стоматологу",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 14.9,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-4",
+     "text": "Найди в интернете, как откалибровать стол 3D-принтера",
+     "expect": "researcher",
+     "source": "asserted",
+     "wall_ms": 10.4,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-5",
+     "text": "Собери мне капсулу в стиле smart-casual на осень",
+     "expect": "stylist",
+     "source": "asserted",
+     "wall_ms": 19.4,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-6",
+     "text": "Запиши мой обед — курица с рисом",
+     "expect": "nutritionist",
+     "source": "asserted",
+     "wall_ms": 12.1,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-7",
+     "text": "Дай рецепт курицы с рисом",
+     "expect": "chef",
+     "source": "asserted",
+     "wall_ms": 9.2,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-8",
+     "text": "Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов",
+     "expect": "creator",
+     "source": "asserted",
+     "wall_ms": 23.2,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-9",
+     "text": "Хочу на море в сентябре тысяч на 200, спланируй поездку",
+     "expect": "travel",
+     "source": "asserted",
+     "wall_ms": 6.8,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-10",
+     "text": "слушай я сегодня потратил тысячу рублей на такси",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 26.2,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-11",
+     "text": "напомни мне пожалуйста вечером позвонить маме",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 11.4,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-12",
+     "text": "поставь мне встречу на завтра в три часа дня",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 9.9,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-13",
+     "text": "привет, как дела?",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 23.8,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-14",
+     "text": "спасибо, отлично",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 32.0,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "orc-15",
+     "text": "Что мне надеть на собеседование?",
+     "expect": "stylist",
+     "source": "inferred",
+     "wall_ms": 29.8,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 272 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    }
+   ]
+  }
+ },
+ "criteria_mode": "full",
+ "criteria_lang": "ru",
+ "batching_probe": {
+  "one_question": {
+   "wall_ms": 345.5,
+   "error": null,
+   "server_ms": 335.11,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.8981,
+     "probabilities": {
+      "calendar": 0.002,
+      "finance": 0.9083,
+      "tasks": 0.0104,
+      "researcher": 0.0038,
+      "stylist": 0.0053,
+      "nutritionist": 0.0094,
+      "chef": 0.0303,
+      "creator": 0.0139,
+      "travel": 0.0016,
+      "echo": 0.015
+     }
+    }
+   }
+  },
+  "three_questions": {
+   "wall_ms": 804.2,
+   "error": null,
+   "server_ms": 795.32,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.8981,
+     "probabilities": {
+      "calendar": 0.002,
+      "finance": 0.9083,
+      "tasks": 0.0104,
+      "researcher": 0.0038,
+      "stylist": 0.0053,
+      "nutritionist": 0.0094,
+      "chef": 0.0303,
+      "creator": 0.0139,
+      "travel": 0.0016,
+      "echo": 0.015
+     }
+    },
+    "has_args": {
+     "type": "noul",
+     "noul": 0.421
+    },
+    "shared": {
+     "type": "choice",
+     "choice": "personal",
+     "confidence": 0.1248,
+     "probabilities": {
+      "personal": 0.5624,
+      "shared": 0.4376
+     }
+    }
+   }
+  }
+ }
+}

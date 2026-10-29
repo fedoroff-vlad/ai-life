@@ -1,0 +1,1754 @@
+{
+ "label": "kev-0.8b CPU, full criteria",
+ "url": "http://127.0.0.1:8000",
+ "models": {
+  "models": [
+   {
+    "name": "decis/laya-multilingual@not-installed",
+    "description": "Laya (multilingual) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-multilingual",
+     "version": "not-installed",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "100+ languages",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/laya@not-installed",
+    "description": "Laya (English) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya",
+     "version": "not-installed",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/kev-0.8b@vendored-90990a5",
+    "description": "kev: Qwen3.5 + LoRA + pointer readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-21",
+    "decis": {
+     "engine": "kev-0.8b",
+     "version": "vendored-90990a5",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 1024,
+     "max_state_tokens": 384,
+     "languages": "English (checkpoints are trained on English decision datasets)",
+     "device": "cpu",
+     "dtype": "float32"
+    }
+   },
+   {
+    "name": "decis/laya-typed-decisions@not-installed",
+    "description": "Laya (typed-decisions) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-typed-decisions",
+     "version": "not-installed",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-qwen3.5-0.8b@vendored-f0397f3",
+    "description": "Jeff: a Qwen3.5-0.8B fine-tune with a 255-row single-token readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-qwen3.5-0.8b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff",
+      "jeff-qwen",
+      "jeff-qwen3.5"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 254,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-gemma4-e2b@vendored-f0397f3",
+    "description": "Jeff: a Gemma 4 E2B fine-tune with a 255-row single-token readout, one prefill pass, no text generation. Trained on up to 26 options.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-gemma4-e2b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff-gemma",
+      "jeff-gemma4"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 26,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   }
+  ]
+ },
+ "models_error": null,
+ "families": {
+  "finance-skill": {
+   "surface": "SkillClassifier @ finance-agent",
+   "n_options": 22,
+   "n_cases": 10,
+   "errors": 0,
+   "accuracy_asserted": 0.8333,
+   "n_asserted": 6,
+   "accuracy_all_labelled": 0.7778,
+   "n_labelled": 9,
+   "mean_confidence_correct": 0.6099,
+   "mean_confidence_wrong": 0.2609,
+   "mean_server_ms": 2015.177,
+   "mean_wall_ms": 2033.94,
+   "max_input_tokens": 344,
+   "calibration": [
+    {
+     "id": "fin-cal-1",
+     "got": "get_balance",
+     "confidence": 0.8455,
+     "top3": [
+      [
+       "get_balance",
+       0.8525
+      ],
+      [
+       "chat",
+       0.0654
+      ],
+      [
+       "report",
+       0.0119
+      ]
+     ],
+     "error": null
+    }
+   ],
+   "misses": [
+    {
+     "id": "fin-6",
+     "text": "заведи новую карту в рублях",
+     "expect": "account",
+     "got": "chat",
+     "confidence": 0.2371,
+     "top3": [
+      [
+       "chat",
+       0.2718
+      ],
+      [
+       "account",
+       0.0883
+      ],
+      [
+       "set_budget",
+       0.0753
+      ]
+     ]
+    },
+    {
+     "id": "fin-9",
+     "text": "заведи карту Тинькофф в рублях",
+     "expect": "account",
+     "got": "chat",
+     "confidence": 0.2847,
+     "top3": [
+      [
+       "chat",
+       0.3172
+      ],
+      [
+       "account",
+       0.0843
+      ],
+      [
+       "invest",
+       0.0571
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "fin-1",
+     "text": "запиши расход 1500 рублей на продукты",
+     "expect": "add_transaction",
+     "source": "asserted",
+     "wall_ms": 1931.1,
+     "error": null,
+     "got": "add_transaction",
+     "confidence": 0.1544,
+     "top3": [
+      [
+       "add_transaction",
+       0.1928
+      ],
+      [
+       "chat",
+       0.1778
+      ],
+      [
+       "transaction-edit",
+       0.1365
+      ]
+     ],
+     "server_ms": 1901.42,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 341,
+     "correct": true
+    },
+    {
+     "id": "fin-2",
+     "text": "какой сейчас баланс на карте Тинькофф?",
+     "expect": "get_balance",
+     "source": "asserted",
+     "wall_ms": 1900.8,
+     "error": null,
+     "got": "get_balance",
+     "confidence": 0.8751,
+     "top3": [
+      [
+       "get_balance",
+       0.8808
+      ],
+      [
+       "chat",
+       0.0635
+      ],
+      [
+       "report",
+       0.0081
+      ]
+     ],
+     "server_ms": 1892.08,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 341,
+     "correct": true
+    },
+    {
+     "id": "fin-3",
+     "text": "проанализируй мои траты и подскажи где сэкономить",
+     "expect": "advice",
+     "source": "asserted",
+     "wall_ms": 1961.6,
+     "error": null,
+     "got": "advice",
+     "confidence": 0.7,
+     "top3": [
+      [
+       "advice",
+       0.7136
+      ],
+      [
+       "spending_by_category",
+       0.0576
+      ],
+      [
+       "chat",
+       0.0457
+      ]
+     ],
+     "server_ms": 1936.36,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 344,
+     "correct": true
+    },
+    {
+     "id": "fin-4",
+     "text": "сделай финансовый отчёт за месяц",
+     "expect": "report",
+     "source": "asserted",
+     "wall_ms": 2037.0,
+     "error": null,
+     "got": "report",
+     "confidence": 0.867,
+     "top3": [
+      [
+       "report",
+       0.873
+      ],
+      [
+       "chat",
+       0.0359
+      ],
+      [
+       "year-report",
+       0.0244
+      ]
+     ],
+     "server_ms": 2009.12,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 338,
+     "correct": true
+    },
+    {
+     "id": "fin-5",
+     "text": "стоит ли смотреть на акции Apple?",
+     "expect": "invest",
+     "source": "asserted",
+     "wall_ms": 2042.0,
+     "error": null,
+     "got": "invest",
+     "confidence": 0.8146,
+     "top3": [
+      [
+       "invest",
+       0.823
+      ],
+      [
+       "chat",
+       0.0873
+      ],
+      [
+       "advice",
+       0.0183
+      ]
+     ],
+     "server_ms": 2024.46,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 336,
+     "correct": true
+    },
+    {
+     "id": "fin-6",
+     "text": "заведи новую карту в рублях",
+     "expect": "account",
+     "source": "asserted",
+     "wall_ms": 2079.7,
+     "error": null,
+     "got": "chat",
+     "confidence": 0.2371,
+     "top3": [
+      [
+       "chat",
+       0.2718
+      ],
+      [
+       "account",
+       0.0883
+      ],
+      [
+       "set_budget",
+       0.0753
+      ]
+     ],
+     "server_ms": 2059.44,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 337,
+     "correct": false
+    },
+    {
+     "id": "fin-7",
+     "text": "привет, как дела?",
+     "expect": "chat",
+     "source": "inferred",
+     "wall_ms": 2013.1,
+     "error": null,
+     "got": "chat",
+     "confidence": 0.697,
+     "top3": [
+      [
+       "chat",
+       0.7108
+      ],
+      [
+       "get_balance",
+       0.0518
+      ],
+      [
+       "report",
+       0.034
+      ]
+     ],
+     "server_ms": 2003.94,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 336,
+     "correct": true
+    },
+    {
+     "id": "fin-8",
+     "text": "сколько я потратил на продукты в этом месяце?",
+     "expect": "spending_by_category",
+     "source": "inferred",
+     "wall_ms": 2048.2,
+     "error": null,
+     "got": "spending_by_category",
+     "confidence": 0.1611,
+     "top3": [
+      [
+       "spending_by_category",
+       0.1992
+      ],
+      [
+       "report",
+       0.1677
+      ],
+      [
+       "add_transaction",
+       0.1288
+      ]
+     ],
+     "server_ms": 2039.73,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 341,
+     "correct": true
+    },
+    {
+     "id": "fin-9",
+     "text": "заведи карту Тинькофф в рублях",
+     "expect": "account",
+     "source": "inferred",
+     "wall_ms": 2195.7,
+     "error": null,
+     "got": "chat",
+     "confidence": 0.2847,
+     "top3": [
+      [
+       "chat",
+       0.3172
+      ],
+      [
+       "account",
+       0.0843
+      ],
+      [
+       "invest",
+       0.0571
+      ]
+     ],
+     "server_ms": 2165.2,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 341,
+     "correct": false
+    },
+    {
+     "id": "fin-cal-1",
+     "text": "какой баланс на карте?",
+     "expect": null,
+     "source": "calibration",
+     "wall_ms": 2130.2,
+     "error": null,
+     "got": "get_balance",
+     "confidence": 0.8455,
+     "top3": [
+      [
+       "get_balance",
+       0.8525
+      ],
+      [
+       "chat",
+       0.0654
+      ],
+      [
+       "report",
+       0.0119
+      ]
+     ],
+     "server_ms": 2120.02,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 335
+    }
+   ]
+  },
+  "tasks-skill": {
+   "surface": "SkillClassifier @ tasks-agent",
+   "n_options": 18,
+   "n_cases": 9,
+   "errors": 0,
+   "accuracy_asserted": 1.0,
+   "n_asserted": 7,
+   "accuracy_all_labelled": 0.8889,
+   "n_labelled": 9,
+   "mean_confidence_correct": 0.265,
+   "mean_confidence_wrong": 0.2425,
+   "mean_server_ms": 2008.5211,
+   "mean_wall_ms": 2021.6889,
+   "max_input_tokens": 327,
+   "calibration": [],
+   "misses": [
+    {
+     "id": "tsk-8",
+     "text": "отметь задачу про молоко выполненной",
+     "expect": "task-status",
+     "got": "complete_task",
+     "confidence": 0.2425,
+     "top3": [
+      [
+       "complete_task",
+       0.2846
+      ],
+      [
+       "task-status",
+       0.2608
+      ],
+      [
+       "task-delete",
+       0.1116
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "tsk-1",
+     "text": "напомни купить молоко",
+     "expect": "task-capture",
+     "source": "asserted",
+     "wall_ms": 1939.9,
+     "error": null,
+     "got": "task-capture",
+     "confidence": 0.2483,
+     "top3": [
+      [
+       "task-capture",
+       0.2901
+      ],
+      [
+       "add_task",
+       0.1198
+      ],
+      [
+       "clarify_task",
+       0.0914
+      ]
+     ],
+     "server_ms": 1925.36,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 319,
+     "correct": true
+    },
+    {
+     "id": "tsk-2",
+     "text": "разбери мой инбокс",
+     "expect": "inbox-clarify",
+     "source": "asserted",
+     "wall_ms": 1930.7,
+     "error": null,
+     "got": "inbox-clarify",
+     "confidence": 0.1337,
+     "top3": [
+      [
+       "inbox-clarify",
+       0.1818
+      ],
+      [
+       "clarify_task",
+       0.1418
+      ],
+      [
+       "task-capture",
+       0.1324
+      ]
+     ],
+     "server_ms": 1921.69,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 321,
+     "correct": true
+    },
+    {
+     "id": "tsk-3",
+     "text": "что мне сейчас сделать",
+     "expect": "next-action-suggester",
+     "source": "asserted",
+     "wall_ms": 1955.7,
+     "error": null,
+     "got": "next-action-suggester",
+     "confidence": 0.1904,
+     "top3": [
+      [
+       "next-action-suggester",
+       0.2354
+      ],
+      [
+       "task-capture",
+       0.128
+      ],
+      [
+       "add_task",
+       0.1137
+      ]
+     ],
+     "server_ms": 1928.44,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 318,
+     "correct": true
+    },
+    {
+     "id": "tsk-4",
+     "text": "какие у нас общие семейные дела на сегодня",
+     "expect": "next-action-suggester",
+     "source": "asserted",
+     "wall_ms": 1994.0,
+     "error": null,
+     "got": "next-action-suggester",
+     "confidence": 0.1092,
+     "top3": [
+      [
+       "next-action-suggester",
+       0.1587
+      ],
+      [
+       "inbox-clarify",
+       0.1477
+      ],
+      [
+       "chat",
+       0.1076
+      ]
+     ],
+     "server_ms": 1985.86,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 324,
+     "correct": true
+    },
+    {
+     "id": "tsk-5",
+     "text": "удали задачу про молоко",
+     "expect": "task-delete",
+     "source": "asserted",
+     "wall_ms": 1958.7,
+     "error": null,
+     "got": "task-delete",
+     "confidence": 0.2346,
+     "top3": [
+      [
+       "task-delete",
+       0.2771
+      ],
+      [
+       "delete_task",
+       0.2051
+      ],
+      [
+       "task-status",
+       0.0848
+      ]
+     ],
+     "server_ms": 1936.76,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 319,
+     "correct": true
+    },
+    {
+     "id": "tsk-6",
+     "text": "переименуй задачу про молоко в купить овсяное молоко",
+     "expect": "task-edit",
+     "source": "asserted",
+     "wall_ms": 2259.9,
+     "error": null,
+     "got": "task-edit",
+     "confidence": 0.5831,
+     "top3": [
+      [
+       "task-edit",
+       0.6063
+      ],
+      [
+       "task-capture",
+       0.0629
+      ],
+      [
+       "update_task",
+       0.0602
+      ]
+     ],
+     "server_ms": 2249.14,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 327,
+     "correct": true
+    },
+    {
+     "id": "tsk-7",
+     "text": "переведи задачу про врача в ожидание",
+     "expect": "task-status",
+     "source": "asserted",
+     "wall_ms": 2213.0,
+     "error": null,
+     "got": "task-status",
+     "confidence": 0.1311,
+     "top3": [
+      [
+       "task-status",
+       0.1794
+      ],
+      [
+       "task-edit",
+       0.1792
+      ],
+      [
+       "add_task",
+       0.118
+      ]
+     ],
+     "server_ms": 2203.9,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 323,
+     "correct": true
+    },
+    {
+     "id": "tsk-8",
+     "text": "отметь задачу про молоко выполненной",
+     "expect": "task-status",
+     "source": "inferred",
+     "wall_ms": 1996.8,
+     "error": null,
+     "got": "complete_task",
+     "confidence": 0.2425,
+     "top3": [
+      [
+       "complete_task",
+       0.2846
+      ],
+      [
+       "task-status",
+       0.2608
+      ],
+      [
+       "task-delete",
+       0.1116
+      ]
+     ],
+     "server_ms": 1987.76,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 321,
+     "correct": false
+    },
+    {
+     "id": "tsk-9",
+     "text": "привет, как дела?",
+     "expect": "chat",
+     "source": "inferred",
+     "wall_ms": 1946.5,
+     "error": null,
+     "got": "chat",
+     "confidence": 0.4892,
+     "top3": [
+      [
+       "chat",
+       0.5176
+      ],
+      [
+       "next-action-suggester",
+       0.088
+      ],
+      [
+       "add_task",
+       0.0722
+      ]
+     ],
+     "server_ms": 1937.78,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 321,
+     "correct": true
+    }
+   ]
+  },
+  "orchestrator-agent": {
+   "surface": "LlmIntentClassifier @ orchestrator",
+   "n_options": 10,
+   "n_cases": 15,
+   "errors": 0,
+   "accuracy_asserted": 0.9167,
+   "n_asserted": 12,
+   "accuracy_all_labelled": 0.9333,
+   "n_labelled": 15,
+   "mean_confidence_correct": 0.6687,
+   "mean_confidence_wrong": 0.6104,
+   "mean_server_ms": 1500.034,
+   "mean_wall_ms": 1514.8267,
+   "max_input_tokens": 250,
+   "calibration": [],
+   "misses": [
+    {
+     "id": "orc-11",
+     "text": "напомни мне пожалуйста вечером позвонить маме",
+     "expect": "tasks",
+     "got": "calendar",
+     "confidence": 0.6104,
+     "top3": [
+      [
+       "calendar",
+       0.6494
+      ],
+      [
+       "tasks",
+       0.2418
+      ],
+      [
+       "echo",
+       0.047
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "orc-1",
+     "text": "Добавь встречу завтра в 15:00 про планирование",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 1542.1,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.8639,
+     "top3": [
+      [
+       "calendar",
+       0.8775
+      ],
+      [
+       "tasks",
+       0.0642
+      ],
+      [
+       "travel",
+       0.0314
+      ]
+     ],
+     "server_ms": 1527.79,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 243,
+     "correct": true
+    },
+    {
+     "id": "orc-2",
+     "text": "Я потратил 12 евро на кофе сегодня",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 1508.3,
+     "error": null,
+     "got": "finance",
+     "confidence": 0.7008,
+     "top3": [
+      [
+       "finance",
+       0.7307
+      ],
+      [
+       "echo",
+       0.0603
+      ],
+      [
+       "calendar",
+       0.0524
+      ]
+     ],
+     "server_ms": 1500.98,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 238,
+     "correct": true
+    },
+    {
+     "id": "orc-3",
+     "text": "Напомни мне позвонить стоматологу",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 1511.7,
+     "error": null,
+     "got": "tasks",
+     "confidence": 0.4811,
+     "top3": [
+      [
+       "tasks",
+       0.533
+      ],
+      [
+       "researcher",
+       0.1382
+      ],
+      [
+       "echo",
+       0.1312
+      ]
+     ],
+     "server_ms": 1503.04,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 238,
+     "correct": true
+    },
+    {
+     "id": "orc-4",
+     "text": "Найди в интернете, как откалибровать стол 3D-принтера",
+     "expect": "researcher",
+     "source": "asserted",
+     "wall_ms": 1517.0,
+     "error": null,
+     "got": "researcher",
+     "confidence": 0.9378,
+     "top3": [
+      [
+       "researcher",
+       0.944
+      ],
+      [
+       "echo",
+       0.021
+      ],
+      [
+       "tasks",
+       0.0094
+      ]
+     ],
+     "server_ms": 1496.97,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 246,
+     "correct": true
+    },
+    {
+     "id": "orc-5",
+     "text": "Собери мне капсулу в стиле smart-casual на осень",
+     "expect": "stylist",
+     "source": "asserted",
+     "wall_ms": 1584.9,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.547,
+     "top3": [
+      [
+       "stylist",
+       0.5923
+      ],
+      [
+       "echo",
+       0.11
+      ],
+      [
+       "researcher",
+       0.0755
+      ]
+     ],
+     "server_ms": 1566.27,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 241,
+     "correct": true
+    },
+    {
+     "id": "orc-6",
+     "text": "Запиши мой обед — курица с рисом",
+     "expect": "nutritionist",
+     "source": "asserted",
+     "wall_ms": 1569.9,
+     "error": null,
+     "got": "nutritionist",
+     "confidence": 0.397,
+     "top3": [
+      [
+       "nutritionist",
+       0.4573
+      ],
+      [
+       "calendar",
+       0.1795
+      ],
+      [
+       "chef",
+       0.1122
+      ]
+     ],
+     "server_ms": 1560.09,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 238,
+     "correct": true
+    },
+    {
+     "id": "orc-7",
+     "text": "Дай рецепт курицы с рисом",
+     "expect": "chef",
+     "source": "asserted",
+     "wall_ms": 1435.2,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.698,
+     "top3": [
+      [
+       "chef",
+       0.7282
+      ],
+      [
+       "nutritionist",
+       0.1684
+      ],
+      [
+       "researcher",
+       0.038
+      ]
+     ],
+     "server_ms": 1428.3,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 235,
+     "correct": true
+    },
+    {
+     "id": "orc-8",
+     "text": "Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов",
+     "expect": "creator",
+     "source": "asserted",
+     "wall_ms": 1598.7,
+     "error": null,
+     "got": "creator",
+     "confidence": 0.6663,
+     "top3": [
+      [
+       "creator",
+       0.6997
+      ],
+      [
+       "researcher",
+       0.2098
+      ],
+      [
+       "echo",
+       0.0188
+      ]
+     ],
+     "server_ms": 1580.75,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 250,
+     "correct": true
+    },
+    {
+     "id": "orc-9",
+     "text": "Хочу на море в сентябре тысяч на 200, спланируй поездку",
+     "expect": "travel",
+     "source": "asserted",
+     "wall_ms": 1524.8,
+     "error": null,
+     "got": "travel",
+     "confidence": 0.5927,
+     "top3": [
+      [
+       "travel",
+       0.6334
+      ],
+      [
+       "calendar",
+       0.2721
+      ],
+      [
+       "tasks",
+       0.0436
+      ]
+     ],
+     "server_ms": 1514.66,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 248,
+     "correct": true
+    },
+    {
+     "id": "orc-10",
+     "text": "слушай я сегодня потратил тысячу рублей на такси",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 1686.6,
+     "error": null,
+     "got": "finance",
+     "confidence": 0.7681,
+     "top3": [
+      [
+       "finance",
+       0.7913
+      ],
+      [
+       "echo",
+       0.0475
+      ],
+      [
+       "tasks",
+       0.0382
+      ]
+     ],
+     "server_ms": 1676.06,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 240,
+     "correct": true
+    },
+    {
+     "id": "orc-11",
+     "text": "напомни мне пожалуйста вечером позвонить маме",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 1425.7,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.6104,
+     "top3": [
+      [
+       "calendar",
+       0.6494
+      ],
+      [
+       "tasks",
+       0.2418
+      ],
+      [
+       "echo",
+       0.047
+      ]
+     ],
+     "server_ms": 1417.86,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 239,
+     "correct": false
+    },
+    {
+     "id": "orc-12",
+     "text": "поставь мне встречу на завтра в три часа дня",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 1476.2,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.8216,
+     "top3": [
+      [
+       "calendar",
+       0.8394
+      ],
+      [
+       "tasks",
+       0.0823
+      ],
+      [
+       "travel",
+       0.035
+      ]
+     ],
+     "server_ms": 1445.66,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 238,
+     "correct": true
+    },
+    {
+     "id": "orc-13",
+     "text": "привет, как дела?",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 1412.6,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.8318,
+     "top3": [
+      [
+       "echo",
+       0.8486
+      ],
+      [
+       "tasks",
+       0.0364
+      ],
+      [
+       "researcher",
+       0.0273
+      ]
+     ],
+     "server_ms": 1405.47,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 234,
+     "correct": true
+    },
+    {
+     "id": "orc-14",
+     "text": "спасибо, отлично",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 1437.2,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.3596,
+     "top3": [
+      [
+       "echo",
+       0.4236
+      ],
+      [
+       "tasks",
+       0.1652
+      ],
+      [
+       "researcher",
+       0.0848
+      ]
+     ],
+     "server_ms": 1409.59,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 232,
+     "correct": true
+    },
+    {
+     "id": "orc-15",
+     "text": "Что мне надеть на собеседование?",
+     "expect": "stylist",
+     "source": "inferred",
+     "wall_ms": 1491.5,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.6959,
+     "top3": [
+      [
+       "stylist",
+       0.7263
+      ],
+      [
+       "echo",
+       0.0845
+      ],
+      [
+       "nutritionist",
+       0.0432
+      ]
+     ],
+     "server_ms": 1467.02,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 235,
+     "correct": true
+    }
+   ]
+  },
+  "orchestrator-agent-en": {
+   "surface": "ENGLISH CONTROL — same options as orchestrator-agent, but the case texts are the agents' own manifest example phrases (the easiest possible English input: they are literally the few-shot examples the production classifier is primed with). If this family scores well and the Russian one does not, the blocker is language, not the model.",
+   "n_options": 10,
+   "n_cases": 12,
+   "errors": 0,
+   "accuracy_asserted": 0.9167,
+   "n_asserted": 12,
+   "accuracy_all_labelled": 0.9167,
+   "n_labelled": 12,
+   "mean_confidence_correct": 0.6817,
+   "mean_confidence_wrong": 0.3829,
+   "mean_server_ms": 1441.8975,
+   "mean_wall_ms": 1454.4917,
+   "max_input_tokens": 245,
+   "calibration": [],
+   "misses": [
+    {
+     "id": "en-8",
+     "text": "Draft me a YouTube short about git rebase for juniors",
+     "expect": "creator",
+     "got": "researcher",
+     "confidence": 0.3829,
+     "top3": [
+      [
+       "researcher",
+       0.4446
+      ],
+      [
+       "creator",
+       0.408
+      ],
+      [
+       "tasks",
+       0.0543
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "en-1",
+     "text": "Add a meeting tomorrow at 15:00 about quarterly planning",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 1451.4,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.8644,
+     "top3": [
+      [
+       "calendar",
+       0.878
+      ],
+      [
+       "tasks",
+       0.0842
+      ],
+      [
+       "echo",
+       0.0136
+      ]
+     ],
+     "server_ms": 1444.53,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 241,
+     "correct": true
+    },
+    {
+     "id": "en-2",
+     "text": "I spent 12 euros on coffee yesterday",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 1477.3,
+     "error": null,
+     "got": "finance",
+     "confidence": 0.6489,
+     "top3": [
+      [
+       "finance",
+       0.684
+      ],
+      [
+       "echo",
+       0.0729
+      ],
+      [
+       "nutritionist",
+       0.0505
+      ]
+     ],
+     "server_ms": 1469.63,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 236,
+     "correct": true
+    },
+    {
+     "id": "en-3",
+     "text": "Remind me to call the dentist",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 1423.1,
+     "error": null,
+     "got": "tasks",
+     "confidence": 0.5069,
+     "top3": [
+      [
+       "tasks",
+       0.5562
+      ],
+      [
+       "calendar",
+       0.2084
+      ],
+      [
+       "echo",
+       0.0955
+      ]
+     ],
+     "server_ms": 1414.85,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 234,
+     "correct": true
+    },
+    {
+     "id": "en-4",
+     "text": "Find how to calibrate a 3D printer bed and send me a couple of videos",
+     "expect": "researcher",
+     "source": "asserted",
+     "wall_ms": 1506.9,
+     "error": null,
+     "got": "researcher",
+     "confidence": 0.8718,
+     "top3": [
+      [
+       "researcher",
+       0.8846
+      ],
+      [
+       "echo",
+       0.0389
+      ],
+      [
+       "creator",
+       0.0277
+      ]
+     ],
+     "server_ms": 1488.74,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 245,
+     "correct": true
+    },
+    {
+     "id": "en-5",
+     "text": "Put together a smart-casual capsule for autumn",
+     "expect": "stylist",
+     "source": "asserted",
+     "wall_ms": 1422.0,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.6254,
+     "top3": [
+      [
+       "stylist",
+       0.6629
+      ],
+      [
+       "echo",
+       0.1035
+      ],
+      [
+       "creator",
+       0.0495
+      ]
+     ],
+     "server_ms": 1414.89,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 237,
+     "correct": true
+    },
+    {
+     "id": "en-6",
+     "text": "Log my lunch — chicken with rice",
+     "expect": "nutritionist",
+     "source": "asserted",
+     "wall_ms": 1435.0,
+     "error": null,
+     "got": "nutritionist",
+     "confidence": 0.3558,
+     "top3": [
+      [
+       "nutritionist",
+       0.4202
+      ],
+      [
+       "tasks",
+       0.3346
+      ],
+      [
+       "calendar",
+       0.0924
+      ]
+     ],
+     "server_ms": 1428.07,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 234,
+     "correct": true
+    },
+    {
+     "id": "en-7",
+     "text": "Give me a recipe for chicken with rice",
+     "expect": "chef",
+     "source": "asserted",
+     "wall_ms": 1435.6,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.5751,
+     "top3": [
+      [
+       "chef",
+       0.6176
+      ],
+      [
+       "nutritionist",
+       0.2335
+      ],
+      [
+       "researcher",
+       0.0654
+      ]
+     ],
+     "server_ms": 1428.72,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 235,
+     "correct": true
+    },
+    {
+     "id": "en-8",
+     "text": "Draft me a YouTube short about git rebase for juniors",
+     "expect": "creator",
+     "source": "asserted",
+     "wall_ms": 1458.5,
+     "error": null,
+     "got": "researcher",
+     "confidence": 0.3829,
+     "top3": [
+      [
+       "researcher",
+       0.4446
+      ],
+      [
+       "creator",
+       0.408
+      ],
+      [
+       "tasks",
+       0.0543
+      ]
+     ],
+     "server_ms": 1451.0,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 239,
+     "correct": false
+    },
+    {
+     "id": "en-9",
+     "text": "Where's warm in October for a quiet family holiday?",
+     "expect": "travel",
+     "source": "asserted",
+     "wall_ms": 1480.5,
+     "error": null,
+     "got": "travel",
+     "confidence": 0.5867,
+     "top3": [
+      [
+       "travel",
+       0.628
+      ],
+      [
+       "researcher",
+       0.161
+      ],
+      [
+       "calendar",
+       0.1084
+      ]
+     ],
+     "server_ms": 1472.79,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 238,
+     "correct": true
+    },
+    {
+     "id": "en-10",
+     "text": "What's the balance on my main card?",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 1480.4,
+     "error": null,
+     "got": "finance",
+     "confidence": 0.7819,
+     "top3": [
+      [
+       "finance",
+       0.8037
+      ],
+      [
+       "researcher",
+       0.0433
+      ],
+      [
+       "echo",
+       0.0424
+      ]
+     ],
+     "server_ms": 1455.85,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 236,
+     "correct": true
+    },
+    {
+     "id": "en-11",
+     "text": "Mark the milk task as done",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 1413.9,
+     "error": null,
+     "got": "tasks",
+     "confidence": 0.8121,
+     "top3": [
+      [
+       "tasks",
+       0.8309
+      ],
+      [
+       "nutritionist",
+       0.0429
+      ],
+      [
+       "calendar",
+       0.0296
+      ]
+     ],
+     "server_ms": 1391.08,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 233,
+     "correct": true
+    },
+    {
+     "id": "en-12",
+     "text": "When is Maria's birthday?",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 1469.3,
+     "error": null,
+     "got": "calendar",
+     "confidence": 0.8698,
+     "top3": [
+      [
+       "calendar",
+       0.8828
+      ],
+      [
+       "tasks",
+       0.0458
+      ],
+      [
+       "researcher",
+       0.0291
+      ]
+     ],
+     "server_ms": 1442.62,
+     "device": "cpu",
+     "engine": "kev-0.8b",
+     "input_tokens": 233,
+     "correct": true
+    }
+   ]
+  }
+ },
+ "criteria_mode": "full",
+ "criteria_lang": "en",
+ "batching_probe": {
+  "one_question": {
+   "wall_ms": 1500.0,
+   "error": null,
+   "server_ms": 1477.54,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.6983,
+     "probabilities": {
+      "calendar": 0.0065,
+      "finance": 0.7285,
+      "tasks": 0.034,
+      "researcher": 0.0155,
+      "stylist": 0.0171,
+      "nutritionist": 0.1402,
+      "chef": 0.0178,
+      "creator": 0.0052,
+      "travel": 0.0083,
+      "echo": 0.027
+     }
+    }
+   }
+  },
+  "three_questions": {
+   "wall_ms": 3926.4,
+   "error": null,
+   "server_ms": 3914.52,
+   "answers": {
+    "route": {
+     "type": "choice",
+     "choice": "finance",
+     "confidence": 0.6983,
+     "probabilities": {
+      "calendar": 0.0065,
+      "finance": 0.7285,
+      "tasks": 0.034,
+      "researcher": 0.0155,
+      "stylist": 0.0171,
+      "nutritionist": 0.1402,
+      "chef": 0.0178,
+      "creator": 0.0052,
+      "travel": 0.0083,
+      "echo": 0.027
+     }
+    },
+    "has_args": {
+     "type": "noul",
+     "noul": 0.4626
+    },
+    "shared": {
+     "type": "choice",
+     "choice": "shared",
+     "confidence": 0.4032,
+     "probabilities": {
+      "personal": 0.2984,
+      "shared": 0.7016
+     }
+    }
+   }
+  }
+ }
+}
