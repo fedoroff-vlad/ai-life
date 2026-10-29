@@ -102,7 +102,7 @@ ai-life/
 │                            inventory-host) each co-host several module contexts in one JVM (mechanism
 │                            proven; not a live process yet)
 ├── infra/                   docker-compose, liquibase, postgres init, .env.example
-├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh
+├── scripts/                 bootstrap/start (mac: *.sh, windows: *.ps1) one-command setup/launch, pull-models, golden.sh, decision-spike/ (dev-only ADR-0010 harness)
 ├── Brewfile                 macOS toolset for `brew bundle` (see scripts/bootstrap-mac.sh)
 └── winget-packages.json     Windows toolset for `winget import` (see scripts/bootstrap-win.ps1)
 ```

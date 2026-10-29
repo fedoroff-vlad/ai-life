@@ -1,0 +1,161 @@
+{
+  "_about": "Frozen calibration set for ADR-0010 (typed-decision channel). Every case is lifted verbatim from an existing golden test in ai-life; `source` records whether the repo ASSERTS that label today (headline metric) or whether the label is inferred by the spike author (secondary). Calibration cases assert no label: they check that confidence is LOW where the repo recorded genuine ambiguity.",
+  "_sources": {
+    "finance-skill": "domains/finance/finance-agent/src/test/java/dev/fedorov/ailife/agents/finance/intent/GoldenRoutingTest.java",
+    "tasks-skill": "domains/tasks/tasks-agent/src/test/java/dev/fedorov/ailife/agents/tasks/intent/GoldenRoutingTest.java",
+    "orchestrator-agent": "platform/orchestrator/src/test/java/dev/fedorov/ailife/orchestrator/routing/GoldenRoutingTest.java"
+  },
+  "families": {
+    "finance-skill": {
+      "surface": "SkillClassifier @ finance-agent",
+      "instructions": "The user wrote this message to a personal finance assistant. Which single action should handle it?",
+      "criteria": {
+        "add_transaction": "Record a finance transaction (expense negative, income positive).",
+        "update_transaction": "Update fields of an existing transaction by id.",
+        "delete_transaction": "Delete a transaction by id.",
+        "list_transactions": "List transactions over a time window.",
+        "get_balance": "Get the current balance of an account.",
+        "spending_by_category": "Aggregate spending grouped by category over a time window.",
+        "upsert_category": "Create or update a category.",
+        "list_categories": "List the household's categories.",
+        "set_budget": "Create or update a category budget for a period.",
+        "get_budget_status": "Get spent-vs-limit status for a category budget.",
+        "upsert_recurring": "Create or update a recurring payment or income line.",
+        "list_recurring": "List recurring payment or income lines.",
+        "export_csv": "Export transactions to CSV.",
+        "advice": "Analyse spending and advise where to save money.",
+        "invest": "Opinion on investments, stocks, crypto, assets.",
+        "report": "Produce a finance report for a month.",
+        "year-report": "Produce a finance report for a year.",
+        "category": "Reorganise or rename the category tree.",
+        "account": "Create a new account or card.",
+        "transaction-delete": "Delete a transaction the user described in words, not by id.",
+        "transaction-edit": "Edit a transaction the user described in words, not by id.",
+        "chat": "None of the above: small talk, or a question needing clarification."
+      },
+      "cases": [
+        {"id": "fin-1", "text": "запиши расход 1500 рублей на продукты", "expect": "add_transaction", "source": "asserted"},
+        {"id": "fin-2", "text": "какой сейчас баланс на карте Тинькофф?", "expect": "get_balance", "source": "asserted"},
+        {"id": "fin-3", "text": "проанализируй мои траты и подскажи где сэкономить", "expect": "advice", "source": "asserted"},
+        {"id": "fin-4", "text": "сделай финансовый отчёт за месяц", "expect": "report", "source": "asserted"},
+        {"id": "fin-5", "text": "стоит ли смотреть на акции Apple?", "expect": "invest", "source": "asserted"},
+        {"id": "fin-6", "text": "заведи новую карту в рублях", "expect": "account", "source": "asserted"},
+        {"id": "fin-7", "text": "привет, как дела?", "expect": "chat", "source": "inferred", "note": "structure-only case in the golden; chat is the obvious target"},
+        {"id": "fin-8", "text": "сколько я потратил на продукты в этом месяце?", "expect": "spending_by_category", "source": "inferred", "note": "structure-only case in the golden"},
+        {"id": "fin-9", "text": "заведи карту Тинькофф в рублях", "expect": "account", "source": "inferred", "note": "structure-only case in the golden"},
+        {"id": "fin-cal-1", "text": "какой баланс на карте?", "expect": null, "source": "calibration", "note": "#395: account-less balance request — newer models legitimately treat it as ambiguous and route to chat for clarification. A calibrated model should be UNSURE here, not confidently wrong."}
+      ]
+    },
+    "tasks-skill": {
+      "surface": "SkillClassifier @ tasks-agent",
+      "instructions": "The user wrote this message to a personal GTD task assistant. Which single action should handle it?",
+      "criteria": {
+        "upsert_project": "Create or update a GTD project.",
+        "list_projects": "List GTD projects.",
+        "add_task": "Raw tool: capture a task straight to the GTD inbox.",
+        "list_tasks": "List tasks with optional filters.",
+        "clarify_task": "Raw tool: clarify one inbox task into an organized GTD state.",
+        "update_task": "Raw tool: partial content edit of a task by id.",
+        "complete_task": "Mark a task done.",
+        "delete_task": "Raw tool: delete a task by id.",
+        "link_task_to_event": "Link a task to a calendar event.",
+        "enable_weekly_review": "Enable the GTD weekly review.",
+        "disable_weekly_review": "Disable the GTD weekly review.",
+        "task-capture": "Capture what the user wants to remember or be reminded of, as a new task.",
+        "inbox-clarify": "Walk through the inbox and clarify the items in it.",
+        "next-action-suggester": "Suggest what to do now, from the existing tasks.",
+        "task-delete": "Delete a task the user described in words, not by id.",
+        "task-edit": "Rename or reword a task the user described in words.",
+        "task-status": "Move a task to another GTD state (waiting, scheduled, done).",
+        "chat": "None of the above: small talk, or a question needing clarification."
+      },
+      "cases": [
+        {"id": "tsk-1", "text": "напомни купить молоко", "expect": "task-capture", "source": "asserted", "note": "must be the flow, NOT the add_task tool (the sharing write path)"},
+        {"id": "tsk-2", "text": "разбери мой инбокс", "expect": "inbox-clarify", "source": "asserted"},
+        {"id": "tsk-3", "text": "что мне сейчас сделать", "expect": "next-action-suggester", "source": "asserted"},
+        {"id": "tsk-4", "text": "какие у нас общие семейные дела на сегодня", "expect": "next-action-suggester", "source": "asserted", "note": "also carries scope=shared in production; the scope half is a separate question, not tested here"},
+        {"id": "tsk-5", "text": "удали задачу про молоко", "expect": "task-delete", "source": "asserted", "note": "must be the flow, NOT the delete_task tool"},
+        {"id": "tsk-6", "text": "переименуй задачу про молоко в купить овсяное молоко", "expect": "task-edit", "source": "asserted", "note": "must be the flow, NOT update_task"},
+        {"id": "tsk-7", "text": "переведи задачу про врача в ожидание", "expect": "task-status", "source": "asserted", "note": "must be the flow, NOT clarify_task"},
+        {"id": "tsk-8", "text": "отметь задачу про молоко выполненной", "expect": "task-status", "source": "inferred", "note": "structure-only case in the golden; a GTD state move"},
+        {"id": "tsk-9", "text": "привет, как дела?", "expect": "chat", "source": "inferred", "note": "structure-only case in the golden"}
+      ]
+    },
+    "orchestrator-agent": {
+      "surface": "LlmIntentClassifier @ orchestrator",
+      "instructions": "The user wrote this message to a household assistant. Which specialist agent owns it?",
+      "instructions_ru": "Пользователь написал это сообщение домашнему ассистенту. Какой агент-специалист должен его обработать?",
+      "criteria_ru": {
+        "calendar": "События календаря, дни рождения, годовщины, напоминания с датой или временем.",
+        "finance": "Траты, счета, карты, категории, бюджеты, регулярные платежи, чеки.",
+        "tasks": "Задачи и дела: записать напоминание или дело, разобрать инбокс, проекты.",
+        "researcher": "Поиск в интернете: найди, посмотри, изучи, пришли статьи или видео о чём-то.",
+        "stylist": "Стиль и гардероб: вещи, цветотип, что надеть, собрать образ или капсулу.",
+        "nutritionist": "Питание: записать приём пищи, разобрать продукты, цели по КБЖУ, рацион и список покупок.",
+        "chef": "Рецепты: дай рецепт чего-то, что можно приготовить из этого, рецепты на рацион.",
+        "creator": "Создание контента: тренды в нише, идеи постов, черновики для публикации.",
+        "travel": "Планирование отпуска: спланируй поездку, куда поехать, предпочтения в путешествиях.",
+        "echo": "Чистый small-talk без предметной области."
+      },
+      "criteria": {
+        "calendar": "Calendar events, birthdays, anniversaries, time-based reminders with a date or time.",
+        "finance": "Transactions, accounts, categories, budgets, recurring payments, receipts, spending.",
+        "tasks": "GTD tasks: capture a reminder or to-do, clarify the inbox, track projects.",
+        "researcher": "Web research: find, look up, research, send articles or videos about something.",
+        "stylist": "Style and wardrobe: catalogue garments, colour type, what to wear, outfit capsules.",
+        "nutritionist": "Nutrition: log a meal, break down groceries, diet goals, a ration and shopping list.",
+        "chef": "Recipes: give me a recipe for X, what can I cook from this, recipes for a ration.",
+        "creator": "Content creation: niche trends, post ideas, drafts for publishing, creator profile.",
+        "travel": "Vacation planning: plan a trip, where to go on holiday, travel preferences.",
+        "echo": "Pure small talk with no domain at all."
+      },
+      "cases": [
+        {"id": "orc-1", "text": "Добавь встречу завтра в 15:00 про планирование", "expect": "calendar", "source": "asserted"},
+        {"id": "orc-2", "text": "Я потратил 12 евро на кофе сегодня", "expect": "finance", "source": "asserted"},
+        {"id": "orc-3", "text": "Напомни мне позвонить стоматологу", "expect": "tasks", "source": "asserted"},
+        {"id": "orc-4", "text": "Найди в интернете, как откалибровать стол 3D-принтера", "expect": "researcher", "source": "asserted"},
+        {"id": "orc-5", "text": "Собери мне капсулу в стиле smart-casual на осень", "expect": "stylist", "source": "asserted"},
+        {"id": "orc-6", "text": "Запиши мой обед — курица с рисом", "expect": "nutritionist", "source": "asserted", "note": "confusable pair with orc-7"},
+        {"id": "orc-7", "text": "Дай рецепт курицы с рисом", "expect": "chef", "source": "asserted", "note": "confusable pair with orc-6"},
+        {"id": "orc-8", "text": "Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов", "expect": "creator", "source": "asserted"},
+        {"id": "orc-9", "text": "Хочу на море в сентябре тысяч на 200, спланируй поездку", "expect": "travel", "source": "asserted"},
+        {"id": "orc-10", "text": "слушай я сегодня потратил тысячу рублей на такси", "expect": "finance", "source": "asserted", "note": "colloquial phrasing case"},
+        {"id": "orc-11", "text": "напомни мне пожалуйста вечером позвонить маме", "expect": "tasks", "source": "asserted", "note": "colloquial phrasing case"},
+        {"id": "orc-12", "text": "поставь мне встречу на завтра в три часа дня", "expect": "calendar", "source": "asserted", "note": "colloquial phrasing case"},
+        {"id": "orc-13", "text": "привет, как дела?", "expect": "echo", "source": "inferred", "note": "structure-only case in the golden"},
+        {"id": "orc-14", "text": "спасибо, отлично", "expect": "echo", "source": "inferred", "note": "structure-only case in the golden"},
+        {"id": "orc-15", "text": "Что мне надеть на собеседование?", "expect": "stylist", "source": "inferred", "note": "structure-only case in the golden"}
+      ]
+    },
+    "orchestrator-agent-en": {
+      "surface": "ENGLISH CONTROL — same options as orchestrator-agent, but the case texts are the agents' own manifest example phrases (the easiest possible English input: they are literally the few-shot examples the production classifier is primed with). If this family scores well and the Russian one does not, the blocker is language, not the model.",
+      "instructions": "The user wrote this message to a household assistant. Which specialist agent owns it?",
+      "criteria": {
+        "calendar": "Calendar events, birthdays, anniversaries, time-based reminders with a date or time.",
+        "finance": "Transactions, accounts, categories, budgets, recurring payments, receipts, spending.",
+        "tasks": "GTD tasks: capture a reminder or to-do, clarify the inbox, track projects.",
+        "researcher": "Web research: find, look up, research, send articles or videos about something.",
+        "stylist": "Style and wardrobe: catalogue garments, colour type, what to wear, outfit capsules.",
+        "nutritionist": "Nutrition: log a meal, break down groceries, diet goals, a ration and shopping list.",
+        "chef": "Recipes: give me a recipe for X, what can I cook from this, recipes for a ration.",
+        "creator": "Content creation: niche trends, post ideas, drafts for publishing, creator profile.",
+        "travel": "Vacation planning: plan a trip, where to go on holiday, travel preferences.",
+        "echo": "Pure small talk with no domain at all."
+      },
+      "cases": [
+        {"id": "en-1", "text": "Add a meeting tomorrow at 15:00 about quarterly planning", "expect": "calendar", "source": "asserted"},
+        {"id": "en-2", "text": "I spent 12 euros on coffee yesterday", "expect": "finance", "source": "asserted"},
+        {"id": "en-3", "text": "Remind me to call the dentist", "expect": "tasks", "source": "asserted"},
+        {"id": "en-4", "text": "Find how to calibrate a 3D printer bed and send me a couple of videos", "expect": "researcher", "source": "asserted"},
+        {"id": "en-5", "text": "Put together a smart-casual capsule for autumn", "expect": "stylist", "source": "asserted"},
+        {"id": "en-6", "text": "Log my lunch — chicken with rice", "expect": "nutritionist", "source": "asserted", "note": "confusable pair with en-7"},
+        {"id": "en-7", "text": "Give me a recipe for chicken with rice", "expect": "chef", "source": "asserted", "note": "confusable pair with en-6"},
+        {"id": "en-8", "text": "Draft me a YouTube short about git rebase for juniors", "expect": "creator", "source": "asserted"},
+        {"id": "en-9", "text": "Where's warm in October for a quiet family holiday?", "expect": "travel", "source": "asserted"},
+        {"id": "en-10", "text": "What's the balance on my main card?", "expect": "finance", "source": "asserted"},
+        {"id": "en-11", "text": "Mark the milk task as done", "expect": "tasks", "source": "asserted"},
+        {"id": "en-12", "text": "When is Maria's birthday?", "expect": "calendar", "source": "asserted"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,986 @@
+{
+ "label": "laya-multilingual CPU, full criteria",
+ "url": "http://127.0.0.1:8000",
+ "models": {
+  "models": [
+   {
+    "name": "decis/laya-multilingual@0.3.22",
+    "description": "Laya (multilingual) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-multilingual",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 256,
+     "max_state_tokens": 0,
+     "languages": "100+ languages",
+     "device": "cpu",
+     "dtype": "float32"
+    }
+   },
+   {
+    "name": "decis/laya@0.3.22",
+    "description": "Laya (English) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/kev-0.8b@vendored-90990a5",
+    "description": "kev: Qwen3.5 + LoRA + pointer readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-21",
+    "decis": {
+     "engine": "kev-0.8b",
+     "version": "vendored-90990a5",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 1024,
+     "max_question_tokens": 1024,
+     "max_state_tokens": 384,
+     "languages": "English (checkpoints are trained on English decision datasets)",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/laya-typed-decisions@0.3.22",
+    "description": "Laya (typed-decisions) decision model; one forward pass per call, no text generation.",
+    "release_date": "2026-09-20",
+    "decis": {
+     "engine": "laya-typed-decisions",
+     "version": "0.3.22",
+     "aliases": [],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 255,
+     "max_sequence_tokens": 512,
+     "max_question_tokens": 192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-qwen3.5-0.8b@vendored-f0397f3",
+    "description": "Jeff: a Qwen3.5-0.8B fine-tune with a 255-row single-token readout, one prefill pass, no text generation.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-qwen3.5-0.8b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff",
+      "jeff-qwen",
+      "jeff-qwen3.5"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 254,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   },
+   {
+    "name": "decis/jeff-gemma4-e2b@vendored-f0397f3",
+    "description": "Jeff: a Gemma 4 E2B fine-tune with a 255-row single-token readout, one prefill pass, no text generation. Trained on up to 26 options.",
+    "release_date": "2026-09-29",
+    "decis": {
+     "engine": "jeff-gemma4-e2b",
+     "version": "vendored-f0397f3",
+     "aliases": [
+      "jeff-gemma",
+      "jeff-gemma4"
+     ],
+     "primitives": [
+      "choice",
+      "noul",
+      "score"
+     ],
+     "max_options": 26,
+     "max_sequence_tokens": 8192,
+     "max_question_tokens": 8192,
+     "max_state_tokens": 0,
+     "languages": "English",
+     "device": "unloaded",
+     "dtype": "unloaded"
+    }
+   }
+  ]
+ },
+ "models_error": null,
+ "families": {
+  "finance-skill": {
+   "surface": "SkillClassifier @ finance-agent",
+   "n_options": 22,
+   "n_cases": 10,
+   "errors": 10,
+   "accuracy_asserted": null,
+   "n_asserted": 0,
+   "accuracy_all_labelled": null,
+   "n_labelled": 0,
+   "mean_confidence_correct": null,
+   "mean_confidence_wrong": null,
+   "mean_server_ms": null,
+   "mean_wall_ms": 15.72,
+   "max_input_tokens": 0,
+   "calibration": [
+    {
+     "id": "fin-cal-1",
+     "got": null,
+     "confidence": null,
+     "top3": null,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    }
+   ],
+   "misses": [],
+   "rows": [
+    {
+     "id": "fin-1",
+     "text": "запиши расход 1500 рублей на продукты",
+     "expect": "add_transaction",
+     "source": "asserted",
+     "wall_ms": 12.7,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-2",
+     "text": "какой сейчас баланс на карте Тинькофф?",
+     "expect": "get_balance",
+     "source": "asserted",
+     "wall_ms": 9.0,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-3",
+     "text": "проанализируй мои траты и подскажи где сэкономить",
+     "expect": "advice",
+     "source": "asserted",
+     "wall_ms": 11.9,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-4",
+     "text": "сделай финансовый отчёт за месяц",
+     "expect": "report",
+     "source": "asserted",
+     "wall_ms": 9.2,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-5",
+     "text": "стоит ли смотреть на акции Apple?",
+     "expect": "invest",
+     "source": "asserted",
+     "wall_ms": 9.5,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-6",
+     "text": "заведи новую карту в рублях",
+     "expect": "account",
+     "source": "asserted",
+     "wall_ms": 14.8,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-7",
+     "text": "привет, как дела?",
+     "expect": "chat",
+     "source": "inferred",
+     "wall_ms": 12.2,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-8",
+     "text": "сколько я потратил на продукты в этом месяце?",
+     "expect": "spending_by_category",
+     "source": "inferred",
+     "wall_ms": 21.0,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-9",
+     "text": "заведи карту Тинькофф в рублях",
+     "expect": "account",
+     "source": "inferred",
+     "wall_ms": 25.4,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "fin-cal-1",
+     "text": "какой баланс на карте?",
+     "expect": null,
+     "source": "calibration",
+     "wall_ms": 31.5,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    }
+   ]
+  },
+  "tasks-skill": {
+   "surface": "SkillClassifier @ tasks-agent",
+   "n_options": 18,
+   "n_cases": 9,
+   "errors": 9,
+   "accuracy_asserted": null,
+   "n_asserted": 0,
+   "accuracy_all_labelled": null,
+   "n_labelled": 0,
+   "mean_confidence_correct": null,
+   "mean_confidence_wrong": null,
+   "mean_server_ms": null,
+   "mean_wall_ms": 12.7889,
+   "max_input_tokens": 0,
+   "calibration": [],
+   "misses": [],
+   "rows": [
+    {
+     "id": "tsk-1",
+     "text": "напомни купить молоко",
+     "expect": "task-capture",
+     "source": "asserted",
+     "wall_ms": 24.4,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-2",
+     "text": "разбери мой инбокс",
+     "expect": "inbox-clarify",
+     "source": "asserted",
+     "wall_ms": 13.9,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-3",
+     "text": "что мне сейчас сделать",
+     "expect": "next-action-suggester",
+     "source": "asserted",
+     "wall_ms": 24.7,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-4",
+     "text": "какие у нас общие семейные дела на сегодня",
+     "expect": "next-action-suggester",
+     "source": "asserted",
+     "wall_ms": 8.8,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-5",
+     "text": "удали задачу про молоко",
+     "expect": "task-delete",
+     "source": "asserted",
+     "wall_ms": 10.0,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-6",
+     "text": "переименуй задачу про молоко в купить овсяное молоко",
+     "expect": "task-edit",
+     "source": "asserted",
+     "wall_ms": 9.3,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-7",
+     "text": "переведи задачу про врача в ожидание",
+     "expect": "task-status",
+     "source": "asserted",
+     "wall_ms": 8.7,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-8",
+     "text": "отметь задачу про молоко выполненной",
+     "expect": "task-status",
+     "source": "inferred",
+     "wall_ms": 7.7,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    },
+    {
+     "id": "tsk-9",
+     "text": "привет, как дела?",
+     "expect": "chat",
+     "source": "inferred",
+     "wall_ms": 7.6,
+     "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 311 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}"
+    }
+   ]
+  },
+  "orchestrator-agent": {
+   "surface": "LlmIntentClassifier @ orchestrator",
+   "n_options": 10,
+   "n_cases": 15,
+   "errors": 0,
+   "accuracy_asserted": 0.3333,
+   "n_asserted": 12,
+   "accuracy_all_labelled": 0.4667,
+   "n_labelled": 15,
+   "mean_confidence_correct": 0.7689,
+   "mean_confidence_wrong": 0.6492,
+   "mean_server_ms": 314.1393,
+   "mean_wall_ms": 332.5267,
+   "max_input_tokens": 242,
+   "calibration": [],
+   "misses": [
+    {
+     "id": "orc-1",
+     "text": "Добавь встречу завтра в 15:00 про планирование",
+     "expect": "calendar",
+     "got": "creator",
+     "confidence": 0.6358,
+     "top3": [
+      [
+       "creator",
+       0.6722
+      ],
+      [
+       "echo",
+       0.1888
+      ],
+      [
+       "calendar",
+       0.0459
+      ]
+     ]
+    },
+    {
+     "id": "orc-2",
+     "text": "Я потратил 12 евро на кофе сегодня",
+     "expect": "finance",
+     "got": "chef",
+     "confidence": 0.941,
+     "top3": [
+      [
+       "chef",
+       0.9469
+      ],
+      [
+       "echo",
+       0.0333
+      ],
+      [
+       "creator",
+       0.0076
+      ]
+     ]
+    },
+    {
+     "id": "orc-3",
+     "text": "Напомни мне позвонить стоматологу",
+     "expect": "tasks",
+     "got": "echo",
+     "confidence": 0.4819,
+     "top3": [
+      [
+       "echo",
+       0.5337
+      ],
+      [
+       "chef",
+       0.1229
+      ],
+      [
+       "finance",
+       0.0768
+      ]
+     ]
+    },
+    {
+     "id": "orc-6",
+     "text": "Запиши мой обед — курица с рисом",
+     "expect": "nutritionist",
+     "got": "chef",
+     "confidence": 0.9847,
+     "top3": [
+      [
+       "chef",
+       0.9862
+      ],
+      [
+       "echo",
+       0.0049
+      ],
+      [
+       "finance",
+       0.0024
+      ]
+     ]
+    },
+    {
+     "id": "orc-8",
+     "text": "Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов",
+     "expect": "creator",
+     "got": "chef",
+     "confidence": 0.1058,
+     "top3": [
+      [
+       "chef",
+       0.1952
+      ],
+      [
+       "creator",
+       0.1792
+      ],
+      [
+       "echo",
+       0.1523
+      ]
+     ]
+    },
+    {
+     "id": "orc-10",
+     "text": "слушай я сегодня потратил тысячу рублей на такси",
+     "expect": "finance",
+     "got": "echo",
+     "confidence": 0.667,
+     "top3": [
+      [
+       "echo",
+       0.7003
+      ],
+      [
+       "finance",
+       0.1766
+      ],
+      [
+       "chef",
+       0.0426
+      ]
+     ]
+    },
+    {
+     "id": "orc-11",
+     "text": "напомни мне пожалуйста вечером позвонить маме",
+     "expect": "tasks",
+     "got": "echo",
+     "confidence": 0.5293,
+     "top3": [
+      [
+       "echo",
+       0.5764
+      ],
+      [
+       "chef",
+       0.1611
+      ],
+      [
+       "tasks",
+       0.0865
+      ]
+     ]
+    },
+    {
+     "id": "orc-12",
+     "text": "поставь мне встречу на завтра в три часа дня",
+     "expect": "calendar",
+     "got": "echo",
+     "confidence": 0.8482,
+     "top3": [
+      [
+       "echo",
+       0.8634
+      ],
+      [
+       "chef",
+       0.0421
+      ],
+      [
+       "finance",
+       0.0226
+      ]
+     ]
+    }
+   ],
+   "rows": [
+    {
+     "id": "orc-1",
+     "text": "Добавь встречу завтра в 15:00 про планирование",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 380.0,
+     "error": null,
+     "got": "creator",
+     "confidence": 0.6358,
+     "top3": [
+      [
+       "creator",
+       0.6722
+      ],
+      [
+       "echo",
+       0.1888
+      ],
+      [
+       "calendar",
+       0.0459
+      ]
+     ],
+     "server_ms": 355.08,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 235,
+     "correct": false
+    },
+    {
+     "id": "orc-2",
+     "text": "Я потратил 12 евро на кофе сегодня",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 314.3,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.941,
+     "top3": [
+      [
+       "chef",
+       0.9469
+      ],
+      [
+       "echo",
+       0.0333
+      ],
+      [
+       "creator",
+       0.0076
+      ]
+     ],
+     "server_ms": 304.14,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 230,
+     "correct": false
+    },
+    {
+     "id": "orc-3",
+     "text": "Напомни мне позвонить стоматологу",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 333.8,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.4819,
+     "top3": [
+      [
+       "echo",
+       0.5337
+      ],
+      [
+       "chef",
+       0.1229
+      ],
+      [
+       "finance",
+       0.0768
+      ]
+     ],
+     "server_ms": 306.56,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 228,
+     "correct": false
+    },
+    {
+     "id": "orc-4",
+     "text": "Найди в интернете, как откалибровать стол 3D-принтера",
+     "expect": "researcher",
+     "source": "asserted",
+     "wall_ms": 324.2,
+     "error": null,
+     "got": "researcher",
+     "confidence": 0.7348,
+     "top3": [
+      [
+       "researcher",
+       0.7613
+      ],
+      [
+       "creator",
+       0.1027
+      ],
+      [
+       "chef",
+       0.0762
+      ]
+     ],
+     "server_ms": 303.84,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 239,
+     "correct": true
+    },
+    {
+     "id": "orc-5",
+     "text": "Собери мне капсулу в стиле smart-casual на осень",
+     "expect": "stylist",
+     "source": "asserted",
+     "wall_ms": 317.5,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.8616,
+     "top3": [
+      [
+       "stylist",
+       0.8754
+      ],
+      [
+       "echo",
+       0.0393
+      ],
+      [
+       "chef",
+       0.0255
+      ]
+     ],
+     "server_ms": 307.89,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 233,
+     "correct": true
+    },
+    {
+     "id": "orc-6",
+     "text": "Запиши мой обед — курица с рисом",
+     "expect": "nutritionist",
+     "source": "asserted",
+     "wall_ms": 325.6,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.9847,
+     "top3": [
+      [
+       "chef",
+       0.9862
+      ],
+      [
+       "echo",
+       0.0049
+      ],
+      [
+       "finance",
+       0.0024
+      ]
+     ],
+     "server_ms": 296.68,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 232,
+     "correct": false
+    },
+    {
+     "id": "orc-7",
+     "text": "Дай рецепт курицы с рисом",
+     "expect": "chef",
+     "source": "asserted",
+     "wall_ms": 327.4,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.9987,
+     "top3": [
+      [
+       "chef",
+       0.9988
+      ],
+      [
+       "finance",
+       0.0003
+      ],
+      [
+       "nutritionist",
+       0.0003
+      ]
+     ],
+     "server_ms": 295.34,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 228,
+     "correct": true
+    },
+    {
+     "id": "orc-8",
+     "text": "Что сейчас в тренде в нише «английский для IT»? Дай пару идей для постов",
+     "expect": "creator",
+     "source": "asserted",
+     "wall_ms": 334.5,
+     "error": null,
+     "got": "chef",
+     "confidence": 0.1058,
+     "top3": [
+      [
+       "chef",
+       0.1952
+      ],
+      [
+       "creator",
+       0.1792
+      ],
+      [
+       "echo",
+       0.1523
+      ]
+     ],
+     "server_ms": 324.15,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 242,
+     "correct": false
+    },
+    {
+     "id": "orc-9",
+     "text": "Хочу на море в сентябре тысяч на 200, спланируй поездку",
+     "expect": "travel",
+     "source": "asserted",
+     "wall_ms": 329.0,
+     "error": null,
+     "got": "travel",
+     "confidence": 0.96,
+     "top3": [
+      [
+       "travel",
+       0.964
+      ],
+      [
+       "calendar",
+       0.0117
+      ],
+      [
+       "echo",
+       0.0107
+      ]
+     ],
+     "server_ms": 305.0,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 240,
+     "correct": true
+    },
+    {
+     "id": "orc-10",
+     "text": "слушай я сегодня потратил тысячу рублей на такси",
+     "expect": "finance",
+     "source": "asserted",
+     "wall_ms": 314.5,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.667,
+     "top3": [
+      [
+       "echo",
+       0.7003
+      ],
+      [
+       "finance",
+       0.1766
+      ],
+      [
+       "chef",
+       0.0426
+      ]
+     ],
+     "server_ms": 304.03,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 231,
+     "correct": false
+    },
+    {
+     "id": "orc-11",
+     "text": "напомни мне пожалуйста вечером позвонить маме",
+     "expect": "tasks",
+     "source": "asserted",
+     "wall_ms": 342.3,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.5293,
+     "top3": [
+      [
+       "echo",
+       0.5764
+      ],
+      [
+       "chef",
+       0.1611
+      ],
+      [
+       "tasks",
+       0.0865
+      ]
+     ],
+     "server_ms": 331.78,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 229,
+     "correct": false
+    },
+    {
+     "id": "orc-12",
+     "text": "поставь мне встречу на завтра в три часа дня",
+     "expect": "calendar",
+     "source": "asserted",
+     "wall_ms": 396.8,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.8482,
+     "top3": [
+      [
+       "echo",
+       0.8634
+      ],
+      [
+       "chef",
+       0.0421
+      ],
+      [
+       "finance",
+       0.0226
+      ]
+     ],
+     "server_ms": 361.91,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 231,
+     "correct": false
+    },
+    {
+     "id": "orc-13",
+     "text": "привет, как дела?",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 322.6,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.3421,
+     "top3": [
+      [
+       "echo",
+       0.4079
+      ],
+      [
+       "calendar",
+       0.3751
+      ],
+      [
+       "chef",
+       0.0666
+      ]
+     ],
+     "server_ms": 312.35,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 225,
+     "correct": true
+    },
+    {
+     "id": "orc-14",
+     "text": "спасибо, отлично",
+     "expect": "echo",
+     "source": "inferred",
+     "wall_ms": 304.6,
+     "error": null,
+     "got": "echo",
+     "confidence": 0.678,
+     "top3": [
+      [
+       "echo",
+       0.7102
+      ],
+      [
+       "chef",
+       0.1694
+      ],
+      [
+       "creator",
+       0.0402
+      ]
+     ],
+     "server_ms": 293.67,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 223,
+     "correct": true
+    },
+    {
+     "id": "orc-15",
+     "text": "Что мне надеть на собеседование?",
+     "expect": "stylist",
+     "source": "inferred",
+     "wall_ms": 320.8,
+     "error": null,
+     "got": "stylist",
+     "confidence": 0.8073,
+     "top3": [
+      [
+       "stylist",
+       0.8266
+      ],
+      [
+       "echo",
+       0.0402
+      ],
+      [
+       "chef",
+       0.0395
+      ]
+     ],
+     "server_ms": 309.67,
+     "device": "cpu",
+     "engine": "laya-multilingual",
+     "input_tokens": 229,
+     "correct": true
+    }
+   ]
+  }
+ },
+ "criteria_mode": "full",
+ "batching_probe": {
+  "one_question": {
+   "wall_ms": 10.0,
+   "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}",
+   "server_ms": null,
+   "answers": null
+  },
+  "three_questions": {
+   "wall_ms": 24.4,
+   "error": "HTTP 422: {\"detail\":[{\"loc\":[\"body\",\"questions\",\"route\"],\"msg\":\"Question 'route' is about 324 tokens, over this model's limit of 256 per question. Shorten the instructions or the criteria descriptions.\",\"type\":\"too_long\"}]}",
+   "server_ms": null,
+   "answers": null
+  }
+ }
+}

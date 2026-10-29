@@ -1,8 +1,10 @@
 # ADR-0010: Typed-decision channel (`decision`) — a System One model instead of strict-JSON classifier prompts
 
-**Status:** Proposed (2026-10-28 — awaiting owner pick between Option A and Option B below; Option C is
-the status quo). Nothing is built against this ADR yet.
-**Date:** 2026-10-28
+**Status:** Proposed (2026-10-28; **spike run 2026-10-29** — see §Spike result, which rejects the
+`laya-multilingual` engine, keeps `kev-0.8b`, and changes the recommended pilot shape to a
+confidence-gated hybrid). Still awaiting the owner pick between Option A and Option B; Option C is the
+status quo. Nothing is built against this ADR yet.
+**Date:** 2026-10-28 (spike appended 2026-10-29)
 **Deciders:** repo owner (holder/admin)
 **Relates to:** [architecture.md](../architecture.md) §LLM strategy (the channel doctrine + the
 provider-switch rule this must not break) and §Security (the injection doctrine a later consumer would
@@ -84,6 +86,106 @@ option**, several questions batched in one request, in one forward pass. The ref
   appeared between September and October 2026 and is churning. The durable thing to depend on is the
   **wire contract** (`/v1/systemone`), not any one engine or vendor.
 
+## Spike result (2026-10-29) — action item 1, run on the CPU-only dev box
+
+Harness, frozen set and raw runs: [`scripts/decision-spike/`](../../scripts/decision-spike). 45 cases
+lifted **verbatim** from four golden tests across four families; the headline metric is accuracy on the
+labels a golden **asserts**, with inferred labels reported separately. Engines were `chaitin/decis`
+images on this box: `device: cpu`, `dtype: float32` — no quantization attempted.
+
+### laya-multilingual (the Decis default) — rejected on measurement
+
+| Family | Options | Asserted accuracy | Notes |
+|---|---|---|---|
+| orchestrator (RU) | 10 | **33%** (4/12) | and confidently wrong: "Я потратил 12 евро на кофе" → `chef` @0.94, "Запиши мой обед" → `chef` @0.99 |
+| orchestrator (EN control) | 10 | **58%** (7/12) | the control uses the manifests' own few-shot examples — the easiest English input there is |
+| finance / tasks | 22 / 18 | **not expressible** | HTTP 422: the question is 324 / 311 tokens against this engine's 256-token per-question limit |
+
+Three disqualifying findings. It is weak at the task in **both** languages, so this is not a Russian
+problem. It is **anti-calibrated** on the English control — mean confidence 0.65 on correct answers vs
+**0.69 on wrong ones** — which removes the "threshold in code" benefit entirely. And its 256-token
+ceiling cannot hold the pilot's real option set; Russian criteria do not fit even the 10-option surface
+(272 tokens), because Cyrillic costs more tokens for the same text.
+
+### kev-0.8b — viable
+
+| Family | Options | Asserted | All labelled | conf. correct / wrong | server ms |
+|---|---|---|---|---|---|
+| tasks-skill | 18 | **100%** (7/7) | 89% | 0.27 / 0.24 | ~2010 |
+| orchestrator (RU) | 10 | **92%** (11/12) | 93% | 0.67 / 0.61 | ~1500 |
+| orchestrator (EN control) | 10 | **92%** (11/12) | 92% | 0.68 / 0.38 | ~1442 |
+| finance-skill | 22 | **83%** (5/6) | 78% | 0.61 / 0.26 | ~2015 |
+
+It gets the **hard discriminations** right — the ones today's prompt needs `extraRules` and the
+format-drift branch to survive: `task-capture` not the `add_task` tool, `task-delete` not
+`delete_task`, `task-edit` not `update_task`, `task-status` not `clarify_task`, and the
+`nutritionist` vs `chef` confusable pair in both languages.
+
+Russian ≈ English (93% vs 92%) **despite kev's own model card saying "English (checkpoints are trained
+on English decision datasets)"**. Treat that as an empirical result on 27 Russian cases, not a
+supported guarantee — re-measure on every engine bump.
+
+**What the misses say.** Both finance misses are "заведи (новую) карту" → `chat` at **0.24 / 0.29**
+confidence against a 0.61 mean on correct answers: a low-confidence miss is one a threshold can catch.
+The single orchestrator miss ("напомни мне пожалуйста вечером позвонить маме" → `calendar` @0.61) is
+confidently wrong, on the known tasks-vs-calendar boundary. The only tasks miss is on an **inferred**
+label where the engine's answer (`complete_task` for "отметь задачу про молоко выполненной") is
+defensible — more likely a mislabel in the frozen set than a model error. The #395 calibration case
+("какой баланс на карте?", no account named) comes back `get_balance` @0.85: the engine does **not**
+reproduce that ambiguity as uncertainty, which is consistent — #395's ambiguity is about *which
+account*, an argument-level question, not the routing choice — but it shows confidence will not catch
+everything today's path defers on.
+
+### Three measurements that change this ADR
+
+1. **Batching is not free.** Three questions in one request cost ~2.6–2.8× a single question
+   (kev 1.48 s → 3.91 s; laya 0.28 s → 0.82 s). The "nearly free multi-question gate" claim in
+   §Consequences was wrong and is corrected there.
+2. **Confidence is not comparable across surfaces.** tasks (18 options) answers *correctly* at
+   0.11–0.58 while finance (22) is correct at 0.15–0.88 and orchestrator (10) at 0.36–0.94. More
+   options spread the mass thinner, so a threshold must be **per surface**, calibrated from that
+   surface's own run — never one global number.
+3. **"Weights in the image" costs ~10 GB of disk per engine** (laya-multilingual 7.39 GB, kev-0.8b
+   9.67 GB, both carrying a CUDA torch this box cannot use). Still the right trade for a 24/7 host —
+   no download, no volume, no startup fetch — but it is not free, and it is per engine.
+
+### Latency, and why this number is not the deploy number
+
+1.4–2.0 s per decision is **float32 on a CPU with no GPU**. It bounds nothing about the M4 Max (MPS),
+and it sits ~100× above EdgeJev's INT8/ONNX claim of 15.6 ms per question on 4 CPU cores. That gap is
+now the biggest open question this spike produced, and it argues for taking **Option B seriously**
+rather than treating it as the exotic one.
+
+Against today's path on the same box, same day: three runs of `GoldenRoutingTest` in tasks-agent took
+119.6 s (behaviour test, 8 model calls — cold), 142.2 s and 78.52 s (both tests, 14 model calls). That
+is **≈5.6 s per classifier call warm and ≈15 s cold**, against kev's 1.4–2.0 s on the same cases: a
+**3–7× latency win** even in the unquantized float32-on-CPU worst case. Both numbers are
+wall-clock-per-call derived from totals, not instrumented per call — treat them as the right order of
+magnitude, not as precise figures.
+
+### The baseline is flaky, which is its own finding
+
+The tasks routing golden was run three times on this box. **It failed once and passed twice.** The
+failure: «переведи задачу про врача в ожидание» routed to the `clarify_task` **tool** instead of the
+`task-status` **flow** — precisely the discrimination the test's own comment calls out (#486/Track
+H.2), and precisely the case kev-0.8b answered correctly (at low confidence, 0.13).
+
+So this is **not** a standing regression — one run in three, i.e. model nondeterminism on a borderline
+case, the same class of flake #395 recorded for finance's account-less balance request. Two things
+follow, and they are worth more than the single red run:
+
+- **`@GoldenLlmTest` is opt-in** (`GOLDEN_LLM` unset in CI, so the suite stays green on the mock
+  provider), so **nothing runs this gate automatically** and a 1-in-3 flake can sit unnoticed. "The
+  goldens are green" was an assumption; measured, it is "green about two times in three on this box".
+- Therefore the acceptance criterion in this ADR — "a swap ships only when the surface's current
+  goldens stay green" — must be restated as: **the baseline is re-measured over several runs in the
+  same session as the candidate.** A single comparison run cannot distinguish a candidate's miss from
+  the incumbent's flake.
+
+A borderline case the incumbent gets right two times in three and the candidate gets right at 0.13
+confidence is, in the end, an argument for the hybrid: neither path is reliable alone, and the
+confidence number is what lets the system know which one to trust.
+
 ## Decision (to be picked by the owner)
 
 **Settled, independent of the engine pick:**
@@ -101,15 +203,19 @@ option**, several questions batched in one request, in one forward pass. The ref
 **Open — the engine:**
 
 ### Option A (recommended): Decis container serving `/v1/systemone`
-A `decision` provider in `llm-gateway` calling a **Decis** container (`laya-multilingual` for Russian, or
-`kev-0.8b`), weights inside the image. One new backing service, no new language in the repo, engine
-swappable by image tag.
+A `decision` provider in `llm-gateway` calling a **Decis** container, weights inside the image. One new
+backing service, no new language in the repo, engine swappable by image tag. **Engine pinned by the
+spike: `kev-0.8b`.** The default `laya-multilingual` is rejected on measurement (33% RU / 58% EN,
+anti-calibrated, and its 256-token per-question limit cannot express the pilot's option set).
 
 - **Pros:** speaks the de-facto wire contract, so the engine is replaceable later (including *by* Option B)
   without touching the channel; weights-in-image matches the "one container, no volume" shape ADR-0009
-  settled for the object store; stays entirely inside the existing Java + Compose world.
-- **Cons:** pre-1.0 upstream (v0.4.0); a new kind of backing service to operate; Russian calibration is
-  **unproven** and must be measured before anything is wired.
+  settled for the object store; stays entirely inside the existing Java + Compose world. Measured 83–100%
+  on asserted labels and ~7× faster than today's path even unquantized on CPU.
+- **Cons:** pre-1.0 upstream (v0.4.0); a new kind of backing service to operate; **~10 GB of disk per
+  engine image**; the engine serves float32 on CPU with no quantization path of its own, so the Mac's MPS
+  is doing the heavy lifting for latency; and kev's Russian competence is empirical (its card says
+  English-only), so it must be re-measured on every bump.
 
 ### Option B: EdgeJev / ONNX-INT8 on CPU behind a thin Python leaf
 Convert an open checkpoint (export → INT8 quantize → serve) and run it on CPU: ~324 MB, ~15.6 ms per
@@ -124,23 +230,36 @@ question, offline, no torch.
 Rejected as the target, kept as the **fallback**: if Russian calibration on open weights turns out worse
 than the current prompt path, this is where we stay, and the recorded workarounds are the accepted price.
 
-### Recommendation
-**Option A**, gated on a measurement. It adds a capability without adding a language, and the wire
-contract means picking A does not foreclose B — a later swap to the ONNX/CPU engine is a provider change
-behind the same channel. But the ADR explicitly refuses to assume Russian accuracy: step 1 of the action
-items is a **spike that measures calibration on a frozen set drawn from the existing goldens**, on the
-current hardware, before any `decision` channel code is written.
+### Recommendation (updated by the spike)
+**Option A with the `kev-0.8b` engine.** The measurement that this recommendation was gated on has run:
+Russian accuracy is 83–100% on asserted labels, the hard tool-vs-flow discriminations hold, and
+confidence separates correct from wrong answers on three of four surfaces. Picking A does not foreclose
+B — a later swap to an INT8/ONNX engine is a provider change behind the same channel, and the 100×
+latency gap between Decis-on-CPU and EdgeJev's claim means B is now a *likely* follow-up rather than an
+exotic one.
+
+**But not as a straight replacement.** 83% on finance against a gate that asserts 6/6 means a bare
+stage-1 swap would turn that gate red. The shippable shape the spike found is a **confidence-gated
+hybrid**: the decision model answers when its confidence clears that surface's threshold, and anything
+below falls through to today's LLM classifier. On finance the two misses came back at 0.24/0.29 against
+a 0.61 mean on correct answers, so a threshold near 0.4 keeps the gate green while taking the fast path
+for most traffic. This is strictly better than either path alone and it is measurable per surface.
 
 ## Options Considered
 
-| Dimension | A — Decis container | B — EdgeJev CPU leaf | C — status quo |
+Figures marked **measured** come from §Spike result on the CPU-only dev box; the rest are upstream
+claims.
+
+| Dimension | A — Decis container (`kev-0.8b`) | B — EdgeJev CPU leaf | C — status quo |
 |---|---|---|---|
 | GPU budget | none (cold container) | **none, by construction** | ~6 GB (`fast`) |
-| Latency per decision | ~200–500 ms class | **~15.6 ms / question** | a full chat round-trip |
+| Latency per decision | **measured 1.4–2.0 s** (float32, CPU, no GPU) | ~15.6 ms / question (claim, INT8) | **measured ≈5.6 s warm, ≈15 s cold** |
+| Disk | **measured 9.67 GB** (image, weights inside) | ~324 MB (claim) | none extra |
 | New language in repo | no | **yes (first one)** | no |
 | Engine swappable | **yes — `/v1/systemone`** | yes (same contract) | n/a |
 | Upstream maturity | v0.4.0, pre-1.0 | very small project | n/a |
-| RU calibration | **unproven — must measure** | unproven — must measure | known (today's goldens) |
+| RU accuracy, asserted labels | **measured 83–100%** | unproven — must measure | **measured: tasks gate green 2 of 3 runs** |
+| Confidence separates right from wrong | **measured: yes on 3 of 4 surfaces** | unproven | n/a — no confidence at all |
 | Strict-JSON failure class | gone | gone | present (drift, enum invention, prose) |
 
 ## Pilot — `SkillClassifier` (`libs/agent-runtime/intent/`)
@@ -161,6 +280,13 @@ The owner asked for the first site. It is **`SkillClassifier`**, for five reason
 5. **Its workarounds are the exhibit.** The format-drift branch, the enum-pinning rule and the prose
    fallback all live in this one class; a calibrated distribution over a closed set removes the entire
    failure class rather than tuning around it.
+
+**The spike confirmed the site and changed its shape.** `kev-0.8b` scored 100% (7/7) on the tasks
+half of this surface and 83% (5/6) on the finance half, with both finance misses arriving at low
+confidence — so the site is right, but the *mechanism* is the confidence-gated hybrid from
+§Recommendation, not a bare replacement. Each surface gets its own threshold, calibrated from its own
+run; the fall-through target is the existing classifier, which is also the safety net that keeps the
+gate green.
 
 **Honest caveat — it is a seam split, not a drop-in swap.** `SkillClassifier` today returns the action
 *and* its arguments (`args`, `period`, the intent-skill `name`, or the `chat` text). A decision model
@@ -185,11 +311,13 @@ question batched into the same request, which is free in this model class.
 
 **Easier:**
 - A **threshold in code** instead of prompt-tuning: "ask when unsure" (ADR-0002 DS-N) becomes a number,
-  not a phrasing. Confidence is the thing these models return.
+  not a phrasing. Confidence is the thing these models return — and the spike measured that it
+  separates correct from wrong answers on three of four surfaces, **per surface, not globally**.
 - An entire bug class disappears — strict-JSON drift, invented enum values, prose-instead-of-JSON, and
   the `LLM_SUPPRESS_THINKING` dance on classifier surfaces.
-- **Batching makes multi-question gates nearly free**: sharing scope + sanity + worthiness in one request
-  instead of three chat round-trips.
+- **Batching is cheaper than separate chat round-trips, but it is not free** (corrected by the spike:
+  3 questions ≈ 2.6–2.8× the cost of 1, not ≈1×). Sharing scope + sanity + worthiness in one request
+  still beats three chat calls by a wide margin; just do not design as if extra questions were free.
 - The `fast` channel's reason to exist shrinks; if every classifier surface moves, it can be retired from
   the resident budget (a direct ADR-0006 win, to be measured, not assumed).
 - A real eval surface for guardrails for the first time (jevals-style, per-trace rather than per-sample).
@@ -199,8 +327,18 @@ question batched into the same request, which is free in this model class.
   test touching the channel becomes model-dependent — the `mock` provider is load-bearing for CI.
 - A **new backing service** (Option A) or **the first non-JVM module** (Option B). Either is a genuine
   addition to what the stack operates.
-- **Russian calibration is the open risk.** Both options ride small models; small + multilingual is
-  exactly where accuracy degrades. The spike exists to find this out cheaply.
+- **Russian calibration — measured for `kev-0.8b`, still the risk for every other engine.** 92–100% on
+  asserted labels, and ≈ its English score. But kev's card claims English only, so this is empirical;
+  and the engine that *advertises* multilingual support (laya) scored 33%. Never adopt an engine here on
+  its card — re-run the frozen set.
+- **~10 GB of disk per engine image**, and a second engine for comparison doubles it. Budget it on the
+  deploy host; prune old engine tags.
+- **The golden lane is opt-in, so it is not a standing gate.** `GOLDEN_LLM` is unset in CI by design,
+  and the spike measured the tasks routing golden as green **2 of 3 runs** — a 1-in-3 flake that
+  nothing automatic would ever notice. Two consequences: the "existing goldens stay green" acceptance
+  criterion only means something when the baseline is **re-measured over several runs in the same
+  session** as the candidate, and the flaky tasks-vs-flow case is a live question about today's path
+  that this ADR surfaced but does not own.
 - **Vendor/engine churn.** Depend on `/v1/systemone`, pin an engine by image tag or checkpoint hash, and
   expect to re-measure at each bump. Treat every figure quoted above as directional and re-verify.
 - The `decision` channel is **additive to**, not a replacement for, the deterministic guards. A sanity
@@ -215,18 +353,25 @@ channel + the memory budget) · [INDEX.md](../INDEX.md) · `scripts/golden.sh` i
 up.
 
 ## Action Items
-1. [ ] **Spike first, on current hardware: measure Russian calibration.** Freeze a set from the existing
-   routing goldens, run it against `laya-multilingual` and `kev-0.8b`, and report accuracy + the
-   confidence distribution against today's prompt path. A spike, not a slice — no channel code, no
-   compose entry. **This is the gate for the whole ADR**, and it needs no Mac.
-2. [ ] **Owner picks Option A or Option B** on the spike's numbers (or C — stay put). This ADR moves to
+1. [x] **Spike first, on current hardware: measure Russian calibration.** Done 2026-10-29 →
+   §Spike result; harness in [`scripts/decision-spike/`](../../scripts/decision-spike). Outcome:
+   `laya-multilingual` rejected, `kev-0.8b` viable, pilot shape changed to a confidence-gated hybrid.
+2. [ ] **Owner picks Option A or Option B** on those numbers (or C — stay put). This ADR moves to
    Accepted with the pick recorded. No `architecture.md` §Locked-decisions entry until then.
 3. [ ] **Slice the channel** — WHEN/THEN criteria first in a new `plans/decision-channel.md`, then the
-   `decision` channel in `llm-gateway` + the `mock` stub, then `SkillClassifier` stage-1 behind a flag
-   with the existing goldens as the gate. One PR per slice, change-propagation as listed above.
+   `decision` channel in `llm-gateway` + the `mock` stub, then `SkillClassifier` stage-1 **behind the
+   confidence gate** and a flag, with the goldens **re-measured in the same session** as the gate.
+   One PR per slice, change-propagation as listed above.
 4. [ ] **Then the follow-ups in order** — `LlmIntentClassifier`, then the `NoteWorthinessExtractor`
    pre-gate (which also retires the MQ-3 Mac-gate), then the injection guard as defence-in-depth under
    its own criteria.
+5. [ ] **Re-measure on the Mac**, as part of the model-strategy rollout: MPS instead of float32-on-CPU
+   is where the latency question gets its real answer, and it decides whether Option B's INT8/ONNX path
+   is needed at all.
+6. [ ] **Separately, not this ADR's scope:** the baseline flake the spike surfaced — «переведи задачу
+   про врача в ожидание» routing to the `clarify_task` tool instead of the `task-status` flow on
+   `qwen3:8b`, in 1 of 3 runs. It belongs to the tasks domain and to whatever decides whether the
+   golden lane should be more than opt-in.
 
 ## Notes
 Tenth ADR. It introduces a **new layer** (a model class the system has never used, and a fifth channel),
