@@ -2,8 +2,11 @@
 
 **Policy source:** [adr/ADR-0011-release-and-deploy.md](adr/ADR-0011-release-and-deploy.md). This file is
 the **implementation plan** — the slices, their WHEN/THEN acceptance criteria, and the release checklist
-the operator actually follows. The *why* and the three open forks (**RG** build location + registry, **MG**
-migration-rollback posture, **SR** secrets recovery) live in the ADR and are not restated here.
+the operator actually follows. The *why* lives in the ADR and is not restated here. Its three forks are
+**picked** (owner, 2026-10-29): **RG-A → RG-B staged** (build on the Mac for the first live release, move to
+GitHub Actions + GHCR once the ADR-0006 host-units land), **MG-1** forward-only + expand/contract (now a
+standing authoring rule in [PATTERNS.md](PATTERNS.md) §Recipe: add a Liquibase migration), and **SR-1**
+host-only secrets + an out-of-band copy.
 
 **Procedure source:** the portable skill `tools/agent-skills/skills/release-version/SKILL.md` (submodule)
 owns *how to cut a release* — find the last tag, gather the delta, decide the semver bump, update the
@@ -146,8 +149,9 @@ worst moment and running a mixed-version stack in the meantime.
 **Requirement:** a release that migrates the schema SHALL be recoverable, and the recovery path SHALL have
 been executed at least once before it is relied on.
 
-Fork **MG** decides the posture; this slice's criteria hold under any of them. The pre-release dump path
-already exists (`docker exec ai-life-postgres-backup /backup.sh`, [`infra/README.md`](../infra/README.md)
+The posture is **MG-1** (forward-only + expand/contract) and the authoring rule for it lives in
+[PATTERNS.md](PATTERNS.md) §Recipe: add a Liquibase migration — this slice builds the *release-time* half.
+The pre-release dump path already exists (`docker exec ai-life-postgres-backup /backup.sh`, [`infra/README.md`](../infra/README.md)
 §Database backups) and the off-site `offsite` profile already replicates the dumps.
 
 - **Scenario: dump before migrate**
@@ -166,19 +170,21 @@ already exists (`docker exec ai-life-postgres-backup /backup.sh`, [`infra/README
     the dump and the failure)
     (not yet asserted — needs the deploy host; this is the acceptance criterion that turns the backup into
     a rollback plan)
-- **Scenario: an image rollback needs no DB rollback (under MG-1)**
+- **Scenario: an image rollback needs no DB rollback**
   - WHEN the schema of release N is in place and the operator rolls the images back to N-1
   - THEN N-1's code reads and writes that schema unchanged, because every changeset of N was additive
     (not yet asserted — needs two releases on the host; this is the expand/contract rule's whole payoff and
     the reason it belongs in `PATTERNS.md` §new migration rather than in a reviewer's memory)
 
-### RL-5 — registry cutover *(fork-gated: only if the owner picks RG-B)*
+### RL-5 — registry cutover *(RG-B — picked, parked until its gates clear)*
 **Requirement:** release images SHALL be built once, from a tagged commit, in a clean environment, and the
 deploy box SHALL only pull them.
 
-Recommended **after** [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) item 4 collapses the stack from
-~50 per-module images to ~13 host-unit images, which is what makes a build-and-push lane proportionate.
-Needs the arm64-runner dependency verified first (ADR-0011 Action Item 3).
+RG-B is the chosen end state, taken **after** [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md) item 4
+collapses the stack from ~50 per-module images to ~13 host-unit images — that is what makes a build-and-push
+lane proportionate. Three gates, whichever bites first: host-units landed · the arm64-runner dependency
+verified (ADR-0011 Action Item 3) · a full release build measured against the resident model (Action
+Item 5). Until then the first releases run RG-A, and this slice is parked rather than open.
 
 - **Scenario: native architecture**
   - WHEN a release image is pulled on the Mac
@@ -199,13 +205,17 @@ Needs the arm64-runner dependency verified first (ADR-0011 Action Item 3).
     it — gitleaks stays green over the full history
     (not yet asserted — needs the credential to exist; the gitleaks half is already enforced in CI)
 
-### RL-6 — secrets recovery *(fork-gated: SR)*
+### RL-6 — secrets recovery *(SR-1 picked; the SR-2 half stays deferred)*
 **Requirement:** the credentials the stack needs SHALL survive the loss of the box, without ever entering
 the public repository.
 
 The gap is recorded in ADR-0011 fork SR: off-site replication covers the **DB dumps** and **not**
 `infra/.env` or `infra/secrets/`, so today a dead disk loses the Telegram token, the internal shared secret
-and the CalDAV credentials, and the stack cannot be rebuilt from the repo alone.
+and the CalDAV credentials, and the stack cannot be rebuilt from the repo alone. **SR-1** closes it with no
+machinery — secrets stay on the host, the owner keeps an out-of-band encrypted copy, and the runbook carries
+the discipline line. The automatic variant (**SR-2**, `infra/.env` + `infra/secrets/` through an rclone
+`crypt` remote on the existing off-site sidecar) is deliberately deferred: take it if the manual copy starts
+drifting.
 
 - **Scenario: the backup scope is stated where it is read**
   - WHEN an operator reads the backup documentation
