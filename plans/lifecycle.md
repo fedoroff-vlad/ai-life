@@ -18,12 +18,16 @@ the Mac). New architectural layer = **`supervisor`** (flagged per CLAUDE.md befo
 Unified memory is shared CPU+GPU; macOS caps GPU working set at ~75% of RAM → **~48 GB for models on a
 64 GB box**. The whole design exists to stay under that with margin:
 - All 43 JVMs hot ≈ 15 GB; hot set only (~18 services) ≈ 6 GB — hence hot/cold.
-- Model plan (never two 32B resident): normal = ai-life **32B**; coder active = ai-life **14B** + coder
-  **32B-code** ≈ 33 GB of models, comfortably under the 48 GB GPU ceiling.
-- Peak (coder on) ≈ OS 5 + hot JVM 6 + backing 4 + models 33 ≈ **~50 GB** → fits 64 GB with ~14 GB spare.
+- **Model plan, amended 2026-10-29 (owner): ONE universal model serves both ai-life and the coding
+  agent** → [model-strategy.md](model-strategy.md) §One model for both tenants. Resident models ≈ 26 GB
+  at the normal peak (default MoE 19.5 + fast 6 + embedding 0.7), with vision/whisper as brief spikes.
+- Peak ≈ OS 5 + hot JVM 6 + backing 4 + models 26 ≈ **~41 GB** → fits 64 GB with ~23 GB spare, and that
+  spare is **KV-cache headroom**, which is what carries concurrent sessions.
 - **64 GB is sufficient for this exact design** and is the **fixed target** (bought, arriving — no larger
-  config planned). Because 64 GB has modest margin, the supervisor + clean model swap are **load-bearing**
-  — they must be robust.
+  config planned). The **supervisor stays load-bearing** (cold services must come up reliably); the
+  **model swap no longer is** — with one resident model there is nothing to swap on the normal path.
+- Superseded for the record: the original sizing assumed two tenants (ai-life 14B + coder 32B-code
+  ≈ 33 GB of models, ~50 GB peak) and the margin it left is why the clean swap used to be load-bearing.
 
 ## Two independent mechanisms (different owners, different cadence)
 
@@ -46,12 +50,23 @@ The only component with host Docker access. Brings cold services up on demand an
 Owns model selection already (`LLM_DEFAULT_MODEL`). Gains a **runtime override** so ai-life's chat model
 follows a workload profile.
 
-> **Forward note (2026-07-28) — the MoE stack may make this downshift optional.**
-> [model-strategy.md](model-strategy.md) moves both the ai-life default and the coder to **MoE-A3B** models
-> (~19 GB each): two resident ≈ 38 GB, under the ~48 GB ceiling, so the 32B↔14B downshift becomes a *safety
-> valve* rather than a *requirement*. **Measure two-tenant residency live at deploy before retiring LC-4.**
-> The dense-32B sizing in §Why stays the conservative baseline; this note does not change the signed
-> decisions, it flags what to re-check when the MoE tags land.
+> **DECIDED 2026-10-29 (owner) — the downshift is demoted to a safety valve, not a requirement.**
+> One universal model now serves both tenants ([model-strategy.md](model-strategy.md) §One model for
+> both tenants), so the case LC-4 existed for — two different models resident at once — does not arise
+> on the normal path. What this means concretely:
+> - **LC-4 stays in the code.** It is shipped, its evict-before-load ordering is pinned by
+>   `ModelProfileServiceTest`, and it is already **off unless `LLM_MODEL_PROFILE_ENABLED=true`**. We do
+>   not delete working, tested code on the strength of a plan change.
+> - **It is off the default path.** The deploy does not enable it, and no slice depends on it. Do not
+>   "finish" it.
+> - **Its cross-repo caller goes dormant** — `lifecycle.py` in the `coding-agent` repo. That half is
+>   invisible from here (CLAUDE.md's change-propagation map says so), so the counterpart chore must be
+>   recorded in *that* repo's STATUS: stop signalling the profile.
+> - **Reinstate it only if** the owner reinstates a separate coder model, which in turn only happens if
+>   the general default proves too weak at code on the real monorepo. That is a quality judgement to be
+>   made at deploy, not a memory calculation.
+> The previous note (2026-07-28) already called this "maybe optional, measure first"; the owner's
+> decision settles it one step further — not "optional downshift" but "no second model".
 - `POST /v1/model-profile {profile: normal|coder-active}` → `normal` = `LLM_DEFAULT_MODEL`,
   `coder-active` = `LLM_DEFAULT_MODEL_DOWNSHIFT`.
 - **Opt-in, default OFF (owner, 2026-07-16).** The whole two-tenant dance is an **add-on, not a
@@ -80,6 +95,41 @@ follows a workload profile.
   ~15 GB of JVMs/backing/OS ≈ **54 GB** — over the ~48 GB ceiling, i.e. precisely the crash the
   downshift exists to prevent, on every session start. **Seamlessness is explicitly not required**
   (owner), so the handshake simply waits — a few seconds per session start, and the budget holds.
+
+## Off-host access — the model reachable from the owner's work machine (requirement, 2026-10-29)
+
+**Requirement (owner):** the single universal model must be usable from the owner's **work machine**,
+not only from the Mac itself. This arrived with the one-model decision and is the reason that decision
+matters: the one model has to serve the coding agent *remotely*.
+
+**What is already settled, so this is not a new trust model.**
+[ADR-0007](adr/ADR-0007-authorization-posture.md) fixes the posture: the private single-box network is
+the trust boundary, made real by loopback-bound ports (#628) with **Tailscale as the only off-host
+path**, defended in depth by a shared secret on every `/internal/*` (#630). ADR-0007 already carries
+one off-host consumer (the ICS calendar feed over a Tailscale Funnel), so a second one fits the posture
+rather than replacing it. **The mTLS/Spring-Security trigger does *not* fire:** that trigger is
+"services split across hosts on a shared untrusted network", and here every service stays on the Mac —
+only a *client* dials in, over a private encrypted overlay. Option B stands.
+
+**Shape (to confirm at deploy, not built yet).** The work machine talks to **`llm-gateway`** over
+Tailscale, not to Ollama directly: the gateway is already the single entry point for every LLM call,
+already speaks an OpenAI-compatible surface to its callers, and is the one place where the model tag,
+channel routing and the shared-secret guard live. Exposing Ollama instead would bypass all of that.
+
+**Open questions the owner must resolve before this is designed** (listed here so no session invents an
+answer):
+1. **Can Tailscale be installed on that machine at all?** It is a managed corporate VDI — no admin
+   rights and client-software policy are both plausible blockers. If not, this requirement needs a
+   different mechanism and this section is void.
+2. **Data direction.** Using the home model for work coding sends work code to the Mac. That is an
+   employer-policy question, not an ai-life security question, and it is the owner's call.
+3. **New residual risk to record in ADR-0007 when this lands:** a machine the owner does not control
+   would hold a credential to the household stack. The shared secret authenticates "a first-party
+   caller", not *which* caller — ADR-0007 already accepts that limit for on-box callers; accepting it
+   for a corporate VDI is a bigger step and deserves its own line, plus a rotation story.
+
+**Non-goals:** no public internet exposure, no second service, no per-service identity, and no
+household *data* endpoints reachable off-host — this is about the LLM channel only.
 
 ## Flow (cold agent, e.g. "что приготовить из того что есть" → chef)
 1. orchestrator classifies → `chef` (cold in the registry: `{hot:false, container:chef-agent}`).

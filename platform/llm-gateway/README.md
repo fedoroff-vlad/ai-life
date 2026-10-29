@@ -79,7 +79,17 @@ The concrete model is the `vision` channel's (`LLM_VISION_MODEL`); pick a vision
 
 ## Model profile — the two-tenant swap (LC-4)
 
-ai-life shares the Mac and its Ollama with the separate **coder** contour (the coding-agent repo),
+> **Demoted to a safety valve (owner decision 2026-10-29).** One universal model now serves both
+> ai-life and the coding agent, so there is no second resident model and nothing to downshift on the
+> normal path — see [`plans/model-strategy.md`](../../plans/model-strategy.md) §One model for both
+> tenants and [`plans/lifecycle.md`](../../plans/lifecycle.md) §B. The endpoint below stays exactly as
+> documented and stays **off unless `LLM_MODEL_PROFILE_ENABLED=true`** (it already was); the deploy does
+> not enable it, and its caller in the `coding-agent` repo goes dormant. Kept because it is shipped and
+> its ordering is pinned by `ModelProfileServiceTest` — reinstate it only if a separate coder model
+> comes back. Do not "finish" it.
+
+The contract below describes the mechanism as built. ai-life shares the Mac and its Ollama with the
+separate **coder** contour (the coding-agent repo),
 and macOS caps the GPU working set near 48 GB. ai-life's 32B plus the coder's 30B is over that, so
 while the coder works this gateway serves a smaller chat model:
 
