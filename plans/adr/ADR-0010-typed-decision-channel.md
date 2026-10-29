@@ -1,10 +1,13 @@
 # ADR-0010: Typed-decision channel (`decision`) — a System One model instead of strict-JSON classifier prompts
 
-**Status:** Proposed (2026-10-28; **spike run 2026-10-29** — see §Spike result, which rejects the
-`laya-multilingual` engine, keeps `kev-0.8b`, and changes the recommended pilot shape to a
-confidence-gated hybrid). Still awaiting the owner pick between Option A and Option B; Option C is the
-status quo. Nothing is built against this ADR yet.
-**Date:** 2026-10-28 (spike appended 2026-10-29)
+**Status: ACCEPTED 2026-10-29 — Option A with the `kev-0.8b` engine.** The owner picked it on the
+spike's numbers (§Spike result: `laya-multilingual` rejected on measurement, `kev-0.8b` at 83–100% on
+asserted labels). Option B (EdgeJev ONNX/INT8) stays recorded as the likely *successor* behind the same
+wire contract, not as a rejected alternative — the ~100× CPU latency gap is the reason. Option C
+(status quo) is the fallback if a slice's acceptance gate cannot be met.
+**Implementation plan:** [decision-channel.md](../decision-channel.md) — slices DC-a…DC-f with
+WHEN/THEN criteria. This ADR stays the SSOT for the *decision*; the plan owns the *slicing*.
+**Date:** 2026-10-28 · spike appended 2026-10-29 · accepted 2026-10-29
 **Deciders:** repo owner (holder/admin)
 **Relates to:** [architecture.md](../architecture.md) §LLM strategy (the channel doctrine + the
 provider-switch rule this must not break) and §Security (the injection doctrine a later consumer would
@@ -356,12 +359,12 @@ up.
 1. [x] **Spike first, on current hardware: measure Russian calibration.** Done 2026-10-29 →
    §Spike result; harness in [`scripts/decision-spike/`](../../scripts/decision-spike). Outcome:
    `laya-multilingual` rejected, `kev-0.8b` viable, pilot shape changed to a confidence-gated hybrid.
-2. [ ] **Owner picks Option A or Option B** on those numbers (or C — stay put). This ADR moves to
-   Accepted with the pick recorded. No `architecture.md` §Locked-decisions entry until then.
-3. [ ] **Slice the channel** — WHEN/THEN criteria first in a new `plans/decision-channel.md`, then the
-   `decision` channel in `llm-gateway` + the `mock` stub, then `SkillClassifier` stage-1 **behind the
-   confidence gate** and a flag, with the goldens **re-measured in the same session** as the gate.
-   One PR per slice, change-propagation as listed above.
+2. [x] **Owner picks Option A or Option B.** Done 2026-10-29 — **Option A, engine `kev-0.8b`.**
+   Recorded in the Status header above and as a locked decision in
+   [architecture.md](../architecture.md) §Locked decisions.
+3. [x] **Slice the channel** — done as [decision-channel.md](../decision-channel.md): DC-a…DC-f with
+   WHEN/THEN criteria, one PR per slice, change-propagation as listed above. **No code yet** — the plan
+   is the spec, and DC-a is the first slice to build.
 4. [ ] **Then the follow-ups in order** — `LlmIntentClassifier`, then the `NoteWorthinessExtractor`
    pre-gate (which also retires the MQ-3 Mac-gate), then the injection guard as defence-in-depth under
    its own criteria.
@@ -375,8 +378,9 @@ up.
 
 ## Notes
 Tenth ADR. It introduces a **new layer** (a model class the system has never used, and a fifth channel),
-so per CLAUDE.md "new layer / pattern / architectural concept → flag it BEFORE coding" it is an ADR first.
-Until Accepted it is a proposal; no `decision`-channel code exists.
+so per CLAUDE.md "new layer / pattern / architectural concept → flag it BEFORE coding" it was an ADR
+first — flagged 2026-10-28, measured 2026-10-29, accepted the same day. **No `decision`-channel code
+exists yet**; the slicing lives in [decision-channel.md](../decision-channel.md) and DC-a is next.
 
 **Sources (as-of 2026-10-28; a field only weeks old — treat all figures as directional and re-verify at
 implementation):** TypeSafe System One API docs (the `/v1/systemone` contract, `noul`/`choice`/`score`);
