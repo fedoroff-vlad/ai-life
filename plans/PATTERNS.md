@@ -196,6 +196,19 @@ GIN index).
 | `130-139` | _next domain_ (reserved) | — |
 
 Rules:
+- **Forward-only, expand/contract — a changeset must stay compatible with the
+  PREVIOUS release's code** ([ADR-0011](adr/ADR-0011-release-and-deploy.md) fork MG,
+  owner-picked MG-1 2026-10-29). Migrations are never rolled back; the image is. So
+  **add now, remove later**: a new column arrives nullable (or with a default) and is
+  backfilled in the same changeset; code starts writing it; only a *later* release —
+  once no running code needs the old shape — drops or narrows anything. Never combine
+  "stop using X" and "drop X" in one release. The payoff is the only rollback that has
+  to work under pressure: rolling the images back needs **no** DB action, because the
+  previous release's code still reads and writes the schema it finds. Consequences:
+  `rollback:` blocks are **not** required (and are not a substitute for this rule —
+  Liquibase can un-create a table, not un-delete the rows a destructive migration
+  dropped), a destructive change legitimately takes two releases, and a release that
+  migrates always takes a fresh dump first (`infra/README.md` §Database backups).
 - **Pick the lowest free slot inside your range** — don't leave gaps unless you
   know what you're holding them for. New cross-cutting schema → next free in
   `001-009`. New domain table → next free in that domain's range.
@@ -226,6 +239,9 @@ Rules:
    test; that is the intended early-warning mechanism. Update the
    `-- Mirrors infra/liquibase/features/{…}.yml` header comment so the next
    maintainer can re-sync.
+5. **Check the changeset against the expand/contract rule above** before opening the
+   PR: would the *currently deployed* release still run against this schema? If not,
+   split it — the additive half now, the destructive half in a later release.
 
 ## Recipe: add sharing (personal vs shared) to a domain
 Canonical example: **calendar** (`calendar-agent` write path + `calendar-web` read path) — the reference

@@ -1,10 +1,12 @@
 # ADR-0011: Release policy + the dev→prod deploy path for the Mac deploy
 
-**Status:** Proposed (2026-10-28 — awaiting owner picks on the three forks below: **RG** image build
-location + registry, **MG** migration-rollback posture, **SR** secrets recovery). Everything outside those
-three forks is settled here. Flagged per CLAUDE.md "new layer / pattern → flag before code": release
-machinery is a new layer, and the Mac is days away, so this is written **before** any script exists.
-**Date:** 2026-10-28
+**Status:** **Accepted** (2026-10-29 — all three forks picked by the owner, each the recommended option:
+**RG-A → RG-B staged** (build on the Mac for the first live release, move to GitHub Actions + GHCR once the
+ADR-0006 host-units land), **MG-1** (forward-only + expand/contract), **SR-1** (host-only secrets + an
+out-of-band copy). Proposed 2026-10-28. Flagged per CLAUDE.md "new layer / pattern → flag before code":
+release machinery is a new layer, and the Mac is days away, so the policy was written **before** any script
+exists. The forks below are kept as the record of *why* — the picks are marked in place.
+**Date:** 2026-10-28 (accepted 2026-10-29)
 **Deciders:** repo owner (holder/admin)
 **Relates to:** [release.md](../release.md) (the slices that implement this — WHEN/THEN there, policy here),
 [lifecycle.md](../lifecycle.md) (the deploy target + hot/cold + the `supervisor` this ADR deliberately keeps
@@ -136,7 +138,7 @@ release, and how does one reach the box**". Today there is no answer at all:
     `up -d`**, and `:local` stays the dev default. Real secrets stay on the host in `infra/.env` +
     `infra/secrets/`, both already gitignored and already watched by gitleaks.
 
-### Fork RG — where images are built, and which registry *(owner's call)*
+### Fork RG — where images are built, and which registry *(PICKED 2026-10-29: RG-A now → RG-B staged)*
 
 This is the one choice with real cost on both sides, and it interacts with ADR-0006: building and pushing
 **50** images per release is a very different proposition from **13**.
@@ -162,14 +164,16 @@ This is the one choice with real cost on both sides, and it interacts with ADR-0
   container plus a volume to the stack it is meant to simplify. Strictly worse than RG-A (more machinery,
   same single-point-of-failure) unless a second host appears.
 
-**Recommendation — staged, as ADR-0006 staged B-then-C: take RG-A for the first live release, migrate to
-RG-B when the host-units land.** RG-A is the only option that does not block the Mac's arrival on new CI
-work, and versioned local tags already buy the thing `:local` cannot do — rolling back. Once ADR-0006 item 4
-collapses the stack to ~13 host-unit images, RG-B's costs drop by a factor of four while its wins
-(reproducibility, no build next to the model, pull-based recovery) stay — and at that point it should be
-taken deliberately, not drifted into.
+**Picked (owner, 2026-10-29) — the staged recommendation, as ADR-0006 staged B-then-C: RG-A for the first
+live release, RG-B once the host-units land.** RG-A is the only option that does not block the Mac's arrival
+on new CI work, and versioned local tags already buy the thing `:local` cannot do — rolling back. Once
+ADR-0006 item 4 collapses the stack to ~13 host-unit images, RG-B's costs drop by a factor of four while its
+wins (reproducibility, no build next to the model, pull-based recovery) stay. **The cutover is a decision
+point, not a drift:** it is gated on ADR-0006 item 4 landing, on Action Item 3's arm64-runner check, and on
+Action Item 5's measurement of a full release build against the resident model — whichever of the three
+bites first. RL-5 in [release.md](../release.md) stays parked until then; RG-C is rejected outright.
 
-### Fork MG — migration rollback posture *(owner's call)*
+### Fork MG — migration rollback posture *(PICKED 2026-10-29: MG-1, and now a standing authoring rule)*
 
 Rolling an image back is easy once tags are versioned (settled item 10). The DB is the hard half, and today
 there is nothing: 42 changelogs, no `rollback:` block anywhere.
@@ -191,13 +195,16 @@ there is nothing: 42 changelogs, no `rollback:` block anywhere.
   only appears in the *contract* release, by which time the code that needed the old shape is already gone —
   and a `rollback:` cannot restore the data anyway. Worth stating so it is rejected on purpose.
 
-**Recommendation: MG-1**, with the pre-release dump and the `tagDatabase` boundary of settled item 9 as
-non-negotiable companions, and **expand/contract written into the migration recipe** in
-[PATTERNS.md](../PATTERNS.md) so it is applied when the changeset is authored rather than discovered at
-rollback time. It is also the only option whose discipline is checkable later by a lint (a changeset that
-drops or narrows a column in the same release that stops using it).
+**Picked (owner, 2026-10-29): MG-1**, with the pre-release dump and the `tagDatabase` boundary of settled
+item 9 as non-negotiable companions. Because this is a rule applied when a changeset is *authored* and not
+when a release is cut, it does not live only here: **it is written into the migration recipe in
+[PATTERNS.md](../PATTERNS.md) §Recipe: add a Liquibase migration** (rule + a step-5 check), which is the file
+a session actually reads before writing a changeset. The short form: add now, remove later; never combine
+"stop using X" and "drop X" in one release; `rollback:` blocks are not required and are not a substitute.
+MG-1 is also the only option whose discipline is checkable later by a lint (a changeset that drops or
+narrows a column in the same release that stops using it) — a candidate under Action Item 6.
 
-### Fork SR — where the real prod secrets live, and how they survive the box *(owner's call)*
+### Fork SR — where the real prod secrets live, and how they survive the box *(PICKED 2026-10-29: SR-1)*
 
 There are only a handful of real secrets: `GATEWAY_TELEGRAM_BOT_TOKEN`, `INTERNAL_SHARED_SECRET`,
 `CALDAV_USER`/`CALDAV_PASSWORD`, `infra/secrets/rclone.conf` (+ any SSH key), optional capability API keys,
@@ -216,9 +223,14 @@ open question is **recovery**: the off-site replication covers the DB dumps and 
   repo is **public** and git history is permanent, so this publishes a brute-forceable blob forever, and
   the key still has to live outside git. It contradicts the `scrub-identity` lesson in CLAUDE.md.
 
-**Recommendation: SR-1 now, SR-2 as a later convenience.** Either way the finding is recorded: the gap is
-real, and "the off-site backup covers the DB but not the credentials" belongs in
-[`infra/README.md`](../../infra/README.md) in the same change as the first release runbook.
+**Picked (owner, 2026-10-29): SR-1.** Secrets live on the Mac in `infra/.env` + `infra/secrets/` and nowhere
+else, with a manual encrypted copy in the owner's password manager; the runbook carries the one line of
+discipline ("after changing a secret, update the password-manager copy"). SR-2 is **not** rejected — it is
+deferred as a convenience, and RL-6 in [release.md](../release.md) keeps it as the later half of that slice,
+to be taken if the manual copy starts drifting. SR-3 is rejected outright. Either way the finding stands and
+must be written where it is read: **"the off-site backup covers the DB dumps and not the credentials"**
+belongs in [`infra/README.md`](../../infra/README.md) in the same change as the first release runbook —
+that sentence is the whole reason this fork existed.
 
 ## Options Considered
 
@@ -232,7 +244,7 @@ real, and "the off-site backup covers the DB but not the credentials" belongs in
 | Cost of a bump | A tag (poms untouched) | 72 files, or `${revision}` plumbing |
 
 ### RG — build location + registry
-| Dimension | RG-A host build, no registry (**first release**) | RG-B Actions + GHCR (**end state**) | RG-C local registry |
+| Dimension | RG-A host build, no registry (**picked — first release**) | RG-B Actions + GHCR (**picked — end state**) | RG-C local registry (rejected) |
 |---|---|---|---|
 | Native arm64 | **Yes** | Needs arm64 runners (verify) or slow QEMU | Yes |
 | Reproducible artifact | No — built from the working tree | **Yes** — from a tagged commit, clean env | No (same build, stored) |
@@ -244,7 +256,7 @@ real, and "the off-site backup covers the DB but not the credentials" belongs in
 | Blocks the Mac's arrival | **No** | Yes (needs the workflow first) | No |
 
 ### MG — migration rollback posture
-| Dimension | MG-1 forward-only + expand/contract (**recommended**) | MG-2 reversible changesets | MG-3 hybrid |
+| Dimension | MG-1 forward-only + expand/contract (**picked**) | MG-2 reversible changesets | MG-3 hybrid |
 |---|---|---|---|
 | Image rollback needs a DB rollback | **No** (that is the point) | No, but one exists | No |
 | Cost per migration PR | A compatibility rule to apply | A `rollback:` + a rollback test lane | Only on destructive ones |
@@ -254,7 +266,7 @@ real, and "the off-site backup covers the DB but not the credentials" belongs in
 | Mechanically checkable later | Yes (same-release drop/narrow lint) | Only "a block exists", not that it works | Partially |
 
 ### SR — secrets recovery
-| Dimension | SR-1 host + password manager (**recommended**) | SR-2 rclone `crypt` off-site | SR-3 SOPS in git (**rejected**) |
+| Dimension | SR-1 host + password manager (**picked**) | SR-2 rclone `crypt` off-site (deferred) | SR-3 SOPS in git (**rejected**) |
 |---|---|---|---|
 | Machinery | **None** | One remote + a passphrase | A tool + a key + a committed blob |
 | Survives a dead disk | Yes, if the copy is current | **Yes, automatically** | Yes |
@@ -318,14 +330,18 @@ have a cross-repo half).
 
 ## Action Items
 
-1. [ ] **Owner picks RG, MG and SR** (this ADR moves to Accepted with the picks recorded). No
-   `architecture.md` §Locked-decisions change for RG/SR; **MG is a standing authoring rule** and so belongs
-   in `PATTERNS.md` §new migration once picked.
+1. [x] **Owner picks RG, MG and SR** — done 2026-10-29 (RG-A→RG-B staged · MG-1 · SR-1); this ADR is
+   Accepted with the picks recorded in place. No `architecture.md` §Locked-decisions change for RG/SR (they
+   are deploy posture, not a system decision); **MG-1 is a standing authoring rule** and is therefore
+   written into [PATTERNS.md](../PATTERNS.md) §Recipe: add a Liquibase migration, which is the file read
+   before a changeset is authored.
 2. [ ] **Slice the machinery** per [release.md](../release.md) — WHEN/THEN first, one PR per slice, in the
-   order RL-1 → RL-2 → RL-3 → RL-4 (the minimum for a first real release), with RL-5/RL-6 fork-gated.
-3. [ ] **Verify the RG-B dependency before committing to it:** free hosted `linux/arm64` runners for public
+   order RL-1 → RL-2 → RL-3 → RL-4 (the minimum for a first real release). RL-5 is parked until the RG-B
+   cutover; RL-6's SR-2 half stays deferred.
+3. [ ] **Verify the RG-B dependency before the cutover:** free hosted `linux/arm64` runners for public
    repositories, and the intended GHCR package visibility. If the runners are not available, RG-B's cost
-   changes materially (QEMU) and the staging recommendation should be re-read with that in mind.
+   changes materially (QEMU) and the staging decision should be re-read with that in mind — it is one of the
+   three gates on the cutover.
 4. [ ] **Rehearse the restore on the Mac, once, and write the result down** (`infra/README.md`) — including
    how long it took and what was lost. Until then the rollback plan is untested.
 5. [ ] **Measure a full release build against the resident model** on the Mac (reuse
@@ -338,7 +354,9 @@ have a cross-repo half).
 
 ## Notes
 Eleventh ADR. It introduces **no new shared contract and no new runtime layer** — release machinery sits
-beside the system, not inside it. It is flagged here rather than decided inside a deploy script because the
+beside the system, not inside it. It was flagged here rather than decided inside a deploy script because the
 three forks have consequences that outlive any script: a registry choice is a dependency, a migration
 posture is a standing authoring rule, and a secrets-recovery choice is the difference between a recoverable
-box and a lost one. Until Accepted it is a proposal; no release script is written against it yet.
+box and a lost one. All three are now picked and this ADR is the record; the only one that also lives
+elsewhere is MG-1, by design (`PATTERNS.md`, where a changeset author will actually meet it). No release
+script exists yet — RL-1 is the first slice.
