@@ -74,8 +74,16 @@ injection guard, all closed).
   failed on arrival — #294 left the hot set's dependency closure broken (`invalid compose project`) for a
   month. Fixed + now machine-checked by `check-consistency.sh` check 13; see
   [lifecycle.md](lifecycle.md) §Hot/cold. Ordering when hardware lands: LC-2 → LC-2.5 cold-tolerant discovery
-  → LC-3 (+3a AOT) → LC-5. Model stack decided → [model-strategy.md](model-strategy.md) (MoE-first; two MoE
-  tenants may make the LC-4 downshift optional — **measure residency live at deploy**). coach-agent parked (Backlog).
+  → LC-3 (+3a AOT) → LC-5. Model stack decided → [model-strategy.md](model-strategy.md): MoE-first, and
+  since **2026-10-29 ONE universal model serves both ai-life and the coding agent** (owner) — so there is
+  no second resident model, **LC-4 is demoted to a safety valve** (shipped, off by default, do not
+  "finish" it) and its `coding-agent` counterpart goes dormant. The 2026-10-29 scan closed the watch-list
+  trigger (`Qwen3.8-Flash-Next` is ~61 GB quantized → does not fit) and rejected `gpt-oss-120b` /
+  `Mistral Small 4` / `Llama 4 Scout` for this box; `Laguna XS 2.1` (33B-A3B, agentic-coding) is the
+  recorded fallback **if** the general default disappoints at code. New requirement with the same
+  decision: the model must be reachable off-host from the owner's work machine →
+  [lifecycle.md](lifecycle.md) §Off-host access (fits ADR-0007's Tailscale posture; three owner questions
+  open, incl. whether Tailscale can be installed on a managed corporate VDI at all). coach-agent parked (Backlog).
 
 ## Next (owner priority order — the backlog now lives in GitHub Issues)
 1. **Pick the next future agent** — travel [#190](https://github.com/fedoroff-vlad/ai-life/issues/190) is fully closed (MVP + live search + trip wallet + route import + packing list; its issues #436/#438 closed with the work). Backlog (owner priority): health [#187](https://github.com/fedoroff-vlad/ai-life/issues/187), email [#191](https://github.com/fedoroff-vlad/ai-life/issues/191), smart-home [#192](https://github.com/fedoroff-vlad/ai-life/issues/192); or resume the parked coach-agent [#289](https://github.com/fedoroff-vlad/ai-life/issues/289) (CO-3+). See the [`future-agent`](https://github.com/fedoroff-vlad/ai-life/labels/future-agent) label + `## Backlog`.

@@ -1,6 +1,14 @@
 # Model strategy — local LLM stack for the Mac deploy
 
-> **Status: decided (2026-07-28), forward-looking.** The Mac isn't purchased yet
+> **Status: decided (2026-07-28), amended 2026-10-29 — ONE model serves both tenants.** The owner's
+> decision: a single universal model answers both ai-life and the coding agent; there is no separate
+> resident coder model and no planned downshift between them. The reasoning and what it changes are in
+> §One model for both tenants below, and the consequence for `lifecycle.md`'s LC-4 (demoted to a
+> safety valve, kept but off the default path) is recorded there. A second requirement landed with the
+> same decision: the model must be reachable **off-host** from the owner's work machine →
+> [lifecycle.md](lifecycle.md) §Off-host access.
+>
+> **Forward-looking.** The Mac isn't purchased yet
 > (hardware-blocked — see [STATUS.md](STATUS.md) / [lifecycle.md](lifecycle.md)). This file is the
 > **rationale + per-channel model map + rollout**. It is **not** the tag SSOT: runtime model tags live
 > in [`infra/.env.mac.example`](../infra/.env.mac.example) (the `llm-model-tag` coupling in
@@ -10,11 +18,15 @@
 > **directional** (4-bit MLX/GGUF, as of 2026-07); re-validate at deploy.
 
 ## The box (constraint)
-Mac Studio M4 Max, 64 GB unified → **~48 GB GPU model ceiling**, shared with the JVMs + backing +
-(occasionally) the coder tenant. **The box is fixed at 64 GB** (bought, arriving — no larger config
-planned). 70B-class does not fit, and two dense-32B can't be co-resident in this budget. The stack is
-therefore **MoE-first**: a Mixture-of-Experts model activates only ~3B of its params per token, so it
-delivers ~dense-32B quality at small-model speed and memory on Apple Silicon.
+Mac Studio M4 Max, 64 GB unified → **~48 GB GPU model ceiling**, shared with the JVMs + backing.
+**The box is fixed at 64 GB** (bought, arriving — no larger config planned). 70B-class does not fit.
+The stack is **MoE-first**: a Mixture-of-Experts model activates only ~3B of its params per token, so
+it delivers ~dense-32B quality at small-model speed and memory on Apple Silicon — and on Apple Silicon
+a dense model of the same quality costs ~5–10× the throughput, which a 24/7 interactive assistant
+cannot pay.
+
+Since 2026-10-29 the budget holds **one** chat model rather than two (§One model for both tenants), so
+the ceiling is no longer the binding constraint it was — throughput and KV-cache headroom are.
 
 ## Per-channel picks
 Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedding`); STT is separate
@@ -32,25 +44,62 @@ Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedd
 | **vision** (receipts / docs / outfits) | **Qwen3-VL 8B** | ~7 GB | best-in-class OCR for receipts/documents; replaces the current `minicpm-v`. |
 | **embedding** (second-brain recall, RU) | **Qwen3-Embedding-0.6B** (or `bge-m3`) | <1 GB | tops MTEB v2, strong Russian. ⚠️ dim change from `nomic-embed-text` (768→1024) → **reindex + a pgvector Liquibase migration**, not free. |
 | **stt** | **whisper large-v3-turbo** | ~6 GB | ~5× large-v3, 99 languages incl. good Russian; runs in `mcp-media-processing`, outside the gateway. |
-| **coder** (separate tenant) | **Qwen3-Coder-30B-A3B** (MoE) | ~18.5 GB | keep — MoE, ~130 tok/s on MLX; coexists with the ai-life MoE inside the budget. |
+| ~~**coder** (separate tenant)~~ | ~~Qwen3-Coder-30B-A3B~~ → **retired 2026-10-29: the `default` pick above serves the coding agent too** | — | §One model for both tenants. The coding agent calls the same `default` channel; at work it keeps using the employer gateway's `openai:` tier, so a local coder model would have served only home sessions. |
 
-## Memory budget (why 6 configured ≠ 6 resident)
+## Memory budget (why 5 configured ≠ 5 resident)
 Ollama loads a model on demand and evicts idle ones (`keep_alive`), so only the actively-used channels
-sit in VRAM; only **two picks are heavy** (the MoE pair). Realistic resident peaks (models only):
+sit in VRAM; only **one pick is heavy** (the `default` MoE). Realistic resident peaks (models only):
 
-- **ai-life, normal chat:** embedding 0.7 + fast 6 + default 19.5 ≈ **~26 GB** (+ vision 7 on a photo, or
-  whisper 6 on voice — brief spikes).
-- **ai-life + coder both hot (rare):** + coder 18.5 ≈ **~45 GB** without downshift, **~34 GB** with the
-  LC-4 downshift.
-- Plus ~15 GB (OS + hot JVMs + backing) → fits 64 GB with margin; "both tenants fully hot at the same
-  instant" is the rare worst case (usually one tenant is idle and evicts).
+- **normal operation, either tenant:** embedding 0.7 + fast 6 + default 19.5 ≈ **~26 GB** (+ vision 7
+  on a photo, or whisper 6 on voice — brief spikes).
+- Plus ~15 GB (OS + hot JVMs + backing) → ~41 GB, with the rest of the 64 GB free for **KV cache**.
+- There is no longer a "both tenants hot" worst case: both tenants share the same resident weights, so
+  a second concurrent session costs its KV cache, not another ~19 GB of model.
 
-## Key finding — MoE softens the two-tenant problem
-Both the ai-life default and the coder are now MoE-A3B (~19 GB each, ~3B active). Two resident ≈ **38 GB
-of models < the 48 GB ceiling** → the LC-4 32B↔14B **downshift may become optional** rather than
-mandatory. **Do not retire it on paper:** measure two-tenant residency live at deploy first; keep LC-4 as
-a safety valve until proven. This is the real "freed resources" — architectural (MoE), not from collapsing
-JVM services (the hot set is only ~6 GB).
+## One model for both tenants (owner decision, 2026-10-29)
+**Decision: one universal model — the `default` pick above — answers both ai-life and the coding agent.
+No separate resident coder model, and the LC-4 downshift is demoted from a requirement to a safety
+valve** (kept in code, off the default path → [lifecycle.md](lifecycle.md) §B).
+
+The question the owner asked was why downshift at all, given that one model at work serves 20–30 people
+with several sessions each. That observation is about **concurrency, not capacity**: one resident model
+serves many sessions through batching, because weights are paid once and each session costs only its KV
+cache. Applied here it does not argue for a smaller model during coding — it argues against the second
+model existing.
+
+Decomposed, the two-model plan only ever bought something in one case:
+
+| Situation | Two models | One shared model |
+|---|---|---|
+| One tenant active (the norm — the owner is either coding or chatting) | Ollama's own `keep_alive` eviction already suffices; **LC-4 was unnecessary here** | nothing to evict |
+| Both at once (rare) | needs LC-4 or both sit resident ≈38 GB and the box thrashes | **no problem at all** — requests queue on one model |
+
+So one model collapses both cases, and the whole evict-before-load apparatus exists for a case that no
+longer arises. What this buys, concretely:
+
+- **~19 GB resident instead of ~38** — and the point is not "space freed" but space freed **for KV
+  cache**: longer context and more concurrent sessions, which is exactly the property the 20–30-user
+  observation demonstrates.
+- **The cross-repo coupling goes dormant.** LC-4's caller is `lifecycle.py` in the `coding-agent` repo;
+  CLAUDE.md's change-propagation map already flags that half as invisible from here and therefore
+  silently drifting. One fewer live coupling.
+- One fewer model in the `llm-model-tag` cascade.
+
+What it costs, and why that cost is smaller here than it looks: a coder-tuned model is better at code.
+But the coding agent uses the employer gateway at work, so a local coder model would only ever have
+served home sessions; and the `default` pick is chosen for agentic/reasoning strength, not as a chat
+model. The one real downside is **latency under genuine concurrency** — a short assistant reply can
+queue behind a long code generation. Mitigated by `OLLAMA_NUM_PARALLEL`, and cheap at ~3B active
+params.
+
+**What the freed budget does NOT unlock** (checked against §Rejected below, so this is not re-litigated
+at deploy): the next tiers up still do not fit. GLM 5.2 Air is ~55–60 GB in Q4 and DeepSeek V4 Flash
+needs ~90 GB+. The freed ~18.5 GB makes a **~40 GB-class MoE** thinkable for the first time if one
+ships — that, and nothing larger.
+
+**Open, decided at deploy:** whether the general `default` is good enough at code in this monorepo for
+the owner's taste. That is a **quality** judgement, not a memory one, and it is the only thing that
+would reinstate a coder model. Test it with a real task from the Java monorepo before concluding.
 
 ## Image generation — a separate model, not the LLM
 Image **generation** (creating pictures — e.g. the stylist's outfit visualisations) is **not** something the
@@ -79,9 +128,22 @@ Consolidation options (default + vision in one model, dropping a resident model)
   same downside as the rejected dense-27B class below.
 
 Watch-list trigger (revisit the default only when it fires):
-- **A Qwen 3.8 / Qwen4 model in the A3B-MoE ~30–35B format** — the only reason to jump off 3.6. Today's
-  3.8 has no fitting fast variant: `3.8-Max`/`2.4T-A95B` don't fit, `3.8-27B` is **dense** (slow, below).
-  `Qwen3.8-Flash-Next` (MoE, "Qwen4 preview") is the one to watch.
+- **A Qwen 3.8 / Qwen4 model in the A3B-MoE ~30–35B format** — still the only reason to jump off 3.6.
+  `3.8-Max`/`2.4T-A95B` don't fit; `3.8-27B` is **dense** (slow on Apple Silicon, see Rejected).
+- ~~`Qwen3.8-Flash-Next`~~ — **trigger fired and resolved 2026-10-29: it does not fit.** 125B MoE with
+  6B active, plus a 51B n-gram embedding table and a 4B MTP head ≈ **180B stored**; a quantized build
+  was observed at **~61 GB**. The 6B-active figure makes it fast but does **not** shrink residency —
+  the classic MoE mistake. Out for a 64 GB box that also hosts the JVMs. Closed, not watched.
+- **NEW candidate — `Laguna XS 2.1` (poolside), the one worth a bench at deploy.** 33B total / **3B
+  active** MoE built explicitly for *agentic coding on local machines* — i.e. the same footprint slot
+  as our default (~36 GB at Q8, so ~Q4 lands in the 19–20 GB band). Vendor-reported SWE-bench
+  Multilingual 63.1%, Terminal-Bench 2.1 33.4; 256K context on the hosted API, local long-context
+  depends on the runner. **Caveats that keep it off the default slot:** benchmarks are vendor-reported,
+  there is **no Russian evaluation** published, and the licence is OpenMDW-1.1 **plus an Acceptable Use
+  Policy** — permissive-ish but not OSI-classic, against a stack that is otherwise Apache-2.0. It is a
+  *coding* model, so adopting it as the single universal model would make the assistant side the
+  compromise — exactly the coder-first option the owner rejected. Treat it as **the fallback if the
+  general default disappoints at code**, not as a contender for the default.
 
 Rejected for the 64 GB box (recorded so we don't re-litigate at deploy — the box is **fixed at 64 GB**):
 - **Dense ~27–30B (Qwen3.8-27B, Meta Muse Glimmer 30B)** — all params active per token → **~5–15 tok/s on
@@ -92,6 +154,20 @@ Rejected for the 64 GB box (recorded so we don't re-litigate at deploy — the b
 - **GLM 5.2 Air (~106B, MIT)** — ~55–60 GB Q4 eats almost the whole 64 GB, leaving no room for the ~6 GB
   hot-set JVMs + backing + coder tenant.
 - **Kimi K2.6** — top of the leaderboard but needs 8× H100; not a local model.
+
+Added by the 2026-10-29 scan, now that **one** model has to serve both tenants (so "it also has to code"
+is a hard requirement, and bigger-is-better is tempting):
+- **`gpt-oss-120b`** — the loudest "best for 64 GB" recommendation in blog-land, and **wrong for this
+  box**: the 6.5-bit MLX build measures **~95 GB**. Even where it fits (a 128 GB machine) it runs
+  ~30 tok/s against Qwen3.6-35B-A3B's >50, and it **loses on coding** — SWE-bench Verified ~62.4% vs
+  ~73.4%, and −11.5 points on one coding aggregate. Bigger, slower, worse at the job. Out.
+- **`Mistral Small 4` (119B-A6B, ~60 GB)** and **`Llama 4 Scout` (109B/17B active, ~58 GB Q4)** — both
+  eat essentially the whole box before the JVMs; same failure mode as GLM 5.2 Air. Out.
+- **`Qwen3.8-27B` (dense)** — newer generation, but dense means every param active per token: the
+  ~5–10× Apple-Silicon throughput penalty that already rejected this whole class. Out.
+
+**Net of that scan: the existing `default` pick stands, and is now better justified than when it was
+made** — it beats a model 3× its size at coding while fitting with room to spare.
 
 ## Rollout (config swap, low-risk)
 This is the `llm-model-tag` coupling — a config change, not code:
@@ -117,7 +193,20 @@ API + the Ollama-native evict-before-load handshake LC-4 depends on (`ollama sto
 gaining MLX speed. Switching to LM Studio / `mlx_lm.server` / `llama-server` would change the eviction
 contract → integration cost; only if the Ollama MLX engine underperforms.
 
-## Sources (as-of 2026-09-01, noisy field — treat figures as directional)
+## Sources
+
+**2026-10-29 scan (triggered by the one-model decision; the field is noisy and much of it is SEO-grade,
+so every figure here is directional and vendor-reported unless it says measured).** Covered:
+`Qwen3.8-Flash-Next` (official Qwen blog + HF card + the Qwen3.8-Next architecture paper
+arXiv:2608.30320 — 125B/6B-active, 51B n-gram embeddings, 4B MTP head, 262K native context; released
+2026-08-26, *not* October as rumoured), `gpt-oss-120b` vs `Qwen3.6-35B-A3B` (Artificial Analysis
+comparison + MLX community 6.5-bit build at ~95 GB + two independent local runs), `Laguna XS 2.1`
+(poolside blog + HF card + OpenRouter listing: 33B-A3B, OpenMDW-1.1 + AUP, SWE-bench Multilingual
+63.1%), plus the Apple-Silicon round-ups that put Qwen3.6-35B-A3B at ~45 tok/s on an M4 Max via MLX and
+~24 GB at Q4_K_M. **Re-verify tok/s, RU quality and coding on the actual box at deploy** — no figure in
+this file was measured on this hardware.
+
+### Earlier scan (as-of 2026-09-01, noisy field — treat figures as directional)
 Qwen3.5/3.6/3.8 lineup + MLX sizing; MLX vs llama.cpp/Ollama on Apple Silicon; open-weight VLMs (Qwen3-VL /
 Gemma / GLM); embedding leaderboards (Qwen3-Embedding / bge-m3); STT (whisper v3-turbo vs Parakeet).
 2026-09-01 competitive scan (Plan B) covered Qwen3.6/3.8, DeepSeek V4 Flash, GLM 5.2 Air, Meta Muse
