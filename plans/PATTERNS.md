@@ -216,6 +216,13 @@ Rules:
   base tables; `021-fin-budget.yml` adds a feature on top; a schema-id column
   added to an existing table goes into its own file (`022-fin-budget-schedule-id.yml`).
   Never amend an already-merged migration — write a new file.
+- **A FK on a column you are ADDING needs its own `addForeignKeyConstraint`.** An inline
+  `foreignKeyName` + `referencedTableSchemaName` inside `addColumn` **silently drops the schema**
+  (Liquibase 4.30) and emits `REFERENCES public.<table>`, so the changeset dies on a schema where
+  nothing lives in `public`. The same inline form inside `createTable` honours the schema — which is
+  why this bit exactly once, on `015-people-user-id.yml`, and why the other 88 inline FKs here are
+  fine. Canonical shape: [015-people-user-id.yml](../infra/liquibase/features/015-people-user-id.yml).
+  Enforced: `check-consistency.sh` **check 14** (`addcolumn-inline-fk`).
 - **Filename = `NNN-<domain>-<topic>.yml`.** Topic is what the file actually
   does, in kebab-case. Topic is required for follow-ups (anything after the
   domain's base file).
