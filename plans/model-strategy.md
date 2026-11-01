@@ -19,7 +19,7 @@
 
 ## The box (constraint)
 Mac Studio M4 Max, 64 GB unified → **~48 GB GPU model ceiling**, shared with the JVMs + backing.
-**The box is fixed at 64 GB** (bought, arriving — no larger config planned). 70B-class does not fit.
+**The box is fixed at 64 GB** (bought; arrived 2026-10-31 — no larger config planned). 70B-class does not fit.
 The stack is **MoE-first**: a Mixture-of-Experts model activates only ~3B of its params per token, so
 it delivers ~dense-32B quality at small-model speed and memory on Apple Silicon — and on Apple Silicon
 a dense model of the same quality costs ~5–10× the throughput, which a 24/7 interactive assistant
@@ -27,6 +27,42 @@ cannot pay.
 
 Since 2026-10-29 the budget holds **one** chat model rather than two (§One model for both tenants), so
 the ceiling is no longer the binding constraint it was — throughput and KV-cache headroom are.
+
+## Measured on the box (2026-10-31 — first run on the real hardware)
+The Mac landed, so the directional figures above finally have a counterpart. Conditions: `ollama`
+0.40.13, the **MLX** build (`qwen3.6:35b-mlx`, 23 GB), brew-service defaults
+`OLLAMA_FLASH_ATTENTION=1` + `OLLAMA_KV_CACHE_TYPE=q8_0`, one RU prompt, no other load on the box.
+
+| metric | measured |
+|---|---|
+| generation | **152.95 tok/s** |
+| prompt eval | 24.70 tok/s (30-token prompt) |
+| cold load of the 23 GB weights | 6.3 s |
+
+That is **~3.4x the ~45 tok/s** the Apple-Silicon round-ups predicted (see §Sources), so MoE-first +
+MLX is now confirmed by measurement rather than by review copy. Rollout step 1 (MLX engine + tag pull)
+is done; steps 2-5 still stand.
+
+**Thinking is on by default, and it is expensive** — the `.env.mac.example` note written for Qwen3
+holds for 3.6 unchanged. Same one-sentence RU question, same model:
+
+| | completion tokens |
+|---|---|
+| as-is (thinks in English before answering) | **2898** |
+| `reasoning_effort: none` via `/v1` | **46** |
+
+So `LLM_SUPPRESS_THINKING` is not an optimisation here but a precondition: 98% of the generation was
+reasoning nobody asked for, and the strict-JSON skill surface would have had to parse around it.
+Verified on the **production path** — `/v1/chat/completions` with `reasoning_effort: none`, the call
+`llm-gateway` actually makes, not the `/no_think` prompt tag that the note already records as
+non-working via Ollama `/v1`. The response carried no `reasoning` field.
+
+RU quality on that sample: good, with one artefact worth watching — "схем BDD" where "БД" was meant,
+a Latin/Cyrillic slip. One occurrence, not yet a pattern; more of them belong in the golden lane's
+findings, not here.
+
+Still unmeasured on this box: coding quality (the open question in §One model for both tenants), the
+vision consolidation (§Plan B), the golden lane itself, and the ADR-0010 frozen set.
 
 ## Per-channel picks
 Four LLM channels go through `llm-gateway` (`default`, `fast`, `vision`, `embedding`); STT is separate
@@ -208,8 +244,9 @@ arXiv:2608.30320 — 125B/6B-active, 51B n-gram embeddings, 4B MTP head, 262K na
 comparison + MLX community 6.5-bit build at ~95 GB + two independent local runs), `Laguna XS 2.1`
 (poolside blog + HF card + OpenRouter listing: 33B-A3B, OpenMDW-1.1 + AUP, SWE-bench Multilingual
 63.1%), plus the Apple-Silicon round-ups that put Qwen3.6-35B-A3B at ~45 tok/s on an M4 Max via MLX and
-~24 GB at Q4_K_M. **Re-verify tok/s, RU quality and coding on the actual box at deploy** — no figure in
-this file was measured on this hardware.
+~24 GB at Q4_K_M. **Re-verify tok/s, RU quality and coding on the actual box at deploy** — every figure
+in this scan is still vendor-reported or third-party. What *has* since been measured here, and what has
+not, lives in §Measured on the box.
 
 ### Earlier scan (as-of 2026-09-01, noisy field — treat figures as directional)
 Qwen3.5/3.6/3.8 lineup + MLX sizing; MLX vs llama.cpp/Ollama on Apple Silicon; open-weight VLMs (Qwen3-VL /
