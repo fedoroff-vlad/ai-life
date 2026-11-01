@@ -345,7 +345,12 @@ services:
     ports:
       - "${BIND_ADDR:-127.0.0.1}:${LLM_GATEWAY_PORT:-8081}:8081"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      # Health probe without wget/curl: the app image is eclipse-temurin:25-jre, which ships
+      # neither (failing streak 198 on the first real bring-up, 2026-11-01 — and depends_on
+      # service_healthy then held the whole tree). bash IS present, so the probe speaks HTTP
+      # over /dev/tcp and asserts actuator's 200 (503 when DOWN). sh is dash here and has no
+      # /dev/tcp, hence the explicit bash. Guarded by check-consistency.sh check 16.
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -372,7 +377,7 @@ services:
       PROFILE_DB_USER: ${POSTGRES_USER:-ailife}
       PROFILE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8082 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -408,7 +413,7 @@ services:
       MEMORY_MAX_K: ${MEMORY_MAX_K:-50}
       MEMORY_EMBED_DIM: ${MEMORY_EMBED_DIM:-384}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8087 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -442,7 +447,7 @@ services:
       MEDIA_BUCKET: ${MEDIA_BUCKET:-ai-life-media}
       MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8088 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -469,7 +474,7 @@ services:
       CONVERSATION_DB_USER: ${POSTGRES_USER:-ailife}
       CONVERSATION_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8089/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8089 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -499,7 +504,7 @@ services:
       SCHEDULER_BATCH_SIZE: ${SCHEDULER_BATCH_SIZE:-50}
       ORCHESTRATOR_URL: http://orchestrator:8083
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8085 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -529,7 +534,7 @@ services:
       GATEWAY_TELEGRAM_URL: http://gateway-telegram:8080
       EVENT_BUS_CHANNEL: ${EVENT_BUS_CHANNEL:-ailife_events}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8084 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -575,7 +580,7 @@ services:
       ORCHESTRATOR_MEMORY_ENABLED: ${ORCHESTRATOR_MEMORY_ENABLED:-true}
       ORCHESTRATOR_MEMORY_RECALL_K: ${ORCHESTRATOR_MEMORY_RECALL_K:-3}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8083 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -627,7 +632,7 @@ services:
       # ops/health and the notifier's /internal/send (which rides the compose network anyway).
       - "${BIND_ADDR:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -662,7 +667,7 @@ services:
       CALDAV_PASSWORD: ${CALDAV_PASSWORD:-}
       CALDAV_DEFAULT_CALENDAR: ${CALDAV_DEFAULT_CALENDAR:-ours}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8090 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -699,7 +704,7 @@ services:
       ICS_IMPORT_MAX_BYTES: ${ICS_IMPORT_MAX_BYTES:-5242880}
       ICSIMPORT_SCHEDULER_URL: http://scheduler-service:8085
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8091/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8091 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -736,7 +741,7 @@ services:
       MCP_FINANCE_TRANSACTION_OWNER_AGENT: ${MCP_FINANCE_TRANSACTION_OWNER_AGENT:-finance}
       MCP_FINANCE_TRANSACTION_TRIGGER_KIND: ${MCP_FINANCE_TRANSACTION_TRIGGER_KIND:-transaction.uncategorised}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8092/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8092 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -769,7 +774,7 @@ services:
       WHISPER_ASR_URL: http://whisper:9000
       MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR: ffmpeg
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8097/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8097 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -792,7 +797,7 @@ services:
       MCP_WEB_PORT: 8098
       SEARXNG_URL: http://searxng:8080
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8098/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8098 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -820,7 +825,7 @@ services:
       MCP_MEDIA_FETCH_PORT: 8126
       MEDIA_SERVICE_URL: http://media-service:8088
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8126/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8126 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -842,7 +847,7 @@ services:
       MARKETDATA_STOOQ_URL: https://stooq.com
       MARKETDATA_SOURCE: stooq
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8100/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8100 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -866,7 +871,7 @@ services:
       WEATHER_CLIMATE_URL: https://archive-api.open-meteo.com
       WEATHER_SOURCE: open-meteo
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8113/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8113 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -893,7 +898,7 @@ services:
       TRAVELPAYOUTS_MARKER: ${TRAVELPAYOUTS_MARKER:-}
       TRAVEL_SEARCH_CURRENCY: ${TRAVEL_SEARCH_CURRENCY:-rub}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8125/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8125 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -915,7 +920,7 @@ services:
       FOODDATA_OPEN_FOOD_FACTS_URL: https://world.openfoodfacts.org
       FOODDATA_SOURCE: openfoodfacts
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8107/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8107 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -939,7 +944,7 @@ services:
       YOUTUBE_MAX_RESULTS: 5
       YOUTUBE_SOURCE: youtubedata
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8110/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8110 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -966,7 +971,7 @@ services:
       REDDIT_MAX_RESULTS: 5
       REDDIT_SOURCE: redditapi
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8111/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8111 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -990,7 +995,7 @@ services:
       FEEDS_MAX_RESULTS: 5
       FEEDS_SOURCE: romejsoup
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8112/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8112 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1016,7 +1021,7 @@ services:
       IMAGE_GEN_LOCAL_URL: ${IMAGE_GEN_LOCAL_URL:-http://localhost:9200}
       MEDIA_SERVICE_URL: http://media-service:8088
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8103/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8103 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1041,7 +1046,7 @@ services:
       CHART_RENDER_ENGINE: ${CHART_RENDER_ENGINE:-java2d}
       MEDIA_SERVICE_URL: http://media-service:8088
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8120/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8120 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1068,7 +1073,7 @@ services:
       MCP_MONEY_PRO_IMPORT_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_MONEY_PRO_IMPORT_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8094/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8094 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1101,7 +1106,7 @@ services:
       MCP_TASKS_REVIEW_OWNER_AGENT: ${MCP_TASKS_REVIEW_OWNER_AGENT:-tasks}
       MCP_TASKS_REVIEW_TRIGGER_KIND: ${MCP_TASKS_REVIEW_TRIGGER_KIND:-weekly.review}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8095/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8095 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1128,7 +1133,7 @@ services:
       MCP_WARDROBE_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_WARDROBE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8101/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8101 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1158,7 +1163,7 @@ services:
       # (that would cycle — nutritionist-agent depends_on mcp-nutrition); the forward is retried.
       NUTRITIONIST_AGENT_URL: http://nutritionist-agent:8105
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8104/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8104 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1185,7 +1190,7 @@ services:
       MCP_CREATOR_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_CREATOR_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8108/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8108 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1212,7 +1217,7 @@ services:
       MCP_BRIEFING_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_BRIEFING_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8114/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8114 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1239,7 +1244,7 @@ services:
       MCP_TRAVEL_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_TRAVEL_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8123/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8123 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1266,7 +1271,7 @@ services:
       MCP_DOCS_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_DOCS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8116/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8116 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1293,7 +1298,7 @@ services:
       MCP_INVENTORY_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_INVENTORY_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8127/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8127 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1320,7 +1325,7 @@ services:
       MCP_COACH_DB_USER: ${POSTGRES_USER:-ailife}
       MCP_COACH_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8121/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8121 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1361,7 +1366,7 @@ services:
       # feed on a user's first calendar message and replies with the subscribe link (#195).
       CALENDAR_PUBLIC_BASE_URL: ${CALENDAR_PUBLIC_BASE_URL:-}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8086 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1413,7 +1418,7 @@ services:
       MCP_CHART_RENDER_URL: http://mcp-chart-render:8120
       FINANCE_AGENT_MCP_CLIENT_ENABLED: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:-true}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8093/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8093 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1450,7 +1455,7 @@ services:
       TASKS_AGENT_MCP_CLIENT_ENABLED: ${TASKS_AGENT_MCP_CLIENT_ENABLED:-true}
       TASKS_AGENT_MEMORY_RECALL_K: ${TASKS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8096/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8096 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1487,7 +1492,7 @@ services:
       RESEARCHER_AGENT_MCP_CLIENT_ENABLED: ${RESEARCHER_AGENT_MCP_CLIENT_ENABLED:-true}
       RESEARCHER_AGENT_MEMORY_RECALL_K: ${RESEARCHER_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8099/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8099 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1537,7 +1542,7 @@ services:
       STYLIST_AGENT_MCP_CLIENT_ENABLED: ${STYLIST_AGENT_MCP_CLIENT_ENABLED:-true}
       STYLIST_AGENT_MEMORY_RECALL_K: ${STYLIST_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8102/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8102 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1590,7 +1595,7 @@ services:
       NUTRITIONIST_AGENT_MCP_CLIENT_ENABLED: ${NUTRITIONIST_AGENT_MCP_CLIENT_ENABLED:-true}
       NUTRITIONIST_AGENT_MEMORY_RECALL_K: ${NUTRITIONIST_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8105/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8105 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1634,7 +1639,7 @@ services:
       CHEF_AGENT_MCP_CLIENT_ENABLED: ${CHEF_AGENT_MCP_CLIENT_ENABLED:-true}
       CHEF_AGENT_MEMORY_RECALL_K: ${CHEF_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8106/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8106 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1687,7 +1692,7 @@ services:
       CREATOR_AGENT_MCP_CLIENT_ENABLED: ${CREATOR_AGENT_MCP_CLIENT_ENABLED:-true}
       CREATOR_AGENT_MEMORY_RECALL_K: ${CREATOR_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8109/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8109 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1733,7 +1738,7 @@ services:
       BRIEFING_AGENT_MCP_CLIENT_ENABLED: ${BRIEFING_AGENT_MCP_CLIENT_ENABLED:-true}
       BRIEFING_AGENT_MEMORY_RECALL_K: ${BRIEFING_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8115/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8115 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1786,7 +1791,7 @@ services:
       TRAVEL_AGENT_MCP_CLIENT_ENABLED: ${TRAVEL_AGENT_MCP_CLIENT_ENABLED:-true}
       TRAVEL_AGENT_MEMORY_RECALL_K: ${TRAVEL_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8124/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8124 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1826,7 +1831,7 @@ services:
       DOCS_AGENT_MCP_CLIENT_ENABLED: ${DOCS_AGENT_MCP_CLIENT_ENABLED:-true}
       DOCS_AGENT_MEMORY_RECALL_K: ${DOCS_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8117/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8117 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1876,7 +1881,7 @@ services:
       INVENTORY_AGENT_MCP_CLIENT_ENABLED: ${INVENTORY_AGENT_MCP_CLIENT_ENABLED:-true}
       INVENTORY_AGENT_MEMORY_RECALL_K: ${INVENTORY_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8128/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8128 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1916,7 +1921,7 @@ services:
       NOTES_RESURFACE_OLDER_THAN_DAYS: ${NOTES_RESURFACE_OLDER_THAN_DAYS:-30}
       NOTES_RESURFACE_CRON: ${NOTES_RESURFACE_CRON:-0 0 10 * * MON}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8118/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8118 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1952,7 +1957,7 @@ services:
       ORCHESTRATOR_URL: http://orchestrator:8083
       COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8119/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8119 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -1992,7 +1997,7 @@ services:
       COACH_NOTES_SCAN_LIMIT: ${COACH_NOTES_SCAN_LIMIT:-100}
       COACH_GATHERED_NOTES_MAX: ${COACH_GATHERED_NOTES_MAX:-15}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8122/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8122 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -2021,7 +2026,7 @@ services:
       CALENDAR_WEB_PAST_DAYS: ${CALENDAR_WEB_PAST_DAYS:-31}
       CALENDAR_WEB_FUTURE_DAYS: ${CALENDAR_WEB_FUTURE_DAYS:-366}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8113/actuator/health"]
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8113 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
       interval: 10s
       timeout: 3s
       retries: 10
