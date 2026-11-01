@@ -4,6 +4,7 @@ import dev.fedorov.ailife.agentruntime.intent.SkillClassifier;
 import dev.fedorov.ailife.agentruntime.skill.Skill;
 import dev.fedorov.ailife.agentruntime.skill.SkillRegistry;
 import dev.fedorov.ailife.agents.calendar.chat.CalendarChat;
+import dev.fedorov.ailife.agents.calendar.flow.AgendaReader;
 import dev.fedorov.ailife.agents.calendar.flow.EventCanceller;
 import dev.fedorov.ailife.agents.calendar.flow.EventCapturer;
 import dev.fedorov.ailife.agents.calendar.flow.EventMover;
@@ -56,13 +57,14 @@ class GoldenCalendarRoutingTest {
 
     /** The actions the calendar classifier prompt allows (no MCP tools → only skill / chat). */
     private static final Set<String> ACTIONS = Set.of("skill", "chat");
-    private static final Set<String> SKILLS = Set.of("event-capture", "event-cancel", "event-move");
+    private static final Set<String> SKILLS = Set.of("event-capture", "event-cancel", "event-move", "event-list");
 
     private final ObjectMapper json = new ObjectMapper();
     private final LlmClient llm = GoldenLlm.client();
     private final EventCapturer capturer = mock(EventCapturer.class);
     private final EventCanceller canceller = mock(EventCanceller.class);
     private final EventMover mover = mock(EventMover.class);
+    private final AgendaReader reader = mock(AgendaReader.class);
     private final CalendarChat chat = mock(CalendarChat.class);
     private final AgentManifest manifest = new AgentManifest(
             "calendar", "calendar agent", "0.1.0", 8086, List.of(), List.of(),
@@ -71,9 +73,10 @@ class GoldenCalendarRoutingTest {
     private final SkillRegistry skills = new SkillRegistry(List.of(
             skill("skills/calendar/event-capture/SKILL.md"),
             skill("skills/calendar/event-cancel/SKILL.md"),
-            skill("skills/calendar/event-move/SKILL.md")));
+            skill("skills/calendar/event-move/SKILL.md"),
+            skill("skills/calendar/event-list/SKILL.md")));
     private final CalendarIntentRouter router = new CalendarIntentRouter(
-            llm, skills, new SkillClassifier(json), manifest, capturer, canceller, mover, chat);
+            llm, skills, new SkillClassifier(json), manifest, capturer, canceller, mover, reader, chat);
 
     /**
      * STRUCTURE — the real model, given the real router prompt, must return well-formed routing JSON: a
@@ -120,6 +123,8 @@ class GoldenCalendarRoutingTest {
         assertRoutesTo("запиши встречу с врачом завтра в 15", "capture");
         assertRoutesTo("отмени встречу с врачом", "cancel");
         assertRoutesTo("перенеси встречу с врачом на 16:00", "move");
+        assertRoutesTo("что у меня в календаре на следующей неделе", "list");
+        assertRoutesTo("какие события сегодня", "list");
     }
 
     private void assertRoutesTo(String text, String expectedFlow) {
@@ -167,6 +172,7 @@ class GoldenCalendarRoutingTest {
         when(capturer.capture(any())).thenReturn(Mono.just(sentinel("capture")));
         when(canceller.cancel(any())).thenReturn(Mono.just(sentinel("cancel")));
         when(mover.move(any())).thenReturn(Mono.just(sentinel("move")));
+        when(reader.read(any())).thenReturn(Mono.just(sentinel("list")));
         when(chat.reply(any())).thenReturn(Mono.just(sentinel("chat")));
     }
 

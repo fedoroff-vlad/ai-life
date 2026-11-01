@@ -54,6 +54,7 @@ Principles: clarify ambiguous time; store tzid from profile; birthdays/anniversa
 ## Skills (skills/calendar/)
 - `birthday-greeter` — personalized greeting from profile + memories.
 - `gift-recommender` — ideas from `core.people.interests` + past events/notes; may ask finance for budget. Endpoint + scheduler invokes 7 days before birthday.
+- `event-list` — reads back what is already on the calendar for a period the user names (HC-5 below). Intent skill; the only read-side skill in this domain.
 - `video-link-analyzer` — via mcp-youtube transcript (or web-search fallback): extract date/subject → confirm → create event with source_ref.
 - (later) `parse-datetime`, `recurrence-rules`, `reminder-format`.
 
@@ -82,8 +83,32 @@ shared `SharingResolver` exactly as `create_event` already does.
   `/resume`) → delete. Confirm-before-delete is a standing calendar principle (above).
 - **HC-4 — move / reschedule via chat.** `event-move` SKILL → resolve target → `UpdateEventInput` via a new
   `/internal/event/{id}` PUT passthrough (`update_event` tool).
+- **HC-5 — read the calendar back via chat. (added 2026-11-01, found on the first live deployment.)** Until
+  this slice the domain had **no read-side skill at all**: `event-capture` / `event-cancel` / `event-move`
+  plus the wake-driven birthday/gift pair. So "что у меня в календаре" had no right answer for the
+  classifier to pick and landed in `event-capture`, which replied "Когда назначить? Уточните дату и время" —
+  the agent asking the user to schedule the thing they were asking about. `event-list` SKILL + `flow/AgendaReader`:
+  resolve the caller's read set (personal ∪ shared, as HC-3 does) → read the same ±window from
+  `calendar.events_cache` via `GET /internal/events` → the SKILL resolves the asked-for period against an
+  explicit `now` and answers in prose. Read-only: no confirm gate, no undo handle.
+  **`now` is passed explicitly on purpose** — nothing else in any agent prompt carries the current date, so
+  without it the model cannot resolve "next week" and starts guessing the year (observed: it offered 2024,
+  then "defaulting to 2025", against a real date of 2026-11-01). Injecting the date centrally for every
+  agent is a separate, wider slice.
 
 **Acceptance criteria (WHEN/THEN):**
+- Scenario: **read the calendar back.**
+  - WHEN the owner asks "что у меня в календаре на следующей неделе" or "какие события сегодня"
+  - THEN the router picks `event-list` rather than a write skill (asserted by `GoldenCalendarRoutingTest`)
+- Scenario: **a relative period resolves against now, not a guess.**
+  - WHEN `event-list` runs for "на следующей неделе"
+  - THEN the period is computed from the `now` the flow supplies, and the answer names only events that
+    fall inside it (not yet asserted — needs a golden with a seeded window; the routing half is covered)
+- Scenario: **an empty period says so instead of inventing.**
+  - WHEN the asked-for period contains none of the events handed to the skill
+  - THEN the reply says plainly that there is nothing, and names no event (not yet asserted — same golden
+    as above; the SKILL states the rule, and the wardrobe-auditor fix of 2026-11-01 is why it is stated as
+    a prohibition rather than left implicit)
 - Scenario: **create by chat.** WHEN the owner says "запиши встречу с врачом завтра в 15:00" → THEN calendar
   parses the time, creates the event in the resolved household, and confirms naming it (no id, no inter-agent
   hop) (asserted by `EventCapturerTest`).
