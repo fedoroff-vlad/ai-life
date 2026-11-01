@@ -483,6 +483,23 @@ else
   done
 fi
 
+echo "check 16: app healthchecks use no binary the app image lacks (actuator-probe)"
+# The app image is eclipse-temurin:25-jre — no wget, no curl, no nc, no python. A probe built on one of
+# them can never pass (failing streak 198 on the first real bring-up, 2026-11-01), and because
+# depends_on waits for service_healthy, one such probe holds the whole dependency tree. bash IS present,
+# so an /actuator/health probe speaks HTTP over /dev/tcp. Third-party images keep their own probes —
+# this only looks at the ones hitting /actuator/health.
+c16="infra/docker-compose.yml"
+if [ ! -f "$c16" ]; then
+  err "$c16 is missing — the compose SSOT moved; update check 16 in $0"
+else
+  while IFS=: read -r ln _; do
+    [ -z "${ln:-}" ] && continue
+    err "$c16:$ln: an /actuator/health probe shells out to wget/curl/nc, which the app image does not ship — it can never pass"
+    err "→ use the bash + /dev/tcp probe the other app services use (see the comment on the first healthcheck in $c16)"
+  done <<< "$(grep -nE 'actuator/health' "$c16" | grep -E 'wget|curl|[^a-z]nc[^a-z]' | cut -d: -f1 | sed 's/$/:/')"
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
