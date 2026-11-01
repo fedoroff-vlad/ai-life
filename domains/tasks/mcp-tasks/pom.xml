@@ -46,9 +46,18 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!--
+          webmvc, not webflux. This module also pulls spring-boot-starter-web for its
+          /internal/* controllers, which makes Spring Boot choose the SERVLET stack (Tomcat).
+          The webflux MCP starter registers its endpoints as reactive router functions, which a
+          servlet stack never mounts — so /sse answered 404 and every MCP client dialling this
+          server died at boot (found on the first real bring-up, 2026-11-01). Matching the
+          starter to the stack is the fix; forcing web-application-type: reactive instead would
+          put this module's blocking JDBC on the event loop. Guarded by check 17.
+        -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webflux</artifactId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
 
         <dependency>

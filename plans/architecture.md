@@ -214,6 +214,18 @@ Per-channel model picks + rationale + rollout live in **[model-strategy.md](mode
 - LLM: only via `libs/llm-client`. MCP: only via `libs/mcp-client`.
 - **Resilience on the synchronous LLM path (#631):** `libs/llm-client` wraps every unary gateway call in a response timeout + a transient-only retry (connect/timeout/5xx, exponential backoff) + a circuit breaker (`CB(Retry(call))`) that fails fast once the gateway is sustainedly unhealthy — a 4xx is never retried nor counted, and streaming is breaker-guarded but not retried. Knobs under `ailife.llm-client.resilience.*` (see `libs/llm-client/README.md`). The async outbound path already has its at-least-once backstop in `libs/event-bus` (outbox); durable **inbound** buffering is the separate [#633](https://github.com/fedoroff-vlad/ai-life/issues/633).
 - **Tool-call transport split (decided 2026-06-26, closes #201):** MCP/SSE (`@Tool` + `libs/mcp-client`) is the surface for **LLM tool-selection** (the model sees `@Tool` descriptions and picks) and for **external clients** that speak the MCP protocol. Inter-service deterministic tool calls (agent→MCP, orchestrator→agent, `ToolDispatcher`) use **`/internal/*` REST** — same `libs/contracts` DTOs, MockWebServer-testable, no MCP transport overhead. Every MCP tool therefore has two representations: `@Tool` for LLM/external, `POST /internal/tools/{name}` for internal callers. Do NOT use `libs/mcp-client` for deterministic inter-service calls.
+  - **The MCP/SSE half was never actually serving (found 2026-11-01, first real bring-up).** Every
+    domain-MCP depended on `spring-ai-starter-mcp-server-webflux` while also pulling
+    `spring-boot-starter-web` for its `/internal/*` controllers — so each one booted on **Tomcat**
+    and the reactive MCP endpoints were never mounted: `GET /sse` → **404**, health green. Nothing
+    caught it because the deterministic `/internal/*` half is what the code uses, the agents' own
+    E2E tests route through it on purpose (MCP SSE cannot be MockWebServer'd), and only
+    `tasks-agent` fail-fasts on its MCP client at boot — which is why it alone crash-looped (69
+    restarts) instead of degrading quietly. Consequence while it lasted: the **LLM tool-selection**
+    surface this bullet describes did not exist in a deployed stack. Fix: match the starter to the
+    stack (`-webmvc`), proven on `mcp-tasks` — `/sse` → 200 and a real MCP handshake (protocol
+    2024-11-05, tool capabilities). Rolling out per module; the shared capability-MCPs in
+    `shared/mcp/*` were always fine (no `starter-web`, so they boot reactive).
 
 ## Security — untrusted input & injection (doctrine)
 ai-life ingests **untrusted text** on many surfaces — web pages (`mcp-web`), OCR of receipts/documents
