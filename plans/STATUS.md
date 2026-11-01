@@ -9,12 +9,13 @@ Two different claims live in these docs; keep them apart (FUT-2, arch-checkup 20
 - **`built+green`** — code merged into `main`, CI (unit/slice/golden/E2E) green. This is what **every ✅ / DONE /
   COMPLETE here and in HISTORY means** unless a bullet says otherwise.
 - **`live`** — actually running in a deployed instance serving the household.
-**Nothing is `live` yet.** There is **no 24/7 deployment** — the target host (Mac Studio) isn't purchased, so
-the whole system is `built+green`, dev/CI-only ([#483](https://github.com/fedoroff-vlad/ai-life/issues/483),
-[lifecycle.md](lifecycle.md)). A "✅ COMPLETE" agent/skill means *the code is proven in tests*, **not** "an agent
-is using it in production". The **`## Parked`** Mac-gated tracks are a stricter case — blocked even for
-build/validation (no Docker on the dev VDI): they are `designed`/`partially-built`, not fully `built+green`. When
-the Mac lands, the deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
+**Nothing is `live` yet** — but as of **2026-10-31 the reason changed**: the target host **arrived and is set
+up** (toolchain, full `verify` green, Ollama + the deploy model, golden lane runnable), so the hardware blocker
+in [#483](https://github.com/fedoroff-vlad/ai-life/issues/483) is gone and what is left is the deploy work
+itself ([lifecycle.md](lifecycle.md)). A "✅ COMPLETE" agent/skill still means *the code is proven in tests*,
+**not** "an agent is using it in production". The build/validation half of the old Mac-gating is also gone (a
+Docker daemon exists now); the **`## Mac-gated`** tracks below are the slices that still have to be *built*.
+The deploy/lifecycle slices (LC-2…LC-5) are what flip `built+green` → `live`.
 
 ## Now
 - **Runtime consolidation ([#584](https://github.com/fedoroff-vlad/ai-life/issues/584), [ADR-0006](adr/ADR-0006-runtime-topology-footprint.md)) — Path B / B1 in flight (owner direction 2026-09-08).** Goal: collapse ~50 JVMs (~10–15 GB) into ~13 co-hosting JVM hosts (~2–3 GB), zero contract change. **Slice 1** (measurement harness [`scripts/measure-footprint.sh`](../scripts/measure-footprint.sh)) and **slice 2** (the topology map) are authored; **slice 3 has shipped 3a…3k** — the packaging enabler a spike found to be the prerequisite (`exec` classifier → plain classes jar as the main artifact, `-exec.jar` for Docker) + the **entire resident tier** (Domain-MCP-hot 3c · Agent-hot 3d · Platform-hot 3e) + **six cold host-units** (Docs 3f · Content 3g · Lifestyle 3h · Brief+Travel 3i · Finance-aux 3j · Inventory 3k), each proven by its own `*HostFootprintIntegrationTest`. Per-slice detail and the three reusable launcher fixes (the `application.yml` config-name skip · the per-module `web-application-type` re-supply · the per-agent `manifest/<name>/AGENT.md` path) live in **[topology-map.md](topology-map.md) §Slice 3 — the SSOT; this bullet links, it does not restate.** **Next:** (i) the RAM-delta measurement (env-wired host `main` + `measure-footprint.sh` on the running stack — the "~2–3 GB vs ~10–15 GB" number, Mac-gated), (ii) **3l** — wire `mcp-media-fetch` into `domain-mcp-host` (that host's image then needs `yt-dlp`+`ffmpeg`), (iii) the last cold unit — Coach (parked [#289](https://github.com/fedoroff-vlad/ai-life/issues/289)). Native/GraalVM (path C) stays the later, mac-gated lever.
@@ -41,9 +42,10 @@ injection guard, all closed).
 - **coordination** — I3 live-read brief enrichment (the `answer(request, extraGather)` overload, applies to
   every `brief` exposer). Optional; [#477](https://github.com/fedoroff-vlad/ai-life/issues/477) closed
   without it. → [stage4.md](stage4.md) §Track I
-- **memory quality — Mac-gated** — flip `MEMORY_AMBIENT_CAPTURE_ENABLED` on once
-  `GoldenAmbientPrecisionTest` is green on the deploy model (the dev box is CPU-only).
-  → [ambient-capture.md](ambient-capture.md) §MQ-3
+- **memory quality — measured on the Mac 2026-11-01, gate stays closed.** `GoldenAmbientPrecisionTest` now
+  runs on the deploy model and fails one metric: act-recall 0.78 vs the 0.80 bar, with act-precision a perfect
+  1.00. So `MEMORY_AMBIENT_CAPTURE_ENABLED` stays `false`, and the work is a prompt tune, not a wait for
+  hardware. Matrix + the tuning lever → [ambient-capture.md](ambient-capture.md) §MQ-3
 - **proactive UX — PX-4 (snooze/dismiss + mute-via-button), now unblocked.** It was deferred because its
   Telegram inline-button/callback infra overlapped
   [#489](https://github.com/fedoroff-vlad/ai-life/issues/489), to be built once as a shared primitive —
@@ -51,26 +53,18 @@ injection guard, all closed).
   javadoc already names PX-4 as its next tenant), so the stated blocker is gone and this is buildable now.
   → [platform.md](platform.md) §Proactive UX
 
-## Parked — blocked on hardware (Mac not yet purchased)
-- **The full golden lane — throughput-gated, not broken (measured 2026-09-24).** The dev VDI has no GPU:
-  `qwen3:8b` Q4 generates **~7.4 tok/s**, so only the cheap subset (`Golden*RoutingTest` /
-  `Golden*InjectionResistanceTest`, ~30–60 s a class off the warm stack) is runnable locally. A
-  full-reactor attempt stopped after 13 classes (26 tests green) with **two environment failures, both
-  timeouts** — finance's `GoldenAdvisorSynthesisTest` (the advisor's own `TimeoutException` → soft-failed
-  short reply → the "implausibly short" assertion fired correctly) and finance's `GoldenRoutingTest`
-  (120 s `block` expired while the box was still busy). **Neither is a logic regression**, and retrying on
-  the same hardware cannot clear them. The lane runs for real on the deploy box against the stronger MoE
-  default — step 3 of [model-strategy.md](model-strategy.md) §Rollout; per-class recipe + the `-fae` note →
-  [`platform/llm-gateway/README.md`](../platform/llm-gateway/README.md) §Golden tests.
+## Mac-gated — the host is here, these slices still have to be built
+_(The golden lane is no longer parked: it ran in full on the Mac 2026-11-01 — 82 tests, no timeouts, and the
+two 2026-09-24 "environment failures" came out green, confirming that diagnosis. Findings → [HISTORY.md](HISTORY.md).)_
 - **Mac deployment + hot/cold lifecycle — [lifecycle.md](lifecycle.md) (owner-signed 2026-07-10).** Target:
   Mac Studio M4 Max 64/512 running ai-life 24/7 (hot set always-on + auto cold start/stop via a new
   `platform/supervisor`, + dynamic model downshift when the coder tenant runs). **Shipped so far** →
   HISTORY: `deploy-mvp` config (`.env.mac.example`, per-JVM heap caps, infra/README), **LC-1** hot/cold
   compose profiles (2026-07-15), **LC-4** `/v1/model-profile` evict-before-load swap (2026-07-21). **Why
   parked:** the next slice **LC-2 (`platform/supervisor` + socket-proxy)** wraps `docker compose up -d` and
-  can't be meaningfully built/tested without a Docker daemon — there is none on the dev box, and the Mac
-  isn't purchased yet. `deploy-mvp`'s own remaining step (first real `--profile hot up` + cross-domain
-  smoke) is likewise hardware-blocked. **Note (2026-10-07):** that first `--profile hot up` would have
+  can't be meaningfully built/tested without a Docker daemon. **That blocker lifted 2026-10-31** — Docker
+  Desktop runs on the Mac, so LC-2 and `deploy-mvp`'s remaining step (first real `--profile hot up` +
+  cross-domain smoke) are now buildable work rather than hardware-blocked. **Note (2026-10-07):** that first `--profile hot up` would have
   failed on arrival — #294 left the hot set's dependency closure broken (`invalid compose project`) for a
   month. Fixed + now machine-checked by `check-consistency.sh` check 13; see
   [lifecycle.md](lifecycle.md) §Hot/cold. Ordering when hardware lands: LC-2 → LC-2.5 cold-tolerant discovery
@@ -105,7 +99,8 @@ Tech-debt: Apache AGE upgrade #296 (gated). Older closed-out debt (incl. #323 JD
 live):
 - **Assistant hardening / road-test [#491](https://github.com/fedoroff-vlad/ai-life/issues/491) ✅
   (2026-08-28)** — #485/#484 → #486 → #487/#488 → #489/#490 all shipped. What is still live: the 24/7
-  instance [#483](https://github.com/fedoroff-vlad/ai-life/issues/483) (hardware-blocked, `## Parked`) and
+  instance [#483](https://github.com/fedoroff-vlad/ai-life/issues/483) (no longer hardware-blocked — the box
+  arrived 2026-10-31, see `## Mac-gated`) and
   PX-4 (`## Deferred`). **It unblocked Jarvis-style autonomy** — smart-home #192 (open, above) and
   coordination #477 (shipped).
 - **Architecture hardening [#479](https://github.com/fedoroff-vlad/ai-life/issues/479) ✅ (2026-08-28)** —
