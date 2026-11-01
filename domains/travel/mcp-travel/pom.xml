@@ -46,9 +46,13 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- webmvc, not webflux: this module pulls spring-boot-starter-web for its /internal/*
+             controllers, so it boots on the servlet stack, where the webflux MCP starter's
+             reactive endpoints never mount (/sse → 404). See plans/PATTERNS.md §Recipe: add a
+             new domain-MCP; enforced by check-consistency.sh check 17. -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webflux</artifactId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
 
         <dependency>

@@ -500,6 +500,27 @@ else
   done <<< "$(grep -nE 'actuator/health' "$c16" | grep -E 'wget|curl|[^a-z]nc[^a-z]' | cut -d: -f1 | sed 's/$/:/')"
 fi
 
+echo "check 17: the MCP server starter matches the module's web stack (mcp-starter-stack)"
+# A module that also pulls spring-boot-starter-web boots on the SERVLET stack, where the webflux
+# MCP starter's reactive router functions are never mounted: /sse answers 404 while health stays
+# green, and any agent dialling it dies at context refresh. That was every domain-MCP until
+# 2026-11-01. The inverse is equally broken: webmvc endpoints do not mount on a reactive stack.
+while IFS= read -r c17_pom; do
+  [ -z "${c17_pom:-}" ] && continue
+  grep -q "spring-ai-starter-mcp-server" "$c17_pom" || continue
+  c17_servlet=no; grep -q "<artifactId>spring-boot-starter-web</artifactId>" "$c17_pom" && c17_servlet=yes
+  c17_flux=no;    grep -q "spring-ai-starter-mcp-server-webflux" "$c17_pom" && c17_flux=yes
+  c17_mvc=no;     grep -q "spring-ai-starter-mcp-server-webmvc"  "$c17_pom" && c17_mvc=yes
+  if [ "$c17_servlet" = yes ] && [ "$c17_flux" = yes ]; then
+    err "$c17_pom: spring-boot-starter-web (servlet stack) + the WEBFLUX MCP starter — the MCP endpoints never mount, /sse will answer 404"
+    err "→ switch this module to spring-ai-starter-mcp-server-webmvc (plans/PATTERNS.md §Recipe: add a new domain-MCP)"
+  fi
+  if [ "$c17_servlet" = no ] && [ "$c17_mvc" = yes ]; then
+    err "$c17_pom: the WEBMVC MCP starter without spring-boot-starter-web — this module boots reactive, where webmvc endpoints never mount"
+    err "→ use spring-ai-starter-mcp-server-webflux here, or add spring-boot-starter-web if it really is a servlet module"
+  fi
+done <<< "$(find domains shared -name pom.xml 2>/dev/null)"
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2

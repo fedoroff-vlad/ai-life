@@ -48,8 +48,16 @@ pattern; mcp-caldav is older and slightly less aligned). For a schema-less share
 
 1. New module dir `domains/<domain>/mcp-<name>/` with:
    - `pom.xml` (parent = `ai-life-parent`, `<artifactId>` = `<name>`, depends on
-     `contracts` + `platform-common` + `spring-ai-starter-mcp-server-webflux` + JPA +
-     `ical4j`/whatever).
+     `contracts` + `platform-common` + **`spring-ai-starter-mcp-server-webmvc`** + JPA +
+     `ical4j`/whatever). **Match the MCP starter to the module's web stack.** A domain-MCP also
+     pulls `spring-boot-starter-web` for its `/internal/*` controllers, which makes Spring Boot
+     choose the **servlet** stack (Tomcat) — and the **webflux** MCP starter registers its
+     endpoints as reactive router functions that a servlet stack never mounts. The server then
+     answers **404 on `/sse`** while looking perfectly healthy, and any agent whose MCP client
+     dials it dies at context refresh. That is how every domain-MCP shipped until 2026-11-01;
+     see [architecture.md](architecture.md) §Tool-call transport split. Forcing
+     `web-application-type: reactive` is the wrong direction — it puts the module's blocking JDBC
+     on the event loop. Enforced: `check-consistency.sh` **check 17** (`mcp-starter-stack`).
    - `Dockerfile` (mirror mcp-caldav's two-stage Temurin 25 build). It does `COPY . .`
      (the **full reactor**) then `mvn -B -ntp -pl <module> -am -DskipTests package` — the root
      aggregator pom lists every module, so Maven needs them all present. Do NOT "optimise" it
