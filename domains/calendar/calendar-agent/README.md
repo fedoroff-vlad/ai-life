@@ -8,14 +8,17 @@ Currently bound MCP servers: `mcp-caldav` (write-through Radicale + cache). Skil
 loaded from `skills/calendar/<name>/SKILL.md`: `birthday-greeter`, `gift-recommender`,
 `event-capture` (user-facing "запиши встречу …" create, #486/Track H.2 HC-1),
 `event-cancel` (user-facing "отмени встречу …" delete, #486/Track H.2 HC-3),
-`event-move` (user-facing "перенеси встречу …" reschedule, #486/Track H.2 HC-4).
+`event-move` (user-facing "перенеси встречу …" reschedule, #486/Track H.2 HC-4),
+`event-list` (user-facing "что у меня в календаре …" read-back, HC-5 — the domain's only
+read-side skill; before it a read question was classified into `event-capture`).
 Also handles `ics.pull` as a **system trigger** (no LLM) forwarded directly to
 mcp-ics-import's `POST /internal/pull/{id}`.
 
 **User-facing event CRUD via chat (#486/Track H.2):** `/intent` is no longer a single chat call — a
 `CalendarIntentRouter` (shared `SkillClassifier`, #475) classifies the message by SKILL.md description into
 one event flow (HC-1: `event-capture` → `EventCapturer` creates the event via mcp-caldav; HC-3:
-`event-cancel` → `EventCanceller` deletes one; HC-4: `event-move` → `EventMover` reschedules one) or the
+`event-cancel` → `EventCanceller` deletes one; HC-4: `event-move` → `EventMover` reschedules one;
+HC-5: `event-list` → `AgendaReader` answers what is already there, read-only) or the
 chat fallback (`CalendarChat`, which keeps the #195 ICS-feed nudge). A chat-created event is **undoable**
 (HC-2): `EventCapturer` attaches an `IntentResponse.undo` handle and the `undo` action cancels it via
 mcp-caldav's `DELETE /internal/event/{id}`, so "отмени последнее" drops it. **Cancel via chat (HC-3)** and
@@ -38,7 +41,7 @@ always runs, just without that enrichment when memory-service is down.
 | method | path                                       | purpose                                              |
 |--------|--------------------------------------------|------------------------------------------------------|
 | GET    | `/agents/calendar/manifest`                | parsed AGENT.md (frontmatter + body)                 |
-| POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent → `CalendarIntentRouter` classifies into an event flow (`event-capture`) or chat (`CalendarChat` + #195 feed nudge) |
+| POST   | `/agents/calendar/intent`                  | hit by orchestrator on user intent → `CalendarIntentRouter` classifies into an event flow (`event-capture` / `event-cancel` / `event-move`), the read flow (`event-list` → `AgendaReader`) or chat (`CalendarChat` + #195 feed nudge) |
 | POST   | `/agents/calendar/resume`                  | hit by orchestrator when the user replies to an open calendar question (route-locked). Dispatches on `pendingAction.flow`: `event-cancel-confirm` → `EventCanceller.resume` (confirm-before-delete, #486/HC-3), `event-move-confirm` → `EventMover.resume` (confirm-before-move, #486/HC-4). A null `pendingAction` on the reply clears the lock |
 | POST   | `/agents/calendar/triggers/{kind}`         | hit by orchestrator on a scheduler wake (`birthday.greet`, `gift.recommend`, …) |
 | POST   | `/agents/calendar/actions/{action}`        | inter-agent action (Stage 4); `create_event` → resolves the item's private/shared scope to a personal/family household (ADR-0001 slice 4) then mcp-caldav `/internal/event`, returns `{eventUid}`; `undo` → cancel a just-created event by its stored id via mcp-caldav `DELETE /internal/event/{id}` (#486/HC-2), honest `ok=false` when gone; `brief` → read-only sub-question answer (#290 Slice B2-followup) |
