@@ -229,6 +229,22 @@ This is the `llm-model-tag` coupling — a config change, not code:
    numbers are float32-on-CPU from the dev box and bound nothing about MPS.
 
 ## Runtime note
+**Host runtime env (pinned 2026-11-01 in [`scripts/bootstrap-mac.sh`](../scripts/bootstrap-mac.sh)):**
+`OLLAMA_NUM_PARALLEL=4` · `OLLAMA_CONTEXT_LENGTH=100000` (+ the formula's own
+`OLLAMA_FLASH_ATTENTION=1` / `OLLAMA_KV_CACHE_TYPE=q8_0`). Both are the mitigation §One model for
+both tenants predicted: Ollama's default parallelism is **1**, and one user message costs 3–4
+sequential model calls (orchestrator classify → agent skill-route → agent synthesis, plus
+embeddings). Measured on this box those calls run **5–25 s each**, so serialised they blew
+calendar-agent's 60 s skill-routing budget on the first real smoke — the latency-under-concurrency
+cost this file flagged as the single real downside of one shared model, arriving exactly as
+described. Cutting the context from the model's default 262144 to 100000 dropped residency from
+**~27 GB to 23 GB** and funds the parallel slots' KV cache; single-stream throughput is unchanged
+(153.09 tok/s before and after), because parallelism removes the queue, not the per-token cost.
+Pinned in the bootstrap rather than the launchd plist on purpose: Homebrew *generates* that plist,
+so `brew services restart` discards hand edits — which is also why the reload uses `launchctl`.
+*(Open: whether the four slots share the 100000 window or each get it. One measurement cannot tell;
+watch for long dialogues being truncated under concurrency.)*
+
 Stay on **Ollama on its MLX engine** (Apple Silicon, preview since 2026-03): keeps the openai-compatible
 API + the Ollama-native evict-before-load handshake LC-4 depends on (`ollama stop` / `/api/ps`), while
 gaining MLX speed. Switching to LM Studio / `mlx_lm.server` / `llama-server` would change the eviction
