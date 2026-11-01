@@ -20,10 +20,21 @@ databaseChangeLog:
                   type: uuid
                   constraints:
                     nullable: true
-                    foreignKeyName: fk_people_user
-                    referencedTableSchemaName: core
-                    referencedTableName: users
-                    referencedColumnNames: id
+
+        # The FK is its own change on purpose. An inline column constraint inside addColumn
+        # silently DROPS referencedTableSchemaName (Liquibase 4.30) and emits
+        # `REFERENCES public.users`, which does not exist — core.users does. The same inline
+        # form inside createTable honours the schema, which is why the other 88 FKs in these
+        # changelogs are fine and this was the only one that failed. Guarded by
+        # check-consistency.sh check 14.
+        - addForeignKeyConstraint:
+            constraintName: fk_people_user
+            baseTableSchemaName: core
+            baseTableName: people
+            baseColumnNames: user_id
+            referencedTableSchemaName: core
+            referencedTableName: users
+            referencedColumnNames: id
 
         - sql:
             sql: |

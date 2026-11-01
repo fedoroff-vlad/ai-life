@@ -432,6 +432,57 @@ else
   done <<< "$(printf '%s\n' "$c13" | grep '^D' || true)"
 fi
 
+echo "check 14: a FK on an added column is its own change, not an inline constraint (addcolumn-inline-fk)"
+# An inline foreignKeyName inside addColumn silently drops referencedTableSchemaName (Liquibase 4.30)
+# and emits REFERENCES public.<table> — which killed the first real migration run (015-people-user-id,
+# 2026-11-01). Inside createTable the same inline form is fine, so only addColumn blocks are flagged.
+# Block extent is by INDENTATION: "- addColumn:" opens it, and the first later non-blank line indented
+# no deeper than that dash closes it (a nested "- column:" must not close it).
+c14_dir="infra/liquibase/features"
+if [ ! -d "$c14_dir" ]; then
+  err "$c14_dir is missing — the changelog layout moved; update check 14 in $0"
+else
+  while IFS=: read -r f ln fk; do
+    [ -z "${f:-}" ] && continue
+    err "$f:$ln: inline '$fk' inside addColumn — referencedTableSchemaName is dropped there, so this emits REFERENCES public.<table>"
+    err "→ declare the column plain and add a separate addForeignKeyConstraint (see plans/PATTERNS.md §Recipe: add a Liquibase migration)"
+  done <<< "$(awk '
+    function indent(s) { match(s, /[^ ]/); return RSTART - 1 }
+    FNR == 1 { blk = 0 }
+    /^[[:space:]]*-[[:space:]]*addColumn:[[:space:]]*$/ { blk = 1; lvl = indent($0); next }
+    blk && /^[[:space:]]*$/ { next }
+    blk && indent($0) <= lvl { blk = 0 }
+    blk && /foreignKeyName:/ {
+      name = $0
+      sub(/^.*foreignKeyName:[[:space:]]*/, "", name)
+      sub(/[[:space:]]*$/, "", name)
+      print FILENAME ":" FNR ":" name
+    }
+  ' "$c14_dir"/*.yml 2>/dev/null)"
+fi
+
+echo "check 15: every schema the changelogs declare is created by infra/postgres/init.sql (schema-bootstrap)"
+# init.sql runs ONCE, on a fresh Postgres volume, so a schema missing there is invisible until the
+# first real bring-up — exactly how `coach` was missed until 2026-11-01, where changeset 42 of 47 died
+# on `schema "coach" does not exist`. Compares the explicit schema keys in the changelogs against the
+# CREATE SCHEMA list; extra schemas in init.sql are fine, missing ones are not.
+c15_init="infra/postgres/init.sql"
+c15_dir="infra/liquibase/features"
+if [ ! -f "$c15_init" ] || [ ! -d "$c15_dir" ]; then
+  err "$c15_init or $c15_dir is missing — the DB bootstrap moved; update check 15 in $0"
+else
+  c15_have="$(grep -oE 'CREATE SCHEMA IF NOT EXISTS [a-z_]+' "$c15_init" | awk '{print $NF}' | sort -u)"
+  c15_need="$(grep -rhoE '(schemaName|baseTableSchemaName|referencedTableSchemaName):[[:space:]]*[a-z_]+' "$c15_dir" | awk -F: '{gsub(/[[:space:]]/,"",$2); print $2}' | sort -u)"
+  if [ -z "$c15_need" ]; then
+    err "$c15_dir: parsed no schemaName at all — the changelog shape changed; update check 15 in $0"
+  fi
+  for c15_s in $c15_need; do
+    printf '%s\n' "$c15_have" | grep -qxF "$c15_s" && continue
+    err "$c15_init: schema '$c15_s' is used by a changelog but never created — the first bring-up on a fresh volume will die on 'schema \"$c15_s\" does not exist'"
+    err "→ add 'CREATE SCHEMA IF NOT EXISTS $c15_s;' to $c15_init (and apply it by hand to any already-initialised volume)"
+  done
+fi
+
 echo ""
 if [ "$fail" -ne 0 ]; then
   echo "consistency check FAILED — resolve the ✗ items above." >&2
