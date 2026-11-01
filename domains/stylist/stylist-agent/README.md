@@ -141,7 +141,9 @@ Orchestrator side: `STYLIST_AGENT_URL` (default `http://stylist-agent:8102`) is 
   flow persists the schema fields and renders the whole board. Lives at
   [skills/stylist/style-analyst/SKILL.md](../skills/style-analyst/SKILL.md).
 - `wardrobe-auditor` (synthesis) — a KEEP/QUESTION/REMOVE verdict per catalogued garment + hero
-  pieces + a one-sentence systemic-pattern diagnosis + power palette, judged against the profile.
+  pieces + a one-sentence systemic-pattern diagnosis + power palette, judged against the style
+  profile when the member has one and on the garments' own merits when they do not (an absent
+  profile is normal — the skill must still return verdicts, never an `error`).
   Lives at [skills/stylist/wardrobe-auditor/SKILL.md](../skills/wardrobe-auditor/SKILL.md). Validated
   on a real model by the opt-in `flow.GoldenWardrobeAuditTest` (Stage 5 / #199): feeds a fixed wardrobe
   (`WardrobeReadClient`/`DeliverablePublisher` mocked) through the real synthesis hop and asserts the

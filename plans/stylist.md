@@ -156,6 +156,25 @@ copyrighted text. Boards build in this order:
   one-line reason per item, hero pieces, systemic-pattern diagnosis, power palette → render the audit
   board (verdict grid with garment photos matched by name, gold hero, palette, "Системная ошибка").
   Routed by an audit cue ("ревизия / разбор гардероба"). Empty wardrobe → invite to catalogue.
+- **ST-h.1 — the auditor must not bail when the profile is missing. FIX (2026-11-01).** The golden
+  lane's first run on the deploy box (Mac Studio, `qwen3.6:35b-mlx`) failed `GoldenWardrobeAuditTest`
+  stably: on a four-garment wardrobe the model answered `{"error": "empty wardrobe"}` and, over six
+  out-of-band repeats, also the **invented** codes `empty profile` / `missing profile` — 4 failures in 6.
+  The cause was the SKILL, not the model: it ordered "judge against THIS profile", allowed the profile to
+  be absent, left the absent case **undefined**, and offered an `error` hatch right next to it. That hatch
+  was unreachable by design — `WardrobeAuditor.audit` answers an empty wardrobe before the LLM is called —
+  so it could only ever fire as a false negative, and `parse()` discards any node with `error`, turning it
+  into a dead-end reply. Fix: the SKILL now defines the no-profile fallback (judge the garment on its own
+  merits) and forbids `error` outright.
+  - **Scenario: audit with no style profile**
+    - WHEN the household has catalogued garments but the member has no style profile, so the `profile`
+      gather step is omitted from the context
+    - THEN the audit still returns one verdict per garment, reasoned on cut / colour / material / season
+      coherence, and carries no `error` field (asserted by `GoldenWardrobeAuditTest`)
+  - **Scenario: no error code is ever emitted**
+    - WHEN the auditor skill runs at all — the flow guarantees a non-empty wardrobe before calling it
+    - THEN the response has no `error` field, so `parse()` reaches the verdict tally instead of the
+      soft-fail reply (asserted by `GoldenWardrobeAuditTest`)
 - **ST-i — Capsule board (editorial). DONE (PR141).** The ST-e capsule already renders on the editorial
   template (since ST-f); ST-i gives it the board chrome — `StylistAdvisor.store` builds the doc via the
   `StylistDoc` builder with a kicker ("Curated · Strategic · Aligned") + a season/occasion subtitle +
