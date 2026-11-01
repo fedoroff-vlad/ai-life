@@ -152,10 +152,27 @@ dropped), so the decision to enable is a **measured** one, not a vibe.
   (add the concrete mis-classification so the regression is captured); the AC-3 `memory.ambient-capture.dedup-distance`
   (write-side duplicate suppression — orthogonal to classification but part of "trivia isn't saved").
 - **Enable gate (config).** `MEMORY_AMBIENT_CAPTURE_ENABLED` stays **`false`** until this golden is green on the
-  target deploy model (a stronger local MoE on the Mac — the dev box is CPU-only, so the run is deferred there,
-  the same model-gated posture as the Bucket 2 cutover #369). Flipping it before the eval passes is exactly the
-  "false auto-save annoys" failure the road-test is guarding against. When it clears, flip the flag in
-  `infra/.env.mac.example` (+ `.env.example`) and re-validate live.
+  target deploy model. Flipping it before the eval passes is exactly the "false auto-save annoys" failure the
+  road-test is guarding against. When it clears, flip the flag in `infra/.env.mac.example` (+ `.env.example`)
+  and re-validate live.
+- **First measurement on the deploy box (2026-11-01, `qwen3.6:35b-mlx` on the Mac) — the gate stays closed.**
+  The run is no longer deferred (the box arrived), and the golden fails on exactly **one** metric:
+
+  ```
+  n=32                 predicted:  EXPLICIT  INFERRED  TRIVIAL
+  EXPLICIT_FIXATION                       8         0        0
+  IMPORTANT_INFERRED                      0         6        4
+  TRIVIAL                                 0         0       14
+
+  accuracy 0.88 · act-precision 1.00 (bar 0.80) · act-recall 0.78 (bar 0.80)
+  explicit-not-missed 1.00 (bar 0.90) · inferred-not-missed 0.60
+  ```
+
+  The asymmetric risk this flag guards therefore lands on the **harmless** side: act-precision is perfect — no
+  trivia was acted on, not once — and every explicit cue was caught. The entire shortfall is 4 of 10 un-cued
+  durable facts classified `TRIVIAL`, leaving act-recall 0.02 under the bar. Per the tuning order above the
+  first lever is the `NoteWorthinessExtractor` prompt's trivial/important boundary — not the corpus, not the
+  dedup distance.
 
 ## Reuse (no new client/endpoint)
 `FactExtractor` (the extractor shape), `ProfileClient.resolvePersonId` (attribution),
