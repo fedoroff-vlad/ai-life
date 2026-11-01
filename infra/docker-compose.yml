@@ -335,6 +335,13 @@ services:
       LLM_DEFAULT_MODEL_DOWNSHIFT: ${LLM_DEFAULT_MODEL_DOWNSHIFT:-}
       LLM_MODEL_PROFILE_EVICT_TIMEOUT_SECONDS: ${LLM_MODEL_PROFILE_EVICT_TIMEOUT_SECONDS:-120}
       LLM_FAST_MODEL: ${LLM_FAST_MODEL:-mock-fast}
+      # Qwen3 thinks by default. Measured on the deploy box 2026-11-01: 2898 completion tokens
+      # against 46 for the same one-sentence answer — so without this the gateway pays ~60x the
+      # generation on EVERY call, which is what made a single user message take 23-37 s and blew
+      # calendar-agent's 60 s skill-routing budget. It also breaks strict-JSON skill parsing, which
+      # is the reason the knob exists (infra/.env.mac.example documents it). It was set in .env all
+      # along but never declared here, so it never reached the container.
+      LLM_SUPPRESS_THINKING: ${LLM_SUPPRESS_THINKING:-false}
       LLM_VISION_MODEL: ${LLM_VISION_MODEL:-mock-vision}
       LLM_EMBEDDING_PROVIDER: ${LLM_EMBEDDING_PROVIDER:-mock}
       LLM_EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-mock-embed}
