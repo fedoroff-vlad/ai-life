@@ -50,7 +50,13 @@ class AgentHostFootprintIntegrationTest {
         CONTEXTS.clear();
     }
 
-    /** Random port + MCP client off — enough to prove co-residency without the rest of the stack. */
+    /**
+     * Random port + MCP client off — enough to prove co-residency without the rest of the stack.
+     *
+     * <p>Deliberately short: since slice 3q each context reads its own {@code application.yml}, so the
+     * web stack, the manifest path and the skills glob are no longer handed in from here. Anything added
+     * back to this map is a claim that the module's own configuration is wrong.
+     */
     private static Map<String, Object> testExtra() {
         return Map.of(
                 "server.port", "0",
@@ -104,6 +110,36 @@ class AgentHostFootprintIntegrationTest {
                             .as("%s must not carry sibling bean %s", e.appBean(), other.appBean())
                             .isFalse();
                 }
+            }
+        }
+
+        // ...and each read ITS OWN application.yml from the per-module config location (slice 3q).
+        // Under the old spring.config.name skip the launcher had to re-supply the reactive web stack,
+        // the manifest path and the skills glob in Java — duplicating what each agent's yml already
+        // declared. These assertions guard what that removal must not lose.
+        for (int i = 0; i < booted.size(); i++) {
+            ConfigurableApplicationContext ctx = booted.get(i);
+            AgentHost.Agent agent = AgentHost.RESIDENT_HOT.get(i);
+
+            assertThat(ctx.getEnvironment().getProperty("spring.application.name"))
+                    .as("%s must boot on its own application.yml, not a sibling's", agent.name())
+                    .isEqualTo(agent.name());
+
+            assertThat(ctx.getEnvironment().getProperty("agent.manifest-classpath"))
+                    .as("%s's manifest path must come from its own yml", agent.name())
+                    .isEqualTo("manifest/" + agent.name() + "/AGENT.md");
+
+            String skills = ctx.getEnvironment().getProperty("agent.skills-classpath");
+            if ("coordinator-agent".equals(agent.name())) {
+                // Its yml leaves this unset on purpose — an empty registry is the anti-cross-leak
+                // default. The launcher used to encode that as a null; now only the yml says it.
+                assertThat(skills)
+                        .as("coordinator-agent must keep an empty skills registry")
+                        .isNull();
+            } else {
+                assertThat(skills)
+                        .as("%s's skills glob must come from its own yml", agent.name())
+                        .isNotBlank();
             }
         }
     }
