@@ -91,6 +91,21 @@
                      the module root; manifest-classpath in application.yml points here. -->
                 <targetPath>manifest/coordinator-agent</targetPath>
             </resource>
+            <!-- ADR-0006 / #584 slice 3q: land a COPY of this agent's own application.yml at a
+                 per-module classpath path, so co-hosted contexts (Agent-hot host) each read their OWN
+                 configuration instead of colliding on classpath:/application.yml. The host boots each
+                 context with spring.config.location=classpath:/config/coordinator-agent/.
+                 One source file, two classpath locations — nothing to keep in sync by hand, and the
+                 standalone -exec.jar still resolves classpath:/application.yml unchanged.
+                 This is what lets the launcher stop re-supplying web-application-type, the manifest
+                 path and the skills glob: each is declared in the yml below. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>application.yml</include>
+                </includes>
+                <targetPath>config/coordinator-agent</targetPath>
+            </resource>
         </resources>
         <plugins>
             <plugin>

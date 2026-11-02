@@ -372,6 +372,29 @@ needs; rolled out per module as consolidation proceeds.
   Measured after cutover: **JVM apps 7894 MB / 15 JVMs**, host at 790 MB
   (`logs/footprint-3p-cutover-2026-11-02.json`).
 
+- **3q (done — per-module config on the Agent-hot host; the launcher stops duplicating the modules):**
+  the 3n mechanism rolled out to `agent-host`. Each agent's pom lands a copy of its own
+  `application.yml` at `config/<name>/` and the launcher boots each context with
+  `spring.config.location` there.
+  **This tier was the clean case, and the reason is worth recording.** The `spring.config.name` skip had
+  forced `AgentHost` to re-supply, in Java, everything the skipped yml would have said — the reactive
+  web stack, the per-agent `manifest/<name>/AGENT.md` path, and **each agent's skills glob**. All three
+  were already declared in every agent's own yml, so the launcher held a second copy of six modules'
+  configuration, `coordinator-agent`'s deliberate *empty* skills registry included (encoded as a `null`
+  in Java beside a yml comment explaining the same thing). `structuralProps` and the `skillsGlob` record
+  field are both **gone**; the yml is the only source.
+  **No auto-configuration excludes needed here, unlike 3o.** All six agents are schema-less, so there is
+  no JPA on this host's classpath to inherit — what hurt the Domain-MCP-hot host was *mixing*
+  schema-bound and schema-less members, not consolidating as such. Adding a DB-bound member to this host
+  would reintroduce the question.
+  `AgentHostConfigLocationTest` guards the six-pom coupling (the per-module copy exists, is that agent's
+  own, and declares its manifest path and web stack), and the IT now asserts each context's own
+  `spring.application.name`, its own manifest path, and that the skills glob survived the move out of
+  Java — empty for the coordinator, non-blank for the rest.
+  **Trap found while proving the guard has teeth:** removing a pom's resource block did **not** fail the
+  test until `mvn clean` — Maven leaves the already-copied resource in `target/classes`, so a local
+  green after such an edit is meaningless. CI is a fresh checkout and sees it.
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -444,6 +467,16 @@ needs; rolled out per module as consolidation proceeds.
 - Scenario: a member is added to the launcher without a matching compose network alias → the lint fails
   in CI rather than that MCP becoming unreachable fleet-wide at deploy (asserted by
   `check-consistency.sh` check 18, verified by removing an alias).
+
+- Scenario: a co-hosted agent boots under the per-module config location → it reads its own yml, so
+  its `spring.application.name`, its own `manifest/<name>/AGENT.md` persona and its own skills glob all
+  come from the module and not from the launcher (asserted by `AgentHostFootprintIntegrationTest`).
+- Scenario: `coordinator-agent` is co-hosted → its skills registry stays empty, because its own yml
+  leaves the glob unset (the anti-cross-leak default the launcher used to duplicate as a `null`)
+  (asserted by `AgentHostFootprintIntegrationTest`).
+- Scenario: an agent's pom loses its per-module resource block → the packaging test fails on a clean
+  build rather than that context booting a sibling's persona at deploy (asserted by
+  `AgentHostConfigLocationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

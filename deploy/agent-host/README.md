@@ -1,6 +1,6 @@
 # agent-host
 
-**Status (2026-09-09):** #584 slice 3d — the **resident Agent-hot** host; co-residency of the real hot
+**Status (2026-11-02):** #584 slice 3d — the **resident Agent-hot** host; co-residency of the real hot
 set proven by IT, not yet a deployable process. ADR-0006 Path B (process consolidation), approach B1.
 
 Boots the always-on `Agent-hot` LLM agent contexts **in one JVM**, each an independent Spring context on
@@ -20,6 +20,32 @@ shared-classpath collisions are resolved:
 - **`AGENT.md`** (used to be `classpath:/AGENT.md` in every jar) — #584 3d moved each to a per-agent
   `manifest/<name>/AGENT.md` (module `pom.xml` `<targetPath>`, file stays at the module root), and the
   launcher points each context's `agent.manifest-classpath` there so the right persona loads.
+
+## How the config collision is solved (slice 3q)
+Every module's configuration sits at `classpath:/application.yml`, so on the host's shared classloader
+six contexts would fight over one file. Slice 3d sidestepped that with a unique, **non-existent**
+`spring.config.name` — and then had to re-supply in Java everything the skipped yml would have said:
+the reactive web stack, the per-agent `manifest/<name>/AGENT.md` path, and each agent's skills glob.
+All three were already declared in every agent's own yml, so the launcher held a second copy of six
+modules' configuration — `coordinator-agent`'s deliberately **empty** skills registry included, encoded
+as a `null` in Java beside a yml comment saying the same thing.
+
+So instead each agent's **pom** lands a copy of its own `application.yml` at `config/<name>/`
+(`<targetPath>`), and the launcher boots each context with
+`spring.config.location=classpath:/config/<name>/`:
+- **One source file, two classpath locations.** The default `classpath:/application.yml` is kept, so a
+  standalone `-exec.jar` resolves its config exactly as before.
+- **The launcher re-supplies nothing.** `structuralProps` and the `Agent.skillsGlob` field are gone.
+- **Not `optional:`** — for an agent a silent fallback to a sibling's configuration would mean booting
+  **someone else's persona and skills**, so a missing copy must fail the context.
+
+Same precedent as slice 3d's per-agent `manifest/<name>/AGENT.md`.
+
+## Why this host needs no auto-configuration excludes
+Co-hosting merges classpaths. On the Domain-MCP-hot host that handed the schema-less capability MCPs
+their siblings' JPA starters and killed them at deploy (slice 3o). All six agents here are schema-less,
+so there is no JPA on this classpath to inherit — the harm comes from **mixing** schema-bound and
+schema-less members, not from consolidating. Adding a DB-bound member here would reintroduce it.
 
 ## Key classes
 - `AgentHost` — the launcher. `RESIDENT_HOT` lists the co-hosted agents (`Agent` record = app class +
