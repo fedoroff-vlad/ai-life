@@ -126,6 +126,12 @@ public final class DomainMcpHost {
     private static String[] launchArgs(Hosted hosted, Map<String, Object> overrides, String[] extra) {
         List<String> args = new ArrayList<>();
         args.add("--spring.config.location=" + hosted.configLocation());
+        // The logging system initialises ONCE per JVM, so the first context's
+        // spring.application.name would prefix every other context's lines too — five contexts all
+        // logging as [mcp-caldav], which is how this host's first deploy failure read as a caldav
+        // fault when the dead context was mcp-web. Drop the field rather than let four of five lie:
+        // the logger name still carries the module (d.f.ailife.mcp.web...).
+        args.add("--logging.include-application-name=false");
         List<String> excluded = hosted.excludedAutoConfigurations();
         if (!excluded.isEmpty()) {
             args.add("--spring.autoconfigure.exclude=" + String.join(",", excluded));

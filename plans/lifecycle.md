@@ -19,6 +19,9 @@ the Mac). New architectural layer = **`supervisor`** (flagged per CLAUDE.md befo
 Unified memory is shared CPU+GPU; macOS caps GPU working set at ~75% of RAM → **~48 GB for models on a
 64 GB box**. The whole design exists to stay under that with margin:
 - All 43 JVMs hot ≈ 15 GB; hot set only (~18 services) ≈ 6 GB — hence hot/cold.
+  (Measured 2026-11-02 on the Mac: the hot set as actually running was **12.0 GB**, 10.0 of it in 19
+  JVM apps. ADR-0006 consolidation then took the JVM-app tier to **7.9 GB** by collapsing five MCPs
+  into one host — see [topology-map.md](topology-map.md) §Slice 3.)
 - **Model plan, amended 2026-10-29 (owner): ONE universal model serves both ai-life and the coding
   agent** → [model-strategy.md](model-strategy.md) §One model for both tenants. Resident models ≈ 26 GB
   at the normal peak (default MoE 19.5 + fast 6 + embedding 0.7), with vision/whisper as brief spikes.
@@ -143,12 +146,15 @@ household *data* endpoints reachable off-host — this is about the LLM channel 
 ~2–3 s via **CDS/AOT** (Spring Boot 4), so no "поднимаю…" placeholder is needed. CDS/AOT therefore lands
 **before/with** the orchestrator lazy-activation slice, not as a later optimisation.
 
-## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 28 hot / 29 cold / 2 tunnel)
-- **`profiles: ["hot"]`** (always-on, 28): backing (postgres, liquibase, postgres-backup, radicale,
+## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 24 hot / 29 cold / 2 tunnel)
+- **`profiles: ["hot"]`** (always-on, 24): backing (postgres, liquibase, postgres-backup, radicale,
   seaweedfs, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
-  notifier, scheduler, conversation, memory, media) + calendar (mcp-caldav + calendar-agent), finance
-  (mcp-finance + finance-agent), tasks (mcp-tasks + tasks-agent), search (mcp-web + researcher-agent) +
-  **mcp-media-processing** (OCR/STT for receipts & voice — passive inbound, must be ready) +
+  notifier, scheduler, conversation, memory, media) + **`domain-mcp-host`** — ONE container running the
+  five resident domain/capability MCPs in one JVM (`mcp-caldav` · `mcp-finance` · `mcp-tasks` ·
+  `mcp-web` · `mcp-media-processing`), which it exposes under their old service names as compose network
+  aliases so every `MCP_*_URL` is unchanged (ADR-0006 #584 slice 3p; that is why this count dropped from
+  28 to 24, with no capability lost) + the agents calendar-agent, finance-agent, tasks-agent,
+  researcher-agent +
   **mcp-media-fetch** (video acquisition — same passive-inbound argument, see the 2026-10-07 refinement
   below) + **notes-agent** (second brain — always needed) + **coordinator-agent** (cross-domain assistant
   front).
