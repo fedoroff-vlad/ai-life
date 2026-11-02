@@ -1,9 +1,9 @@
 # domain-mcp-host
 
-**Status (2026-11-02):** #584 slices 3n + 3o — the **resident Domain-MCP-hot** host. Co-residency is
-proven by IT, each context boots on **its own configuration**, and the host is a **runnable artifact**
-(executable jar + Dockerfile) measured at deploy. The compose cutover is a separate slice. ADR-0006
-Path B (process consolidation), approach B1.
+**Status (2026-11-02):** #584 slices 3n + 3o + 3p — the **resident Domain-MCP-hot** host, now the
+**deployed topology**: it replaces the five `mcp-*` services in `infra/docker-compose.yml` (hot set
+28 → 24), exposing their old names as network aliases so no `MCP_*_URL` changed. ADR-0006 Path B
+(process consolidation), approach B1.
 
 Boots the always-on `Domain-MCP-hot` module contexts **in one JVM**, each an independent Spring context
 on its own port with its own MCP server — so agents keep calling each MCP's `/internal/*` on the same
@@ -58,11 +58,15 @@ members — it reproduces deploy instead of papering over it.
 Adding a member means deciding its `Persistence`. Getting it wrong fails that context at startup.
 
 ## Running it
-One container, one JVM, five contexts, each on the port its own yml declares:
+It is part of the hot profile — the normal bring-up starts it:
 
 ```
-docker build -f deploy/domain-mcp-host/Dockerfile -t ai-life/domain-mcp-host:local .
+docker compose -f infra/docker-compose.yml --profile hot up -d
 ```
+
+One container, one JVM, five contexts, each on the port its own yml declares. The healthcheck probes
+**all five** ports: slice 3o's deploy came up with three contexts live, and a single-port probe would
+have called that healthy and let every dependent start against a host missing two MCPs.
 
 The image carries the **union** of its members' native dependencies — today only
 `mcp-media-processing`'s tesseract (`ocr`) and ffmpeg (`frames`); slice 3l adds `yt-dlp`. The container
@@ -70,16 +74,24 @@ needs the union of the five services' env vars, which is conflict-free today (`S
 only name two members share, with the same value) — that is a property to re-check when a member joins,
 not a guarantee.
 
-Because the five service **names** are how twenty-odd agents address these MCPs
+Because the five service **names** are how 14 services address these MCPs
 (`MCP_CALDAV_URL: http://mcp-caldav:8090`), the host takes those names as compose **network aliases**;
-the URLs then resolve to this container unchanged. The cutover itself is a separate slice — see
-[plans/topology-map.md](../../plans/topology-map.md) §Slice 3 / 3o.
+the URLs resolve to this container unchanged. Verified on the running stack: from inside
+`calendar-agent`, all five old `name:port` pairs answer `HTTP 200`.
 
-## Known limitation — the logs all claim one name
-The logging system initialises once per JVM, so every context logs under the **first** member's
-`spring.application.name`: five contexts, all prefixed `[mcp-caldav]`. Behaviour is unaffected, but a
-production log is actively misleading — it is why the first deploy failure read as a caldav fault when
-the dead context was `mcp-web`. Needs a per-context logging decision before the compose cutover.
+**Keep the alias list equal to `RESIDENT_HOT`.** They are one coupling in two files and nothing else
+reads both — a member without its alias is unreachable fleet-wide while every healthcheck stays green.
+`scripts/check-consistency.sh` **check 18** enforces it.
+
+Rollback is `git revert` of the cutover: the five module Dockerfiles and their `-exec` jars are
+untouched, so the separate services still build and run.
+
+## Logging identity
+The logging system initialises once per JVM, so the **first** member's `spring.application.name` would
+prefix every context's lines — five contexts all logging as `[mcp-caldav]`, which is why slice 3o's
+failure first read as a caldav fault when the dead context was `mcp-web`. The launcher therefore boots
+with `logging.include-application-name=false`: better to drop the field than let four lines in five lie.
+Contexts stay distinguishable by logger name (`d.f.ailife.mcp.web…`).
 
 ## Key classes
 - `DomainMcpHost` — the launcher. `RESIDENT_HOT` lists the co-hosted modules with each member's
@@ -103,11 +115,6 @@ the dead context was `mcp-web`. Needs a per-context logging decision before the 
   that lives in five separate poms.
 
 ## Not yet done (see [plans/topology-map.md](../../plans/topology-map.md) §Slice 3)
-- The **compose cutover** — this host replacing the five services, which means re-pointing twenty-odd
-  agent `depends_on` edges and wiring the network aliases. A separate profile cannot do it: compose
-  rejects a project whose active service depends on one outside the active profiles (the failure mode
-  `check-consistency.sh` check 13 guards).
-- A **per-context logging identity** (see the limitation above).
 - `agent-host` + `platform-host` still boot on the old `spring.config.name` skip — the per-module config
   location has to be rolled out to them before their `main` can be deployable either, and they will meet
   the same classpath-merge question (the platform tier is DB-bound throughout, the agent tier is not).

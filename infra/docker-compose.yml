@@ -314,6 +314,114 @@ services:
       retries: 5
       start_period: 20s
 
+  # ---------- consolidated resident hosts (ADR-0006 Path B) ----------
+
+  # ONE JVM, five MCP contexts — replaces the former mcp-caldav · mcp-finance · mcp-tasks ·
+  # mcp-web · mcp-media-processing services. Each context keeps its own port and its own MCP
+  # server, so no contract changed; what changed is that the ~300 MB per-process JVM baseline is
+  # paid once instead of five times. Measured 2026-11-02 (#584 slice 3o): 2954 MB across five
+  # JVMs -> 828 MB here, the whole JVM-app tier 10039 -> 7920 MB.
+  #
+  # The five service NAMES are how 14 services address these MCPs (MCP_CALDAV_URL:
+  # http://mcp-caldav:8090 and friends, plus every agent's MCP-SSE binding), so this container
+  # takes those names as NETWORK ALIASES. Every one of those URLs keeps resolving, unchanged, to
+  # the context that owns the port — that is what makes this a packaging change and not a
+  # contract change. Keep the alias list equal to DomainMcpHost.RESIDENT_HOT
+  # (check-consistency.sh check 18 enforces it).
+  #
+  # Rollback is `git revert` of this slice: the five module Dockerfiles and their `-exec` jars are
+  # untouched, so the separate services still build and run.
+  domain-mcp-host:
+    profiles: ["hot"]
+    image: ai-life/domain-mcp-host:local
+    container_name: ai-life-domain-mcp-host
+    build:
+      context: ..
+      dockerfile: deploy/domain-mcp-host/Dockerfile
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - mcp-caldav
+          - mcp-finance
+          - mcp-tasks
+          - mcp-web
+          - mcp-media-processing
+    # The union of the five services' dependencies, with the five themselves gone.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
+      radicale:
+        condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+      llm-gateway:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      # Not service_healthy: whisper pulls its model on first boot (slow), but ocr/caption must
+      # work regardless — transcribe is lazy + best-effort, so don't block on it.
+      whisper:
+        condition: service_started
+    # The union of the five services' environment. It is conflict-free today — SCHEDULER_URL is
+    # the only name two members share, with the same value — which is a property to re-check when
+    # a member joins, not a guarantee.
+    environment:
+      <<: *internal-secret
+      # Deliberately NOT *jvm-opts (-Xmx768m, sized for one module per process): five contexts
+      # share this heap. Provisional headroom, not a target — 3o measured the whole host at
+      # 828 MB with ~5 min uptime, and the figure drifts up with use.
+      JAVA_TOOL_OPTIONS: "-Xmx2560m"
+      MCP_CALDAV_PORT: 8090
+      MCP_CALDAV_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_CALDAV_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_CALDAV_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      CALDAV_URL: http://radicale:5232
+      CALDAV_USER: ${CALDAV_USER:-}
+      CALDAV_PASSWORD: ${CALDAV_PASSWORD:-}
+      CALDAV_DEFAULT_CALENDAR: ${CALDAV_DEFAULT_CALENDAR:-ours}
+      MCP_FINANCE_PORT: 8092
+      MCP_FINANCE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_FINANCE_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_FINANCE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      MCP_FINANCE_BUDGET_CRON: ${MCP_FINANCE_BUDGET_CRON:-0 0 9 * * *}
+      MCP_FINANCE_BUDGET_OWNER_AGENT: ${MCP_FINANCE_BUDGET_OWNER_AGENT:-finance}
+      MCP_FINANCE_BUDGET_TRIGGER_KIND: ${MCP_FINANCE_BUDGET_TRIGGER_KIND:-budget.alert}
+      MCP_FINANCE_RECURRING_OWNER_AGENT: ${MCP_FINANCE_RECURRING_OWNER_AGENT:-finance}
+      MCP_FINANCE_RECURRING_TRIGGER_KIND: ${MCP_FINANCE_RECURRING_TRIGGER_KIND:-recurring.due}
+      MCP_FINANCE_TRANSACTION_OWNER_AGENT: ${MCP_FINANCE_TRANSACTION_OWNER_AGENT:-finance}
+      MCP_FINANCE_TRANSACTION_TRIGGER_KIND: ${MCP_FINANCE_TRANSACTION_TRIGGER_KIND:-transaction.uncategorised}
+      MCP_TASKS_PORT: 8095
+      MCP_TASKS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
+      MCP_TASKS_DB_USER: ${POSTGRES_USER:-ailife}
+      MCP_TASKS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
+      MCP_TASKS_REVIEW_CRON: ${MCP_TASKS_REVIEW_CRON:-0 0 9 * * MON}
+      MCP_TASKS_REVIEW_OWNER_AGENT: ${MCP_TASKS_REVIEW_OWNER_AGENT:-tasks}
+      MCP_TASKS_REVIEW_TRIGGER_KIND: ${MCP_TASKS_REVIEW_TRIGGER_KIND:-weekly.review}
+      # Shared by mcp-finance and mcp-tasks — same value, so the union is unambiguous.
+      SCHEDULER_URL: http://scheduler-service:8085
+      MCP_WEB_PORT: 8098
+      SEARXNG_URL: http://searxng:8080
+      MCP_MEDIA_PROCESSING_PORT: 8097
+      MEDIA_SERVICE_URL: http://media-service:8088
+      LLM_GATEWAY_URL: http://llm-gateway:8081
+      MCP_MEDIA_PROCESSING_STT_ENGINE: whisper
+      WHISPER_ASR_URL: http://whisper:9000
+      MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR: ffmpeg
+    healthcheck:
+      # ALL FIVE contexts must answer, not just one. The 3o deploy came up with three contexts
+      # live and the fourth dead; a single-port probe would have called that healthy and let
+      # every dependent start against a host missing two MCPs.
+      test: ["CMD", "bash", "-c", 'for p in 8090 8092 8095 8097 8098; do (exec 3<>/dev/tcp/127.0.0.1/$$p && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 '') || exit 1; done']
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
+
   # ---------- platform services ----------
 
   llm-gateway:
@@ -612,7 +720,7 @@ services:
         condition: service_healthy
       media-service:
         condition: service_healthy
-      mcp-media-processing:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -644,42 +752,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-
-  # ---------- MCP servers ----------
-
-  mcp-caldav:
-    profiles: ["hot"]
-    image: ai-life/mcp-caldav:local
-    container_name: ai-life-mcp-caldav
-    build:
-      context: ..
-      dockerfile: domains/calendar/mcp-caldav/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      liquibase:
-        condition: service_completed_successfully
-      radicale:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      MCP_CALDAV_PORT: 8090
-      MCP_CALDAV_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
-      MCP_CALDAV_DB_USER: ${POSTGRES_USER:-ailife}
-      MCP_CALDAV_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
-      CALDAV_URL: http://radicale:5232
-      CALDAV_USER: ${CALDAV_USER:-}
-      CALDAV_PASSWORD: ${CALDAV_PASSWORD:-}
-      CALDAV_DEFAULT_CALENDAR: ${CALDAV_DEFAULT_CALENDAR:-ours}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8090 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
   mcp-ics-import:
     profiles: ["cold"]
     image: ai-life/mcp-ics-import:local
@@ -716,100 +788,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-
-  mcp-finance:
-    profiles: ["hot"]
-    image: ai-life/mcp-finance:local
-    container_name: ai-life-mcp-finance
-    build:
-      context: ..
-      dockerfile: domains/finance/mcp-finance/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      liquibase:
-        condition: service_completed_successfully
-      scheduler-service:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      MCP_FINANCE_PORT: 8092
-      MCP_FINANCE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
-      MCP_FINANCE_DB_USER: ${POSTGRES_USER:-ailife}
-      MCP_FINANCE_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
-      SCHEDULER_URL: http://scheduler-service:8085
-      MCP_FINANCE_BUDGET_CRON: ${MCP_FINANCE_BUDGET_CRON:-0 0 9 * * *}
-      MCP_FINANCE_BUDGET_OWNER_AGENT: ${MCP_FINANCE_BUDGET_OWNER_AGENT:-finance}
-      MCP_FINANCE_BUDGET_TRIGGER_KIND: ${MCP_FINANCE_BUDGET_TRIGGER_KIND:-budget.alert}
-      MCP_FINANCE_RECURRING_OWNER_AGENT: ${MCP_FINANCE_RECURRING_OWNER_AGENT:-finance}
-      MCP_FINANCE_RECURRING_TRIGGER_KIND: ${MCP_FINANCE_RECURRING_TRIGGER_KIND:-recurring.due}
-      MCP_FINANCE_TRANSACTION_OWNER_AGENT: ${MCP_FINANCE_TRANSACTION_OWNER_AGENT:-finance}
-      MCP_FINANCE_TRANSACTION_TRIGGER_KIND: ${MCP_FINANCE_TRANSACTION_TRIGGER_KIND:-transaction.uncategorised}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8092 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  mcp-media-processing:
-    profiles: ["hot"]
-    image: ai-life/mcp-media-processing:local
-    container_name: ai-life-mcp-media-processing
-    build:
-      context: ..
-      dockerfile: shared/mcp/mcp-media-processing/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      media-service:
-        condition: service_healthy
-      llm-gateway:
-        condition: service_healthy
-      # Not service_healthy: whisper pulls its model on first boot (slow), but ocr/caption
-      # must work regardless — transcribe is lazy + best-effort, so don't block on it.
-      whisper:
-        condition: service_started
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      MCP_MEDIA_PROCESSING_PORT: 8097
-      MEDIA_SERVICE_URL: http://media-service:8088
-      LLM_GATEWAY_URL: http://llm-gateway:8081
-      MCP_MEDIA_PROCESSING_STT_ENGINE: whisper
-      WHISPER_ASR_URL: http://whisper:9000
-      MCP_MEDIA_PROCESSING_FRAME_EXTRACTOR: ffmpeg
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8097 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  mcp-web:
-    profiles: ["hot"]
-    image: ai-life/mcp-web:local
-    container_name: ai-life-mcp-web
-    build:
-      context: ..
-      dockerfile: shared/mcp/mcp-web/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      searxng:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      MCP_WEB_PORT: 8098
-      SEARXNG_URL: http://searxng:8080
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8098 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
   mcp-media-fetch:
     # hot (owner-signed 2026-10-07): a pasted video link is passive inbound — the same reason
     # mcp-media-processing is hot — and the hot researcher-agent depends_on it, so cold broke the hot
@@ -1085,40 +1063,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-
-  mcp-tasks:
-    profiles: ["hot"]
-    image: ai-life/mcp-tasks:local
-    container_name: ai-life-mcp-tasks
-    build:
-      context: ..
-      dockerfile: domains/tasks/mcp-tasks/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      liquibase:
-        condition: service_completed_successfully
-      scheduler-service:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      MCP_TASKS_PORT: 8095
-      MCP_TASKS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ailife}
-      MCP_TASKS_DB_USER: ${POSTGRES_USER:-ailife}
-      MCP_TASKS_DB_PASSWORD: ${POSTGRES_PASSWORD:-ailife}
-      SCHEDULER_URL: http://scheduler-service:8085
-      MCP_TASKS_REVIEW_CRON: ${MCP_TASKS_REVIEW_CRON:-0 0 9 * * MON}
-      MCP_TASKS_REVIEW_OWNER_AGENT: ${MCP_TASKS_REVIEW_OWNER_AGENT:-tasks}
-      MCP_TASKS_REVIEW_TRIGGER_KIND: ${MCP_TASKS_REVIEW_TRIGGER_KIND:-weekly.review}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8095 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
   mcp-wardrobe:
     profiles: ["cold"]
     image: ai-life/mcp-wardrobe:local
@@ -1357,7 +1301,7 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
-      mcp-caldav:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -1398,9 +1342,7 @@ services:
         condition: service_healthy
       media-service:
         condition: service_healthy
-      mcp-finance:
-        condition: service_healthy
-      mcp-media-processing:
+      domain-mcp-host:
         condition: service_healthy
       # mcp-money-pro-import / mcp-market-data / mcp-chart-render are cold (LC-1): started
       # on demand, not at finance-agent boot. Their flows (Money Pro import, investment
@@ -1448,7 +1390,7 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
-      mcp-tasks:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -1479,12 +1421,10 @@ services:
     depends_on:
       llm-gateway:
         condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
       mcp-media-fetch:
         condition: service_started
-      mcp-media-processing:
-        condition: service_healthy
     environment:
       <<: *internal-secret
       JAVA_TOOL_OPTIONS: *jvm-opts
@@ -1526,9 +1466,7 @@ services:
         condition: service_healthy
       mcp-wardrobe:
         condition: service_healthy
-      mcp-media-processing:
-        condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
       mcp-image-gen:
         condition: service_healthy
@@ -1576,9 +1514,7 @@ services:
         condition: service_healthy
       mcp-nutrition:
         condition: service_healthy
-      mcp-media-processing:
-        condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
       mcp-food-data:
         condition: service_healthy
@@ -1629,7 +1565,7 @@ services:
         condition: service_healthy
       mcp-nutrition:
         condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -1673,7 +1609,7 @@ services:
         condition: service_healthy
       mcp-creator:
         condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
       mcp-youtube:
         condition: service_healthy
@@ -1726,7 +1662,7 @@ services:
         condition: service_healthy
       mcp-weather:
         condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
       orchestrator:
         condition: service_healthy
@@ -1772,7 +1708,7 @@ services:
         condition: service_healthy
       mcp-weather:
         condition: service_healthy
-      mcp-web:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -1823,7 +1759,7 @@ services:
         condition: service_healthy
       mcp-docs:
         condition: service_healthy
-      mcp-media-processing:
+      domain-mcp-host:
         condition: service_healthy
     environment:
       <<: *internal-secret
@@ -1865,7 +1801,7 @@ services:
         condition: service_healthy
       mcp-inventory:
         condition: service_healthy
-      mcp-media-processing:
+      domain-mcp-host:
         condition: service_healthy
       media-service:
         condition: service_healthy
@@ -2020,7 +1956,7 @@ services:
       dockerfile: platform/calendar-web/Dockerfile
     restart: unless-stopped
     depends_on:
-      mcp-caldav:
+      domain-mcp-host:
         condition: service_healthy
       profile-service:
         condition: service_healthy

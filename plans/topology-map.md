@@ -348,6 +348,30 @@ needs; rolled out per module as consolidation proceeds.
   work (compose rejects a project whose active service depends on one outside the active profiles, which
   is what `check-consistency.sh` check 13 guards). That is its own slice, gated on the number below.
 
+- **3p (done — the compose cutover; the host is now the deployed topology):** `domain-mcp-host` replaces
+  the five `mcp-*` services in `infra/docker-compose.yml`. The hot set drops **28 → 24** with no
+  capability lost.
+  **What made it a packaging change and not a contract change:** 14 services reach these MCPs by service
+  name (`MCP_CALDAV_URL: http://mcp-caldav:8090` and friends), so the host takes all five names as
+  compose **network aliases**. Verified on the running stack, not asserted: from inside
+  `calendar-agent`, every one of the five old `name:port` pairs resolves to the host's IP and answers
+  `HTTP 200` on `/actuator/health`.
+  The 18 `depends_on` edges on the five collapse to **14** (several services depended on two of them).
+  A separate compose profile was tried first and cannot work: compose rejects a project whose active
+  service depends on one outside the active profiles — the failure mode check 13 guards — so this is a
+  replacement, not a parallel option. Rollback is `git revert`: the five module Dockerfiles and their
+  `-exec` jars are untouched, so the separate services still build and run.
+  **Two traps worth recording.** (i) The healthcheck probes **all five** ports, because 3o's deploy came
+  up with three contexts live and a single-port probe would have reported that healthy, letting every
+  dependent start against a host missing two MCPs. (ii) The `$p` loop variable in that healthcheck needs
+  `$$p` in compose, or compose interpolates it away and the probe silently checks `/dev/tcp/127.0.0.1/`
+  with no port.
+  **New lint, check 18 (`host-alias-closure`):** the alias list and the launcher's `RESIDENT_HOT` are one
+  coupling in two files that nothing else reads together — add a member without its alias and that MCP is
+  unreachable fleet-wide while every healthcheck stays green. Verified it fails on a removed alias.
+  Measured after cutover: **JVM apps 7894 MB / 15 JVMs**, host at 790 MB
+  (`logs/footprint-3p-cutover-2026-11-02.json`).
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -409,6 +433,17 @@ needs; rolled out per module as consolidation proceeds.
 - Scenario: the host is packaged → its main artifact is an executable jar whose `Start-Class` is the
   launcher, so one container runs all five contexts (not yet asserted — asserted by hand at deploy;
   a packaging assertion needs the repackaged jar, which `mvn test` does not have).
+
+- Scenario: a service addresses a co-hosted MCP by its old name → the name resolves to the host
+  container and the MCP answers on its own port, so no `MCP_*_URL` changed (verified on the running stack
+  2026-11-02 from inside `calendar-agent`: all five answered HTTP 200) (not yet asserted — needs a live
+  stack; `check-consistency.sh` check 18 guards the alias list that makes it work).
+- Scenario: the consolidated host starts with a context dead → its healthcheck fails, so no dependent
+  starts against a partial host (not yet asserted — a compose-level behaviour with no test lane; the
+  all-five-ports probe is the guard).
+- Scenario: a member is added to the launcher without a matching compose network alias → the lint fails
+  in CI rather than that MCP becoming unreachable fleet-wide at deploy (asserted by
+  `check-consistency.sh` check 18, verified by removing an alias).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
