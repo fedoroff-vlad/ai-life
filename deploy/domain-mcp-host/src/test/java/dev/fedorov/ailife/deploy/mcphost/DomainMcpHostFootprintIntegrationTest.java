@@ -25,6 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Liquibase at boot and hold no fatal startup bean, so no schema is required to start the web + MCP
  * servers — enough to prove co-residency). The two schema-less capability MCPs (web, media-processing)
  * ignore the datasource props.
+ *
+ * <p><b>Slice 3n:</b> each context now reads <b>its own</b> {@code application.yml} from the per-module
+ * classpath location instead of being booted with its configuration skipped, so this IT also guards what
+ * that buys — the module's real identity and its {@code spring.ai.mcp.server.instructions}, the
+ * tool-surface prose the old {@code spring.config.name} skip silently dropped. Overrides go through
+ * {@link DomainMcpHost#boot} as command-line args so they outrank the yml.
  */
 class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationTest {
 
@@ -44,7 +50,12 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
         CONTEXTS.clear();
     }
 
-    private static Map<String, Object> baseProps(String mcpServerName) {
+    /**
+     * What the test must override on top of each module's own yml. Deliberately minimal: the MCP server
+     * identity, the port default and every module-specific setting now come from the module's own
+     * configuration, which is the point of slice 3n.
+     */
+    private static Map<String, Object> overrides() {
         Map<String, Object> p = new HashMap<>();
         // Only the three JPA modules read these; the capability MCPs ignore them.
         p.put("spring.datasource.url", jdbcUrl());
@@ -54,10 +65,9 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
         p.put("spring.jpa.open-in-view", "false");
         p.put("spring.jpa.properties.hibernate.type.json_format_mapper",
                 "dev.fedorov.ailife.common.jackson.Jackson3JsonFormatMapper");
-        // each context gets its own MCP server identity + a random web port (proves distinct servers)
-        p.put("spring.ai.mcp.server.name", mcpServerName);
-        p.put("spring.ai.mcp.server.version", "0.0.1");
-        p.put("spring.ai.mcp.server.type", "ASYNC");
+        // Ephemeral ports: the yml declares the production ones (8090 · 8092 · 8095 · 8098 · 8097) and
+        // DomainMcpHostConfigLocationTest asserts that; binding them here would collide with a locally
+        // running stack and with a sibling host IT under CI's -T2.
         p.put("server.port", "0");
         return p;
     }
@@ -68,8 +78,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
 
         List<ConfigurableApplicationContext> booted = new ArrayList<>();
         for (DomainMcpHost.Hosted hosted : DomainMcpHost.RESIDENT_HOT) {
-            ConfigurableApplicationContext ctx =
-                    DomainMcpHost.boot(hosted, baseProps("ai-life-" + hosted.configName() + "-hosted"));
+            ConfigurableApplicationContext ctx = DomainMcpHost.boot(hosted, overrides());
             booted.add(ctx);
             CONTEXTS.add(ctx);
         }
@@ -96,7 +105,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
             ConfigurableApplicationContext ctx = booted.get(i);
             String own = APP_BEANS.get(i);
             assertThat(ctx.containsBean(own))
-                    .as("%s owns its application bean %s", DomainMcpHost.RESIDENT_HOT.get(i).configName(), own)
+                    .as("%s owns its application bean %s", DomainMcpHost.RESIDENT_HOT.get(i).module(), own)
                     .isTrue();
             for (String other : APP_BEANS) {
                 if (!other.equals(own)) {
@@ -105,6 +114,22 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
                             .isFalse();
                 }
             }
+        }
+
+        // ...and each read ITS OWN application.yml from the per-module config location (slice 3n).
+        // Under the old spring.config.name skip both of these were absent: the module had no identity
+        // of its own and the MCP instructions — the tool-surface prose clients are handed — were lost.
+        for (int i = 0; i < booted.size(); i++) {
+            ConfigurableApplicationContext ctx = booted.get(i);
+            String module = DomainMcpHost.RESIDENT_HOT.get(i).module();
+
+            assertThat(ctx.getEnvironment().getProperty("spring.application.name"))
+                    .as("%s must boot on its own application.yml, not a sibling's", module)
+                    .isEqualTo(module);
+
+            assertThat(ctx.getEnvironment().getProperty("spring.ai.mcp.server.instructions"))
+                    .as("%s's MCP server instructions must survive co-hosting", module)
+                    .isNotBlank();
         }
     }
 }

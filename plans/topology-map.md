@@ -284,6 +284,24 @@ needs; rolled out per module as consolidation proceeds.
   wiring = **3l**), and corrected the process inventory 47 → **50 JVMs**. **Remaining cold unit:** Coach
   (parked #289).
 
+- **3n (in flight — per-module config location; replaces the `spring.config.name` skip):** slices 3b…3k
+  booted each co-hosted context with a unique, **non-existent** `spring.config.name` so the modules'
+  `application.yml` resources (all at `classpath:/application.yml`) could not collide. That solved the
+  collision by **discarding every module's own configuration** — which is fine for an IT that passes
+  properties explicitly, but makes the deployable `main` impossible: the yml is where each module's
+  `env → property` mapping lives (`MCP_CALDAV_PORT`, `MCP_CALDAV_DB_URL`, `SCHEDULER_URL`, the OCR/STT
+  engine picks …) **and** where `spring.ai.mcp.server.instructions` lives — the tool-surface prose the MCP
+  server hands its clients. Hand-wiring those ~40 properties into the launcher would copy a contract into
+  Java and guarantee drift (the IT already drops `instructions` silently).
+  **Mechanism (owner-chosen 2026-11-02), the slice-3d `AGENT.md` precedent applied to `application.yml`:**
+  each co-hosted module's pom copies its own `application.yml` to a **per-module classpath path**
+  (`config/<module>/application.yml`) alongside the default one — one source file, two classpath
+  locations, so a standalone `-exec.jar` still resolves `classpath:/application.yml` unchanged — and the
+  launcher boots each context with `spring.config.location=classpath:/config/<module>/`. Each context then
+  reads its **real** configuration: env substitution works as it always did and `instructions` survive. The
+  `spring.config.name` hack is removed, not built upon. Piloted here on `domain-mcp-host`; the same change
+  for `agent-host` + `platform-host` and the deployable `main`/Dockerfile/compose follow as separate slices.
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -319,6 +337,23 @@ needs; rolled out per module as consolidation proceeds.
   `mcp-inventory` are both live on distinct ports, each context carrying only its own application bean, so
   the domain that shipped after the map was drawn is consolidated like every other (asserted by
   `InventoryHostFootprintIntegrationTest`).
+
+- Scenario: a co-hosted context boots under the per-module config location → it loads **its own**
+  module's `application.yml`, so `spring.application.name` is that module's and
+  `spring.ai.mcp.server.instructions` is non-empty (the tool-surface prose the `spring.config.name` skip
+  silently dropped) (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: the per-module yml copy the host reads declares that module's **production** port
+  (8090 · 8092 · 8095 · 8098 · 8097), so consolidation needs no port re-wiring and agents' `/internal/*`
+  URLs stay valid (asserted by `DomainMcpHostConfigLocationTest`). The co-residency IT overrides the port
+  to ephemeral so it cannot collide with a locally running stack or a sibling host IT under CI's `-T2`
+  (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: a co-hosted module is packaged → its `application.yml` is present at **both**
+  `classpath:/application.yml` (so the standalone `-exec.jar` is unaffected) and
+  `classpath:/config/<module>/application.yml` (so the host can point at it), from the one source file
+  (asserted by `DomainMcpHostConfigLocationTest`).
+- Scenario: a co-hosted module's pom loses the per-module resource block → the packaging test fails in CI
+  rather than the host silently falling back to a sibling's configuration at deploy (asserted by
+  `DomainMcpHostConfigLocationTest`).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.

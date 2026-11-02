@@ -90,6 +90,27 @@
 
     <build>
         <finalName>${project.artifactId}</finalName>
+        <resources>
+            <!-- The default location, re-declared because the block below replaces the implicit one.
+                 Keeps application.yml at classpath:/application.yml so the standalone -exec.jar is
+                 unaffected by the co-hosting change. -->
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- ADR-0006 / #584 slice 3n: land a COPY of this module's own application.yml at a
+                 per-module classpath path, so co-hosted contexts (Domain-MCP-hot host) each read their
+                 OWN configuration instead of colliding on classpath:/application.yml. The host boots
+                 each context with spring.config.location=classpath:/config/mcp-media-processing/.
+                 One source file, two classpath locations — nothing to keep in sync by hand.
+                 Same precedent as slice 3d's per-agent manifest/<name>/AGENT.md. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>application.yml</include>
+                </includes>
+                <targetPath>config/mcp-media-processing</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
