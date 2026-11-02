@@ -67,6 +67,26 @@
 
     <build>
         <finalName>${project.artifactId}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- ADR-0006 / #584 slice 3s: land a COPY of this service's own application.yml at a
+                 per-module classpath path, so co-hosted contexts (Platform-hot host) each read their
+                 OWN configuration instead of colliding on classpath:/application.yml. The host boots
+                 each context with spring.config.location=classpath:/config/profile-service/.
+                 One source file, two classpath locations — nothing to keep in sync by hand, and the
+                 standalone -exec.jar still resolves classpath:/application.yml unchanged.
+                 This is what lets the launcher stop re-supplying the config-name skip and read every
+                 env-mapped value (ports, datasource, outbound URLs, toggles) from the yml below. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>application.yml</include>
+                </includes>
+                <targetPath>config/profile-service</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
