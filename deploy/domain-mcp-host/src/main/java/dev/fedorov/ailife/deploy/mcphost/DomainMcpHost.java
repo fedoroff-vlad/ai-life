@@ -42,10 +42,40 @@ public final class DomainMcpHost {
     private DomainMcpHost() {}
 
     /**
-     * One co-hosted module: its {@code @SpringBootApplication} class + the module name, which is also
-     * the per-module classpath folder its {@code application.yml} copy lands in (pom {@code targetPath}).
+     * Whether a member owns a schema. It decides nothing about the module standalone — it exists because
+     * <b>co-hosting merges five classpaths into one</b>, which hands the schema-less members starters
+     * they never had.
      */
-    public record Hosted(Class<?> app, String module) {
+    public enum Persistence {
+        /** Owns a schema: its yml carries a datasource and JPA must auto-configure. */
+        SCHEMA_BOUND,
+        /** A capability MCP with no schema: JPA/DataSource auto-configuration must stay off. */
+        SCHEMA_LESS
+    }
+
+    /**
+     * Auto-configurations a {@link Persistence#SCHEMA_LESS} member must not get.
+     *
+     * <p>Standalone, a capability MCP has no JPA on its classpath at all. Co-hosted it inherits its
+     * schema-bound siblings' starters, so Boot auto-configures a {@code DataSource} for which it has no
+     * URL and the context dies with <i>"Failed to determine a suitable driver class"</i>. That is exactly
+     * how the first deploy of this host failed — while the IT was green, because the IT handed a
+     * Testcontainers datasource to <b>every</b> context, capability MCPs included, and so could never
+     * see it.
+     */
+    private static final List<String> NO_PERSISTENCE_AUTOCONFIG = List.of(
+            "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration",
+            "org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration",
+            "org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration",
+            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
+            "org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration");
+
+    /**
+     * One co-hosted module: its {@code @SpringBootApplication} class, the module name — which is also
+     * the per-module classpath folder its {@code application.yml} copy lands in (pom
+     * {@code targetPath}) — and whether it owns a schema.
+     */
+    public record Hosted(Class<?> app, String module, Persistence persistence) {
 
         /**
          * Where this module's own {@code application.yml} copy lives on the classpath. Deliberately not
@@ -55,6 +85,11 @@ public final class DomainMcpHost {
         public String configLocation() {
             return "classpath:/config/" + module + "/";
         }
+
+        /** Auto-configurations this member must not get once its classpath is shared with siblings. */
+        public List<String> excludedAutoConfigurations() {
+            return persistence == Persistence.SCHEMA_LESS ? NO_PERSISTENCE_AUTOCONFIG : List.of();
+        }
     }
 
     /**
@@ -63,11 +98,11 @@ public final class DomainMcpHost {
      * …) each get their own launcher list as consolidation rolls out (ADR-0006 item 4).
      */
     public static final List<Hosted> RESIDENT_HOT = List.of(
-            new Hosted(McpCaldavApplication.class, "mcp-caldav"),
-            new Hosted(McpFinanceApplication.class, "mcp-finance"),
-            new Hosted(McpTasksApplication.class, "mcp-tasks"),
-            new Hosted(McpWebApplication.class, "mcp-web"),
-            new Hosted(McpMediaProcessingApplication.class, "mcp-media-processing"));
+            new Hosted(McpCaldavApplication.class, "mcp-caldav", Persistence.SCHEMA_BOUND),
+            new Hosted(McpFinanceApplication.class, "mcp-finance", Persistence.SCHEMA_BOUND),
+            new Hosted(McpTasksApplication.class, "mcp-tasks", Persistence.SCHEMA_BOUND),
+            new Hosted(McpWebApplication.class, "mcp-web", Persistence.SCHEMA_LESS),
+            new Hosted(McpMediaProcessingApplication.class, "mcp-media-processing", Persistence.SCHEMA_LESS));
 
     /**
      * Boot one module context in the current JVM, reading that module's own {@code application.yml}.
@@ -79,10 +114,25 @@ public final class DomainMcpHost {
      * datasource for a test actually means.
      */
     public static ConfigurableApplicationContext boot(Hosted hosted, Map<String, Object> overrides) {
+        return new SpringApplicationBuilder(hosted.app())
+                .run(launchArgs(hosted, overrides, new String[0]));
+    }
+
+    /**
+     * The single place a member's launch arguments are assembled, shared by {@link #boot} and
+     * {@link #main} on purpose: when the test path and the deploy path each built their own wiring, the
+     * IT passed and the deploy died. Anything a co-hosted context needs belongs here.
+     */
+    private static String[] launchArgs(Hosted hosted, Map<String, Object> overrides, String[] extra) {
         List<String> args = new ArrayList<>();
         args.add("--spring.config.location=" + hosted.configLocation());
+        List<String> excluded = hosted.excludedAutoConfigurations();
+        if (!excluded.isEmpty()) {
+            args.add("--spring.autoconfigure.exclude=" + String.join(",", excluded));
+        }
         overrides.forEach((key, value) -> args.add("--" + key + "=" + value));
-        return new SpringApplicationBuilder(hosted.app()).run(args.toArray(String[]::new));
+        args.addAll(List.of(extra));
+        return args.toArray(String[]::new);
     }
 
     /**
@@ -96,10 +146,7 @@ public final class DomainMcpHost {
      */
     public static void main(String[] args) {
         for (Hosted hosted : RESIDENT_HOT) {
-            List<String> withLocation = new ArrayList<>();
-            withLocation.add("--spring.config.location=" + hosted.configLocation());
-            withLocation.addAll(List.of(args));
-            new SpringApplicationBuilder(hosted.app()).run(withLocation.toArray(String[]::new));
+            new SpringApplicationBuilder(hosted.app()).run(launchArgs(hosted, Map.of(), args));
         }
     }
 }

@@ -61,4 +61,29 @@
             <artifactId>test-support</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- ADR-0006 / #584 slice 3o: the host needs a runnable artifact, so unlike the
+                     co-hosted modules (whose executable moved to the `exec` classifier in 3a so the
+                     host could depend on their plain classes jars) the MAIN artifact here IS the
+                     executable — nothing depends on the host. mainClass is explicit because the
+                     launcher is a plain class, not a @SpringBootApplication: it boots several. -->
+                <configuration>
+                    <mainClass>dev.fedorov.ailife.deploy.mcphost.DomainMcpHost</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
