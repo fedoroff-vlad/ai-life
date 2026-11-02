@@ -110,7 +110,7 @@ services:
   # weekly. Restore: see infra/README.md §Database backups.
   postgres-backup:
     profiles: ["hot"]
-    image: prodrigestivill/postgres-backup-local:16
+    image: prodrigestivill/postgres-backup-local:18
     container_name: ai-life-postgres-backup
     restart: unless-stopped
     depends_on:
