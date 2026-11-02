@@ -71,11 +71,33 @@ public final class DomainMcpHost {
             "org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration");
 
     /**
+     * The MCP server transport auto-configurations for each web stack. <b>Both</b> starters are on this
+     * host's merged classpath — the three servlet members bring the webmvc one, the two reactive members
+     * the webflux one — and they collide: whichever transport wins registers its endpoints, and every
+     * context whose stack does not match it mounts <b>nothing</b>. Measured on the first 3p deploy:
+     * {@code /sse} answered 404 on all five while {@code /actuator/health} stayed 200, so the MCP
+     * surface — the whole point of the host — was dead. Standalone the same module on the same stack
+     * answers 200, because standalone only one transport is on its classpath.
+     *
+     * <p>So each member is booted with the <b>other</b> stack's transport excluded, which together with
+     * {@code spring.main.web-application-type} leaves exactly one, matching.
+     */
+    private static final List<String> WEBFLUX_TRANSPORT = List.of(
+            "org.springframework.ai.mcp.server.webflux.autoconfigure.McpServerSseWebFluxAutoConfiguration",
+            "org.springframework.ai.mcp.server.webflux.autoconfigure.McpServerStreamableHttpWebFluxAutoConfiguration",
+            "org.springframework.ai.mcp.server.webflux.autoconfigure.McpServerStatelessWebFluxAutoConfiguration");
+
+    private static final List<String> WEBMVC_TRANSPORT = List.of(
+            "org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerSseWebMvcAutoConfiguration",
+            "org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStreamableHttpWebMvcAutoConfiguration",
+            "org.springframework.ai.mcp.server.webmvc.autoconfigure.McpServerStatelessWebMvcAutoConfiguration");
+
+    /**
      * One co-hosted module: its {@code @SpringBootApplication} class, the module name — which is also
      * the per-module classpath folder its {@code application.yml} copy lands in (pom
      * {@code targetPath}) — and whether it owns a schema.
      */
-    public record Hosted(Class<?> app, String module, Persistence persistence) {
+    public record Hosted(Class<?> app, String module, Persistence persistence, String webType) {
 
         /**
          * Where this module's own {@code application.yml} copy lives on the classpath. Deliberately not
@@ -86,9 +108,17 @@ public final class DomainMcpHost {
             return "classpath:/config/" + module + "/";
         }
 
-        /** Auto-configurations this member must not get once its classpath is shared with siblings. */
+        /**
+         * Auto-configurations this member must not get once its classpath is shared with siblings:
+         * the other web stack's MCP transport always, plus JPA when it owns no schema.
+         */
         public List<String> excludedAutoConfigurations() {
-            return persistence == Persistence.SCHEMA_LESS ? NO_PERSISTENCE_AUTOCONFIG : List.of();
+            List<String> out = new ArrayList<>(
+                    "reactive".equals(webType) ? WEBMVC_TRANSPORT : WEBFLUX_TRANSPORT);
+            if (persistence == Persistence.SCHEMA_LESS) {
+                out.addAll(NO_PERSISTENCE_AUTOCONFIG);
+            }
+            return List.copyOf(out);
         }
     }
 
@@ -98,11 +128,11 @@ public final class DomainMcpHost {
      * …) each get their own launcher list as consolidation rolls out (ADR-0006 item 4).
      */
     public static final List<Hosted> RESIDENT_HOT = List.of(
-            new Hosted(McpCaldavApplication.class, "mcp-caldav", Persistence.SCHEMA_BOUND),
-            new Hosted(McpFinanceApplication.class, "mcp-finance", Persistence.SCHEMA_BOUND),
-            new Hosted(McpTasksApplication.class, "mcp-tasks", Persistence.SCHEMA_BOUND),
-            new Hosted(McpWebApplication.class, "mcp-web", Persistence.SCHEMA_LESS),
-            new Hosted(McpMediaProcessingApplication.class, "mcp-media-processing", Persistence.SCHEMA_LESS));
+            new Hosted(McpCaldavApplication.class, "mcp-caldav", Persistence.SCHEMA_BOUND, "servlet"),
+            new Hosted(McpFinanceApplication.class, "mcp-finance", Persistence.SCHEMA_BOUND, "servlet"),
+            new Hosted(McpTasksApplication.class, "mcp-tasks", Persistence.SCHEMA_BOUND, "servlet"),
+            new Hosted(McpWebApplication.class, "mcp-web", Persistence.SCHEMA_LESS, "reactive"),
+            new Hosted(McpMediaProcessingApplication.class, "mcp-media-processing", Persistence.SCHEMA_LESS, "reactive"));
 
     /**
      * Boot one module context in the current JVM, reading that module's own {@code application.yml}.
@@ -132,6 +162,16 @@ public final class DomainMcpHost {
         // fault when the dead context was mcp-web. Drop the field rather than let four of five lie:
         // the logger name still carries the module (d.f.ailife.mcp.web...).
         args.add("--logging.include-application-name=false");
+        // Each context's web stack, supplied explicitly because NONE of these modules declares it —
+        // standalone they do not have to, since each has exactly one web stack on its classpath.
+        // Co-hosting merges five classpaths, `spring-boot-starter-web` arrives from the three servlet
+        // members, and Boot then picks SERVLET for every context. The two webflux members
+        // (mcp-web, mcp-media-processing) then mount their MCP router functions nowhere: /sse answers
+        // 404 while /actuator/health stays 200, and any agent dialling them dies at context refresh.
+        // That is exactly the failure check-consistency.sh check 17 describes per module — the lint
+        // cannot see it here, because the broken classpath is the HOST's, not any module's.
+        // Measured on the first 3p deploy: all five contexts on Tomcat, /sse 404 on all of them.
+        args.add("--spring.main.web-application-type=" + hosted.webType());
         List<String> excluded = hosted.excludedAutoConfigurations();
         if (!excluded.isEmpty()) {
             args.add("--spring.autoconfigure.exclude=" + String.join(",", excluded));

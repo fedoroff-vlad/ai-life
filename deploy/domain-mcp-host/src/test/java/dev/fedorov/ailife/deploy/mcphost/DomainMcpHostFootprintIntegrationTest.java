@@ -7,6 +7,9 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URI;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +63,23 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
      * uniform props hid the co-hosting defect that then killed the real host (JPA auto-configuring for a
      * capability MCP that inherited its siblings' starters). So only schema-bound members get one.
      */
+    /**
+     * Response status of a GET, without consuming the body — an SSE endpoint holds the connection open,
+     * and {@code getResponseCode()} returns as soon as the headers arrive.
+     */
+    private static int statusOf(String url) throws IOException {
+        HttpURLConnection c = (HttpURLConnection) URI.create(url).toURL().openConnection();
+        c.setRequestMethod("GET");
+        c.setRequestProperty("Accept", "text/event-stream");
+        c.setConnectTimeout(5000);
+        c.setReadTimeout(5000);
+        try {
+            return c.getResponseCode();
+        } finally {
+            c.disconnect();
+        }
+    }
+
     private static Map<String, Object> overrides(DomainMcpHost.Hosted hosted) {
         Map<String, Object> p = new HashMap<>();
         // Ephemeral ports: the yml declares the production ones (8090 · 8092 · 8095 · 8098 · 8097) and
@@ -80,7 +100,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
     }
 
     @Test
-    void residentHotDomainMcpContextsCoexistInOneJvmOnDistinctPorts() {
+    void residentHotDomainMcpContextsCoexistInOneJvmOnDistinctPorts() throws IOException {
         long pid = ProcessHandle.current().pid();
 
         List<ConfigurableApplicationContext> booted = new ArrayList<>();
@@ -137,6 +157,23 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
             assertThat(ctx.getEnvironment().getProperty("spring.ai.mcp.server.instructions"))
                     .as("%s's MCP server instructions must survive co-hosting", module)
                     .isNotBlank();
+        }
+
+        // The MCP surface must actually be MOUNTED, not merely the health endpoint. This is the
+        // assertion whose absence let the first 3p deploy look healthy while every co-hosted MCP
+        // answered 404 on /sse: the shared classpath pulled spring-boot-starter-web in from the three
+        // servlet members, Boot picked SERVLET for all five, and the two webflux members' reactive
+        // router functions mounted nowhere. Health stayed 200; the contract was gone.
+        for (int i = 0; i < booted.size(); i++) {
+            ConfigurableApplicationContext ctx = booted.get(i);
+            DomainMcpHost.Hosted hosted = DomainMcpHost.RESIDENT_HOT.get(i);
+            int port = ctx.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+
+            assertThat(statusOf("http://127.0.0.1:" + port + "/sse"))
+                    .as("%s's MCP SSE endpoint must be mounted — a 404 here with a green /actuator/health "
+                            + "is the co-hosting failure mode: wrong web stack, router functions never "
+                            + "registered", hosted.module())
+                    .isNotEqualTo(404);
         }
 
         // A schema-less member must carry NO datasource even though co-hosting put its siblings' JPA

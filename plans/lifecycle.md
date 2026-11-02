@@ -146,15 +146,17 @@ household *data* endpoints reachable off-host — this is about the LLM channel 
 ~2–3 s via **CDS/AOT** (Spring Boot 4), so no "поднимаю…" placeholder is needed. CDS/AOT therefore lands
 **before/with** the orchestrator lazy-activation slice, not as a later optimisation.
 
-## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 24 hot / 29 cold / 2 tunnel)
-- **`profiles: ["hot"]`** (always-on, 24): backing (postgres, liquibase, postgres-backup, radicale,
+## Hot/cold set — via compose profiles (LC-1 SHIPPED — this is the as-built list, 19 hot / 29 cold / 2 tunnel)
+- **`profiles: ["hot"]`** (always-on, 19): backing (postgres, liquibase, postgres-backup, radicale,
   seaweedfs, searxng, **whisper**) + platform (gateway-telegram, llm-gateway, orchestrator, profile,
   notifier, scheduler, conversation, memory, media) + **`domain-mcp-host`** — ONE container running the
   five resident domain/capability MCPs in one JVM (`mcp-caldav` · `mcp-finance` · `mcp-tasks` ·
   `mcp-web` · `mcp-media-processing`), which it exposes under their old service names as compose network
-  aliases so every `MCP_*_URL` is unchanged (ADR-0006 #584 slice 3p; that is why this count dropped from
-  28 to 24, with no capability lost) + the agents calendar-agent, finance-agent, tasks-agent,
-  researcher-agent +
+  aliases so every `MCP_*_URL` is unchanged (ADR-0006 #584 slice 3p) + **`agent-host`** — ONE container
+  running the six resident agents in one JVM (`calendar-agent` · `finance-agent` · `tasks-agent` ·
+  `notes-agent` · `coordinator-agent` · `researcher-agent`), likewise aliased under their old names so
+  the orchestrator's six `*_AGENT_URL` values are unchanged (#584 slice 3r). Those two hosts are why this
+  count fell **28 → 19** with no capability lost: 11 service definitions became 2. +
   **mcp-media-fetch** (video acquisition — same passive-inbound argument, see the 2026-10-07 refinement
   below) + **notes-agent** (second brain — always needed) + **coordinator-agent** (cross-domain assistant
   front).

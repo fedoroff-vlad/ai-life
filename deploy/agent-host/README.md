@@ -21,6 +21,27 @@ shared-classpath collisions are resolved:
   `manifest/<name>/AGENT.md` (module `pom.xml` `<targetPath>`, file stays at the module root), and the
   launcher points each context's `agent.manifest-classpath` there so the right persona loads.
 
+## Running it
+It is part of the hot profile — the normal bring-up starts it:
+
+```
+docker compose -f infra/docker-compose.yml --profile hot up -d
+```
+
+One container, one JVM, six agent contexts, each on the port its own yml declares. The image is a plain
+JRE: no agent has a native dependency, unlike `domain-mcp-host`'s tesseract + ffmpeg. The healthcheck
+probes **all six** ports — a partial host must never report healthy.
+
+The six service names are how the orchestrator addresses the agents (`CALENDAR_AGENT_URL:
+http://calendar-agent:8086` …), so this container takes them as compose **network aliases** and those
+URLs resolve unchanged. Nothing in compose `depends_on` an agent, so the cutover moved no dependency
+edges. Keep the alias list equal to `RESIDENT_HOT` — `scripts/check-consistency.sh` **check 18**
+enforces it.
+
+Measured 2026-11-02 (#584 slice 3r): the six agents **2799 MB → 549 MB** in one JVM, a 5.1× cut — the
+best ratio of the three resident tiers. Rollback is `git revert`: the six agent Dockerfiles and their
+`-exec` jars are untouched.
+
 ## How the config collision is solved (slice 3q)
 Every module's configuration sits at `classpath:/application.yml`, so on the host's shared classloader
 six contexts would fight over one file. Slice 3d sidestepped that with a unique, **non-existent**

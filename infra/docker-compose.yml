@@ -1283,15 +1283,35 @@ services:
       start_period: 30s
 
   # ---------- agents ----------
-
-  calendar-agent:
+  # ONE JVM, six agent contexts — replaces the former calendar / finance / tasks / notes /
+  # coordinator / researcher agent services (#584 slice 3r). Each context keeps its own port, so the
+  # orchestrator's six *_AGENT_URL values are unchanged; this container takes the old service names
+  # as NETWORK ALIASES so they still resolve. Keep the alias list equal to AgentHost.RESIDENT_HOT
+  # (check-consistency.sh check 18 enforces it).
+  #
+  # Nothing in compose depends_on an agent, so unlike the domain-MCP cutover (3p) this moves no
+  # dependency edges at all — only the six service definitions collapse into this one.
+  #
+  # Rollback is `git revert` of this slice: the six agent Dockerfiles and their `-exec` jars are
+  # untouched, so the separate services still build and run.
+  agent-host:
     profiles: ["hot"]
-    image: ai-life/calendar-agent:local
-    container_name: ai-life-calendar-agent
+    image: ai-life/agent-host:local
+    container_name: ai-life-agent-host
     build:
       context: ..
-      dockerfile: domains/calendar/calendar-agent/Dockerfile
+      dockerfile: deploy/agent-host/Dockerfile
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - calendar-agent
+          - finance-agent
+          - tasks-agent
+          - notes-agent
+          - coordinator-agent
+          - researcher-agent
+    # The union of the six agents' dependencies.
     depends_on:
       llm-gateway:
         condition: service_healthy
@@ -1301,11 +1321,22 @@ services:
         condition: service_healthy
       memory-service:
         condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
       domain-mcp-host:
         condition: service_healthy
+      mcp-media-fetch:
+        condition: service_healthy
+    # The union of the six agents' environment: 34 unique keys, verified conflict-free (no key
+    # appears twice with a different value) — a property to re-check when a member joins.
     environment:
       <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
+      # Deliberately NOT *jvm-opts (-Xmx768m, sized for one module per process): six contexts share
+      # this heap. Provisional headroom — the six measured 2787 MB as separate JVMs.
+      JAVA_TOOL_OPTIONS: "-Xmx2560m"
+      # calendar-agent
       CALENDAR_AGENT_PORT: 8086
       LLM_GATEWAY_URL: http://llm-gateway:8081
       PROFILE_SERVICE_URL: http://profile-service:8082
@@ -1313,51 +1344,9 @@ services:
       MEMORY_SERVICE_URL: http://memory-service:8087
       MCP_CALDAV_URL: http://mcp-caldav:8090
       MCP_ICS_IMPORT_URL: http://mcp-ics-import:8091
-      # Public calendar-web URL (the Tailscale Funnel host) — when set, the agent auto-issues an ICS
-      # feed on a user's first calendar message and replies with the subscribe link (#195).
       CALENDAR_PUBLIC_BASE_URL: ${CALENDAR_PUBLIC_BASE_URL:-}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8086 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  finance-agent:
-    profiles: ["hot"]
-    image: ai-life/finance-agent:local
-    container_name: ai-life-finance-agent
-    build:
-      context: ..
-      dockerfile: domains/finance/finance-agent/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      llm-gateway:
-        condition: service_healthy
-      profile-service:
-        condition: service_healthy
-      notifier-service:
-        condition: service_healthy
-      memory-service:
-        condition: service_healthy
-      media-service:
-        condition: service_healthy
-      domain-mcp-host:
-        condition: service_healthy
-      # mcp-money-pro-import / mcp-market-data / mcp-chart-render are cold (LC-1): started
-      # on demand, not at finance-agent boot. Their flows (Money Pro import, investment
-      # quotes, report charts) reach them over HTTP /internal/* and soft-fail while down;
-      # LC-3 (supervisor + lazy MCP connect) will start them on the request that needs them.
-      # The unused MCP-SSE binding to them is silenced via FINANCE_AGENT_MCP_CLIENT_ENABLED
-      # (see infra/.env.mac.example) so boot pays no dial timeout.
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
+      # finance-agent
       FINANCE_AGENT_PORT: 8093
-      LLM_GATEWAY_URL: http://llm-gateway:8081
-      PROFILE_SERVICE_URL: http://profile-service:8082
-      NOTIFIER_URL: http://notifier-service:8084
-      MEMORY_SERVICE_URL: http://memory-service:8087
       MEDIA_SERVICE_URL: http://media-service:8088
       FINANCE_AGENT_MEMORY_RECALL_K: ${FINANCE_AGENT_MEMORY_RECALL_K:-5}
       MCP_FINANCE_URL: http://mcp-finance:8092
@@ -1366,84 +1355,35 @@ services:
       MARKET_DATA_URL: http://mcp-market-data:8100
       MCP_CHART_RENDER_URL: http://mcp-chart-render:8120
       FINANCE_AGENT_MCP_CLIENT_ENABLED: ${FINANCE_AGENT_MCP_CLIENT_ENABLED:-true}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8093 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  tasks-agent:
-    profiles: ["hot"]
-    image: ai-life/tasks-agent:local
-    container_name: ai-life-tasks-agent
-    build:
-      context: ..
-      dockerfile: domains/tasks/tasks-agent/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      llm-gateway:
-        condition: service_healthy
-      profile-service:
-        condition: service_healthy
-      notifier-service:
-        condition: service_healthy
-      memory-service:
-        condition: service_healthy
-      domain-mcp-host:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
+      # tasks-agent
       TASKS_AGENT_PORT: 8096
-      LLM_GATEWAY_URL: http://llm-gateway:8081
-      PROFILE_SERVICE_URL: http://profile-service:8082
-      NOTIFIER_URL: http://notifier-service:8084
-      MEMORY_SERVICE_URL: http://memory-service:8087
       MCP_TASKS_URL: http://mcp-tasks:8095
       TASKS_AGENT_MCP_CLIENT_ENABLED: ${TASKS_AGENT_MCP_CLIENT_ENABLED:-true}
       TASKS_AGENT_MEMORY_RECALL_K: ${TASKS_AGENT_MEMORY_RECALL_K:-5}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8096 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  researcher-agent:
-    profiles: ["hot"]
-    image: ai-life/researcher-agent:local
-    container_name: ai-life-researcher-agent
-    build:
-      context: ..
-      dockerfile: domains/researcher/researcher-agent/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      llm-gateway:
-        condition: service_healthy
-      domain-mcp-host:
-        condition: service_healthy
-      mcp-media-fetch:
-        condition: service_started
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
+      # notes-agent
+      NOTES_AGENT_PORT: 8118
+      SCHEDULER_URL: http://scheduler-service:8085
+      NOTES_AGENT_MEMORY_RECALL_K: ${NOTES_AGENT_MEMORY_RECALL_K:-5}
+      NOTES_RESURFACE_OLDER_THAN_DAYS: ${NOTES_RESURFACE_OLDER_THAN_DAYS:-30}
+      NOTES_RESURFACE_CRON: ${NOTES_RESURFACE_CRON:-0 0 10 * * MON}
+      # coordinator-agent
+      COORDINATOR_AGENT_PORT: 8119
+      ORCHESTRATOR_URL: http://orchestrator:8083
+      COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
+      # researcher-agent
       RESEARCHER_AGENT_PORT: 8099
-      LLM_GATEWAY_URL: http://llm-gateway:8081
       MCP_WEB_URL: http://mcp-web:8098
       MCP_MEDIA_FETCH_URL: http://mcp-media-fetch:8126
-      MCP_MEDIA_PROCESSING_URL: http://mcp-media-processing:8097
-      PROFILE_SERVICE_URL: http://profile-service:8082
-      NOTIFIER_URL: http://notifier-service:8084
-      MEMORY_SERVICE_URL: http://memory-service:8087
       RESEARCHER_AGENT_MCP_CLIENT_ENABLED: ${RESEARCHER_AGENT_MCP_CLIENT_ENABLED:-true}
       RESEARCHER_AGENT_MEMORY_RECALL_K: ${RESEARCHER_AGENT_MEMORY_RECALL_K:-5}
     healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8099 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
+      # ALL SIX contexts must answer. Slice 3o's deploy came up with three of five contexts live,
+      # and a single-port probe would have reported that healthy.
+      test: ["CMD", "bash", "-c", 'for p in 8086 8093 8096 8099 8118 8119; do (exec 3<>/dev/tcp/127.0.0.1/$$p && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 '') || exit 1; done']
       interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
 
   stylist-agent:
     profiles: ["cold"]
@@ -1829,85 +1769,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-
-  # Second-brain / notes agent (#257, SB-4): "запомни …" / "что я думал про …" over memory-service.
-  # Owns no MCP — the knowledge base is memory-service (/v1/notes + recall + [[wiki-link]] graph).
-  notes-agent:
-    profiles: ["hot"]
-    image: ai-life/notes-agent:local
-    container_name: ai-life-notes-agent
-    build:
-      context: ..
-      dockerfile: domains/knowledge/notes-agent/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      llm-gateway:
-        condition: service_healthy
-      profile-service:
-        condition: service_healthy
-      notifier-service:
-        condition: service_healthy
-      memory-service:
-        condition: service_healthy
-      scheduler-service:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      NOTES_AGENT_PORT: 8118
-      LLM_GATEWAY_URL: http://llm-gateway:8081
-      PROFILE_SERVICE_URL: http://profile-service:8082
-      NOTIFIER_URL: http://notifier-service:8084
-      MEMORY_SERVICE_URL: http://memory-service:8087
-      SCHEDULER_URL: http://scheduler-service:8085
-      NOTES_AGENT_MEMORY_RECALL_K: ${NOTES_AGENT_MEMORY_RECALL_K:-5}
-      NOTES_RESURFACE_OLDER_THAN_DAYS: ${NOTES_RESURFACE_OLDER_THAN_DAYS:-30}
-      NOTES_RESURFACE_CRON: ${NOTES_RESURFACE_CRON:-0 0 10 * * MON}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8118 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  # Cross-cutting synthesis engine (#290): multi-domain requests → read the second brain → one answer.
-  # Binds no domain-MCP; reactive (/intent) + proactive (/triggers) on the shared Coordinator.
-  coordinator-agent:
-    profiles: ["hot"]
-    image: ai-life/coordinator-agent:local
-    container_name: ai-life-coordinator-agent
-    build:
-      context: ..
-      dockerfile: domains/assistant/coordinator-agent/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      llm-gateway:
-        condition: service_healthy
-      profile-service:
-        condition: service_healthy
-      notifier-service:
-        condition: service_healthy
-      memory-service:
-        condition: service_healthy
-    environment:
-      <<: *internal-secret
-      JAVA_TOOL_OPTIONS: *jvm-opts
-      COORDINATOR_AGENT_PORT: 8119
-      LLM_GATEWAY_URL: http://llm-gateway:8081
-      PROFILE_SERVICE_URL: http://profile-service:8082
-      NOTIFIER_URL: http://notifier-service:8084
-      MEMORY_SERVICE_URL: http://memory-service:8087
-      ORCHESTRATOR_URL: http://orchestrator:8083
-      COORDINATOR_AGENT_MEMORY_RECALL_K: ${COORDINATOR_AGENT_MEMORY_RECALL_K:-5}
-    healthcheck:
-      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8119 && printf ''GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && head -n1 <&3 | grep -q '' 200 ''']
-      interval: 10s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-
-  # Self-understanding coach (#289 CO-2): safety gate → Reflect over the sender's own notes/memories →
-  # durable coaching record in mcp-coach. Strictly per-subject (the authenticated sender).
   coach-agent:
     profiles: ["cold"]
     image: ai-life/coach-agent:local

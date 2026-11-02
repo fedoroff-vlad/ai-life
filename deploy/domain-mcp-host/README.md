@@ -39,6 +39,29 @@ So instead each co-hosted module's **pom** lands a copy of its own `application.
 Same precedent as slice 3d's per-agent `manifest/<name>/AGENT.md`: the file stays where it belongs in the
 module; only its classpath location changes.
 
+## The merged classpath also breaks the MCP transport (slice 3r) — read this before adding a member
+Five modules in one JVM means **one classpath**, and this host's carries **both** MCP server transport
+starters: `spring-ai-starter-mcp-server-webmvc` from `mcp-caldav`/`mcp-finance`/`mcp-tasks`, and
+`…-webflux` from `mcp-web`/`mcp-media-processing`. They collide — one transport wins and every context
+whose web stack does not match it mounts **nothing**:
+
+```
+GET /sse            -> 404      on all five
+GET /actuator/health -> 200     on all five
+```
+
+This host ran that way from its cutover (3p) until 3r found it, because every check probed health and
+never the MCP endpoint. The host was up; its reason for existing was not. A standalone `mcp-caldav` run
+from its own image answers `/sse` **200 on the same servlet stack**, which is what proved the web stack
+alone was not the cause.
+
+So each member declares its `webType`, is booted with `spring.main.web-application-type`, and has the
+**other** stack's three transport auto-configurations excluded. The IT now asserts `/sse` is not 404 for
+every context — that assertion, not the healthcheck, is the guard.
+
+`check-consistency.sh` check 17 describes this exact failure per module, but it reads module poms, not a
+host's merged classpath, so it cannot see it here.
+
 ## Co-hosting merges classpaths — and that changes what auto-configures (slice 3o)
 Five modules in one JVM means **one classpath**. A capability MCP that owns no schema (`mcp-web`,
 `mcp-media-processing`) standalone has no JPA on its classpath at all; co-hosted it inherits its
