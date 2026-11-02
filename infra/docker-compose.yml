@@ -284,7 +284,7 @@ services:
     # dashboards-only sidecar on an opt-in profile, so the first real bring-up must confirm that
     # provisioning/datasources/postgres.yml still loads (check the container log, then the
     # ai-life folder in the UI). Provisioning stays apiVersion 1 in both files.
-    image: grafana/grafana:13.2.4
+    image: grafana/grafana:13.3.0
     container_name: ai-life-grafana
     restart: unless-stopped
     depends_on:
