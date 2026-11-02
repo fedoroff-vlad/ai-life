@@ -77,7 +77,7 @@ services:
 
   liquibase:
     profiles: ["hot"]
-    image: liquibase/liquibase:4.30
+    image: liquibase/liquibase:4.33
     container_name: ai-life-liquibase
     depends_on:
       postgres:
