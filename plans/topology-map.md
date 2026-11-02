@@ -131,20 +131,36 @@ the Mac — the dev box has no Docker daemon). Tool: [`scripts/measure-footprint
 Classification is signal-driven, no embedded topology copy (avoids a second SSOT): container image
 `ai-life/*:local` → JVM app (`memory-service` / `llm-gateway` flagged as the isolated singletons),
 `pgvector/pgvector` → Postgres, every other image → non-JVM backing; the model is Ollama on the **host**
-(not a container), read from `ps`. Cold hosts that are stopped simply don't appear — the snapshot reflects
+(not a container), read from **`ollama ps`** (the resident size, which includes unified GPU memory) with
+`ps` RSS as the fallback. Cold hosts that are stopped simply don't appear — the snapshot reflects
 whatever is actually resident, which is the number that matters.
 
-These four are asserted at deploy, not in CI: `measure-footprint.sh` is a shell harness whose real
-numbers need the Mac (no Docker on the dev VDI), so each carries `not yet asserted` until then.
+**First run on the Mac, 2026-11-02 — it took two fixes to produce a usable number** (the harness was
+authored on the VDI, so neither defect could surface there):
+1. **It did not run at all.** The name→image map used `declare -A`; macOS ships **bash 3.2**, which has no
+   associative arrays, and no newer bash is installed or declared in the `Brewfile`. Replaced with a text
+   map + an `awk` lookup — no new dependency.
+2. **The model number was wrong by ~17×, which inverted the premise check.** Under the MLX runner the
+   weights sit in unified memory that `ps` does not attribute to the process: a resident **44 GB** model
+   reported **~2.5 GB** of RSS, so the summary read "JVM 11 GB vs model 2.5 GB" when the truth is 11 vs 44.
+   Now read from `ollama ps`; the `model` line names its source and `split.model_src` records it in `--json`
+   so before/after diffs stay comparable.
+
+Baseline captured the same day (all 19 resident JVMs up, model loaded): **JVM apps 10039 MB / 19 · JVM
+singletons 1048 MB / 2 · Postgres 166 MB · model 45056 MB · backing 1019 MB / 5 · total 57328 MB** of the
+box's 64 GB — which confirms the ADR's ~10 GB-of-overhead premise and is the "before" for slice 3's delta.
+
+These four are verified by that run but stay `not yet asserted`: `measure-footprint.sh` is a shell harness
+and the repo has no shell test lane, so nothing in CI can fail if they regress.
 
 - Scenario: measuring a running stack → a per-process table (name · tier · RSS, sorted desc) **and** a
-  split summary (JVM total + count · Postgres · model · backing · grand total) (not yet asserted — mac-gated shell harness).
-- Scenario: the local model runs as a host Ollama process → its RSS is captured separately from the
-  containers and reported in the `model` line (with the unified-memory caveat noted) (not yet asserted — mac-gated shell harness).
+  split summary (JVM total + count · Postgres · model · backing · grand total) (not yet asserted — no shell test lane).
+- Scenario: the local model runs as a host Ollama process → its resident size is captured separately from
+  the containers and reported in the `model` line, naming the source it came from (not yet asserted — no shell test lane).
 - Scenario: `--json` → the same numbers as one machine-readable object, so slice 3 can diff before/after
-  consolidation without re-parsing the table (not yet asserted — mac-gated shell harness).
+  consolidation without re-parsing the table (not yet asserted — no shell test lane).
 - Scenario: the stack (or Docker) is down → the script reports only what is running and exits 0 (a
-  measurement tool never fails a pipeline), naming what it could not reach (not yet asserted — mac-gated shell harness).
+  measurement tool never fails a pipeline), naming what it could not reach (not yet asserted — no shell test lane).
 
 ## Slice 3 — consolidation spike (execution notes)
 ADR-0006 action item 3, Path B / approach **B1** (owner-chosen): several domain-MCP module contexts in

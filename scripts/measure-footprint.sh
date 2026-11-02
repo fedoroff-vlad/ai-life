@@ -21,9 +21,11 @@
 # which is the number that matters for the RAM-for-the-model goal.
 #
 # Note on the metric: for containers we read `docker stats` memory usage (the cgroup working set), which
-# is the correct RAM-used analog for "how much this process costs"; for the host Ollama we read RSS from
-# `ps`. On Apple Silicon the model also occupies unified GPU memory that `ps` RSS may under-report — the
-# `model` line prints a caveat so the number is read with that in mind.
+# is the correct RAM-used analog for "how much this process costs"; for the host model we read the
+# resident size from `ollama ps`, falling back to `ps` RSS when the CLI is absent or nothing is loaded.
+# The fallback is a floor on Apple Silicon, where the MLX runner keeps the weights in unified memory
+# that `ps` does not attribute to the process (measured 2026-11-02: 44 GB resident, ~2.5 GB of RSS) —
+# the `model` line names which source produced the number.
 #
 # Usage:
 #   scripts/measure-footprint.sh                 # human table + split summary
@@ -85,16 +87,15 @@ fi
 # rows: "name<TAB>tier<TAB>mb"
 ROWS=""
 if $DOCKER_OK; then
-  # name -> image map for running containers
-  declare -A IMAGE_OF=()
-  while IFS=$'\t' read -r cname cimage; do
-    [[ -z "$cname" ]] && continue
-    IMAGE_OF["$cname"]="$cimage"
-  done < <(docker ps --format '{{.Names}}\t{{.Image}}')
+  # name -> image map for running containers, kept as TEXT and looked up with awk:
+  # macOS ships bash 3.2, which has no associative arrays (`declare -A`), and this
+  # harness's whole point is to run on the Mac — the only box with the real stack.
+  IMAGES="$(docker ps --format '{{.Names}}\t{{.Image}}')"
 
   while IFS=$'\t' read -r cname cmem; do
     [[ -z "$cname" ]] && continue
-    local_image="${IMAGE_OF[$cname]:-unknown}"
+    local_image="$(printf '%s\n' "$IMAGES" | awk -F'\t' -v n="$cname" '$1==n {print $2; exit}')"
+    [[ -z "$local_image" ]] && local_image="unknown"
     tier="$(classify "$local_image" "$cname")"
     # docker stats MemUsage is "used / limit" — keep the used token only.
     cmem_used="${cmem%% /*}"
@@ -103,8 +104,24 @@ if $DOCKER_OK; then
   done < <(docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}')
 fi
 
-# host model (Ollama) RSS in MB — sum over matching processes; 0 if none.
-MODEL_MB="$(ps -Ao rss,comm 2>/dev/null | awk -v p="$OLLAMA_PROC" 'tolower($2) ~ tolower(p) {s+=$1} END{printf "%.1f", s/1024}' || true)"
+# Host model size in MB; 0 if nothing is loaded.
+#
+# Prefer `ollama ps`, NOT `ps` RSS. Under the MLX runner on Apple Silicon the weights live in unified
+# memory that `ps` does not attribute to the process: a resident 44 GB model reports ~2.5 GB of RSS.
+# That understates the model by ~17x and inverts this harness's own premise check (it read "JVM 11 GB
+# vs model 2.5 GB" on the real stack, when it is 11 vs 44). `ollama ps` reports the resident size the
+# runner actually holds, which is the number the RAM-for-the-model goal is about.
+MODEL_SRC="ollama ps"
+MODEL_MB="$(ollama ps 2>/dev/null | awk 'NR>1 && NF>=4 {
+    u=toupper($4); v=$3+0;
+    if (u ~ /^GI?B/) s+=v*1024; else if (u ~ /^MI?B/) s+=v; else if (u ~ /^KI?B/) s+=v/1024;
+  } END{printf "%.1f", s+0}' || true)"
+# No ollama CLI, or no model loaded → fall back to process RSS (correct for a CPU/CUDA runner, and a
+# floor on Apple Silicon).
+if [[ -z "$MODEL_MB" || "$MODEL_MB" == "0.0" ]]; then
+  MODEL_SRC="ps rss"
+  MODEL_MB="$(ps -Ao rss,comm 2>/dev/null | awk -v p="$OLLAMA_PROC" 'tolower($2) ~ tolower(p) {s+=$1} END{printf "%.1f", s/1024}' || true)"
+fi
 if [[ -z "$MODEL_MB" ]]; then MODEL_MB="0.0"; fi
 
 # --- aggregate -------------------------------------------------------------
@@ -145,6 +162,7 @@ if $JSON; then
     "jvm_singleton_mb": $JVM_SGL_MB, "jvm_singleton_count": $JVM_SGL_N,
     "postgres_mb": $PG_MB,
     "model_mb": $MODEL_MB,
+    "model_src": "$MODEL_SRC",
     "backing_mb": $BACK_MB, "backing_count": $BACK_N,
     "grand_total_mb": $GRAND_MB
   }
@@ -171,7 +189,11 @@ printf '  %-24s %10.1f MB  (%d JVMs)\n' "JVM apps"          "$JVM_APP_MB" "$JVM_
 printf '  %-24s %10.1f MB  (%d JVMs)\n' "JVM singletons"    "$JVM_SGL_MB" "$JVM_SGL_N"
 printf '  %-24s %10.1f MB  (%d JVMs total)\n' "JVM subtotal" "$JVM_MB" "$JVM_N"
 printf '  %-24s %10.1f MB\n' "Postgres"          "$PG_MB"
-printf '  %-24s %10.1f MB  (unified GPU mem may exceed this on Apple Silicon)\n' "Model (Ollama host)" "$MODEL_MB"
+if [[ "$MODEL_SRC" == "ollama ps" ]]; then
+  printf '  %-24s %10.1f MB  (resident size per `ollama ps` — incl. unified GPU memory)\n' "Model (Ollama host)" "$MODEL_MB"
+else
+  printf '  %-24s %10.1f MB  (`ps` RSS fallback — under-reports unified GPU memory on Apple Silicon)\n' "Model (Ollama host)" "$MODEL_MB"
+fi
 printf '  %-24s %10.1f MB  (%d containers)\n' "Backing (non-JVM)" "$BACK_MB" "$BACK_N"
 printf '  %-24s %10.1f MB\n' "GRAND TOTAL"       "$GRAND_MB"
 echo ""
