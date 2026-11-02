@@ -521,26 +521,32 @@ while IFS= read -r c17_pom; do
   fi
 done <<< "$(find domains shared -name pom.xml 2>/dev/null)"
 
-# ── Check 18: the consolidated host's network aliases cover its members (host-alias-closure) ──
-# ADR-0006 slice 3o/3p: `domain-mcp-host` runs the five former mcp-* services in one JVM, and the
-# ONLY reason 14 services keep reaching them is that the container takes their old service names as
-# compose NETWORK ALIASES (MCP_CALDAV_URL: http://mcp-caldav:8090 still resolves). So the alias list
-# and the launcher's RESIDENT_HOT list are one coupling in two files, and nothing else reads both:
-# add a member to the launcher without its alias and that MCP becomes unreachable fleet-wide at
-# deploy, with every healthcheck green — the host is up, the name just resolves nowhere.
-echo "check 18: the consolidated host's compose aliases match its launcher members (host-alias-closure)"
-c18_launcher="deploy/domain-mcp-host/src/main/java/dev/fedorov/ailife/deploy/mcphost/DomainMcpHost.java"
-if [ ! -f "$c18_launcher" ]; then
-  err "$c18_launcher is missing — the host launcher moved; update check 18 in $0"
-elif ! grep -q "^  domain-mcp-host:" "$COMPOSE"; then
-  err "$COMPOSE: no domain-mcp-host service — the consolidated host left compose; update check 18 in $0"
-else
-  # RESIDENT_HOT members: the module name is the 2nd arg of each `new Hosted(...)`.
-  c18_members="$(grep -oE 'new Hosted\([A-Za-z]+\.class, "[a-z0-9-]+"' "$c18_launcher" \
+# ── Check 18: a consolidated host's network aliases cover its members (host-alias-closure) ──────
+# ADR-0006 slices 3o…3r: each `deploy/<name>-host` runs several former services in one JVM, and the
+# ONLY reason their callers keep reaching them is that the container takes the old service names as
+# compose NETWORK ALIASES (MCP_CALDAV_URL: http://mcp-caldav:8090 and CALENDAR_AGENT_URL:
+# http://calendar-agent:8086 still resolve). So the alias list and the launcher's RESIDENT_HOT list
+# are one coupling in two files, and nothing else reads both: add a member to the launcher without
+# its alias and that service becomes unreachable fleet-wide at deploy, with every healthcheck green
+# — the host is up, the name just resolves nowhere.
+# Discovered, not listed: every deploy/* module that compose runs as a service of the same name is
+# checked, so a new consolidated host is covered the day it lands in compose.
+echo "check 18: consolidated hosts' compose aliases match their launcher members (host-alias-closure)"
+c18_any=no
+for c18_dir in deploy/*/; do
+  c18_host="$(basename "$c18_dir")"
+  grep -q "^  ${c18_host}:" "$COMPOSE" || continue   # not in compose yet (its cutover slice is pending)
+  c18_any=yes
+  c18_launcher="$(find "$c18_dir/src/main/java" -name '*Host.java' 2>/dev/null | head -1)"
+  if [ -z "${c18_launcher:-}" ]; then
+    err "$c18_dir: compose runs '$c18_host' but the module has no *Host.java launcher; update check 18 in $0"
+    continue
+  fi
+  # RESIDENT_HOT members: the module/service name is the 2nd arg of each `new Hosted(...)` / `new Agent(...)`.
+  c18_members="$(grep -oE 'new (Hosted|Agent)\([A-Za-z]+\.class, "[a-z0-9-]+"' "$c18_launcher" \
     | sed -E 's/.*"([a-z0-9-]+)"/\1/' | sort -u)"
-  # The aliases block of the domain-mcp-host service.
-  c18_aliases="$(awk '
-    /^  domain-mcp-host:/      { in_h=1; next }
+  c18_aliases="$(awk -v h="  ${c18_host}:" '
+    $0 == h                     { in_h=1; next }
     in_h && /^  [a-zA-Z0-9._-]+:[[:space:]]*$/ { in_h=0 }
     in_h && /^        aliases:/ { in_a=1; next }
     in_a && /^          - /     { print $2; next }
@@ -549,18 +555,19 @@ else
   if [ -z "$c18_members" ]; then
     err "$c18_launcher: parsed no RESIDENT_HOT members — the launcher's shape changed; update check 18 in $0"
   elif [ -z "$c18_aliases" ]; then
-    err "$COMPOSE: domain-mcp-host declares no network aliases — the five old service names would resolve nowhere"
+    err "$COMPOSE: $c18_host declares no network aliases — the old service names would resolve nowhere"
     err "→ add every RESIDENT_HOT member as an alias under networks.default.aliases"
   else
-    c18_missing="$(comm -23 <(printf '%s\n' "$c18_members") <(printf '%s\n' "$c18_aliases"))"
-    c18_extra="$(comm -13 <(printf '%s\n' "$c18_members") <(printf '%s\n' "$c18_aliases"))"
-    for m in $c18_missing; do
-      err "$COMPOSE: domain-mcp-host hosts '$m' but does not alias it — every http://$m:PORT caller breaks at deploy while health stays green"
+    for m in $(comm -23 <(printf '%s\n' "$c18_members") <(printf '%s\n' "$c18_aliases")); do
+      err "$COMPOSE: $c18_host hosts '$m' but does not alias it — every http://$m:PORT caller breaks at deploy while health stays green"
     done
-    for e in $c18_extra; do
-      err "$COMPOSE: domain-mcp-host aliases '$e', which it does not host — the name resolves to a container with nothing on that port"
+    for e in $(comm -13 <(printf '%s\n' "$c18_members") <(printf '%s\n' "$c18_aliases")); do
+      err "$COMPOSE: $c18_host aliases '$e', which it does not host — the name resolves to a container with nothing on that port"
     done
   fi
+done
+if [ "$c18_any" = no ]; then
+  err "$COMPOSE: no deploy/* host runs as a compose service — the consolidation left compose; update check 18 in $0"
 fi
 
 echo ""

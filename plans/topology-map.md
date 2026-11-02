@@ -395,6 +395,38 @@ needs; rolled out per module as consolidation proceeds.
   test until `mvn clean` — Maven leaves the already-copied resource in `target/classes`, so a local
   green after such an edit is meaningless. CI is a fresh checkout and sees it.
 
+- **3r (done — Agent-hot deployable + cutover, and the defect it exposed in 3o/3p):** `agent-host` gets
+  a runnable jar and a Dockerfile (plain JRE — no agent has a native dependency) and replaces the six
+  agent services in compose. Hot set **24 → 19**. Nothing in compose `depends_on` an agent, so unlike 3p
+  this moved **no** dependency edges; only the orchestrator's six `*_AGENT_URL` values matter, and the
+  old service names are preserved as network aliases. Measured: the six agents **2799 MB → 549 MB** in
+  one JVM (**5.1×**, the best ratio of the three tiers), whole JVM-app tier **10039 → 5689 MB**, 19 → 10
+  JVMs, 27 → 18 containers (`logs/footprint-3r-agent-host-2026-11-02.json`).
+  **⚠ This slice exposed a defect that made 3o/3p's central claim false.** `agent-host` would not start:
+  `researcher-agent`'s MCP client timed out creating `mcpSyncClients`. The cause was not in agent-host at
+  all — **every MCP server inside `domain-mcp-host` was answering `/sse` with 404 while
+  `/actuator/health` stayed 200.** So the consolidated host had been running since 3p with its MCP
+  surface dead, and "each context keeps its own MCP server, so every contract is unchanged" was wrong.
+  Nothing caught it because every check — the healthcheck, the IT, my live verification — probed
+  `/actuator/health` and never the MCP endpoint.
+  **Root cause, confirmed by experiment rather than inference.** The first hypothesis (web stack) was
+  only half of it: all five contexts had booted on Tomcat, because the merged classpath carries
+  `spring-boot-starter-web` from the three servlet members and Boot then picks SERVLET for everyone. But
+  a standalone `mcp-caldav` run from its own image answers `/sse` **200 on that same servlet stack**, so
+  the stack alone could not explain it. The real cause is that **both MCP transport starters are on the
+  merged classpath** (`spring-ai-starter-mcp-server-webmvc` from caldav/finance/tasks,
+  `…-webflux` from web/media-processing); they collide, one wins, and every context whose stack does not
+  match it mounts nothing.
+  Fix: each member now declares its `webType`, is booted with `spring.main.web-application-type`, and has
+  the **other** stack's three transport auto-configurations excluded — the same per-member-exclusion
+  shape `Persistence` already uses. Verified live: `/sse` is 200 on all five through their aliases
+  (webmvc members answer `200`, webflux `200 OK` — visibly different stacks), and `agent-host` then came
+  up healthy on its own.
+  **`check-consistency.sh` check 17 describes this exact failure** ("/sse answers 404 while health stays
+  green") but checks each module's pom, not a host's merged classpath, so it could not see it. The guard
+  now lives in the IT instead: it asserts `/sse` is not 404 for every context. Cost: the IT went 7 s →
+  103 s, since each probe holds an SSE connection open.
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -477,6 +509,17 @@ needs; rolled out per module as consolidation proceeds.
 - Scenario: an agent's pom loses its per-module resource block → the packaging test fails on a clean
   build rather than that context booting a sibling's persona at deploy (asserted by
   `AgentHostConfigLocationTest`).
+
+- Scenario: a co-hosted MCP module is reached on its own port → its **MCP endpoint** is mounted, not
+  merely `/actuator/health`; a 404 on `/sse` with a green health is the co-hosting failure (asserted by
+  `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: a host mixes webmvc-MCP and webflux-MCP members → each context boots on its own web stack
+  with the other stack's transport auto-configurations excluded, so exactly one transport matches
+  (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: the orchestrator addresses a co-hosted agent by its old name → the name resolves to
+  `agent-host` and the agent answers on its own port, so no `*_AGENT_URL` changed (verified live
+  2026-11-02, all six answered 200) (not yet asserted — needs a live stack; check 18 guards the alias
+  list that makes it work).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
