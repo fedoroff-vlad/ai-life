@@ -427,6 +427,33 @@ needs; rolled out per module as consolidation proceeds.
   now lives in the IT instead: it asserts `/sse` is not 404 for every context. Cost: the IT went 7 s →
   103 s, since each probe holds an SSE connection open.
 
+- **3s (done — per-module config on the Platform-hot host; the riskiest tier, and what made it so):**
+  the 3n/3q mechanism rolled out to `platform-host`. Each of the seven services' poms lands a copy of its
+  own `application.yml` at `config/<name>/` and the launcher boots each context with
+  `spring.config.location` there. On this tier the yml is where the whole `env → property` mapping lives
+  (each service's port, its `*_DB_URL`, the outbound `PROFILE_SERVICE_URL` / `ORCHESTRATOR_URL`
+  hostnames, the inbox and scheduler tuning, the S3 bucket), so the `spring.config.name` skip had left
+  the deploy path with nothing to read.
+  **Unlike 3q, the web-type re-supply stays.** Only two of the seven ymls declare
+  `spring.main.web-application-type` — `gateway-telegram` (reactive) and `scheduler-service` (servlet) —
+  so for the other five the launcher is the *only* source, not a duplicate. And it is load-bearing:
+  four members bring `spring-boot-starter-web`, so on the merged classpath Boot deduces SERVLET for all
+  seven, including the three reactive ones — the 3p failure mode exactly.
+  **`orchestrator` is the one schema-less member** (the only service whose yml carries no
+  `spring.datasource`), so it gets the `Persistence.SCHEMA_LESS` excludes from 3o. No MCP transport split
+  is needed: no platform module is an MCP server, so neither transport starter reaches this classpath.
+  **The IT had the same blind spot 3o's did, and it is now closed.** It handed a Testcontainers datasource
+  to all seven contexts, `orchestrator` included, so it could never see that a schema-less member co-hosted
+  without the excludes dies on *"Failed to determine a suitable driver class"*. Only schema-bound members
+  get one now, and the IT asserts orchestrator holds no `DataSource` bean at all.
+  Two guards were added that check the launcher's claims *about* the modules, because both per-member flags
+  describe files that live elsewhere: `Persistence` is **derived from each yml** (schema-bound exactly when
+  the yml declares a datasource), and `webType` must **agree with every yml that declares one** — the
+  launcher passes it as a command-line argument, which outranks the yml, so a disagreement would silently
+  run a service on a stack its own configuration contradicts. The IT also asserts the context *type*
+  (reactive vs servlet) per member rather than only that something answers, which is the lesson of 3r:
+  health was green while the surface was dead.
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -435,9 +462,16 @@ needs; rolled out per module as consolidation proceeds.
   ports, each with only its own application bean **and its own AGENT.md persona** (proving both the
   `application.yml` skip and the per-agent manifest-path fix) (asserted by `AgentHostFootprintIntegrationTest`).
 - Scenario: the host boots the seven resident Platform-hot contexts in one JVM → all seven are live on
-  distinct ports, each context carrying only its own application bean, with mixed reactive/servlet web
-  stacks side-by-side and media-service's boot-time bucket-ensure satisfied by a live SeaweedFS (asserted by
+  distinct ports, each context carrying only its own application bean, **reading its own per-module
+  `application.yml`**, on the web stack (reactive/servlet) its launcher entry declares, answering on its
+  own port, and with **no `DataSource` auto-configured for the schema-less `orchestrator`**;
+  media-service's boot-time bucket-ensure is satisfied by a live SeaweedFS (asserted by
   `PlatformHostFootprintIntegrationTest`).
+- Scenario: a platform service's pom loses its per-module config resource block, or `RESIDENT_HOT`
+  misclassifies a member's persistence or contradicts a yml that declares its own web stack → the failure
+  is named per service, with no Spring context and no containers (asserted by
+  `PlatformHostConfigLocationTest`). **Only after `mvn clean`** — Maven leaves the already-copied resource
+  in `target/classes`, the 3q trap.
 - Scenario: the first cold host-unit boots an agent and its domain-MCP in one JVM → `docs-agent` +
   `mcp-docs` are both live on distinct ports, each context carrying only its own application bean, proving
   the agent+MCP co-hosting the cold grouping needs (asserted by `DocsHostFootprintIntegrationTest`).
