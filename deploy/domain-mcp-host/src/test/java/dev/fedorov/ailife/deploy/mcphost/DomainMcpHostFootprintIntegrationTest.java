@@ -25,6 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Liquibase at boot and hold no fatal startup bean, so no schema is required to start the web + MCP
  * servers — enough to prove co-residency). The two schema-less capability MCPs (web, media-processing)
  * ignore the datasource props.
+ *
+ * <p><b>Slice 3n:</b> each context now reads <b>its own</b> {@code application.yml} from the per-module
+ * classpath location instead of being booted with its configuration skipped, so this IT also guards what
+ * that buys — the module's real identity and its {@code spring.ai.mcp.server.instructions}, the
+ * tool-surface prose the old {@code spring.config.name} skip silently dropped. Overrides go through
+ * {@link DomainMcpHost#boot} as command-line args so they outrank the yml.
  */
 class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationTest {
 
@@ -44,21 +50,32 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
         CONTEXTS.clear();
     }
 
-    private static Map<String, Object> baseProps(String mcpServerName) {
+    /**
+     * What the test must override on top of each module's own yml. Deliberately minimal — the MCP server
+     * identity, the port default and every module-specific setting come from the module's own
+     * configuration, which is the point of slice 3n — and deliberately <b>per member</b>.
+     *
+     * <p>An earlier version handed the Testcontainers datasource to all five contexts, capability MCPs
+     * included. That is not what deploy looks like: a schema-less member has no datasource anywhere, and
+     * uniform props hid the co-hosting defect that then killed the real host (JPA auto-configuring for a
+     * capability MCP that inherited its siblings' starters). So only schema-bound members get one.
+     */
+    private static Map<String, Object> overrides(DomainMcpHost.Hosted hosted) {
         Map<String, Object> p = new HashMap<>();
-        // Only the three JPA modules read these; the capability MCPs ignore them.
-        p.put("spring.datasource.url", jdbcUrl());
-        p.put("spring.datasource.username", username());
-        p.put("spring.datasource.password", password());
-        p.put("spring.jpa.hibernate.ddl-auto", "none");
-        p.put("spring.jpa.open-in-view", "false");
-        p.put("spring.jpa.properties.hibernate.type.json_format_mapper",
-                "dev.fedorov.ailife.common.jackson.Jackson3JsonFormatMapper");
-        // each context gets its own MCP server identity + a random web port (proves distinct servers)
-        p.put("spring.ai.mcp.server.name", mcpServerName);
-        p.put("spring.ai.mcp.server.version", "0.0.1");
-        p.put("spring.ai.mcp.server.type", "ASYNC");
+        // Ephemeral ports: the yml declares the production ones (8090 · 8092 · 8095 · 8098 · 8097) and
+        // DomainMcpHostConfigLocationTest asserts that; binding them here would collide with a locally
+        // running stack and with a sibling host IT under CI's -T2.
         p.put("server.port", "0");
+
+        if (hosted.persistence() == DomainMcpHost.Persistence.SCHEMA_BOUND) {
+            p.put("spring.datasource.url", jdbcUrl());
+            p.put("spring.datasource.username", username());
+            p.put("spring.datasource.password", password());
+            p.put("spring.jpa.hibernate.ddl-auto", "none");
+            p.put("spring.jpa.open-in-view", "false");
+            p.put("spring.jpa.properties.hibernate.type.json_format_mapper",
+                    "dev.fedorov.ailife.common.jackson.Jackson3JsonFormatMapper");
+        }
         return p;
     }
 
@@ -68,8 +85,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
 
         List<ConfigurableApplicationContext> booted = new ArrayList<>();
         for (DomainMcpHost.Hosted hosted : DomainMcpHost.RESIDENT_HOT) {
-            ConfigurableApplicationContext ctx =
-                    DomainMcpHost.boot(hosted, baseProps("ai-life-" + hosted.configName() + "-hosted"));
+            ConfigurableApplicationContext ctx = DomainMcpHost.boot(hosted, overrides(hosted));
             booted.add(ctx);
             CONTEXTS.add(ctx);
         }
@@ -96,7 +112,7 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
             ConfigurableApplicationContext ctx = booted.get(i);
             String own = APP_BEANS.get(i);
             assertThat(ctx.containsBean(own))
-                    .as("%s owns its application bean %s", DomainMcpHost.RESIDENT_HOT.get(i).configName(), own)
+                    .as("%s owns its application bean %s", DomainMcpHost.RESIDENT_HOT.get(i).module(), own)
                     .isTrue();
             for (String other : APP_BEANS) {
                 if (!other.equals(own)) {
@@ -105,6 +121,36 @@ class DomainMcpHostFootprintIntegrationTest extends AbstractPostgresIntegrationT
                             .isFalse();
                 }
             }
+        }
+
+        // ...and each read ITS OWN application.yml from the per-module config location (slice 3n).
+        // Under the old spring.config.name skip both of these were absent: the module had no identity
+        // of its own and the MCP instructions — the tool-surface prose clients are handed — were lost.
+        for (int i = 0; i < booted.size(); i++) {
+            ConfigurableApplicationContext ctx = booted.get(i);
+            String module = DomainMcpHost.RESIDENT_HOT.get(i).module();
+
+            assertThat(ctx.getEnvironment().getProperty("spring.application.name"))
+                    .as("%s must boot on its own application.yml, not a sibling's", module)
+                    .isEqualTo(module);
+
+            assertThat(ctx.getEnvironment().getProperty("spring.ai.mcp.server.instructions"))
+                    .as("%s's MCP server instructions must survive co-hosting", module)
+                    .isNotBlank();
+        }
+
+        // A schema-less member must carry NO datasource even though co-hosting put its siblings' JPA
+        // starters on the shared classpath. Without the per-member auto-configuration excludes, Boot
+        // builds a DataSource it has no URL for and the context dies — the real deploy failure this
+        // test previously masked by handing every context a datasource.
+        for (int i = 0; i < booted.size(); i++) {
+            DomainMcpHost.Hosted hosted = DomainMcpHost.RESIDENT_HOT.get(i);
+            if (hosted.persistence() != DomainMcpHost.Persistence.SCHEMA_LESS) {
+                continue;
+            }
+            assertThat(booted.get(i).getBeanNamesForType(javax.sql.DataSource.class))
+                    .as("%s owns no schema, so co-hosting must not give it a DataSource", hosted.module())
+                    .isEmpty();
         }
     }
 }

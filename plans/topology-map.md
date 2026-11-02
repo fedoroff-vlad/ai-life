@@ -284,6 +284,70 @@ needs; rolled out per module as consolidation proceeds.
   wiring = **3l**), and corrected the process inventory 47 → **50 JVMs**. **Remaining cold unit:** Coach
   (parked #289).
 
+- **3n (in flight — per-module config location; replaces the `spring.config.name` skip):** slices 3b…3k
+  booted each co-hosted context with a unique, **non-existent** `spring.config.name` so the modules'
+  `application.yml` resources (all at `classpath:/application.yml`) could not collide. That solved the
+  collision by **discarding every module's own configuration** — which is fine for an IT that passes
+  properties explicitly, but makes the deployable `main` impossible: the yml is where each module's
+  `env → property` mapping lives (`MCP_CALDAV_PORT`, `MCP_CALDAV_DB_URL`, `SCHEDULER_URL`, the OCR/STT
+  engine picks …) **and** where `spring.ai.mcp.server.instructions` lives — the tool-surface prose the MCP
+  server hands its clients. Hand-wiring those ~40 properties into the launcher would copy a contract into
+  Java and guarantee drift (the IT already drops `instructions` silently).
+  **Mechanism (owner-chosen 2026-11-02), the slice-3d `AGENT.md` precedent applied to `application.yml`:**
+  each co-hosted module's pom copies its own `application.yml` to a **per-module classpath path**
+  (`config/<module>/application.yml`) alongside the default one — one source file, two classpath
+  locations, so a standalone `-exec.jar` still resolves `classpath:/application.yml` unchanged — and the
+  launcher boots each context with `spring.config.location=classpath:/config/<module>/`. Each context then
+  reads its **real** configuration: env substitution works as it always did and `instructions` survive. The
+  `spring.config.name` hack is removed, not built upon. Piloted here on `domain-mcp-host`; the same change
+  for `agent-host` + `platform-host` and the deployable `main`/Dockerfile/compose follow as separate slices.
+
+- **3o (in flight — the deployable host artifact):** the host gets a runnable jar (its pom repackages
+  with an explicit `mainClass`, since the launcher is a plain class that boots several contexts, not a
+  `@SpringBootApplication`) and a Dockerfile carrying the **union** of its members' native dependencies
+  (today only `mcp-media-processing`'s tesseract + ffmpeg; slice 3l adds `yt-dlp`).
+  **The first real deploy of it failed, and the failure is the slice's main lesson.** Three contexts came
+  up on their own ports and the fourth died with *"Failed to determine a suitable driver class"* — while
+  the IT was green. Cause: **co-hosting merges five classpaths into one**, so the schema-less capability
+  MCPs (`mcp-web`, `mcp-media-processing`) inherit their schema-bound siblings' JPA starters and Boot
+  auto-configures a `DataSource` they have no URL for. Standalone this cannot happen — they have no JPA
+  on their classpath at all. The IT could not see it because it handed the Testcontainers datasource to
+  **every** context, capability MCPs included.
+  Fixes: (i) `Hosted` now records each member's `Persistence` (`SCHEMA_BOUND` / `SCHEMA_LESS`) and a
+  schema-less member is booted with the JPA/DataSource auto-configurations excluded; (ii) the IT gives a
+  datasource only to schema-bound members, so it now reproduces deploy — verified by reverting the fix,
+  where it fails with that exact error; (iii) `boot` and `main` were collapsed onto one `launchArgs`
+  helper, because the IT passing while the deploy died is precisely what two separate wiring paths buy.
+  **Known limitation, not yet fixed:** the logging system initialises once per JVM, so all five contexts
+  log under the first member's `spring.application.name` (`[mcp-caldav]`). Harmless to behaviour,
+  actively misleading when reading a production log — it is why the deploy failure first looked like a
+  caldav fault. Needs a per-context logging decision before the compose cutover.
+  **Measured at deploy, 2026-11-02 (the number ADR-0006 item 3 asks for).** Host up with the five
+  stopped, `scripts/measure-footprint.sh` on the running stack:
+
+  | | JVM apps | processes |
+  |---|---|---|
+  | five separate JVMs (settled, 20 h up) | 2954 MB | 5 |
+  | one consolidated host | **828 MB** | 1 |
+  | whole stack's JVM-app tier | 10039 MB → **7920 MB** | 19 → 15 |
+
+  **−2119 MB from this one host — a 3.6× cut on its tier**, and better than this doc's own projection
+  (which assumed ~300 MB per JVM baseline; the real per-module cost once co-hosted is ~166 MB). Caveat:
+  the host had ~5 minutes of uptime against the five services' 20 hours, so its number will drift up with
+  use — `-Xmx2560m` caps where it can go. Snapshots: `logs/footprint-{baseline,3o-consolidated}-2026-11-02.json`.
+
+  **What that implies for the goal.** If Agent-hot (2787 MB / 6 JVMs) and Platform-hot (3844 MB / 7 JVMs)
+  collapse in the same proportion, the resident tier goes ~9.6 GB → ~2.7 GB and the whole container stack
+  ~12.0 GB → ~5.0 GB. So **Path B alone does not reach the 2–3 GB target** the owner is after — it gets
+  two thirds of the way. Path C (native) on the three resident hosts is what closes the rest, which is
+  exactly the B-then-C order this ADR recommends, now with a measured basis rather than an estimate.
+
+  **Compose cutover is deliberately NOT in this slice.** Twenty-odd agent `depends_on` edges and
+  `MCP_*_URL` values name the five services; the host preserves those URLs by taking their names as
+  **network aliases**, but switching over means re-pointing every edge, and a separate profile cannot
+  work (compose rejects a project whose active service depends on one outside the active profiles, which
+  is what `check-consistency.sh` check 13 guards). That is its own slice, gated on the number below.
+
 - Scenario: a co-hosted module is built → its main artifact is a plain classes jar (no `BOOT-INF`)
   and an `-exec` executable jar is attached alongside (not yet asserted — build-time packaging property, no runtime test; verified by the reactor build).
 - Scenario: the host boots the five resident Domain-MCP-hot contexts in one JVM → all five are live on
@@ -319,6 +383,32 @@ needs; rolled out per module as consolidation proceeds.
   `mcp-inventory` are both live on distinct ports, each context carrying only its own application bean, so
   the domain that shipped after the map was drawn is consolidated like every other (asserted by
   `InventoryHostFootprintIntegrationTest`).
+
+- Scenario: a co-hosted context boots under the per-module config location → it loads **its own**
+  module's `application.yml`, so `spring.application.name` is that module's and
+  `spring.ai.mcp.server.instructions` is non-empty (the tool-surface prose the `spring.config.name` skip
+  silently dropped) (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: the per-module yml copy the host reads declares that module's **production** port
+  (8090 · 8092 · 8095 · 8098 · 8097), so consolidation needs no port re-wiring and agents' `/internal/*`
+  URLs stay valid (asserted by `DomainMcpHostConfigLocationTest`). The co-residency IT overrides the port
+  to ephemeral so it cannot collide with a locally running stack or a sibling host IT under CI's `-T2`
+  (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: a co-hosted module is packaged → its `application.yml` is present at **both**
+  `classpath:/application.yml` (so the standalone `-exec.jar` is unaffected) and
+  `classpath:/config/<module>/application.yml` (so the host can point at it), from the one source file
+  (asserted by `DomainMcpHostConfigLocationTest`).
+- Scenario: a co-hosted module's pom loses the per-module resource block → the packaging test fails in CI
+  rather than the host silently falling back to a sibling's configuration at deploy (asserted by
+  `DomainMcpHostConfigLocationTest`).
+
+- Scenario: a schema-less member is co-hosted with schema-bound siblings → it carries **no**
+  `DataSource` bean, although their JPA starters are on the shared classpath (asserted by
+  `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: a schema-bound member is co-hosted → it still gets JPA and its own datasource from its own
+  yml (asserted by `DomainMcpHostFootprintIntegrationTest`).
+- Scenario: the host is packaged → its main artifact is an executable jar whose `Start-Class` is the
+  launcher, so one container runs all five contexts (not yet asserted — asserted by hand at deploy;
+  a packaging assertion needs the repackaged jar, which `mvn test` does not have).
 
 ## Boundaries (from ADR-0006)
 - Domain logic is never rewritten; domain-MCPs keep their schemas + contracts.
